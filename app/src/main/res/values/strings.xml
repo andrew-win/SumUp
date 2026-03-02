@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">SumUp</string>
+    <string name="nav_summary">Зведення</string>
+    <string name="nav_feed">Стрічка</string>
+    <string name="nav_sources">Джерела</string>
+    <string name="nav_settings">Налаштування</string>
+    <string name="content_help">Допомога</string>
 </resources>
