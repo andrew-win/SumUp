@@ -5,16 +5,20 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
+import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
-@Database(entities = [SourceGroup::class, Source::class], version = 1, exportSchema = false)
+@Database(
+    entities = [SourceGroup::class, Source::class, Article::class],
+    version = 2,
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sourceDao(): SourceDao
+    abstract fun articleDao(): ArticleDao
 
     companion object {
         @Volatile
@@ -27,14 +31,13 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "sumup_database"
                 )
-                    .addCallback(object : RoomDatabase.Callback() {
+                    .fallbackToDestructiveMigration()
+                    .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
-                            CoroutineScope(Dispatchers.IO).launch {
-                                INSTANCE?.sourceDao()?.insertGroup(
-                                    SourceGroup(name = "Без категорії", isDeletable = false)
-                                )
-                            }
+                            db.execSQL(
+                                "INSERT INTO source_groups (name, isEnabled, isDeletable) VALUES ('Без категорії', 1, 0)"
+                            )
                         }
                     })
                     .build()
