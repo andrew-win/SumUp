@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.data.local.AppDatabase
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.SourceGroup
+import com.andrewwin.sumup.data.repository.AiRepository
 import com.andrewwin.sumup.data.repository.ArticleRepository
 import com.andrewwin.sumup.data.repository.SourceRepository
 import kotlinx.coroutines.flow.*
@@ -23,6 +24,7 @@ enum class DateFilter(val label: String, val hours: Int?) {
 class FeedViewModel(application: Application) : AndroidViewModel(application) {
     private val articleRepository: ArticleRepository
     private val sourceRepository: SourceRepository
+    private val aiRepository: AiRepository
     
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -36,10 +38,17 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
+    private val _aiResult = MutableStateFlow<String?>(null)
+    val aiResult: StateFlow<String?> = _aiResult.asStateFlow()
+
+    private val _isAiLoading = MutableStateFlow(false)
+    val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
+
     init {
         val db = AppDatabase.getDatabase(application)
         articleRepository = ArticleRepository(db.articleDao(), db.sourceDao())
         sourceRepository = SourceRepository(db.sourceDao())
+        aiRepository = AiRepository(db.aiModelDao())
         refresh()
     }
 
@@ -106,5 +115,51 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
                 articleRepository.updateArticle(article.copy(isRead = true))
             }
         }
+    }
+
+    fun summarizeContent(content: String) {
+        viewModelScope.launch {
+            _isAiLoading.value = true
+            _aiResult.value = null
+            try {
+                _aiResult.value = aiRepository.summarize(content)
+            } catch (e: Exception) {
+                _aiResult.value = "Помилка ШІ: ${e.message}"
+            } finally {
+                _isAiLoading.value = false
+            }
+        }
+    }
+
+    fun askQuestion(content: String, question: String) {
+        viewModelScope.launch {
+            _isAiLoading.value = true
+            _aiResult.value = null
+            try {
+                _aiResult.value = aiRepository.askQuestion(content, question)
+            } catch (e: Exception) {
+                _aiResult.value = "Помилка ШІ: ${e.message}"
+            } finally {
+                _isAiLoading.value = false
+            }
+        }
+    }
+
+    fun summarizeFeed() {
+        val combinedContent = articles.value.joinToString("\n\n") { "${it.title}: ${it.content}" }
+        if (combinedContent.isNotBlank()) {
+            summarizeContent(combinedContent)
+        }
+    }
+
+    fun askFeed(question: String) {
+        val combinedContent = articles.value.joinToString("\n\n") { "${it.title}: ${it.content}" }
+        if (combinedContent.isNotBlank()) {
+            askQuestion(combinedContent, question)
+        }
+    }
+
+    fun clearAiResult() {
+        _aiResult.value = null
     }
 }

@@ -4,10 +4,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.data.local.entities.SourceGroup
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -35,9 +38,15 @@ fun FeedScreen(
     val groups by viewModel.groups.collectAsState()
     val selectedGroupId by viewModel.selectedGroupId.collectAsState()
     val dateFilter by viewModel.dateFilter.collectAsState()
+    val aiResult by viewModel.aiResult.collectAsState()
+    val isAiLoading by viewModel.isAiLoading.collectAsState()
 
     var showGroupMenu by remember { mutableStateOf(false) }
     var showDateMenu by remember { mutableStateOf(false) }
+    var articleForAi by remember { mutableStateOf<Article?>(null) }
+    var isFeedAiActive by remember { mutableStateOf(false) }
+    var userQuestion by remember { mutableStateOf("") }
+    
     val uriHandler = LocalUriHandler.current
 
     Scaffold(
@@ -50,6 +59,16 @@ fun FeedScreen(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { isFeedAiActive = true },
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Icon(Icons.Default.SmartToy, contentDescription = "ШІ Стрічки")
+            }
         }
     ) { innerPadding ->
         Column(
@@ -156,9 +175,81 @@ fun FeedScreen(
                         ArticleCard(
                             article = article,
                             onArticleClick = { viewModel.markAsRead(article) },
-                            onOpenSource = { uriHandler.openUri(article.url) }
+                            onOpenSource = { uriHandler.openUri(article.url) },
+                            onAiClick = { articleForAi = article }
                         )
                     }
+                }
+            }
+        }
+
+        if (articleForAi != null || isFeedAiActive) {
+            ModalBottomSheet(
+                onDismissRequest = { 
+                    articleForAi = null
+                    isFeedAiActive = false
+                    viewModel.clearAiResult()
+                    userQuestion = ""
+                }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                ) {
+                    Text(
+                        text = if (isFeedAiActive) "ШІ Стрічки" else (articleForAi?.title ?: ""),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    
+                    if (isAiLoading) {
+                        Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else if (aiResult != null) {
+                        Text(
+                            text = aiResult ?: "",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(Modifier.height(16.dp))
+                    }
+
+                    OutlinedTextField(
+                        value = userQuestion,
+                        onValueChange = { userQuestion = it },
+                        label = { Text("Запитайте щось...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = { 
+                                if (isFeedAiActive) {
+                                    viewModel.askFeed(userQuestion)
+                                } else {
+                                    articleForAi?.let { viewModel.askQuestion(it.content, userQuestion) }
+                                }
+                            }) {
+                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
+                            }
+                        }
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Button(
+                        onClick = { 
+                            if (isFeedAiActive) {
+                                viewModel.summarizeFeed()
+                            } else {
+                                articleForAi?.let { viewModel.summarizeContent(it.content) }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (isFeedAiActive) "Підсумувати стрічку" else "Зробити підсумок")
+                    }
+                    Spacer(Modifier.height(32.dp))
                 }
             }
         }
@@ -169,7 +260,8 @@ fun FeedScreen(
 fun ArticleCard(
     article: Article,
     onArticleClick: () -> Unit,
-    onOpenSource: () -> Unit
+    onOpenSource: () -> Unit,
+    onAiClick: () -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
     
@@ -213,11 +305,8 @@ fun ArticleCard(
                     IconButton(onClick = onOpenSource, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Default.MoreHoriz, contentDescription = "Відкрити джерело")
                     }
-                    IconButton(onClick = {}, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                    }
-                    IconButton(onClick = {}, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
+                    IconButton(onClick = onAiClick, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = "ШІ")
                     }
                 }
                 Text(

@@ -15,6 +15,15 @@ interface ArticleDao {
     """)
     fun getEnabledArticles(): Flow<List<Article>>
 
+    @Query("""
+        SELECT articles.* FROM articles 
+        INNER JOIN sources ON articles.sourceId = sources.id 
+        INNER JOIN source_groups ON sources.groupId = source_groups.id
+        WHERE sources.isEnabled = 1 AND source_groups.isEnabled = 1
+        ORDER BY articles.publishedAt DESC
+    """)
+    suspend fun getEnabledArticlesOnce(): List<Article>
+
     @Query("SELECT * FROM articles WHERE sourceId = :sourceId ORDER BY publishedAt DESC")
     fun getArticlesBySource(sourceId: Long): Flow<List<Article>>
 

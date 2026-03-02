@@ -12,9 +12,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.andrewwin.sumup.ui.screens.PlaceholderScreen
 import com.andrewwin.sumup.ui.screens.feed.FeedScreen
+import com.andrewwin.sumup.ui.screens.settings.SettingsScreen
 import com.andrewwin.sumup.ui.screens.sources.SourcesScreen
+import com.andrewwin.sumup.ui.screens.summary.SummaryScreen
 
 @Composable
 fun MainScreen() {
@@ -46,10 +47,10 @@ fun MainScreen() {
             navController = navController,
             startDestination = Screen.Summary.route
         ) {
-            composable(Screen.Summary.route) { PlaceholderScreen(stringResource(Screen.Summary.resourceId)) }
+            composable(Screen.Summary.route) { SummaryScreen() }
             composable(Screen.Feed.route) { FeedScreen() }
             composable(Screen.Sources.route) { SourcesScreen() }
-            composable(Screen.Settings.route) { PlaceholderScreen(stringResource(Screen.Settings.resourceId)) }
+            composable(Screen.Settings.route) { SettingsScreen() }
         }
     }
 }
