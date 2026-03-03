@@ -88,7 +88,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 scheduleWorker(hour, minute)
             } else {
                 workManager.cancelUniqueWork("scheduled_summary")
-                Log.d("SummarySettings", "Заплановане зведення скасовано")
             }
         }
     }
@@ -112,13 +111,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
 
         var initialDelay = dueDate.timeInMillis - currentDate.timeInMillis
-        if (initialDelay < 5000) { // Якщо менше 5 сек, додаємо 5 сек для надійності
+        if (initialDelay < 5000) {
             initialDelay = 5000
         }
 
         val targetDateStr = SimpleDateFormat("dd.MM HH:mm:ss", Locale.getDefault()).format(dueDate.time)
-        Log.d("SummarySettings", "Заплановано на $targetDateStr (затримка ${initialDelay / 1000} сек)")
-        
+
         val request = PeriodicWorkRequestBuilder<SummaryWorker>(24, TimeUnit.HOURS)
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
             .setBackoffCriteria(BackoffPolicy.LINEAR, 15, TimeUnit.MINUTES)

@@ -5,8 +5,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,7 +14,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.work.WorkInfo
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.Summary
 import java.text.SimpleDateFormat
@@ -29,8 +26,6 @@ fun SummaryScreen(
 ) {
     val summaries by viewModel.summaries.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
-    val isGenerating by viewModel.isGenerating.collectAsState()
-    val workInfos by viewModel.workInfo.collectAsState()
     
     val todaySummary = remember(summaries) {
         summaries.firstOrNull { isSameDay(it.createdAt, System.currentTimeMillis()) }
@@ -60,75 +55,19 @@ fun SummaryScreen(
         ) {
             item {
                 Text(
-                    text = "Зведення",
+                    text = stringResource(R.string.summary_today_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
             }
 
             item {
-                val workState = workInfos.firstOrNull()?.state?.name ?: "Немає в черзі"
-                val lastRun = if (userPreferences.lastWorkRunTimestamp > 0) {
-                    SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(userPreferences.lastWorkRunTimestamp))
-                } else "Ще не запускався"
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                val timeText = String.format(Locale.getDefault(), "%02d:%02d", userPreferences.scheduledHour, userPreferences.scheduledMinute)
-                                Text(
-                                    text = if (userPreferences.isScheduledSummaryEnabled) 
-                                        "Наступне о $timeText" 
-                                    else "Планування вимкнено",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Text(
-                                    text = "Статус системи: $workState • Старт: $lastRun",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                                )
-                            }
-                        }
-                        
-                        Spacer(Modifier.height(16.dp))
-                        
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = { viewModel.generateSummaryNow() },
-                                modifier = Modifier.weight(1f),
-                                enabled = !isGenerating,
-                                shape = MaterialTheme.shapes.medium
-                            ) {
-                                if (isGenerating) {
-                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                                } else {
-                                    Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Згенерувати")
-                                }
-                            }
-                            
-                            OutlinedButton(
-                                onClick = { viewModel.testWorkerNow() },
-                                modifier = Modifier.weight(1f),
-                                shape = MaterialTheme.shapes.medium
-                            ) {
-                                Icon(Icons.Default.BugReport, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Тест фону")
-                            }
-                        }
-                    }
-                }
+                StatusCard(
+                    isEnabled = userPreferences.isScheduledSummaryEnabled,
+                    hour = userPreferences.scheduledHour,
+                    minute = userPreferences.scheduledMinute,
+                    hasTodaySummary = todaySummary != null
+                )
             }
 
             if (todaySummary != null) {
@@ -144,7 +83,7 @@ fun SummaryScreen(
                         )
                     ) {
                         Text(
-                            text = "Сьогодні зведення ще не було. Очікуємо на виконання задачі...",
+                            text = stringResource(R.string.summary_not_ready),
                             modifier = Modifier.padding(24.dp),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -157,7 +96,7 @@ fun SummaryScreen(
                 item {
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        text = "Згенеровано раніше:",
+                        text = stringResource(R.string.summary_history_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -171,9 +110,47 @@ fun SummaryScreen(
 }
 
 @Composable
+fun StatusCard(isEnabled: Boolean, hour: Int, minute: Int, hasTodaySummary: Boolean) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(12.dp))
+            Column {
+                val timeText = String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
+                Text(
+                    text = if (isEnabled) 
+                        stringResource(R.string.summary_next_at, timeText)
+                    else 
+                        stringResource(R.string.summary_scheduling_disabled),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Text(
+                    text = if (hasTodaySummary) 
+                        stringResource(R.string.summary_status_ready)
+                    else 
+                        stringResource(R.string.summary_status_waiting),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun SummaryCard(summary: Summary) {
     val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
-    val isError = summary.content.startsWith("Помилка") || summary.content.startsWith("Немає")
+    val isError = summary.content.startsWith(stringResource(R.string.error_prefix)) || 
+                  summary.content.startsWith(stringResource(R.string.no_articles_prefix))
     
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -198,7 +175,7 @@ fun SummaryCard(summary: Summary) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = if (isError) "Системне сповіщення" else "Хмарна сумаризація",
+                text = if (isError) stringResource(R.string.summary_system_notice) else stringResource(R.string.summary_cloud_type),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                 modifier = Modifier.align(Alignment.End)

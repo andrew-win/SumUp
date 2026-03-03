@@ -9,7 +9,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.MoreHoriz
@@ -61,7 +60,7 @@ fun FeedScreen(
     val coroutineScope = rememberCoroutineScope()
     
     val showBackToTop by remember {
-        derivedStateOf { listState.firstVisibleItemIndex > 3 }
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
     }
 
     Scaffold(
@@ -94,7 +93,7 @@ fun FeedScreen(
                                     onSearch = {},
                                     expanded = false,
                                     onExpandedChange = {},
-                                    placeholder = { Text("Шукайте новини тут...") },
+                                    placeholder = { Text(stringResource(R.string.search_placeholder)) },
                                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                                     trailingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null) }
                                 )
@@ -113,7 +112,7 @@ fun FeedScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("Фільтр:", style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.filter_label), style = MaterialTheme.typography.bodyMedium)
                             
                             Box {
                                 FilterChip(
@@ -143,7 +142,7 @@ fun FeedScreen(
                                     selected = selectedGroupId != null,
                                     onClick = { showGroupMenu = true },
                                     label = { 
-                                        Text(groups.find { it.id == selectedGroupId }?.name ?: "Група") 
+                                        Text(groups.find { it.id == selectedGroupId }?.name ?: stringResource(R.string.filter_group)) 
                                     },
                                     trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) }
                                 )
@@ -152,7 +151,7 @@ fun FeedScreen(
                                     onDismissRequest = { showGroupMenu = false }
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("Всі групи") },
+                                        text = { Text(stringResource(R.string.all_groups)) },
                                         onClick = {
                                             viewModel.selectGroup(null)
                                             showGroupMenu = false
@@ -189,7 +188,7 @@ fun FeedScreen(
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.padding(bottom = 16.dp)
                     ) {
-                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Вгору")
+                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.back_to_top))
                     }
                 }
                 
@@ -199,7 +198,7 @@ fun FeedScreen(
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.padding(bottom = 16.dp)
                 ) {
-                    Icon(Icons.Default.SmartToy, contentDescription = "ШІ Стрічки")
+                    Icon(Icons.Default.SmartToy, contentDescription = stringResource(R.string.ai_feed_title))
                 }
             }
         }
@@ -243,7 +242,7 @@ fun FeedScreen(
                         .navigationBarsPadding()
                 ) {
                     Text(
-                        text = if (isFeedAiActive) "ШІ Стрічки" else (articleForAi?.title ?: ""),
+                        text = if (isFeedAiActive) stringResource(R.string.ai_feed_title) else (articleForAi?.title ?: ""),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -252,7 +251,7 @@ fun FeedScreen(
                     Box(
                         modifier = Modifier
                             .weight(1f, fill = false)
-                            .maxHeight(300.dp)
+                            .heightIn(max = 300.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
                         if (isAiLoading) {
@@ -272,7 +271,7 @@ fun FeedScreen(
                         OutlinedTextField(
                             value = userQuestion,
                             onValueChange = { userQuestion = it },
-                            label = { Text("Запитайте щось...") },
+                            label = { Text(stringResource(R.string.ai_ask_placeholder)) },
                             modifier = Modifier.fillMaxWidth(),
                             trailingIcon = {
                                 IconButton(onClick = { 
@@ -299,7 +298,7 @@ fun FeedScreen(
                         ) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text(if (isFeedAiActive) "Підсумувати стрічку" else "Зробити підсумок")
+                            Text(if (isFeedAiActive) stringResource(R.string.ai_summarize_feed) else stringResource(R.string.ai_summarize_article))
                         }
                     }
                     Spacer(Modifier.height(32.dp))
@@ -308,10 +307,6 @@ fun FeedScreen(
         }
     }
 }
-
-private fun Modifier.maxHeight(maxHeight: androidx.compose.ui.unit.Dp): Modifier = this.then(
-    Modifier.sizeIn(maxHeight = maxHeight)
-)
 
 @Composable
 fun ArticleCard(
@@ -356,14 +351,14 @@ fun ArticleCard(
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     IconButton(onClick = onOpenSource, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.MoreHoriz, contentDescription = "Відкрити джерело")
+                        Icon(Icons.Default.MoreHoriz, contentDescription = null)
                     }
                     IconButton(onClick = onAiClick, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = "ШІ")
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null)
                     }
                 }
                 Text(
-                    text = "Прямий текст",
+                    text = stringResource(R.string.direct_text),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

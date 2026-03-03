@@ -19,6 +19,7 @@ import com.andrewwin.sumup.ui.screens.summary.SummaryScreen
 
 @Composable
 fun MainScreen() {
+
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -29,7 +30,9 @@ fun MainScreen() {
                 item(
                     icon = { Icon(screen.icon, contentDescription = null) },
                     label = { Text(stringResource(screen.resourceId)) },
-                    selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                    selected = currentDestination
+                        ?.hierarchy
+                        ?.any { it.route == screen.route } == true,
                     onClick = {
                         navController.navigate(screen.route) {
                             popUpTo(navController.graph.findStartDestination().id) {
@@ -43,14 +46,27 @@ fun MainScreen() {
             }
         }
     ) {
+
         NavHost(
             navController = navController,
-            startDestination = Screen.Summary.route
+            startDestination = Screen.Summary.route,
         ) {
-            composable(Screen.Summary.route) { SummaryScreen() }
-            composable(Screen.Feed.route) { FeedScreen() }
-            composable(Screen.Sources.route) { SourcesScreen() }
-            composable(Screen.Settings.route) { SettingsScreen() }
+
+            composable(Screen.Summary.route) {
+                SummaryScreen()
+            }
+
+            composable(Screen.Feed.route) {
+                FeedScreen()
+            }
+
+            composable(Screen.Sources.route) {
+                SourcesScreen()
+            }
+
+            composable(Screen.Settings.route) {
+                SettingsScreen()
+            }
         }
     }
 }
