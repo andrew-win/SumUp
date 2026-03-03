@@ -62,47 +62,6 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item {
-                SettingsSectionTitle(icon = Icons.Default.Person, title = stringResource(R.string.settings_profile))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(64.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primaryContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                modifier = Modifier.size(40.dp),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                        Spacer(Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(stringResource(R.string.settings_user_name), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text(stringResource(R.string.settings_user_email), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.height(8.dp))
-                            Button(
-                                onClick = {},
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = MaterialTheme.shapes.small
-                            ) {
-                                Text(stringResource(R.string.settings_login_logout))
-                            }
-                        }
-                    }
-                }
-            }
-
-            item {
                 Text(stringResource(R.string.settings_ai_models_label), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
 
