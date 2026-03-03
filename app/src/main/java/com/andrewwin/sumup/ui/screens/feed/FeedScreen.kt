@@ -26,10 +26,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.data.local.entities.SourceGroup
+import com.andrewwin.sumup.domain.ArticleCluster
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -39,7 +40,7 @@ import java.util.*
 fun FeedScreen(
     viewModel: FeedViewModel = viewModel()
 ) {
-    val articles by viewModel.articles.collectAsState()
+    val articleClusters by viewModel.articleClusters.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val groups by viewModel.groups.collectAsState()
@@ -216,11 +217,11 @@ fun FeedScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(articles, key = { it.id }) { article ->
-                    ArticleCard(
-                        article = article,
-                        onOpenSource = { uriHandler.openUri(article.url) },
-                        onAiClick = { articleForAi = article }
+                items(articleClusters, key = { it.representative.id }) { cluster ->
+                    ArticleClusterCard(
+                        cluster = cluster,
+                        onOpenSource = { uriHandler.openUri(it.url) },
+                        onAiClick = { articleForAi = it }
                     )
                 }
             }
@@ -309,59 +310,146 @@ fun FeedScreen(
 }
 
 @Composable
-fun ArticleCard(
-    article: Article,
-    onOpenSource: () -> Unit,
-    onAiClick: () -> Unit
+fun ArticleClusterCard(
+    cluster: ArticleCluster,
+    onOpenSource: (Article) -> Unit,
+    onAiClick: (Article) -> Unit
 ) {
-    val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
-    
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column {
+            ArticleItem(
+                article = cluster.representative,
+                onOpenSource = { onOpenSource(cluster.representative) },
+                onAiClick = { onAiClick(cluster.representative) }
+            )
+
+            if (cluster.duplicates.isNotEmpty()) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+                
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(
+                        text = stringResource(R.string.feed_similar_news, cluster.duplicates.size),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    cluster.duplicates.forEach { (article, score) ->
+                        DuplicateItem(
+                            article = article,
+                            score = score,
+                            onOpenSource = { onOpenSource(article) },
+                            onAiClick = { onAiClick(article) }
+                        )
+                        if (article != cluster.duplicates.last().first) {
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ArticleItem(
+    article: Article,
+    onOpenSource: () -> Unit,
+    onAiClick: () -> Unit
+) {
+    val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
+    
+    Column(modifier = Modifier.padding(16.dp)) {
+        Text(
+            text = dateFormat.format(Date(article.publishedAt)),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = article.title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = article.content,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 5,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(16.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                IconButton(onClick = onOpenSource, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.MoreHoriz, contentDescription = null)
+                }
+                IconButton(onClick = onAiClick, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                }
+            }
             Text(
-                text = dateFormat.format(Date(article.publishedAt)),
+                text = stringResource(R.string.direct_text),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+fun DuplicateItem(
+    article: Article,
+    score: Float,
+    onOpenSource: () -> Unit,
+    onAiClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            shape = MaterialTheme.shapes.extraSmall
+        ) {
+            Text(
+                text = stringResource(R.string.feed_similarity_score, (score * 100).toInt()),
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                fontSize = 10.sp
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = article.title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = article.content,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 5,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(16.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(onClick = onOpenSource, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.MoreHoriz, contentDescription = null)
-                    }
-                    IconButton(onClick = onAiClick, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                    }
-                }
-                Text(
-                    text = stringResource(R.string.direct_text),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            IconButton(onClick = onOpenSource, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.MoreHoriz, contentDescription = null, modifier = Modifier.size(14.dp))
+            }
+            IconButton(onClick = onAiClick, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
             }
         }
     }

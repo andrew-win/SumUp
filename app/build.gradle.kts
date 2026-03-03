@@ -60,6 +60,9 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.androidx.work.runtime)
 
+    implementation(libs.onnxruntime.android)
+    implementation(libs.onnxruntime.extensions.android)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

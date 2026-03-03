@@ -66,4 +66,19 @@
     <string name="no_articles_prefix">Немає</string>
     <string name="ai_error_prefix">Помилка ШІ: %s</string>
     <string name="ai_generic_error">Помилка при генерації</string>
+    <string name="settings_deduplication">Дедуплікація</string>
+    <string name="settings_enable_deduplication">Приховувати схожі новини</string>
+    <string name="settings_deduplication_threshold">Поріг схожості: %s</string>
+    <string name="settings_model_status">Статус моделі: %s</string>
+    <string name="model_status_idle">Не завантажено</string>
+    <string name="model_status_downloading">Завантаження: %d%%</string>
+    <string name="model_status_loading">Ініціалізація…</string>
+    <string name="model_status_ready">Готова</string>
+    <string name="model_status_error">Помилка: %s</string>
+    <string name="settings_download_model">Завантажити модель (~250MB)</string>
+    <string name="settings_delete_model">Видалити модель</string>
+    <string name="settings_profile">Профіль</string>
+    <string name="settings_time_format">%02d:%02d</string>
+    <string name="feed_similar_news">Схожі новини (%d)</string>
+    <string name="feed_similarity_score">%d%% схожості</string>
 </resources>

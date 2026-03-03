@@ -6,9 +6,13 @@ import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.data.local.AppDatabase
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.SourceGroup
+import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.repository.AiRepository
 import com.andrewwin.sumup.data.repository.ArticleRepository
 import com.andrewwin.sumup.data.repository.SourceRepository
+import com.andrewwin.sumup.domain.ArticleCluster
+import com.andrewwin.sumup.domain.DeduplicationService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -25,6 +29,8 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     private val articleRepository: ArticleRepository
     private val sourceRepository: SourceRepository
     private val aiRepository: AiRepository
+    private val deduplicationService = DeduplicationService(application)
+    private val db = AppDatabase.getDatabase(application)
     
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -44,8 +50,11 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     private val _isAiLoading = MutableStateFlow(false)
     val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
 
+    val userPreferences: StateFlow<UserPreferences> = db.userPreferencesDao().getUserPreferences()
+        .map { it ?: UserPreferences() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
+
     init {
-        val db = AppDatabase.getDatabase(application)
         articleRepository = ArticleRepository(db.articleDao(), db.sourceDao())
         sourceRepository = SourceRepository(db.sourceDao())
         aiRepository = AiRepository(db.aiModelDao())
@@ -56,33 +65,42 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         .map { list -> list.map { it.group }.filter { it.isEnabled } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val articles: StateFlow<List<Article>> = combine(
+    val articleClusters: StateFlow<List<ArticleCluster>> = combine(
         articleRepository.enabledArticles,
         _searchQuery,
         _selectedGroupId,
-        _dateFilter
-    ) { articles, query, groupId, dateFilter ->
-        var result = articles
+        _dateFilter,
+        userPreferences
+    ) { articles, query, groupId, dateFilter, prefs ->
+        var filteredArticles = articles
         
         if (groupId != null) {
-            val db = AppDatabase.getDatabase(getApplication())
             val sourceIds = db.sourceDao().getSourcesByGroupId(groupId).first().map { it.id }
-            result = result.filter { it.sourceId in sourceIds }
+            filteredArticles = filteredArticles.filter { it.sourceId in sourceIds }
         }
 
         dateFilter.hours?.let { hours ->
             val threshold = System.currentTimeMillis() - (hours * 60 * 60 * 1000L)
-            result = result.filter { it.publishedAt >= threshold }
+            filteredArticles = filteredArticles.filter { it.publishedAt >= threshold }
         }
 
         if (query.isNotBlank()) {
-            result = result.filter { 
+            filteredArticles = filteredArticles.filter { 
                 it.title.contains(query, ignoreCase = true) || 
                 it.content.contains(query, ignoreCase = true) 
             }
         }
 
-        result
+        if (prefs.isDeduplicationEnabled && prefs.modelPath != null) {
+            if (deduplicationService.initialize(prefs.modelPath)) {
+                val clusters = deduplicationService.clusterArticles(filteredArticles, prefs.deduplicationThreshold)
+                clusters.filter { it.duplicates.isNotEmpty() }
+            } else {
+                emptyList()
+            }
+        } else {
+            filteredArticles.map { ArticleCluster(it, emptyList()) }
+        }
     }.stateIn(
         scope = viewModelScope, 
         started = SharingStarted.WhileSubscribed(5000), 
@@ -138,14 +156,14 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun summarizeFeed() {
-        val combinedContent = articles.value.joinToString("\n\n") { "${it.title}: ${it.content}" }
+        val combinedContent = articleClusters.value.joinToString("\n\n") { "${it.representative.title}: ${it.representative.content}" }
         if (combinedContent.isNotBlank()) {
             summarizeContent(combinedContent)
         }
     }
 
     fun askFeed(question: String) {
-        val combinedContent = articles.value.joinToString("\n\n") { "${it.title}: ${it.content}" }
+        val combinedContent = articleClusters.value.joinToString("\n\n") { "${it.representative.title}: ${it.representative.content}" }
         if (combinedContent.isNotBlank()) {
             askQuestion(combinedContent, question)
         }
@@ -153,5 +171,10 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearAiResult() {
         _aiResult.value = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        deduplicationService.close()
     }
 }

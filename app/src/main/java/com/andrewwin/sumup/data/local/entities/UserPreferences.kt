@@ -9,5 +9,8 @@ data class UserPreferences(
     val isScheduledSummaryEnabled: Boolean = false,
     val scheduledHour: Int = 8,
     val scheduledMinute: Int = 0,
-    val lastWorkRunTimestamp: Long = 0
+    val lastWorkRunTimestamp: Long = 0,
+    val isDeduplicationEnabled: Boolean = false,
+    val deduplicationThreshold: Float = 0.85f,
+    val modelPath: String? = null
 )
