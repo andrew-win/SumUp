@@ -36,7 +36,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val prefsDao = db.userPreferencesDao()
     private val okHttpClient = OkHttpClient()
 
-    private val MODEL_URL = "https://huggingface.co/vlad-m-dev/distiluse-base-multilingual-v2-merged-onnx/resolve/main/combined_tokenizer_embedded_model.onnx?download=true"
+    private val MODEL_URL = "https://huggingface.co/onnx-community/distiluse-base-multilingual-v2-merged-onnx/resolve/main/combined_tokenizer_embedded_model.onnx?download=true"
     private val MODEL_FILE_NAME = "dedup_model.onnx"
 
     val aiConfigs: StateFlow<List<AiModelConfig>> = aiRepository.allConfigs
@@ -127,6 +127,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val current = userPreferences.value
             prefsDao.insertUserPreferences(current.copy(deduplicationThreshold = threshold))
+        }
+    }
+
+    fun updateMinMentions(min: Int) {
+        viewModelScope.launch {
+            val current = userPreferences.value
+            prefsDao.insertUserPreferences(current.copy(minMentions = min))
         }
     }
 

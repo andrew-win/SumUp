@@ -69,6 +69,7 @@
     <string name="settings_deduplication">Дедуплікація</string>
     <string name="settings_enable_deduplication">Приховувати схожі новини</string>
     <string name="settings_deduplication_threshold">Поріг схожості: %s</string>
+    <string name="settings_min_mentions">Мінімальна кількість згадок: %d</string>
     <string name="settings_model_status">Статус моделі: %s</string>
     <string name="model_status_idle">Не завантажено</string>
     <string name="model_status_downloading">Завантаження: %d%%</string>

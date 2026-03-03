@@ -94,7 +94,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         if (prefs.isDeduplicationEnabled && prefs.modelPath != null) {
             if (deduplicationService.initialize(prefs.modelPath)) {
                 val clusters = deduplicationService.clusterArticles(filteredArticles, prefs.deduplicationThreshold)
-                clusters.filter { it.duplicates.isNotEmpty() }
+                clusters.filter { it.duplicates.size + 1 >= prefs.minMentions }
             } else {
                 emptyList()
             }

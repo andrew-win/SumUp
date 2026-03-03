@@ -12,5 +12,6 @@ data class UserPreferences(
     val lastWorkRunTimestamp: Long = 0,
     val isDeduplicationEnabled: Boolean = false,
     val deduplicationThreshold: Float = 0.85f,
+    val minMentions: Int = 2,
     val modelPath: String? = null
 )

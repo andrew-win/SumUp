@@ -163,6 +163,16 @@ fun SettingsScreen(
                         )
 
                         Spacer(Modifier.height(16.dp))
+                        
+                        Text(stringResource(R.string.settings_min_mentions, userPreferences.minMentions))
+                        Slider(
+                            value = userPreferences.minMentions.toFloat(),
+                            onValueChange = { viewModel.updateMinMentions(it.toInt()) },
+                            valueRange = 1f..5f,
+                            steps = 3
+                        )
+
+                        Spacer(Modifier.height(16.dp))
 
                         val statusText = when (val s = downloadState) {
                             is ModelDownloadState.Idle -> stringResource(R.string.model_status_idle)
