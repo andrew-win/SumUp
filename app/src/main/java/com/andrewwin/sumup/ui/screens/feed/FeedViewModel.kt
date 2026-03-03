@@ -109,14 +109,6 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         _dateFilter.value = filter
     }
 
-    fun markAsRead(article: Article) {
-        if (!article.isRead) {
-            viewModelScope.launch {
-                articleRepository.updateArticle(article.copy(isRead = true))
-            }
-        }
-    }
-
     fun summarizeContent(content: String) {
         viewModelScope.launch {
             _isAiLoading.value = true
