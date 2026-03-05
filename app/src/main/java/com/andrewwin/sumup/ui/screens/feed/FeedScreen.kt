@@ -73,7 +73,13 @@ fun FeedScreen(
             ) {
                 Column {
                     TopAppBar(
-                        title = { Text(stringResource(R.string.nav_feed)) },
+                        title = { 
+                            Text(
+                                stringResource(R.string.nav_feed),
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.ExtraBold
+                            ) 
+                        },
                         scrollBehavior = scrollBehavior,
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = Color.Transparent,
@@ -84,7 +90,7 @@ fun FeedScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp)
+                            .padding(bottom = 12.dp)
                     ) {
                         SearchBar(
                             inputField = {
@@ -103,24 +109,30 @@ fun FeedScreen(
                             onExpandedChange = {},
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
+                                .padding(horizontal = 16.dp),
+                            shape = MaterialTheme.shapes.extraLarge
                         ) {}
 
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(stringResource(R.string.filter_label), style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                stringResource(R.string.filter_label), 
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                             
                             Box {
                                 FilterChip(
                                     selected = dateFilter != DateFilter.ALL,
                                     onClick = { showDateMenu = true },
-                                    label = { Text(dateFilter.label) },
-                                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) }
+                                    label = { Text(stringResource(dateFilter.labelRes)) },
+                                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                                    shape = MaterialTheme.shapes.large
                                 )
                                 DropdownMenu(
                                     expanded = showDateMenu,
@@ -128,7 +140,7 @@ fun FeedScreen(
                                 ) {
                                     DateFilter.entries.forEach { filter ->
                                         DropdownMenuItem(
-                                            text = { Text(filter.label) },
+                                            text = { Text(stringResource(filter.labelRes)) },
                                             onClick = {
                                                 viewModel.setDateFilter(filter)
                                                 showDateMenu = false
@@ -145,7 +157,8 @@ fun FeedScreen(
                                     label = { 
                                         Text(groups.find { it.id == selectedGroupId }?.name ?: stringResource(R.string.filter_group)) 
                                     },
-                                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) }
+                                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                                    shape = MaterialTheme.shapes.large
                                 )
                                 DropdownMenu(
                                     expanded = showGroupMenu,
@@ -187,20 +200,22 @@ fun FeedScreen(
                         },
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.padding(bottom = 16.dp)
+                        modifier = Modifier.padding(bottom = 16.dp),
+                        shape = MaterialTheme.shapes.large
                     ) {
                         Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.back_to_top))
                     }
                 }
                 
-                FloatingActionButton(
+                ExtendedFloatingActionButton(
                     onClick = { isFeedAiActive = true },
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                ) {
-                    Icon(Icons.Default.SmartToy, contentDescription = stringResource(R.string.ai_feed_title))
-                }
+                    modifier = Modifier.padding(bottom = 16.dp),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    icon = { Icon(Icons.Default.SmartToy, contentDescription = null) },
+                    text = { Text(stringResource(R.string.ai_feed_title)) }
+                )
             }
         }
     ) { innerPadding ->
@@ -215,7 +230,7 @@ fun FeedScreen(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 items(articleClusters, key = { it.representative.id }) { cluster ->
                     ArticleClusterCard(
@@ -234,46 +249,49 @@ fun FeedScreen(
                     isFeedAiActive = false
                     viewModel.clearAiResult()
                     userQuestion = ""
-                }
+                },
+                shape = MaterialTheme.shapes.extraLarge
             ) {
                 Column(
                     modifier = Modifier
-                        .padding(horizontal = 16.dp)
+                        .padding(horizontal = 24.dp)
                         .fillMaxWidth()
                         .navigationBarsPadding()
                 ) {
                     Text(
                         text = if (isFeedAiActive) stringResource(R.string.ai_feed_title) else (articleForAi?.title ?: ""),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(24.dp))
                     
                     Box(
                         modifier = Modifier
                             .weight(1f, fill = false)
-                            .heightIn(max = 300.dp)
+                            .heightIn(max = 400.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
                         if (isAiLoading) {
-                            Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
+                            Box(Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
                             }
                         } else if (aiResult != null) {
                             Text(
                                 text = aiResult ?: "",
-                                style = MaterialTheme.typography.bodyMedium
+                                style = MaterialTheme.typography.bodyLarge,
+                                lineHeight = 28.sp
                             )
                         }
                     }
 
                     if (aiResult != null || !isAiLoading) {
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(24.dp))
                         OutlinedTextField(
                             value = userQuestion,
                             onValueChange = { userQuestion = it },
                             label = { Text(stringResource(R.string.ai_ask_placeholder)) },
                             modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large,
                             trailingIcon = {
                                 IconButton(onClick = { 
                                     if (isFeedAiActive) {
@@ -295,14 +313,20 @@ fun FeedScreen(
                                     articleForAi?.let { viewModel.summarizeContent(it.content) }
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large,
+                            contentPadding = PaddingValues(16.dp)
                         ) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(if (isFeedAiActive) stringResource(R.string.ai_summarize_feed) else stringResource(R.string.ai_summarize_article))
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                if (isFeedAiActive) stringResource(R.string.ai_summarize_feed) 
+                                else stringResource(R.string.ai_summarize_article),
+                                style = MaterialTheme.typography.labelLarge
+                            )
                         }
                     }
-                    Spacer(Modifier.height(32.dp))
+                    Spacer(Modifier.height(48.dp))
                 }
             }
         }
@@ -317,9 +341,11 @@ fun ArticleClusterCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        )
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column {
             ArticleItem(
@@ -330,18 +356,24 @@ fun ArticleClusterCard(
 
             if (cluster.duplicates.isNotEmpty()) {
                 HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                 )
                 
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text(
-                        text = stringResource(R.string.feed_similar_news, cluster.duplicates.size),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Text(
+                            text = stringResource(R.string.feed_similar_news, cluster.duplicates.size),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
                     
                     cluster.duplicates.forEach { (article, score) ->
                         DuplicateItem(
@@ -351,7 +383,7 @@ fun ArticleClusterCard(
                             onAiClick = { onAiClick(article) }
                         )
                         if (article != cluster.duplicates.last().first) {
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(12.dp))
                         }
                     }
                 }
@@ -368,46 +400,63 @@ fun ArticleItem(
 ) {
     val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
     
-    Column(modifier = Modifier.padding(16.dp)) {
+    Column(modifier = Modifier.padding(24.dp)) {
         Text(
             text = dateFormat.format(Date(article.publishedAt)),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
         Text(
             text = article.title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+            lineHeight = 28.sp
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
         Text(
             text = article.content,
             style = MaterialTheme.typography.bodyMedium,
-            maxLines = 5,
-            overflow = TextOverflow.Ellipsis
+            maxLines = 4,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            lineHeight = 22.sp
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(24.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                IconButton(onClick = onOpenSource, modifier = Modifier.size(32.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                FilledTonalIconButton(
+                    onClick = onOpenSource,
+                    modifier = Modifier.size(40.dp),
+                    shape = MaterialTheme.shapes.medium
+                ) {
                     Icon(Icons.Default.MoreHoriz, contentDescription = null)
                 }
-                IconButton(onClick = onAiClick, modifier = Modifier.size(32.dp)) {
+                FilledTonalIconButton(
+                    onClick = onAiClick,
+                    modifier = Modifier.size(40.dp),
+                    shape = MaterialTheme.shapes.medium
+                ) {
                     Icon(Icons.Default.AutoAwesome, contentDescription = null)
                 }
             }
-            Text(
-                text = stringResource(R.string.direct_text),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text(
+                    text = stringResource(R.string.direct_text),
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
         }
     }
 }
@@ -421,35 +470,29 @@ fun DuplicateItem(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Surface(
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            shape = MaterialTheme.shapes.extraSmall
-        ) {
-            Text(
-                text = stringResource(R.string.feed_similarity_score, (score * 100).toInt()),
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                fontSize = 10.sp
-            )
-        }
-        Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = article.title,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+            Text(
+                text = stringResource(R.string.feed_similarity_score, (score * 100).toInt()),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.secondary
+            )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            IconButton(onClick = onOpenSource, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.MoreHoriz, contentDescription = null, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            IconButton(onClick = onOpenSource, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.MoreHoriz, contentDescription = null, modifier = Modifier.size(18.dp))
             }
-            IconButton(onClick = onAiClick, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
+            IconButton(onClick = onAiClick, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
             }
         }
     }

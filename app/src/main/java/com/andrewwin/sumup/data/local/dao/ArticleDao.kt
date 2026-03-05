@@ -12,6 +12,7 @@ interface ArticleDao {
         INNER JOIN source_groups ON sources.groupId = source_groups.id
         WHERE sources.isEnabled = 1 AND source_groups.isEnabled = 1
         ORDER BY articles.publishedAt DESC
+        LIMIT 200
     """)
     fun getEnabledArticles(): Flow<List<Article>>
 
@@ -21,6 +22,7 @@ interface ArticleDao {
         INNER JOIN source_groups ON sources.groupId = source_groups.id
         WHERE sources.isEnabled = 1 AND source_groups.isEnabled = 1
         ORDER BY articles.publishedAt DESC
+        LIMIT 200
     """)
     suspend fun getEnabledArticlesOnce(): List<Article>
 

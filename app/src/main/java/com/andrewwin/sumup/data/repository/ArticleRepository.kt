@@ -31,6 +31,8 @@ class ArticleRepository(
                 }
             }
         }
+        val oneWeekAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L)
+        articleDao.deleteOldArticles(oneWeekAgo)
     }
 
     private suspend fun fetchRssArticles(sourceId: Long, url: String) {
