@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.data.remote
 
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.domain.TextCleaner
 import org.jsoup.Jsoup
 import java.text.SimpleDateFormat
 import java.util.*
@@ -18,7 +19,7 @@ class TelegramParser {
             val dateElement = element.selectFirst("time")
             val linkElement = element.selectFirst(".tgme_widget_message_date")
 
-            val fullText = textElement.wholeText().trim()
+            val fullText = TextCleaner.clean(textElement.wholeText())
             if (fullText.isEmpty()) return@forEach
 
             val lines = fullText.split("\n").filter { it.isNotBlank() }

@@ -8,6 +8,7 @@ import androidx.work.*
 import com.andrewwin.sumup.data.local.AppDatabase
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.AiProvider
+import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.repository.AiRepository
 import com.andrewwin.sumup.worker.SummaryWorker
@@ -32,8 +33,8 @@ sealed class ModelDownloadState {
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
-    private val aiRepository = AiRepository(db.aiModelDao())
     private val prefsDao = db.userPreferencesDao()
+    private val aiRepository = AiRepository(db.aiModelDao(), prefsDao)
     private val okHttpClient = OkHttpClient()
 
     private val MODEL_URL = "https://huggingface.co/onnx-community/distiluse-base-multilingual-v2-merged-onnx/resolve/main/combined_tokenizer_embedded_model.onnx?download=true"
@@ -114,6 +115,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private suspend fun updateDeduplicationModelPath(path: String?) {
         val current = userPreferences.value
         prefsDao.insertUserPreferences(current.copy(modelPath = path))
+    }
+
+    fun updateAiStrategy(strategy: AiStrategy) {
+        viewModelScope.launch {
+            val current = userPreferences.value
+            prefsDao.insertUserPreferences(current.copy(aiStrategy = strategy))
+        }
     }
 
     fun updateDeduplicationEnabled(enabled: Boolean) {

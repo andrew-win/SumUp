@@ -1,0 +1,69 @@
+package com.andrewwin.sumup.domain
+
+import kotlin.math.sqrt
+
+object ExtractiveSummarizer {
+
+    fun summarize(text: String, n: Int = 3): List<String> {
+        val cleaned = text
+            .replace(Regex("Play Video|\\(.*?\\)|\".*?\""), "")
+            .replace("–", ".")
+            .replace(Regex("\\s+"), " ")
+
+        val sentences = cleaned
+            .split(Regex("(?<=[.!?])\\s+"))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+
+        if (sentences.isEmpty()) return emptyList()
+
+        val scored = sentences.map { it to it.length }
+        val first = sentences.first()
+
+        val topN = scored
+            .drop(1)
+            .sortedByDescending { it.second }
+            .take(n)
+            .map { it.first }
+
+        return listOf(first) + topN
+    }
+
+    fun getCentralHeadlines(headlines: List<String>, count: Int = 3): List<String> {
+        if (headlines.isEmpty()) return emptyList()
+        if (headlines.size <= count) return headlines
+
+        val allWords = headlines.flatMap { it.lowercase().split(Regex("\\s+")) }.toSet()
+        val vectors = headlines.map { h ->
+            val words = h.lowercase().split(Regex("\\s+"))
+            allWords.associateWith { word -> if (word in words) 1.0 else 0.0 }
+        }
+
+        val scores = DoubleArray(headlines.size)
+        for (i in headlines.indices) {
+            for (j in headlines.indices) {
+                if (i != j) scores[i] += cosineSim(vectors[i], vectors[j])
+            }
+        }
+
+        return scores.indices
+            .sortedByDescending { scores[it] }
+            .take(count)
+            .map { headlines[it] }
+    }
+
+    private fun cosineSim(a: Map<String, Double>, b: Map<String, Double>): Double {
+        var dot = 0.0
+        var magA = 0.0
+        var magB = 0.0
+        
+        a.forEach { (k, v) ->
+            val vb = b[k] ?: 0.0
+            dot += v * vb
+            magA += v * v
+        }
+        b.values.forEach { v -> magB += v * v }
+
+        return if (magA == 0.0 || magB == 0.0) 0.0 else dot / (sqrt(magA) * sqrt(magB))
+    }
+}

@@ -17,7 +17,7 @@ class SummaryViewModel(application: Application) : AndroidViewModel(application)
     private val db = AppDatabase.getDatabase(application)
     private val summaryDao = db.summaryDao()
     private val prefsDao = db.userPreferencesDao()
-    private val aiRepo = AiRepository(db.aiModelDao())
+    private val aiRepo = AiRepository(db.aiModelDao(), prefsDao)
     private val articleRepo = ArticleRepository(db.articleDao(), db.sourceDao())
     private val workManager = WorkManager.getInstance(application)
 

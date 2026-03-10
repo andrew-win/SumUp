@@ -5,9 +5,11 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.andrewwin.sumup.data.local.AppDatabase
+import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.data.repository.AiRepository
 import com.andrewwin.sumup.data.repository.ArticleRepository
+import com.andrewwin.sumup.domain.ExtractiveSummarizer
 import kotlinx.coroutines.flow.first
 
 class SummaryWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
@@ -20,7 +22,7 @@ class SummaryWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val summaryDao = db.summaryDao()
         val prefsDao = db.userPreferencesDao()
         val articleRepo = ArticleRepository(articleDao, db.sourceDao())
-        val aiRepo = AiRepository(db.aiModelDao())
+        val aiRepo = AiRepository(db.aiModelDao(), prefsDao)
 
         try {
             val currentPrefs = prefsDao.getUserPreferences().first()
@@ -32,11 +34,8 @@ class SummaryWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         }
 
         return try {
-            val aiConfig = db.aiModelDao().getActiveConfig()
-            if (aiConfig == null) {
-                summaryDao.insertSummary(Summary(content = "Помилка: Немає активної ШІ моделі."))
-                return Result.failure()
-            }
+            val prefs = prefsDao.getUserPreferences().first()
+            val strategy = prefs?.aiStrategy ?: AiStrategy.ADAPTIVE
 
             Log.d(tag, "Оновлення новин...")
             articleRepo.refreshArticles()
@@ -49,16 +48,25 @@ class SummaryWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 return Result.success()
             }
 
-            val content = articles.take(10).joinToString("\n\n") { article ->
-                val truncated = if (article.content.length > 800) article.content.take(800) + "..." else article.content
-                "${article.title}: $truncated"
+            val summaryText = if (strategy == AiStrategy.EXTRACTIVE) {
+                val headlines = articles.map { it.title }
+                val centralHeadlines = ExtractiveSummarizer.getCentralHeadlines(headlines, 3)
+                val topArticles = articles.filter { it.title in centralHeadlines }.take(3)
+                
+                topArticles.joinToString("\n\n") { article ->
+                    val summaryLines = ExtractiveSummarizer.summarize(article.content, 2)
+                    "${article.title}:\n" + summaryLines.joinToString("\n") { "- $it" }
+                }
+            } else {
+                val content = articles.take(10).joinToString("\n\n") { article ->
+                    val truncated = if (article.content.length > 800) article.content.take(800) + "..." else article.content
+                    "${article.title}: $truncated"
+                }
+                aiRepo.summarize(content)
             }
             
-            Log.d(tag, "Запит до ШІ...")
-            val summaryText = aiRepo.summarize(content)
-            
             if (summaryText.isBlank()) {
-                throw Exception("ШІ повернув порожню відповідь")
+                throw Exception("Порожня відповідь при генерації зведення")
             }
 
             summaryDao.insertSummary(Summary(content = summaryText))

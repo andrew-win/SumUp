@@ -30,7 +30,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val articleRepository = ArticleRepository(db.articleDao(), db.sourceDao())
     private val sourceRepository = SourceRepository(db.sourceDao())
-    private val aiRepository = AiRepository(db.aiModelDao())
+    private val aiRepository = AiRepository(db.aiModelDao(), db.userPreferencesDao())
     private val deduplicationService = DeduplicationService(application, db.articleDao())
     
     private val _searchQuery = MutableStateFlow("")

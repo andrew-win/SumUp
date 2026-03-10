@@ -21,6 +21,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.AiProvider
+import com.andrewwin.sumup.data.local.entities.AiStrategy
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +56,33 @@ fun SettingsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            item {
+                SettingsSection(title = stringResource(R.string.settings_ai_strategy)) {
+                    val strategies = listOf(
+                        AiStrategy.CLOUD to R.string.ai_strategy_cloud,
+                        AiStrategy.EXTRACTIVE to R.string.ai_strategy_extractive,
+                        AiStrategy.ADAPTIVE to R.string.ai_strategy_adaptive
+                    )
+                    
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        strategies.forEachIndexed { index, (strategy, labelRes) ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = strategies.size),
+                                onClick = { viewModel.updateAiStrategy(strategy) },
+                                selected = userPreferences.aiStrategy == strategy
+                            ) {
+                                Text(
+                                    text = stringResource(labelRes),
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             item {
                 SettingsSection(
                     title = stringResource(R.string.summary_cloud_type),

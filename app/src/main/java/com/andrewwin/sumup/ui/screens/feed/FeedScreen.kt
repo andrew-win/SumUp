@@ -1,6 +1,5 @@
 package com.andrewwin.sumup.ui.screens.feed
 
-import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,17 +9,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -30,10 +23,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.andrewwin.sumup.R
+import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.domain.ArticleCluster
 import com.andrewwin.sumup.ui.theme.Rubik
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -44,87 +37,46 @@ fun FeedScreen(
 ) {
     val articleClusters by viewModel.articleClusters.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val groups by viewModel.groups.collectAsState()
     val selectedGroupId by viewModel.selectedGroupId.collectAsState()
     val dateFilter by viewModel.dateFilter.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     val aiResult by viewModel.aiResult.collectAsState()
     val isAiLoading by viewModel.isAiLoading.collectAsState()
+    val userPreferences by viewModel.userPreferences.collectAsState()
+    val groups by viewModel.groups.collectAsState()
 
-    var showGroupMenu by remember { mutableStateOf(false) }
     var showDateMenu by remember { mutableStateOf(false) }
+    var showGroupMenu by remember { mutableStateOf(false) }
     var articleForAi by remember { mutableStateOf<Article?>(null) }
     var isFeedAiActive by remember { mutableStateOf(false) }
     var userQuestion by remember { mutableStateOf("") }
-    
-    val uriHandler = LocalUriHandler.current
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
-    
-    val showBackToTop by remember {
-        derivedStateOf { listState.firstVisibleItemIndex > 0 }
-    }
+    val uriHandler = LocalUriHandler.current
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                title = { 
-                    Text(
-                        stringResource(R.string.nav_feed),
-                        style = MaterialTheme.typography.titleLarge
-                    ) 
-                },
-                scrollBehavior = scrollBehavior
-            )
-        },
-        floatingActionButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                AnimatedVisibility(
-                    visible = showBackToTop,
-                    enter = fadeIn() + scaleIn(),
-                    exit = fadeOut() + scaleOut()
-                ) {
-                    SmallFloatingActionButton(
-                        onClick = {
-                            coroutineScope.launch { listState.animateScrollToItem(0) }
-                        },
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.padding(bottom = 16.dp),
-                        shape = MaterialTheme.shapes.large
-                    ) {
-                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.back_to_top))
+                title = { Text(stringResource(R.string.nav_feed)) },
+                actions = {
+                    IconButton(onClick = { isFeedAiActive = true }) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null)
                     }
                 }
-
-                FloatingActionButton(
-                    onClick = { isFeedAiActive = true },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(bottom = 16.dp),
-                    shape = MaterialTheme.shapes.extraLarge
-                ) {
-                    Icon(Icons.Default.SmartToy, contentDescription = null)
-                }
-            }
+            )
         }
     ) { innerPadding ->
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.refresh() },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
         ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    top = innerPadding.calculateTopPadding(),
-                    bottom = innerPadding.calculateBottomPadding() + 16.dp,
-                    start = 16.dp,
-                    end = 16.dp
-                ),
+                contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 item {
@@ -159,67 +111,69 @@ fun FeedScreen(
                                 .fillMaxWidth()
                                 .padding(vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(
-                                stringResource(R.string.filter_label), 
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            
-                            Box {
-                                FilterChip(
-                                    selected = dateFilter != DateFilter.ALL,
-                                    onClick = { showDateMenu = true },
-                                    label = { Text(stringResource(dateFilter.labelRes)) },
-                                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
-                                    shape = MaterialTheme.shapes.large
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text(
+                                    stringResource(R.string.filter_label),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                DropdownMenu(
-                                    expanded = showDateMenu,
-                                    onDismissRequest = { showDateMenu = false }
-                                ) {
-                                    DateFilter.entries.forEach { filter ->
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(filter.labelRes)) },
-                                            onClick = {
-                                                viewModel.setDateFilter(filter)
-                                                showDateMenu = false
-                                            }
-                                        )
+
+                                Box {
+                                    FilterChip(
+                                        selected = dateFilter != DateFilter.ALL,
+                                        onClick = { showDateMenu = true },
+                                        label = { Text(stringResource(dateFilter.labelRes)) },
+                                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                                        shape = MaterialTheme.shapes.large
+                                    )
+                                    DropdownMenu(
+                                        expanded = showDateMenu,
+                                        onDismissRequest = { showDateMenu = false }
+                                    ) {
+                                        DateFilter.entries.forEach { filter ->
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(filter.labelRes)) },
+                                                onClick = {
+                                                    viewModel.setDateFilter(filter)
+                                                    showDateMenu = false
+                                                }
+                                            )
+                                        }
                                     }
                                 }
-                            }
 
-                            Box {
-                                FilterChip(
-                                    selected = selectedGroupId != null,
-                                    onClick = { showGroupMenu = true },
-                                    label = { 
-                                        Text(groups.find { it.id == selectedGroupId }?.name ?: stringResource(R.string.filter_group)) 
-                                    },
-                                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
-                                    shape = MaterialTheme.shapes.large
-                                )
-                                DropdownMenu(
-                                    expanded = showGroupMenu,
-                                    onDismissRequest = { showGroupMenu = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.all_groups)) },
-                                        onClick = {
-                                            viewModel.selectGroup(null)
-                                            showGroupMenu = false
-                                        }
+                                Box {
+                                    FilterChip(
+                                        selected = selectedGroupId != null,
+                                        onClick = { showGroupMenu = true },
+                                        label = {
+                                            Text(groups.find { it.id == selectedGroupId }?.name ?: stringResource(R.string.filter_group))
+                                        },
+                                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                                        shape = MaterialTheme.shapes.large
                                     )
-                                    groups.forEach { group ->
+                                    DropdownMenu(
+                                        expanded = showGroupMenu,
+                                        onDismissRequest = { showGroupMenu = false }
+                                    ) {
                                         DropdownMenuItem(
-                                            text = { Text(group.name) },
+                                            text = { Text(stringResource(R.string.all_groups)) },
                                             onClick = {
-                                                viewModel.selectGroup(group.id)
+                                                viewModel.selectGroup(null)
                                                 showGroupMenu = false
                                             }
                                         )
+                                        groups.forEach { group ->
+                                            DropdownMenuItem(
+                                                text = { Text(group.name) },
+                                                onClick = {
+                                                    viewModel.selectGroup(group.id)
+                                                    showGroupMenu = false
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -272,7 +226,7 @@ fun FeedScreen(
                         }
                     }
 
-                    if (aiResult != null || !isAiLoading) {
+                    if ((aiResult != null || !isAiLoading) && userPreferences.aiStrategy != AiStrategy.EXTRACTIVE) {
                         Spacer(Modifier.height(24.dp))
                         OutlinedTextField(
                             value = userQuestion,
@@ -292,6 +246,9 @@ fun FeedScreen(
                                 }
                             }
                         )
+                    }
+                    
+                    if (aiResult != null || !isAiLoading) {
                         Spacer(Modifier.height(16.dp))
                         Button(
                             onClick = { 
