@@ -6,6 +6,7 @@ import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.RssParser
 import com.andrewwin.sumup.data.remote.TelegramParser
+import com.andrewwin.sumup.data.remote.YouTubeParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -18,6 +19,7 @@ class ArticleRepository(
     private val sourceDao: SourceDao,
     private val rssParser: RssParser = RssParser(),
     private val telegramParser: TelegramParser = TelegramParser(),
+    private val youtubeParser: YouTubeParser = YouTubeParser(),
     private val okHttpClient: OkHttpClient = OkHttpClient()
 ) {
     val enabledArticles: Flow<List<Article>> = articleDao.getEnabledArticles()
@@ -31,7 +33,7 @@ class ArticleRepository(
                         when (source.type) {
                             SourceType.RSS -> fetchRssArticles(source.id, source.url)
                             SourceType.TELEGRAM -> fetchTelegramArticles(source.id, source.url)
-                            SourceType.YOUTUBE -> { /* TODO */ }
+                            SourceType.YOUTUBE -> fetchYouTubeArticles(source.id, source.url)
                         }
                     }
                 }
@@ -70,6 +72,27 @@ class ArticleRepository(
                     val html = response.body?.string()
                     if (html != null) {
                         val articles = telegramParser.parse(html, sourceId)
+                        articleDao.insertArticles(articles)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private suspend fun fetchYouTubeArticles(sourceId: Long, url: String) {
+        try {
+            val youtubeUrl = if (url.contains("videos.xml")) url else {
+                val channelId = url.substringAfterLast("/")
+                "https://www.youtube.com/feeds/videos.xml?channel_id=$channelId"
+            }
+            val request = Request.Builder().url(youtubeUrl).build()
+            okHttpClient.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.byteStream()
+                    if (body != null) {
+                        val articles = youtubeParser.parse(body, sourceId)
                         articleDao.insertArticles(articles)
                     }
                 }
