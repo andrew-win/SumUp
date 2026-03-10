@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -147,21 +148,27 @@ fun GroupCard(
                 )
                 Switch(
                     checked = groupWithSources.group.isEnabled,
-                    onCheckedChange = onToggleGroup
+                    onCheckedChange = onToggleGroup,
+                    modifier = Modifier.scale(0.85f)
                 )
                 IconButton(
                     onClick = { onEditGroup(groupWithSources.group) },
                     enabled = groupWithSources.group.isDeletable
                 ) {
-                    Icon(Icons.Outlined.Edit, contentDescription = null)
+                    Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
                 }
                 IconButton(
                     onClick = { onDeleteGroup(groupWithSources.group) },
                     enabled = groupWithSources.group.isDeletable
                 ) {
-                    Icon(Icons.Outlined.Delete, contentDescription = null)
+                    Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(20.dp))
                 }
             }
+
+            HorizontalDivider(
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
 
             groupWithSources.sources.forEach { source ->
                 SourceItem(
@@ -188,11 +195,13 @@ fun GroupCard(
                 FilledTonalButton(
                     onClick = onAddSource,
                     enabled = groupWithSources.group.isEnabled,
-                    shape = MaterialTheme.shapes.large
+                    shape = MaterialTheme.shapes.large,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.add_source))
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.add_source), style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
@@ -209,33 +218,51 @@ fun SourceItem(
 ) {
     val painter = when (source.type) {
         SourceType.TELEGRAM -> painterResource(R.drawable.ic_telegram_source)
-        SourceType.RSS -> rememberVectorPainter(Icons.Default.RssFeed)
-        SourceType.YOUTUBE -> rememberVectorPainter(Icons.Default.PlayCircle)
+        SourceType.RSS -> painterResource(R.drawable.ic_rss_source)
+        SourceType.YOUTUBE -> painterResource(R.drawable.ic_youtube_source)
+    }
+
+    val displayUrl = remember(source.url, source.type) {
+        when (source.type) {
+            SourceType.RSS -> {
+                source.url.removePrefix("https://")
+                    .removePrefix("http://")
+                    .removePrefix("www.")
+                    .substringBefore("/")
+            }
+            SourceType.TELEGRAM -> {
+                val handle = source.url.substringAfterLast("/").removePrefix("@")
+                if (handle.isNotEmpty()) "@$handle" else source.url
+            }
+            SourceType.YOUTUBE -> {
+                val id = source.url.substringAfterLast("/")
+                if (id.isNotEmpty()) "id=${id.take(7)}…" else source.url
+            }
+        }
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp)
             .alpha(if (isGroupEnabled) 1f else 0.5f),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             painter = painter,
             contentDescription = null,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.secondary
         )
-        Spacer(Modifier.width(16.dp))
+        Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = source.name, 
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = source.url,
-                style = MaterialTheme.typography.bodySmall,
+                text = displayUrl,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
             )
@@ -243,13 +270,22 @@ fun SourceItem(
         Switch(
             checked = source.isEnabled,
             onCheckedChange = { onToggle(source.copy(isEnabled = it)) },
-            enabled = isGroupEnabled
+            enabled = isGroupEnabled,
+            modifier = Modifier.scale(0.75f)
         )
-        IconButton(onClick = { onEdit(source) }, enabled = isGroupEnabled) {
-            Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
+        IconButton(
+            onClick = { onEdit(source) }, 
+            enabled = isGroupEnabled,
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
         }
-        IconButton(onClick = { onDelete(source) }, enabled = isGroupEnabled) {
-            Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(20.dp))
+        IconButton(
+            onClick = { onDelete(source) }, 
+            enabled = isGroupEnabled,
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -311,7 +347,7 @@ fun SourceDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(if (source == null) R.string.add_source else R.string.edit_source)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -333,7 +369,11 @@ fun SourceDialog(
                     onExpandedChange = { expanded = !expanded }
                 ) {
                     OutlinedTextField(
-                        value = type.name,
+                        value = stringResource(when(type) {
+                            SourceType.RSS -> R.string.source_type_rss
+                            SourceType.TELEGRAM -> R.string.source_type_telegram
+                            SourceType.YOUTUBE -> R.string.source_type_youtube
+                        }),
                         onValueChange = {},
                         readOnly = true,
                         label = { Text(stringResource(R.string.source_type)) },
@@ -349,7 +389,13 @@ fun SourceDialog(
                     ) {
                         SourceType.entries.forEach { entry ->
                             DropdownMenuItem(
-                                text = { Text(entry.name) },
+                                text = { 
+                                    Text(stringResource(when(entry) {
+                                        SourceType.RSS -> R.string.source_type_rss
+                                        SourceType.TELEGRAM -> R.string.source_type_telegram
+                                        SourceType.YOUTUBE -> R.string.source_type_youtube
+                                    })) 
+                                },
                                 onClick = {
                                     type = entry
                                     expanded = false

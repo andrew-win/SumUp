@@ -9,7 +9,7 @@
     <string name="add_source">Додати джерело</string>
     <string name="group_name">Назва групи</string>
     <string name="source_name">Назва джерела</string>
-    <string name="source_url">Посилання</string>
+    <string name="source_url">Посилання / id для YouTube</string>
     <string name="source_type">Тип джерела</string>
     <string name="cancel">Скасувати</string>
     <string name="add">Додати</string>
