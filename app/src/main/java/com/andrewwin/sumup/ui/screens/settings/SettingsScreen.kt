@@ -126,7 +126,6 @@ fun SettingsScreen(
                             Text(
                                 stringResource(R.string.settings_api_keys_empty),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else {
@@ -150,7 +149,6 @@ fun SettingsScreen(
                             text = stringResource(R.string.settings_deduplication),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                         
@@ -245,7 +243,6 @@ fun SettingsScreen(
                             text = stringResource(R.string.settings_scheduling),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                         

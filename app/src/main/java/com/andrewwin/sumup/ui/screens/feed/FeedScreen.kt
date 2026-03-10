@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -18,6 +19,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -249,7 +251,7 @@ fun FeedScreen(
                         } else if (aiResult != null) {
                             Text(
                                 text = aiResult ?: "",
-                                style = MaterialTheme.typography.bodyLarge,
+                                style = MaterialTheme.typography.bodyMedium,
                                 lineHeight = 28.sp
                             )
                         }
@@ -409,13 +411,13 @@ fun ArticleItem(
         }
         Text(
             text = article.title,
-            style = MaterialTheme.typography.titleLarge.copy(
+            style = MaterialTheme.typography.titleMedium.copy(
                 fontFamily = Rubik,
                 fontWeight = FontWeight.SemiBold
             ),
-            maxLines = 3,
+            maxLines = 5,
             overflow = TextOverflow.Ellipsis,
-            lineHeight = 28.sp
+            lineHeight = 22.sp
         )
         Spacer(Modifier.height(12.dp))
         Text(
@@ -436,29 +438,24 @@ fun ArticleItem(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 FilledTonalIconButton(
                     onClick = onOpenSource,
-                    modifier = Modifier.size(40.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50.dp))
+                        .width(50.dp)
+                        .height(30.dp),
                     shape = MaterialTheme.shapes.medium
                 ) {
                     Icon(Icons.Default.MoreHoriz, contentDescription = null)
                 }
                 FilledTonalIconButton(
                     onClick = onAiClick,
-                    modifier = Modifier.size(40.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50.dp))
+                        .width(50.dp)
+                        .height(30.dp),
                     shape = MaterialTheme.shapes.medium
                 ) {
                     Icon(painterResource(R.drawable.ic_ask_ai), contentDescription = null)
                 }
-            }
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = androidx.compose.foundation.shape.CircleShape
-            ) {
-                Text(
-                    text = stringResource(R.string.direct_text),
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                    fontWeight = FontWeight.Normal
-                )
             }
         }
     }

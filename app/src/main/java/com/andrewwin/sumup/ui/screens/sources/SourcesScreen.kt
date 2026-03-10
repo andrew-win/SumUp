@@ -1,6 +1,11 @@
 package com.andrewwin.sumup.ui.screens.sources
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -226,7 +231,11 @@ fun GroupCard(
                 }
             }
 
-            AnimatedVisibility(visible = isExpanded) {
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(animationSpec = tween(durationMillis = 200)) + fadeIn(animationSpec = tween(durationMillis = 200)),
+                exit = shrinkVertically(animationSpec = tween(durationMillis = 200)) + fadeOut(animationSpec = tween(durationMillis = 200))
+            ) {
                 Column {
                     HorizontalDivider(
                         modifier = Modifier.padding(top = 8.dp),

@@ -192,7 +192,7 @@ fun SummaryCard(summary: Summary) {
                 containerColor = if (isError) 
                     MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f) 
                 else 
-                    MaterialTheme.colorScheme.surfaceContainerLow
+                    MaterialTheme.colorScheme.surfaceContainer
             )
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
@@ -203,7 +203,7 @@ fun SummaryCard(summary: Summary) {
                 ) {
                     Text(
                         text = summary.content,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier
                             .weight(1f)
