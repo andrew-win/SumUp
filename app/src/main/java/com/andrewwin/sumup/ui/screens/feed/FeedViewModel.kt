@@ -80,6 +80,10 @@ class FeedViewModel @Inject constructor(
         .map { list -> list.map { it.group }.filter { it.isEnabled } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val sources: StateFlow<List<com.andrewwin.sumup.data.local.entities.Source>> = groupsWithSources
+        .map { list -> list.flatMap { it.sources } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val articleClusters: StateFlow<List<ArticleCluster>> = getFeedArticlesUseCase(
         _searchQuery,
         _selectedGroupId,

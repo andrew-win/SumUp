@@ -40,12 +40,20 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.nav_settings)) },
+                title = { Text(stringResource(R.string.nav_settings), fontWeight = FontWeight.SemiBold) },
                 actions = {
-                    IconButton(onClick = {}) {
+                    FilledIconButton(
+                        onClick = {},
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
                         Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         }
     ) { innerPadding ->
@@ -84,44 +92,42 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(
-                    title = stringResource(R.string.summary_cloud_type),
-                    headerContent = {
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.settings_cloud_api_label),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                IconButton(onClick = { isAddingNew = true }) {
-                                    Icon(
-                                        Icons.Default.AddCircle,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                            }
-                            HorizontalDivider(
-                                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
-                                thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant
-                            )
-                        }
-                    }
-                ) {
+                SettingsSection(title = stringResource(R.string.summary_cloud_type)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = stringResource(R.string.settings_cloud_api_label),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            IconButton(
+                                onClick = { isAddingNew = true },
+                                modifier = Modifier.size(32.dp),
+                                colors = IconButtonDefaults.iconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                        
+                        HorizontalDivider(
+                            modifier = Modifier.padding(bottom = 8.dp),
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                        
                         if (aiConfigs.isEmpty()) {
                             Text(
                                 stringResource(R.string.settings_api_keys_empty),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                                modifier = Modifier.fillMaxWidth()
                             )
                         } else {
                             aiConfigs.forEach { config ->
@@ -142,8 +148,8 @@ fun SettingsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text(
                             text = stringResource(R.string.settings_deduplication),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
@@ -152,7 +158,7 @@ fun SettingsScreen(
                             Text(
                                 stringResource(R.string.settings_enable_deduplication),
                                 modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodyLarge
+                                style = MaterialTheme.typography.titleMedium
                             )
                             Switch(
                                 checked = userPreferences.isDeduplicationEnabled,
@@ -164,26 +170,40 @@ fun SettingsScreen(
                         Column {
                             Text(
                                 stringResource(R.string.settings_deduplication_threshold, String.format(Locale.US, "%.2f", userPreferences.deduplicationThreshold)),
-                                style = MaterialTheme.typography.bodyMedium
+                                style = MaterialTheme.typography.titleMedium
                             )
                             Slider(
                                 value = userPreferences.deduplicationThreshold,
                                 onValueChange = { viewModel.updateDeduplicationThreshold(it) },
                                 valueRange = 0.5f..0.99f,
-                                steps = 48
+                                steps = 48,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = MaterialTheme.colorScheme.primary,
+                                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    activeTickColor = MaterialTheme.colorScheme.primaryContainer,
+                                    inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
+                                )
                             )
                         }
 
                         Column {
                             Text(
                                 stringResource(R.string.settings_min_mentions, userPreferences.minMentions),
-                                style = MaterialTheme.typography.bodyMedium
+                                style = MaterialTheme.typography.titleMedium
                             )
                             Slider(
                                 value = userPreferences.minMentions.toFloat(),
                                 onValueChange = { viewModel.updateMinMentions(it.toInt()) },
                                 valueRange = 1f..5f,
-                                steps = 3
+                                steps = 3,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = MaterialTheme.colorScheme.primary,
+                                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    activeTickColor = MaterialTheme.colorScheme.primaryContainer,
+                                    inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
+                                )
                             )
                         }
 
@@ -197,7 +217,7 @@ fun SettingsScreen(
                         
                         Text(
                             stringResource(R.string.settings_model_status, statusText),
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.titleMedium
                         )
                         
                         Button(
@@ -208,7 +228,11 @@ fun SettingsScreen(
                                 ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
                             else ButtonDefaults.buttonColors()
                         ) {
-                            Text(stringResource(if (downloadState is ModelDownloadState.Ready) R.string.settings_delete_model else R.string.settings_download_model))
+                            Text(
+                                text = stringResource(if (downloadState is ModelDownloadState.Ready) R.string.settings_delete_model else R.string.settings_download_model),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Normal
+                            )
                         }
                     }
                 }
@@ -219,8 +243,8 @@ fun SettingsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text(
                             text = stringResource(R.string.settings_scheduling),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
@@ -229,7 +253,7 @@ fun SettingsScreen(
                             Text(
                                 stringResource(R.string.settings_scheduled_summary),
                                 modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodyLarge
+                                style = MaterialTheme.typography.titleMedium
                             )
                             Switch(
                                 checked = userPreferences.isScheduledSummaryEnabled,
@@ -249,7 +273,7 @@ fun SettingsScreen(
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 text = stringResource(R.string.settings_time_label, String.format(Locale.getDefault(), "%02d:%02d", userPreferences.scheduledHour, userPreferences.scheduledMinute)),
-                                style = MaterialTheme.typography.bodyLarge
+                                style = MaterialTheme.typography.titleMedium
                             )
                         }
                     }
@@ -294,14 +318,14 @@ fun SettingsSection(
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
         )
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.extraLarge,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 headerContent?.invoke()
@@ -323,14 +347,27 @@ fun AiKeyItem(
         else "...."
     }
 
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEdit)
+            .padding(vertical = 8.dp), 
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = config.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
-            Text(text = maskedKey, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(text = config.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Normal)
+            Text(text = maskedKey, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked = config.isEnabled, onCheckedChange = onToggle, modifier = Modifier.scale(0.75f))
-        IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+        Switch(
+            checked = config.isEnabled, 
+            onCheckedChange = onToggle, 
+            modifier = Modifier.scale(0.75f)
+        )
+        IconButton(
+            onClick = onDelete, 
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
         }
     }
 }

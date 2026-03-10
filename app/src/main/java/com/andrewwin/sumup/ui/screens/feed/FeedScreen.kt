@@ -4,11 +4,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -44,6 +48,7 @@ fun FeedScreen(
     val isAiLoading by viewModel.isAiLoading.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
     val groups by viewModel.groups.collectAsState()
+    val sources by viewModel.sources.collectAsState()
 
     var showDateMenu by remember { mutableStateOf(false) }
     var showGroupMenu by remember { mutableStateOf(false) }
@@ -57,13 +62,32 @@ fun FeedScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.nav_feed)) },
+                title = { Text(stringResource(R.string.nav_feed), fontWeight = FontWeight.SemiBold) },
                 actions = {
-                    IconButton(onClick = { isFeedAiActive = true }) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                    FilledIconButton(
+                        onClick = {},
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { isFeedAiActive = true },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = androidx.compose.foundation.shape.CircleShape,
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(28.dp))
+            }
         }
     ) { innerPadding ->
         PullToRefreshBox(
@@ -100,9 +124,9 @@ fun FeedScreen(
                             expanded = false,
                             onExpandedChange = {},
                             modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.extraLarge,
+                            shape = androidx.compose.foundation.shape.CircleShape,
                             colors = SearchBarDefaults.colors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                containerColor = MaterialTheme.colorScheme.surface
                             )
                         ) {}
 
@@ -110,24 +134,25 @@ fun FeedScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(
-                                    stringResource(R.string.filter_label),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            Text(
+                                stringResource(R.string.filter_label),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
 
+                            Spacer(Modifier.weight(1f))
+
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                 Box {
-                                    FilterChip(
-                                        selected = dateFilter != DateFilter.ALL,
-                                        onClick = { showDateMenu = true },
-                                        label = { Text(stringResource(dateFilter.labelRes)) },
-                                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
-                                        shape = MaterialTheme.shapes.large
-                                    )
+                                    Row(
+                                        modifier = Modifier.clickable { showDateMenu = true },
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(stringResource(dateFilter.labelRes), color = MaterialTheme.colorScheme.onSurface)
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                     DropdownMenu(
                                         expanded = showDateMenu,
                                         onDismissRequest = { showDateMenu = false }
@@ -145,15 +170,13 @@ fun FeedScreen(
                                 }
 
                                 Box {
-                                    FilterChip(
-                                        selected = selectedGroupId != null,
-                                        onClick = { showGroupMenu = true },
-                                        label = {
-                                            Text(groups.find { it.id == selectedGroupId }?.name ?: stringResource(R.string.filter_group))
-                                        },
-                                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
-                                        shape = MaterialTheme.shapes.large
-                                    )
+                                    Row(
+                                        modifier = Modifier.clickable { showGroupMenu = true },
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(groups.find { it.id == selectedGroupId }?.name ?: stringResource(R.string.filter_group), color = MaterialTheme.colorScheme.onSurface)
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                     DropdownMenu(
                                         expanded = showGroupMenu,
                                         onDismissRequest = { showGroupMenu = false }
@@ -184,8 +207,14 @@ fun FeedScreen(
                 items(articleClusters, key = { it.representative.id }) { cluster ->
                     ArticleClusterCard(
                         cluster = cluster,
+                        sources = sources,
+                        groups = groups,
                         onOpenSource = { uriHandler.openUri(it.url) },
-                        onAiClick = { articleForAi = it }
+                        onAiClick = { 
+                            articleForAi = it
+                            isFeedAiActive = false
+                            viewModel.clearAiResult()
+                        }
                     )
                 }
             }
@@ -281,20 +310,37 @@ fun FeedScreen(
 @Composable
 fun ArticleClusterCard(
     cluster: ArticleCluster,
+    sources: List<com.andrewwin.sumup.data.local.entities.Source>,
+    groups: List<com.andrewwin.sumup.data.local.entities.SourceGroup>,
     onOpenSource: (Article) -> Unit,
     onAiClick: (Article) -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column {
+    val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
+
+    Column {
+        Text(
+            text = dateFormat.format(Date(cluster.representative.publishedAt)),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column {
+            val source = sources.find { it.id == cluster.representative.sourceId }
+            val group = groups.find { it.id == source?.groupId }
+            
             ArticleItem(
                 article = cluster.representative,
+                sourceName = source?.name,
+                groupName = group?.name,
                 onOpenSource = { onOpenSource(cluster.representative) },
                 onAiClick = { onAiClick(cluster.representative) }
             )
@@ -333,6 +379,7 @@ fun ArticleClusterCard(
                     }
                 }
             }
+            }
         }
     }
 }
@@ -340,19 +387,26 @@ fun ArticleClusterCard(
 @Composable
 fun ArticleItem(
     article: Article,
+    sourceName: String?,
+    groupName: String?,
     onOpenSource: () -> Unit,
     onAiClick: () -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
     
     Column(modifier = Modifier.padding(24.dp)) {
-        Text(
-            text = dateFormat.format(Date(article.publishedAt)),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Normal
-        )
-        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp)) {
+            if (groupName != null) {
+                Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = androidx.compose.foundation.shape.CircleShape) {
+                    Text(groupName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                }
+            }
+            if (sourceName != null) {
+                Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = androidx.compose.foundation.shape.CircleShape) {
+                    Text(sourceName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                }
+            }
+        }
         Text(
             text = article.title,
             style = MaterialTheme.typography.titleLarge.copy(
@@ -397,7 +451,7 @@ fun ArticleItem(
             }
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = MaterialTheme.shapes.small
+                shape = androidx.compose.foundation.shape.CircleShape
             ) {
                 Text(
                     text = stringResource(R.string.direct_text),
@@ -421,6 +475,20 @@ fun DuplicateItem(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = androidx.compose.foundation.shape.CircleShape,
+            modifier = Modifier.size(36.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = "${(score * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = article.title,
@@ -430,12 +498,6 @@ fun DuplicateItem(
                 ),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = stringResource(R.string.feed_similarity_score, (score * 100).toInt()),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.secondary,
-                fontWeight = FontWeight.Normal
             )
         }
         Spacer(Modifier.width(16.dp))

@@ -14,7 +14,9 @@
     <string name="cancel">Скасувати</string>
     <string name="add">Додати</string>
     <string name="save">Зберегти</string>
+    <string name="delete">Видалити</string>
     <string name="edit_group">Редагувати групу</string>
+    <string name="status_enabled">Увімкнено</string>
     <string name="edit_source">Редагувати джерело</string>
     <string name="sources_count">%d джерела</string>
     <string name="search_placeholder">Шукайте новини тут…</string>
@@ -28,6 +30,7 @@
     <string name="ai_summarize_article">Зробити підсумок</string>
     <string name="direct_text">Прямий текст</string>
     <string name="summary_today_title">Зведення</string>
+    <string name="summary_latest">Останнє:</string>
     <string name="summary_history_title">Згенеровано раніше:</string>
     <string name="summary_empty">Запланованих зведень ще немає</string>
     <string name="summary_not_ready">Сьогодні зведення ще не було. Очікуємо на виконання задачі…</string>

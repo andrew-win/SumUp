@@ -1,8 +1,10 @@
 package com.andrewwin.sumup.ui.screens.sources
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
@@ -41,12 +43,20 @@ fun SourcesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.nav_sources)) },
+                title = { Text(stringResource(R.string.nav_sources), fontWeight = FontWeight.SemiBold) },
                 actions = {
-                    IconButton(onClick = {}) {
+                    FilledIconButton(
+                        onClick = {},
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
                         Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         },
         floatingActionButton = {
@@ -126,14 +136,19 @@ fun GroupCard(
     onEditSource: (Source) -> Unit,
     onDeleteSource: (Source) -> Unit
 ) {
+    var isExpanded by remember { mutableStateOf(false) }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { isExpanded = !isExpanded }
+            .padding(vertical = 8.dp),
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
         )
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -143,65 +158,120 @@ fun GroupCard(
                 Text(
                     text = groupWithSources.group.name,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
                 )
-                Switch(
-                    checked = groupWithSources.group.isEnabled,
-                    onCheckedChange = onToggleGroup,
-                    modifier = Modifier.scale(0.85f)
-                )
                 IconButton(
-                    onClick = { onEditGroup(groupWithSources.group) },
-                    enabled = groupWithSources.group.isDeletable
+                    onClick = { isExpanded = !isExpanded }
                 ) {
-                    Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Icon(
+                        if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
-                IconButton(
-                    onClick = { onDeleteGroup(groupWithSources.group) },
-                    enabled = groupWithSources.group.isDeletable
-                ) {
-                    Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(20.dp))
-                }
-            }
-
-            HorizontalDivider(
-                thickness = 0.5.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-            )
-
-            groupWithSources.sources.forEach { source ->
-                SourceItem(
-                    source = source,
-                    isGroupEnabled = groupWithSources.group.isEnabled,
-                    onToggle = { onToggleSource(it) },
-                    onEdit = { onEditSource(it) },
-                    onDelete = { onDeleteSource(it) }
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(R.string.sources_count, groupWithSources.sources.size),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
                 
-                FilledTonalButton(
-                    onClick = onAddSource,
-                    enabled = groupWithSources.group.isEnabled,
-                    shape = MaterialTheme.shapes.large,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.add_source), style = MaterialTheme.typography.labelLarge)
+                Box {
+                    var showDropdown by remember { mutableStateOf(false) }
+                    IconButton(onClick = { showDropdown = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = null, modifier = Modifier.size(24.dp))
+                    }
+                    DropdownMenu(
+                        expanded = showDropdown,
+                        onDismissRequest = { showDropdown = false },
+                        shape = MaterialTheme.shapes.large,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ) {
+                        DropdownMenuItem(
+                            text = { 
+                                Text(
+                                    stringResource(R.string.status_enabled),
+                                    style = MaterialTheme.typography.bodyMedium
+                                ) 
+                            },
+                            trailingIcon = {
+                                Switch(
+                                    checked = groupWithSources.group.isEnabled,
+                                    onCheckedChange = { onToggleGroup(it) },
+                                    modifier = Modifier.scale(0.7f).padding(start = 8.dp)
+                                )
+                            },
+                            onClick = { onToggleGroup(!groupWithSources.group.isEnabled) }
+                        )
+
+                        if (groupWithSources.group.isDeletable) {
+                            DropdownMenuItem(
+                                text = { 
+                                    Text(
+                                        stringResource(R.string.edit_group),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    ) 
+                                },
+                                trailingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                onClick = { onEditGroup(groupWithSources.group); showDropdown = false }
+                            )
+                            DropdownMenuItem(
+                                text = { 
+                                    Text(
+                                        stringResource(R.string.delete),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.error
+                                    ) 
+                                },
+                                trailingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) },
+                                onClick = { onDeleteGroup(groupWithSources.group); showDropdown = false }
+                            )
+                        }
+                    }
+                }
+            }
+
+            AnimatedVisibility(visible = isExpanded) {
+                Column {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(top = 8.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    groupWithSources.sources.forEach { source ->
+                        SourceItem(
+                            source = source,
+                            isGroupEnabled = groupWithSources.group.isEnabled,
+                            onToggle = { onToggleSource(it) },
+                            onEdit = { onEditSource(it) },
+                            onDelete = { onDeleteSource(it) }
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.sources_count, groupWithSources.sources.size),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        
+                        FilledTonalButton(
+                            onClick = onAddSource,
+                            enabled = groupWithSources.group.isEnabled,
+                            shape = MaterialTheme.shapes.large,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.add_source), style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
                 }
             }
         }
@@ -258,7 +328,7 @@ fun SourceItem(
             Text(
                 text = source.name, 
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Normal
             )
             Text(
                 text = displayUrl,

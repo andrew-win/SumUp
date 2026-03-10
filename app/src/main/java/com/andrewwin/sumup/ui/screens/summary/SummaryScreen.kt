@@ -1,18 +1,25 @@
 package com.andrewwin.sumup.ui.screens.summary
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.Summary
@@ -30,8 +37,8 @@ fun SummaryScreen(
     val todaySummary = remember(summaries) {
         summaries.firstOrNull { isSameDay(it.createdAt, System.currentTimeMillis()) }
     }
-    val olderSummaries = remember(summaries) {
-        summaries.filter { !isSameDay(it.createdAt, System.currentTimeMillis()) }
+    val olderSummaries = remember(summaries, todaySummary) {
+        summaries.filter { it.id != todaySummary?.id }
     }
 
     Scaffold(
@@ -40,14 +47,22 @@ fun SummaryScreen(
                 title = { 
                     Text(
                         stringResource(R.string.nav_summary),
-                        style = MaterialTheme.typography.titleLarge
+                        fontWeight = FontWeight.SemiBold
                     ) 
                 },
                 actions = {
-                    IconButton(onClick = {}) {
+                    FilledIconButton(
+                        onClick = {},
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
                         Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         }
     ) { innerPadding ->
@@ -55,7 +70,7 @@ fun SummaryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
@@ -69,6 +84,14 @@ fun SummaryScreen(
             }
 
             if (todaySummary != null) {
+                item {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.summary_latest),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
                 item {
                     SummaryCard(summary = todaySummary)
                 }
@@ -96,7 +119,7 @@ fun SummaryScreen(
                     Text(
                         text = stringResource(R.string.summary_history_title),
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Normal
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
                 items(olderSummaries, key = { it.id }) { summary ->
@@ -112,7 +135,7 @@ fun StatusCard(isEnabled: Boolean, hour: Int, minute: Int, hasTodaySummary: Bool
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {
         Row(
@@ -150,34 +173,78 @@ fun SummaryCard(summary: Summary) {
     val isError = summary.content.startsWith(stringResource(R.string.error_prefix)) || 
                   summary.content.startsWith(stringResource(R.string.no_articles_prefix))
     
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isError) 
-                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f) 
-            else 
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    var isExpanded by remember { mutableStateOf(false) }
+    
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = dateFormat.format(Date(summary.createdAt)),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
         )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = dateFormat.format(Date(summary.createdAt)),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isExpanded = !isExpanded },
+            shape = MaterialTheme.shapes.extraLarge,
+            colors = CardDefaults.cardColors(
+                containerColor = if (isError) 
+                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f) 
+                else 
+                    MaterialTheme.colorScheme.surfaceContainerLow
             )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = summary.content,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = if (isError) stringResource(R.string.summary_system_notice) else stringResource(R.string.summary_cloud_type),
-                style = MaterialTheme.typography.labelSmall,
-                color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                modifier = Modifier.align(Alignment.End)
-            )
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = summary.content,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
+                            .animateContentSize(),
+                        maxLines = if (isExpanded) Int.MAX_VALUE else 3,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 26.sp
+                    )
+                    
+                    FilledIconButton(
+                        onClick = { isExpanded = !isExpanded },
+                        modifier = Modifier.size(32.dp).offset(x = 8.dp, y = (-8).dp),
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
+                        Icon(
+                            if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = null
+                        )
+                    }
+                }
+                
+                Spacer(Modifier.height(16.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text(
+                        text = if (isError) stringResource(R.string.summary_system_notice) else stringResource(R.string.summary_cloud_type),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Normal
+                    )
+                }
+            }
         }
     }
 }

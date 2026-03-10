@@ -50,7 +50,7 @@ fun MainScreen() {
                         Text(
                             text = stringResource(screen.resourceId),
                             style = MaterialTheme.typography.labelMedium,
-                            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
                         ) 
                     },
                     selected = selected,
@@ -67,7 +67,11 @@ fun MainScreen() {
             }
         },
         containerColor = MaterialTheme.colorScheme.background,
-        contentColor = MaterialTheme.colorScheme.onBackground
+        contentColor = MaterialTheme.colorScheme.onBackground,
+        navigationSuiteColors = androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults.colors(
+            navigationBarContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+            navigationBarContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     ) {
         Box {
             NavHost(
