@@ -85,6 +85,10 @@
     <string name="settings_time_format">%02d:%02d</string>
     <string name="feed_similar_news">Схожі новини (%d)</string>
     <string name="feed_similarity_score">%d%% схожості</string>
+    <string name="summary_no_articles_today">Немає нових статей для сумаризації.</string>
+    <string name="summary_worker_no_articles_today">Немає нових статей для зведення за сьогодні.</string>
+    <string name="summary_worker_empty_response">Порожня відповідь при генерації зведення</string>
+    <string name="summary_worker_error_prefix">Помилка воркера</string>
 
     <string name="filter_date_all">Всі</string>
     <string name="filter_date_1h">1 год</string>

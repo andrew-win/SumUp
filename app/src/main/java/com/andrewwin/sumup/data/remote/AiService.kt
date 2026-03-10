@@ -11,7 +11,7 @@ import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class AiService(private val okHttpClient: OkHttpClient = OkHttpClient()) {
+class AiService(private val okHttpClient: OkHttpClient) {
 
     suspend fun fetchModels(provider: AiProvider, apiKey: String): List<String> = withContext(Dispatchers.IO) {
         val url = when (provider) {

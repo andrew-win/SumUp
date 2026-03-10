@@ -7,33 +7,36 @@ import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.remote.AiService
 import com.andrewwin.sumup.domain.ExtractiveSummarizer
+import com.andrewwin.sumup.domain.repository.AiRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import javax.inject.Inject
 
-class AiRepository(
+class AiRepositoryImpl @Inject constructor(
     private val aiModelDao: AiModelDao,
     private val prefsDao: UserPreferencesDao,
-    private val aiService: AiService = AiService()
-) {
-    val allConfigs: Flow<List<AiModelConfig>> = aiModelDao.getAllConfigs()
+    private val aiService: AiService
+) : AiRepository {
 
-    suspend fun fetchAvailableModels(provider: AiProvider, apiKey: String): List<String> {
+    override val allConfigs: Flow<List<AiModelConfig>> = aiModelDao.getAllConfigs()
+
+    override suspend fun fetchAvailableModels(provider: AiProvider, apiKey: String): List<String> {
         return aiService.fetchModels(provider, apiKey)
     }
 
-    suspend fun addConfig(config: AiModelConfig) {
+    override suspend fun addConfig(config: AiModelConfig) {
         aiModelDao.insertConfig(config)
     }
 
-    suspend fun updateConfig(config: AiModelConfig) {
+    override suspend fun updateConfig(config: AiModelConfig) {
         aiModelDao.updateConfig(config)
     }
 
-    suspend fun deleteConfig(config: AiModelConfig) {
+    override suspend fun deleteConfig(config: AiModelConfig) {
         aiModelDao.deleteConfig(config)
     }
 
-    suspend fun summarize(content: String): String {
+    override suspend fun summarize(content: String): String {
         val prefs = prefsDao.getUserPreferences().first()
         val strategy = prefs?.aiStrategy ?: AiStrategy.ADAPTIVE
         val activeConfig = aiModelDao.getActiveConfig()
@@ -52,7 +55,7 @@ class AiRepository(
                 } else {
                     content
                 }
-                aiService.generateResponse(activeConfig!!, "Зроби стислий підсумок цієї новини українською мовою:", processedContent)
+                aiService.generateResponse(activeConfig!!, SUMMARY_PROMPT, processedContent)
             }
             AiStrategy.EXTRACTIVE -> {
                 ExtractiveSummarizer.summarize(content).joinToString("\n") { "- $it" }
@@ -61,21 +64,28 @@ class AiRepository(
     }
 
     private suspend fun callCloudSummarize(content: String): String {
-        val config = aiModelDao.getActiveConfig() ?: throw Exception("Немає активної ШІ моделі")
-        val prompt = "Зроби стислий підсумок цієї новини українською мовою:"
-        return aiService.generateResponse(config, prompt, content)
+        val config = aiModelDao.getActiveConfig() ?: throw Exception(ERROR_NO_ACTIVE_MODEL)
+        return aiService.generateResponse(config, SUMMARY_PROMPT, content)
     }
 
-    suspend fun askQuestion(content: String, question: String): String {
+    override suspend fun askQuestion(content: String, question: String): String {
         val prefs = prefsDao.getUserPreferences().first()
         val activeConfig = aiModelDao.getActiveConfig()
         
         if (prefs?.aiStrategy == AiStrategy.EXTRACTIVE || (prefs?.aiStrategy == AiStrategy.ADAPTIVE && activeConfig == null)) {
-            throw Exception("Екстрактивна сумаризація не підтримує запитання")
+            throw Exception(ERROR_EXTRACTIVE_NOT_SUPPORTED)
         }
 
-        val config = activeConfig ?: throw Exception("Немає активної ШІ моделі")
-        val prompt = "Дай відповідь на питання: $question\n\nБазуючись на цьому тексті:"
+        val config = activeConfig ?: throw Exception(ERROR_NO_ACTIVE_MODEL)
+        val prompt = "$QUESTION_PROMPT_PREFIX $question\n\n$QUESTION_PROMPT_SUFFIX"
         return aiService.generateResponse(config, prompt, content)
+    }
+
+    companion object {
+        private const val SUMMARY_PROMPT = "Зроби стислий підсумок цієї новини українською мовою:"
+        private const val QUESTION_PROMPT_PREFIX = "Дай відповідь на питання:"
+        private const val QUESTION_PROMPT_SUFFIX = "Базуючись на цьому тексті:"
+        private const val ERROR_NO_ACTIVE_MODEL = "Немає активної ШІ моделі"
+        private const val ERROR_EXTRACTIVE_NOT_SUPPORTED = "Екстрактивна сумаризація не підтримує запитання"
     }
 }

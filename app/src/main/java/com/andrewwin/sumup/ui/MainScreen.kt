@@ -1,12 +1,14 @@
 package com.andrewwin.sumup.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -67,21 +69,23 @@ fun MainScreen() {
         containerColor = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground
     ) {
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Summary.route,
-        ) {
-            composable(Screen.Summary.route) {
-                SummaryScreen()
-            }
-            composable(Screen.Feed.route) {
-                FeedScreen()
-            }
-            composable(Screen.Sources.route) {
-                SourcesScreen()
-            }
-            composable(Screen.Settings.route) {
-                SettingsScreen()
+        Box {
+            NavHost(
+                navController = navController,
+                startDestination = Screen.Summary.route,
+            ) {
+                composable(Screen.Summary.route) {
+                    SummaryScreen()
+                }
+                composable(Screen.Feed.route) {
+                    FeedScreen()
+                }
+                composable(Screen.Sources.route) {
+                    SourcesScreen()
+                }
+                composable(Screen.Settings.route) {
+                    SettingsScreen()
+                }
             }
         }
     }

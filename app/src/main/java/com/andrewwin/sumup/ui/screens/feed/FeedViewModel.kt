@@ -5,17 +5,27 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.AppDatabase
+import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.data.local.dao.GroupWithSources
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.data.repository.AiRepository
-import com.andrewwin.sumup.data.repository.ArticleRepository
-import com.andrewwin.sumup.data.repository.SourceRepository
+import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.ArticleCluster
-import com.andrewwin.sumup.domain.DeduplicationService
-import kotlinx.coroutines.flow.*
+import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
+import com.andrewwin.sumup.domain.usecase.ai.AskQuestionUseCase
+import com.andrewwin.sumup.domain.usecase.ai.SummarizeContentUseCase
+import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 enum class DateFilter(@StringRes val labelRes: Int, val hours: Int?) {
     ALL(R.string.filter_date_all, null),
@@ -26,12 +36,16 @@ enum class DateFilter(@StringRes val labelRes: Int, val hours: Int?) {
     HOUR_24(R.string.filter_date_24h, 24)
 }
 
-class FeedViewModel(application: Application) : AndroidViewModel(application) {
-    private val db = AppDatabase.getDatabase(application)
-    private val articleRepository = ArticleRepository(db.articleDao(), db.sourceDao())
-    private val sourceRepository = SourceRepository(db.sourceDao())
-    private val aiRepository = AiRepository(db.aiModelDao(), db.userPreferencesDao())
-    private val deduplicationService = DeduplicationService(application, db.articleDao())
+@HiltViewModel
+class FeedViewModel @Inject constructor(
+    application: Application,
+    private val refreshArticlesUseCase: RefreshArticlesUseCase,
+    private val getFeedArticlesUseCase: GetFeedArticlesUseCase,
+    private val summarizeContentUseCase: SummarizeContentUseCase,
+    private val askQuestionUseCase: AskQuestionUseCase,
+    private val sourceRepository: SourceRepository,
+    private val userPreferencesDao: UserPreferencesDao
+) : AndroidViewModel(application) {
     
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -51,7 +65,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     private val _isAiLoading = MutableStateFlow(false)
     val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
 
-    val userPreferences: StateFlow<UserPreferences> = db.userPreferencesDao().getUserPreferences()
+    val userPreferences: StateFlow<UserPreferences> = userPreferencesDao.getUserPreferences()
         .map { it ?: UserPreferences() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
 
@@ -59,47 +73,19 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         refresh()
     }
 
-    val groups: StateFlow<List<SourceGroup>> = sourceRepository.groupsWithSources
+    private val groupsWithSources: StateFlow<List<GroupWithSources>> = sourceRepository.groupsWithSources
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val groups: StateFlow<List<SourceGroup>> = groupsWithSources
         .map { list -> list.map { it.group }.filter { it.isEnabled } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val articleClusters: StateFlow<List<ArticleCluster>> = combine(
-        articleRepository.enabledArticles,
+    val articleClusters: StateFlow<List<ArticleCluster>> = getFeedArticlesUseCase(
         _searchQuery,
         _selectedGroupId,
-        _dateFilter,
+        _dateFilter.map { it.hours },
         userPreferences
-    ) { articles, query, groupId, dateFilter, prefs ->
-        var filteredArticles = articles
-        
-        if (groupId != null) {
-            val sourceIds = db.sourceDao().getSourcesByGroupId(groupId).first().map { it.id }
-            filteredArticles = filteredArticles.filter { it.sourceId in sourceIds }
-        }
-
-        dateFilter.hours?.let { hours ->
-            val threshold = System.currentTimeMillis() - (hours * 60 * 60 * 1000L)
-            filteredArticles = filteredArticles.filter { it.publishedAt >= threshold }
-        }
-
-        if (query.isNotBlank()) {
-            filteredArticles = filteredArticles.filter { 
-                it.title.contains(query, ignoreCase = true) || 
-                it.content.contains(query, ignoreCase = true) 
-            }
-        }
-
-        if (prefs.isDeduplicationEnabled && prefs.modelPath != null && filteredArticles.isNotEmpty()) {
-            if (deduplicationService.initialize(prefs.modelPath)) {
-                val clusters = deduplicationService.clusterArticles(filteredArticles, prefs.deduplicationThreshold)
-                clusters.filter { it.duplicates.size + 1 >= prefs.minMentions }
-            } else {
-                filteredArticles.map { ArticleCluster(it, emptyList()) }
-            }
-        } else {
-            filteredArticles.map { ArticleCluster(it, emptyList()) }
-        }
-    }.stateIn(
+    ).stateIn(
         scope = viewModelScope, 
         started = SharingStarted.Lazily,
         initialValue = emptyList()
@@ -108,7 +94,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            articleRepository.refreshArticles()
+            refreshArticlesUseCase()
             _isRefreshing.value = false
         }
     }
@@ -129,13 +115,12 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isAiLoading.value = true
             _aiResult.value = null
-            try {
-                _aiResult.value = aiRepository.summarize(content)
-            } catch (e: Exception) {
-                _aiResult.value = getApplication<Application>().getString(R.string.ai_error_prefix, e.message ?: "")
-            } finally {
-                _isAiLoading.value = false
+            val result = summarizeContentUseCase(content)
+            _aiResult.value = result.getOrElse { e ->
+                val prefix = getApplication<Application>().getString(R.string.ai_error_prefix, "")
+                "$prefix ${e.message}"
             }
+            _isAiLoading.value = false
         }
     }
 
@@ -143,13 +128,12 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isAiLoading.value = true
             _aiResult.value = null
-            try {
-                _aiResult.value = aiRepository.askQuestion(content, question)
-            } catch (e: Exception) {
-                _aiResult.value = getApplication<Application>().getString(R.string.ai_error_prefix, e.message ?: "")
-            } finally {
-                _isAiLoading.value = false
+            val result = askQuestionUseCase(content, question)
+            _aiResult.value = result.getOrElse { e ->
+                val prefix = getApplication<Application>().getString(R.string.ai_error_prefix, "")
+                "$prefix ${e.message}"
             }
+            _isAiLoading.value = false
         }
     }
 
@@ -171,8 +155,5 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
         _aiResult.value = null
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        deduplicationService.close()
-    }
+
 }

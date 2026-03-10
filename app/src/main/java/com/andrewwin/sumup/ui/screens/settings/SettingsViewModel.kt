@@ -1,27 +1,33 @@
 package com.andrewwin.sumup.ui.screens.settings
 
 import android.app.Application
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.*
-import com.andrewwin.sumup.data.local.AppDatabase
+import androidx.work.BackoffPolicy
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.data.repository.AiRepository
+import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.worker.SummaryWorker
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import java.io.File
-import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 
 sealed class ModelDownloadState {
     object Idle : ModelDownloadState()
@@ -31,14 +37,16 @@ sealed class ModelDownloadState {
     object Ready : ModelDownloadState()
 }
 
-class SettingsViewModel(application: Application) : AndroidViewModel(application) {
-    private val db = AppDatabase.getDatabase(application)
-    private val prefsDao = db.userPreferencesDao()
-    private val aiRepository = AiRepository(db.aiModelDao(), prefsDao)
-    private val okHttpClient = OkHttpClient()
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    application: Application,
+    private val prefsDao: UserPreferencesDao,
+    private val aiRepository: AiRepository,
+    private val manageModelUseCase: ManageModelUseCase,
+    private val workManager: WorkManager
+) : AndroidViewModel(application) {
 
-    private val MODEL_URL = "https://huggingface.co/onnx-community/distiluse-base-multilingual-v2-merged-onnx/resolve/main/combined_tokenizer_embedded_model.onnx?download=true"
-    private val MODEL_FILE_NAME = "dedup_model.onnx"
+
 
     val aiConfigs: StateFlow<List<AiModelConfig>> = aiRepository.allConfigs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -61,42 +69,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun checkModelExists() {
-        val file = File(getApplication<Application>().filesDir, MODEL_FILE_NAME)
-        if (file.exists()) {
+        if (manageModelUseCase.isModelExists()) {
             _downloadState.value = ModelDownloadState.Ready
         }
     }
 
     fun downloadModel() {
         viewModelScope.launch(Dispatchers.IO) {
-            val file = File(getApplication<Application>().filesDir, MODEL_FILE_NAME)
             _downloadState.value = ModelDownloadState.Downloading(0)
             try {
-                val request = Request.Builder().url(MODEL_URL).build()
-                okHttpClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) throw Exception(response.code.toString())
-                    val body = response.body ?: throw Exception()
-                    val totalBytes = body.contentLength()
-                    
-                    body.byteStream().use { input ->
-                        file.outputStream().use { output ->
-                            val buffer = ByteArray(8192)
-                            var downloaded = 0L
-                            var read: Int
-                            while (input.read(buffer).also { read = it } != -1) {
-                                downloaded += read
-                                if (totalBytes > 0) {
-                                    _downloadState.value = ModelDownloadState.Downloading((downloaded * 100 / totalBytes).toInt())
-                                }
-                                output.write(buffer, 0, read)
-                            }
-                        }
-                    }
+                manageModelUseCase.downloadModel().collect { progress ->
+                    _downloadState.value = ModelDownloadState.Downloading(progress)
                 }
                 _downloadState.value = ModelDownloadState.Ready
-                updateDeduplicationModelPath(file.absolutePath)
+                updateDeduplicationModelPath(manageModelUseCase.getModelPath())
             } catch (e: Exception) {
-                file.delete()
+                manageModelUseCase.deleteModel()
                 _downloadState.value = ModelDownloadState.Error(e.localizedMessage ?: "")
             }
         }
@@ -104,8 +92,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun deleteModel() {
         viewModelScope.launch(Dispatchers.IO) {
-            val file = File(getApplication<Application>().filesDir, MODEL_FILE_NAME)
-            if (file.exists()) file.delete()
+            manageModelUseCase.deleteModel()
             _downloadState.value = ModelDownloadState.Idle
             updateDeduplicationModelPath(null)
             updateDeduplicationEnabled(false)
@@ -191,7 +178,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             if (enabled) {
                 scheduleWorker(hour, minute)
             } else {
-                WorkManager.getInstance(getApplication()).cancelUniqueWork("scheduled_summary")
+                workManager.cancelUniqueWork("scheduled_summary")
             }
         }
     }
@@ -216,7 +203,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             .setBackoffCriteria(BackoffPolicy.LINEAR, 15, TimeUnit.MINUTES)
             .build()
 
-        WorkManager.getInstance(getApplication()).enqueueUniquePeriodicWork(
+        workManager.enqueueUniquePeriodicWork(
             "scheduled_summary",
             ExistingPeriodicWorkPolicy.REPLACE,
             request

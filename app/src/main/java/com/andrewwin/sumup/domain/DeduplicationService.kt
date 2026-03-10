@@ -4,7 +4,6 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.extensions.OrtxPackage
-import android.content.Context
 import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.entities.Article
 import kotlinx.coroutines.*
@@ -20,7 +19,6 @@ data class ArticleCluster(
 )
 
 class DeduplicationService(
-    private val context: Context,
     private val articleDao: ArticleDao
 ) {
     private val ortEnv: OrtEnvironment = OrtEnvironment.getEnvironment()

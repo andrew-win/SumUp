@@ -1,26 +1,23 @@
 package com.andrewwin.sumup.ui.screens.sources
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.andrewwin.sumup.data.local.AppDatabase
 import com.andrewwin.sumup.data.local.dao.GroupWithSources
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
-import com.andrewwin.sumup.data.repository.SourceRepository
+import com.andrewwin.sumup.domain.repository.SourceRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class SourcesViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class SourcesViewModel @Inject constructor(
     private val repository: SourceRepository
-
-    init {
-        val dao = AppDatabase.getDatabase(application).sourceDao()
-        repository = SourceRepository(dao)
-    }
+) : ViewModel() {
 
     val uiState: StateFlow<List<GroupWithSources>> = repository.groupsWithSources
         .stateIn(

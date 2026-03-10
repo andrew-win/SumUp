@@ -1,25 +1,37 @@
 package com.andrewwin.sumup.ui.screens.summary
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.*
-import com.andrewwin.sumup.data.local.AppDatabase
+import androidx.work.Constraints
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import com.andrewwin.sumup.data.local.dao.SummaryDao
+import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.data.repository.AiRepository
-import com.andrewwin.sumup.data.repository.ArticleRepository
+import com.andrewwin.sumup.domain.usecase.GenerateSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.worker.SummaryWorker
-import kotlinx.coroutines.flow.*
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class SummaryViewModel(application: Application) : AndroidViewModel(application) {
-    private val db = AppDatabase.getDatabase(application)
-    private val summaryDao = db.summaryDao()
-    private val prefsDao = db.userPreferencesDao()
-    private val aiRepo = AiRepository(db.aiModelDao(), prefsDao)
-    private val articleRepo = ArticleRepository(db.articleDao(), db.sourceDao())
-    private val workManager = WorkManager.getInstance(application)
+@HiltViewModel
+class SummaryViewModel @Inject constructor(
+    private val summaryDao: SummaryDao,
+    private val prefsDao: UserPreferencesDao,
+    private val workManager: WorkManager,
+    private val refreshArticlesUseCase: RefreshArticlesUseCase,
+    private val generateSummaryUseCase: GenerateSummaryUseCase
+) : ViewModel() {
 
     val summaries: StateFlow<List<Summary>> = summaryDao.getAllSummaries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -28,8 +40,9 @@ class SummaryViewModel(application: Application) : AndroidViewModel(application)
         .map { it ?: UserPreferences() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
 
-    val workInfo: StateFlow<List<WorkInfo>> = workManager.getWorkInfosForUniqueWorkFlow("scheduled_summary")
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val workInfo: StateFlow<List<WorkInfo>> =
+        workManager.getWorkInfosForUniqueWorkFlow("scheduled_summary")
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _isGenerating = MutableStateFlow(false)
     val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
@@ -38,17 +51,13 @@ class SummaryViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _isGenerating.value = true
             try {
-                articleRepo.refreshArticles()
-                val articles = db.articleDao().getEnabledArticlesOnce()
-                if (articles.isEmpty()) {
-                    summaryDao.insertSummary(Summary(content = "Немає нових статей для сумаризації."))
-                } else {
-                    val content = articles.take(10).joinToString("\n\n") { "${it.title}: ${it.content}" }
-                    val summaryText = aiRepo.summarize(content)
-                    summaryDao.insertSummary(Summary(content = summaryText))
-                }
+                refreshArticlesUseCase()
+                val summaryText = generateSummaryUseCase()
+                summaryDao.insertSummary(Summary(content = summaryText))
             } catch (e: Exception) {
-                summaryDao.insertSummary(Summary(content = "Помилка: ${e.localizedMessage}"))
+                summaryDao.insertSummary(
+                    Summary(content = e.localizedMessage.orEmpty())
+                )
             } finally {
                 _isGenerating.value = false
             }
@@ -57,7 +66,11 @@ class SummaryViewModel(application: Application) : AndroidViewModel(application)
 
     fun testWorkerNow() {
         val request = OneTimeWorkRequestBuilder<SummaryWorker>()
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
             .build()
         workManager.enqueue(request)
     }

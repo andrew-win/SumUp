@@ -13,7 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.Summary
 import java.text.SimpleDateFormat
@@ -22,7 +22,7 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SummaryScreen(
-    viewModel: SummaryViewModel = viewModel()
+    viewModel: SummaryViewModel = hiltViewModel()
 ) {
     val summaries by viewModel.summaries.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
