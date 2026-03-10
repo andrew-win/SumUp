@@ -37,7 +37,12 @@ fun SummaryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.nav_summary)) },
+                title = { 
+                    Text(
+                        stringResource(R.string.nav_summary),
+                        style = MaterialTheme.typography.titleLarge
+                    ) 
+                },
                 actions = {
                     IconButton(onClick = {}) {
                         Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
@@ -53,13 +58,6 @@ fun SummaryScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item {
-                Text(
-                    text = stringResource(R.string.summary_today_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            }
 
             item {
                 StatusCard(
@@ -98,7 +96,7 @@ fun SummaryScreen(
                     Text(
                         text = stringResource(R.string.summary_history_title),
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Normal
                     )
                 }
                 items(olderSummaries, key = { it.id }) { summary ->
@@ -126,17 +124,17 @@ fun StatusCard(isEnabled: Boolean, hour: Int, minute: Int, hasTodaySummary: Bool
             Column {
                 val timeText = String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
                 Text(
-                    text = if (isEnabled) 
+                    text = if (isEnabled)
                         stringResource(R.string.summary_next_at, timeText)
-                    else 
+                    else
                         stringResource(R.string.summary_scheduling_disabled),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Text(
-                    text = if (hasTodaySummary) 
+                    text = if (hasTodaySummary)
                         stringResource(R.string.summary_status_ready)
-                    else 
+                    else
                         stringResource(R.string.summary_status_waiting),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)

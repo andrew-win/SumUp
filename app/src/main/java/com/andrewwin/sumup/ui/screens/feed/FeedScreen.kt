@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,6 +32,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.domain.ArticleCluster
+import com.andrewwin.sumup.ui.theme.Rubik
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -61,36 +63,75 @@ fun FeedScreen(
     val coroutineScope = rememberCoroutineScope()
     
     val showBackToTop by remember {
-        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+        derivedStateOf { listState.firstVisibleItemIndex > 0 }
     }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.background,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column {
-                    TopAppBar(
-                        title = { 
-                            Text(
-                                stringResource(R.string.nav_feed),
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.ExtraBold
-                            ) 
+            TopAppBar(
+                title = { 
+                    Text(
+                        stringResource(R.string.nav_feed),
+                        style = MaterialTheme.typography.titleLarge
+                    ) 
+                },
+                scrollBehavior = scrollBehavior
+            )
+        },
+        floatingActionButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                AnimatedVisibility(
+                    visible = showBackToTop,
+                    enter = fadeIn() + scaleIn(),
+                    exit = fadeOut() + scaleOut()
+                ) {
+                    SmallFloatingActionButton(
+                        onClick = {
+                            coroutineScope.launch { listState.animateScrollToItem(0) }
                         },
-                        scrollBehavior = scrollBehavior,
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent,
-                            scrolledContainerColor = Color.Transparent
-                        )
-                    )
-                    
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(bottom = 16.dp),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.back_to_top))
+                    }
+                }
+
+                FloatingActionButton(
+                    onClick = { isFeedAiActive = true },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(bottom = 16.dp),
+                    shape = MaterialTheme.shapes.extraLarge
+                ) {
+                    Icon(Icons.Default.SmartToy, contentDescription = null)
+                }
+            }
+        }
+    ) { innerPadding ->
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.refresh() },
+            modifier = Modifier.fillMaxSize()
+        ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    top = innerPadding.calculateTopPadding(),
+                    bottom = innerPadding.calculateBottomPadding() + 16.dp,
+                    start = 16.dp,
+                    end = 16.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                item {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 12.dp)
+                            .padding(bottom = 4.dp)
                     ) {
                         SearchBar(
                             inputField = {
@@ -101,22 +142,22 @@ fun FeedScreen(
                                     expanded = false,
                                     onExpandedChange = {},
                                     placeholder = { Text(stringResource(R.string.search_placeholder)) },
-                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                                    trailingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null) }
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
                                 )
                             },
                             expanded = false,
                             onExpandedChange = {},
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
-                            shape = MaterialTheme.shapes.extraLarge
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.extraLarge,
+                            colors = SearchBarDefaults.colors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                            )
                         ) {}
 
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                .padding(vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
@@ -185,53 +226,7 @@ fun FeedScreen(
                         }
                     }
                 }
-            }
-        },
-        floatingActionButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                AnimatedVisibility(
-                    visible = showBackToTop,
-                    enter = fadeIn() + scaleIn(),
-                    exit = fadeOut() + scaleOut()
-                ) {
-                    SmallFloatingActionButton(
-                        onClick = {
-                            coroutineScope.launch { listState.animateScrollToItem(0) }
-                        },
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.padding(bottom = 16.dp),
-                        shape = MaterialTheme.shapes.large
-                    ) {
-                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.back_to_top))
-                    }
-                }
-                
-                ExtendedFloatingActionButton(
-                    onClick = { isFeedAiActive = true },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(bottom = 16.dp),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    icon = { Icon(Icons.Default.SmartToy, contentDescription = null) },
-                    text = { Text(stringResource(R.string.ai_feed_title)) }
-                )
-            }
-        }
-    ) { innerPadding ->
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = { viewModel.refresh() },
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
+
                 items(articleClusters, key = { it.representative.id }) { cluster ->
                     ArticleClusterCard(
                         cluster = cluster,
@@ -258,13 +253,6 @@ fun FeedScreen(
                         .fillMaxWidth()
                         .navigationBarsPadding()
                 ) {
-                    Text(
-                        text = if (isFeedAiActive) stringResource(R.string.ai_feed_title) else (articleForAi?.title ?: ""),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.height(24.dp))
-                    
                     Box(
                         modifier = Modifier
                             .weight(1f, fill = false)
@@ -369,7 +357,7 @@ fun ArticleClusterCard(
                             text = stringResource(R.string.feed_similar_news, cluster.duplicates.size),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.Normal,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
@@ -405,13 +393,15 @@ fun ArticleItem(
             text = dateFormat.format(Date(article.publishedAt)),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.Normal
         )
         Spacer(Modifier.height(12.dp))
         Text(
             text = article.title,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.ExtraBold,
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontFamily = Rubik,
+                fontWeight = FontWeight.SemiBold
+            ),
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
             lineHeight = 28.sp
@@ -423,7 +413,8 @@ fun ArticleItem(
             maxLines = 4,
             overflow = TextOverflow.Ellipsis,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            lineHeight = 22.sp
+            lineHeight = 22.sp,
+            fontWeight = FontWeight.Normal
         )
         Spacer(Modifier.height(24.dp))
         Row(
@@ -444,7 +435,7 @@ fun ArticleItem(
                     modifier = Modifier.size(40.dp),
                     shape = MaterialTheme.shapes.medium
                 ) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                    Icon(painterResource(R.drawable.ic_ask_ai), contentDescription = null)
                 }
             }
             Surface(
@@ -454,7 +445,8 @@ fun ArticleItem(
                 Text(
                     text = stringResource(R.string.direct_text),
                     style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    fontWeight = FontWeight.Normal
                 )
             }
         }
@@ -475,15 +467,18 @@ fun DuplicateItem(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = article.title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontFamily = Rubik,
+                    fontWeight = FontWeight.SemiBold
+                ),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = stringResource(R.string.feed_similarity_score, (score * 100).toInt()),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.secondary
+                color = MaterialTheme.colorScheme.secondary,
+                fontWeight = FontWeight.Normal
             )
         }
         Spacer(Modifier.width(16.dp))

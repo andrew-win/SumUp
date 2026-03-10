@@ -3,7 +3,7 @@
     <string name="nav_summary">Зведення</string>
     <string name="nav_feed">Стрічка</string>
     <string name="nav_sources">Джерела</string>
-    <string name="nav_settings">Налаштування</string>
+    <string name="nav_settings">Параметри</string>
     <string name="content_help">Допомога</string>
     <string name="add_group">Додати групу</string>
     <string name="add_source">Додати джерело</string>
@@ -23,7 +23,6 @@
     <string name="filter_group">Група</string>
     <string name="all_groups">Всі групи</string>
     <string name="back_to_top">Вгору</string>
-    <string name="ai_feed_title">ШІ Стрічки</string>
     <string name="ai_ask_placeholder">Запитайте щось…</string>
     <string name="ai_summarize_feed">Підсумувати стрічку</string>
     <string name="ai_summarize_article">Зробити підсумок</string>

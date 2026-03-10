@@ -22,7 +22,6 @@ class SummaryWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val articleRepo = ArticleRepository(articleDao, db.sourceDao())
         val aiRepo = AiRepository(db.aiModelDao())
 
-        // Оновлюємо мітку часу останнього запуску для діагностики
         try {
             val currentPrefs = prefsDao.getUserPreferences().first()
             if (currentPrefs != null) {

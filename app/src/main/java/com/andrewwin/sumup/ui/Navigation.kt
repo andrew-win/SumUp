@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.ui
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -9,15 +10,39 @@ import androidx.compose.material.icons.filled.Source
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.andrewwin.sumup.R
 
+sealed class NavigationIcon {
+    data class Vector(val imageVector: ImageVector) : NavigationIcon()
+    data class Custom(@DrawableRes val resId: Int) : NavigationIcon()
+}
+
 sealed class Screen(
     val route: String,
     @StringRes val resourceId: Int,
-    val icon: ImageVector
+    val icon: NavigationIcon
 ) {
-    data object Summary : Screen("summary", R.string.nav_summary, Icons.Default.AutoAwesome)
-    data object Feed : Screen("feed", R.string.nav_feed, Icons.Default.Feed)
-    data object Sources : Screen("sources", R.string.nav_sources, Icons.Default.Source)
-    data object Settings : Screen("settings", R.string.nav_settings, Icons.Default.Settings)
+    data object Summary : Screen(
+        route = "summary",
+        resourceId = R.string.nav_summary,
+        icon = NavigationIcon.Custom(R.drawable.ic_summary_page)
+    )
+
+    data object Feed : Screen(
+        route = "feed",
+        resourceId = R.string.nav_feed,
+        icon = NavigationIcon.Custom(R.drawable.ic_feed_page)
+    )
+
+    data object Sources : Screen(
+        route = "sources",
+        resourceId = R.string.nav_sources,
+        icon = NavigationIcon.Vector(Icons.Default.Source)
+    )
+
+    data object Settings : Screen(
+        route = "settings",
+        resourceId = R.string.nav_settings,
+        icon = NavigationIcon.Vector(Icons.Default.Settings)
+    )
 }
 
 val navItems = listOf(

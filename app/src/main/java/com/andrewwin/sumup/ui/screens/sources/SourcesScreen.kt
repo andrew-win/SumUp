@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -131,7 +132,7 @@ fun GroupCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Folder, contentDescription = null)
+                Icon(Icons.Outlined.Folder, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = groupWithSources.group.name,
