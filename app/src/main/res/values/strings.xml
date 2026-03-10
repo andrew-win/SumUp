@@ -88,4 +88,8 @@
     <string name="filter_date_6h">6 год</string>
     <string name="filter_date_12h">12 год</string>
     <string name="filter_date_24h">24 год</string>
+
+    <string name="source_type_rss">RSS Стрічка</string>
+    <string name="source_type_telegram">Telegram Канал</string>
+    <string name="source_type_youtube">YouTube Канал</string>
 </resources>

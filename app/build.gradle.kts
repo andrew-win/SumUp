@@ -6,11 +6,7 @@ plugins {
 
 android {
     namespace = "com.andrewwin.sumup"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.andrewwin.sumup"
@@ -59,6 +55,7 @@ dependencies {
 
     implementation(libs.okhttp)
     implementation(libs.androidx.work.runtime)
+    implementation(libs.jsoup)
 
     implementation(libs.onnxruntime.android)
     implementation(libs.onnxruntime.extensions.android)

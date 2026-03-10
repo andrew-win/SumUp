@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Delete
@@ -15,6 +14,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,7 +49,10 @@ fun SourcesScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddGroupDialog = true }) {
+            FloatingActionButton(
+                onClick = { showAddGroupDialog = true },
+                shape = MaterialTheme.shapes.extraLarge
+            ) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_group))
             }
         }
@@ -123,17 +127,18 @@ fun GroupCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Outlined.Folder, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
+                Icon(Icons.Outlined.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(12.dp))
                 Text(
                     text = groupWithSources.group.name,
                     style = MaterialTheme.typography.titleMedium,
@@ -168,21 +173,27 @@ fun GroupCard(
                 )
             }
 
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.sources_count, groupWithSources.sources.size),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            TextButton(
-                onClick = onAddSource,
-                modifier = Modifier.align(Alignment.End),
-                enabled = groupWithSources.group.isEnabled
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(Modifier.width(4.dp))
-                Text(stringResource(R.string.add_source))
+                Text(
+                    text = stringResource(R.string.sources_count, groupWithSources.sources.size),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                FilledTonalButton(
+                    onClick = onAddSource,
+                    enabled = groupWithSources.group.isEnabled,
+                    shape = MaterialTheme.shapes.large
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.add_source))
+                }
             }
         }
     }
@@ -196,32 +207,37 @@ fun SourceItem(
     onEdit: (Source) -> Unit,
     onDelete: (Source) -> Unit
 ) {
-    val icon = when (source.type) {
-        SourceType.TELEGRAM -> Icons.AutoMirrored.Filled.Send
-        SourceType.RSS -> Icons.Default.RssFeed
-        SourceType.YOUTUBE -> Icons.Default.PlayCircle
+    val painter = when (source.type) {
+        SourceType.TELEGRAM -> painterResource(R.drawable.ic_telegram_source)
+        SourceType.RSS -> rememberVectorPainter(Icons.Default.RssFeed)
+        SourceType.YOUTUBE -> rememberVectorPainter(Icons.Default.PlayCircle)
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 12.dp)
             .alpha(if (isGroupEnabled) 1f else 0.5f),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = icon,
+            painter = painter,
             contentDescription = null,
             modifier = Modifier.size(24.dp),
-            tint = MaterialTheme.colorScheme.primary
+            tint = MaterialTheme.colorScheme.secondary
         )
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = source.name, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = source.name, 
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
             Text(
                 text = source.url,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
             )
         }
         Switch(
@@ -247,24 +263,28 @@ fun GroupDialog(
     var name by remember { mutableStateOf(group?.name ?: "") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (group == null) stringResource(R.string.add_group) else "Редагувати групу") },
+        title = { Text(stringResource(if (group == null) R.string.add_group else R.string.edit_group)) },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
                 label = { Text(stringResource(R.string.group_name)) },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large
             )
         },
         confirmButton = {
-            Button(onClick = { 
-                if (name.isNotBlank()) {
-                    onConfirm(name)
-                    onDismiss()
-                }
-            }) {
-                Text(if (group == null) stringResource(R.string.add) else "Зберегти")
+            Button(
+                onClick = { 
+                    if (name.isNotBlank()) {
+                        onConfirm(name)
+                        onDismiss()
+                    }
+                },
+                shape = MaterialTheme.shapes.large
+            ) {
+                Text(stringResource(if (group == null) R.string.add else R.string.save))
             }
         },
         dismissButton = {
@@ -289,22 +309,24 @@ fun SourceDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (source == null) stringResource(R.string.add_source) else "Редагувати джерело") },
+        title = { Text(stringResource(if (source == null) R.string.add_source else R.string.edit_source)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text(stringResource(R.string.source_name)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large
                 )
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
                     label = { Text(stringResource(R.string.source_url)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large
                 )
                 ExposedDropdownMenuBox(
                     expanded = expanded,
@@ -316,7 +338,10 @@ fun SourceDialog(
                         readOnly = true,
                         label = { Text(stringResource(R.string.source_type)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable, true).fillMaxWidth()
+                        modifier = Modifier
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                            .fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large
                     )
                     ExposedDropdownMenu(
                         expanded = expanded,
@@ -336,13 +361,16 @@ fun SourceDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { 
-                if (name.isNotBlank() && url.isNotBlank()) {
-                    onConfirm(name, url, type)
-                    onDismiss()
-                }
-            }) {
-                Text(if (source == null) stringResource(R.string.add) else "Зберегти")
+            Button(
+                onClick = { 
+                    if (name.isNotBlank() && url.isNotBlank()) {
+                        onConfirm(name, url, type)
+                        onDismiss()
+                    }
+                },
+                shape = MaterialTheme.shapes.large
+            ) {
+                Text(stringResource(if (source == null) R.string.add else R.string.save))
             }
         },
         dismissButton = {
