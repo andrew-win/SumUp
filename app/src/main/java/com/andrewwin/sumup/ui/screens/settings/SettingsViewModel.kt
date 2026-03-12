@@ -7,12 +7,12 @@ import androidx.work.BackoffPolicy
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.worker.SummaryWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,11 +21,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -40,19 +38,16 @@ sealed class ModelDownloadState {
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     application: Application,
-    private val prefsDao: UserPreferencesDao,
+    private val userPreferencesRepository: UserPreferencesRepository,
     private val aiRepository: AiRepository,
     private val manageModelUseCase: ManageModelUseCase,
     private val workManager: WorkManager
 ) : AndroidViewModel(application) {
 
-
-
     val aiConfigs: StateFlow<List<AiModelConfig>> = aiRepository.allConfigs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val userPreferences: StateFlow<UserPreferences> = prefsDao.getUserPreferences()
-        .map { it ?: UserPreferences() }
+    val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.preferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
 
     private val _downloadState = MutableStateFlow<ModelDownloadState>(ModelDownloadState.Idle)
@@ -77,15 +72,15 @@ class SettingsViewModel @Inject constructor(
     fun downloadModel() {
         viewModelScope.launch(Dispatchers.IO) {
             _downloadState.value = ModelDownloadState.Downloading(0)
-            try {
+            runCatching {
                 manageModelUseCase.downloadModel().collect { progress ->
                     _downloadState.value = ModelDownloadState.Downloading(progress)
                 }
                 _downloadState.value = ModelDownloadState.Ready
-                updateDeduplicationModelPath(manageModelUseCase.getModelPath())
-            } catch (e: Exception) {
+                updatePreferences { it.copy(modelPath = manageModelUseCase.getModelPath()) }
+            }.onFailure { e ->
                 manageModelUseCase.deleteModel()
-                _downloadState.value = ModelDownloadState.Error(e.localizedMessage ?: "")
+                _downloadState.value = ModelDownloadState.Error(e.localizedMessage.orEmpty())
             }
         }
     }
@@ -94,93 +89,66 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             manageModelUseCase.deleteModel()
             _downloadState.value = ModelDownloadState.Idle
-            updateDeduplicationModelPath(null)
-            updateDeduplicationEnabled(false)
+            updatePreferences { it.copy(modelPath = null, isDeduplicationEnabled = false) }
         }
-    }
-
-    private suspend fun updateDeduplicationModelPath(path: String?) {
-        val current = userPreferences.value
-        prefsDao.insertUserPreferences(current.copy(modelPath = path))
     }
 
     fun updateAiStrategy(strategy: AiStrategy) {
-        viewModelScope.launch {
-            val current = userPreferences.value
-            prefsDao.insertUserPreferences(current.copy(aiStrategy = strategy))
-        }
+        viewModelScope.launch { updatePreferences { it.copy(aiStrategy = strategy) } }
     }
 
     fun updateDeduplicationEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            val current = userPreferences.value
-            prefsDao.insertUserPreferences(current.copy(isDeduplicationEnabled = enabled))
-        }
+        viewModelScope.launch { updatePreferences { it.copy(isDeduplicationEnabled = enabled) } }
     }
 
     fun updateDeduplicationThreshold(threshold: Float) {
-        viewModelScope.launch {
-            val current = userPreferences.value
-            prefsDao.insertUserPreferences(current.copy(deduplicationThreshold = threshold))
-        }
+        viewModelScope.launch { updatePreferences { it.copy(deduplicationThreshold = threshold) } }
     }
 
     fun updateMinMentions(min: Int) {
-        viewModelScope.launch {
-            val current = userPreferences.value
-            prefsDao.insertUserPreferences(current.copy(minMentions = min))
-        }
+        viewModelScope.launch { updatePreferences { it.copy(minMentions = min) } }
     }
 
     fun loadModels(provider: AiProvider, apiKey: String) {
         viewModelScope.launch {
             _isLoadingModels.value = true
-            try {
-                _availableModels.value = aiRepository.fetchAvailableModels(provider, apiKey)
-            } catch (e: Exception) {
-                _availableModels.value = emptyList()
-            } finally {
-                _isLoadingModels.value = false
-            }
+            runCatching { _availableModels.value = aiRepository.fetchAvailableModels(provider, apiKey) }
+                .onFailure { _availableModels.value = emptyList() }
+            _isLoadingModels.value = false
         }
     }
 
     fun addAiConfig(config: AiModelConfig) {
-        viewModelScope.launch {
-            aiRepository.addConfig(config)
-        }
+        viewModelScope.launch { aiRepository.addConfig(config) }
     }
 
     fun updateAiConfig(config: AiModelConfig) {
-        viewModelScope.launch {
-            aiRepository.updateConfig(config)
-        }
+        viewModelScope.launch { aiRepository.updateConfig(config) }
     }
 
     fun deleteAiConfig(config: AiModelConfig) {
-        viewModelScope.launch {
-            aiRepository.deleteConfig(config)
-        }
+        viewModelScope.launch { aiRepository.deleteConfig(config) }
     }
 
     fun toggleAiConfig(config: AiModelConfig, isEnabled: Boolean) {
-        viewModelScope.launch {
-            aiRepository.updateConfig(config.copy(isEnabled = isEnabled))
-        }
+        viewModelScope.launch { aiRepository.updateConfig(config.copy(isEnabled = isEnabled)) }
     }
 
     fun updateScheduledSummary(enabled: Boolean, hour: Int, minute: Int) {
         viewModelScope.launch {
-            val current = userPreferences.value
-            val prefs = current.copy(isScheduledSummaryEnabled = enabled, scheduledHour = hour, scheduledMinute = minute)
-            prefsDao.insertUserPreferences(prefs)
-            
-            if (enabled) {
-                scheduleWorker(hour, minute)
-            } else {
-                workManager.cancelUniqueWork("scheduled_summary")
+            updatePreferences {
+                it.copy(
+                    isScheduledSummaryEnabled = enabled,
+                    scheduledHour = hour,
+                    scheduledMinute = minute
+                )
             }
+            if (enabled) scheduleWorker(hour, minute) else workManager.cancelUniqueWork(SCHEDULED_SUMMARY_WORK_NAME)
         }
+    }
+
+    private suspend fun updatePreferences(transform: (UserPreferences) -> UserPreferences) {
+        userPreferencesRepository.updatePreferences(transform(userPreferences.value))
     }
 
     private fun scheduleWorker(hour: Int, minute: Int) {
@@ -190,23 +158,22 @@ class SettingsViewModel @Inject constructor(
             set(Calendar.MINUTE, minute)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
-            if (before(currentDate)) {
-                add(Calendar.HOUR_OF_DAY, 24)
-            }
+            if (before(currentDate)) add(Calendar.HOUR_OF_DAY, 24)
         }
 
-        var initialDelay = dueDate.timeInMillis - currentDate.timeInMillis
-        if (initialDelay < 5000) initialDelay = 5000
+        val initialDelay = maxOf(dueDate.timeInMillis - currentDate.timeInMillis, MIN_INITIAL_DELAY_MS)
 
         val request = PeriodicWorkRequestBuilder<SummaryWorker>(24, TimeUnit.HOURS)
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
-            .setBackoffCriteria(BackoffPolicy.LINEAR, 15, TimeUnit.MINUTES)
+            .setBackoffCriteria(BackoffPolicy.LINEAR, BACKOFF_DELAY_MINUTES, TimeUnit.MINUTES)
             .build()
 
-        workManager.enqueueUniquePeriodicWork(
-            "scheduled_summary",
-            ExistingPeriodicWorkPolicy.REPLACE,
-            request
-        )
+        workManager.enqueueUniquePeriodicWork(SCHEDULED_SUMMARY_WORK_NAME, ExistingPeriodicWorkPolicy.REPLACE, request)
+    }
+
+    companion object {
+        private const val SCHEDULED_SUMMARY_WORK_NAME = "scheduled_summary"
+        private const val MIN_INITIAL_DELAY_MS = 5000L
+        private const val BACKOFF_DELAY_MINUTES = 15L
     }
 }

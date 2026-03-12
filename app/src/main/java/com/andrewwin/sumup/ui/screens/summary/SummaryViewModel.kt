@@ -7,11 +7,12 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
-import com.andrewwin.sumup.data.local.dao.SummaryDao
-import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.data.local.entities.UserPreferences
+import com.andrewwin.sumup.domain.repository.SummaryRepository
+import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.GenerateSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.NoArticlesException
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.worker.SummaryWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,29 +20,27 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class SummaryViewModel @Inject constructor(
-    private val summaryDao: SummaryDao,
-    private val prefsDao: UserPreferencesDao,
+    private val summaryRepository: SummaryRepository,
+    private val userPreferencesRepository: UserPreferencesRepository,
     private val workManager: WorkManager,
     private val refreshArticlesUseCase: RefreshArticlesUseCase,
     private val generateSummaryUseCase: GenerateSummaryUseCase
 ) : ViewModel() {
 
-    val summaries: StateFlow<List<Summary>> = summaryDao.getAllSummaries()
+    val summaries: StateFlow<List<Summary>> = summaryRepository.allSummaries
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val userPreferences: StateFlow<UserPreferences> = prefsDao.getUserPreferences()
-        .map { it ?: UserPreferences() }
+    val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.preferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
 
     val workInfo: StateFlow<List<WorkInfo>> =
-        workManager.getWorkInfosForUniqueWorkFlow("scheduled_summary")
+        workManager.getWorkInfosForUniqueWorkFlow(SCHEDULED_SUMMARY_WORK_NAME)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _isGenerating = MutableStateFlow(false)
@@ -50,17 +49,18 @@ class SummaryViewModel @Inject constructor(
     fun generateSummaryNow() {
         viewModelScope.launch {
             _isGenerating.value = true
-            try {
+            runCatching {
                 refreshArticlesUseCase()
                 val summaryText = generateSummaryUseCase()
-                summaryDao.insertSummary(Summary(content = summaryText))
-            } catch (e: Exception) {
-                summaryDao.insertSummary(
-                    Summary(content = e.localizedMessage.orEmpty())
-                )
-            } finally {
-                _isGenerating.value = false
+                summaryRepository.insertSummary(Summary(content = summaryText))
+            }.onFailure { e ->
+                val message = when (e) {
+                    is NoArticlesException -> return@onFailure
+                    else -> e.localizedMessage.orEmpty()
+                }
+                summaryRepository.insertSummary(Summary(content = message))
             }
+            _isGenerating.value = false
         }
     }
 
@@ -73,5 +73,9 @@ class SummaryViewModel @Inject constructor(
             )
             .build()
         workManager.enqueue(request)
+    }
+
+    companion object {
+        private const val SCHEDULED_SUMMARY_WORK_NAME = "scheduled_summary"
     }
 }

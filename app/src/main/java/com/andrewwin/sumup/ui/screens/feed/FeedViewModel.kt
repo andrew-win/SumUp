@@ -5,12 +5,14 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.local.dao.GroupWithSources
 import com.andrewwin.sumup.data.local.entities.SourceGroup
-import com.andrewwin.sumup.data.local.entities.UserPreferences
+import com.andrewwin.sumup.domain.exception.NoActiveModelException
+import com.andrewwin.sumup.domain.exception.UnsupportedStrategyException
 import com.andrewwin.sumup.domain.repository.SourceRepository
+import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.ArticleCluster
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.ai.AskQuestionUseCase
@@ -44,9 +46,9 @@ class FeedViewModel @Inject constructor(
     private val summarizeContentUseCase: SummarizeContentUseCase,
     private val askQuestionUseCase: AskQuestionUseCase,
     private val sourceRepository: SourceRepository,
-    private val userPreferencesDao: UserPreferencesDao
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : AndroidViewModel(application) {
-    
+
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
@@ -65,13 +67,8 @@ class FeedViewModel @Inject constructor(
     private val _isAiLoading = MutableStateFlow(false)
     val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
 
-    val userPreferences: StateFlow<UserPreferences> = userPreferencesDao.getUserPreferences()
-        .map { it ?: UserPreferences() }
+    val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.preferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
-
-    init {
-        refresh()
-    }
 
     private val groupsWithSources: StateFlow<List<GroupWithSources>> = sourceRepository.groupsWithSources
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -90,10 +87,14 @@ class FeedViewModel @Inject constructor(
         _dateFilter.map { it.hours },
         userPreferences
     ).stateIn(
-        scope = viewModelScope, 
+        scope = viewModelScope,
         started = SharingStarted.Lazily,
         initialValue = emptyList()
     )
+
+    init {
+        refresh()
+    }
 
     fun refresh() {
         viewModelScope.launch {
@@ -103,27 +104,16 @@ class FeedViewModel @Inject constructor(
         }
     }
 
-    fun onSearchQueryChange(query: String) {
-        _searchQuery.value = query
-    }
-
-    fun selectGroup(groupId: Long?) {
-        _selectedGroupId.value = groupId
-    }
-
-    fun setDateFilter(filter: DateFilter) {
-        _dateFilter.value = filter
-    }
+    fun onSearchQueryChange(query: String) { _searchQuery.value = query }
+    fun selectGroup(groupId: Long?) { _selectedGroupId.value = groupId }
+    fun setDateFilter(filter: DateFilter) { _dateFilter.value = filter }
+    fun clearAiResult() { _aiResult.value = null }
 
     fun summarizeContent(content: String) {
         viewModelScope.launch {
             _isAiLoading.value = true
             _aiResult.value = null
-            val result = summarizeContentUseCase(content)
-            _aiResult.value = result.getOrElse { e ->
-                val prefix = getApplication<Application>().getString(R.string.ai_error_prefix, "")
-                "$prefix ${e.message}"
-            }
+            _aiResult.value = summarizeContentUseCase(content).getOrElse { e -> localizeError(e) }
             _isAiLoading.value = false
         }
     }
@@ -132,32 +122,27 @@ class FeedViewModel @Inject constructor(
         viewModelScope.launch {
             _isAiLoading.value = true
             _aiResult.value = null
-            val result = askQuestionUseCase(content, question)
-            _aiResult.value = result.getOrElse { e ->
-                val prefix = getApplication<Application>().getString(R.string.ai_error_prefix, "")
-                "$prefix ${e.message}"
-            }
+            _aiResult.value = askQuestionUseCase(content, question).getOrElse { e -> localizeError(e) }
             _isAiLoading.value = false
         }
     }
 
     fun summarizeFeed() {
-        val combinedContent = articleClusters.value.joinToString("\n\n") { "${it.representative.title}: ${it.representative.content}" }
-        if (combinedContent.isNotBlank()) {
-            summarizeContent(combinedContent)
-        }
+        val content = articleClusters.value.joinToString("\n\n") { "${it.representative.title}: ${it.representative.content}" }
+        if (content.isNotBlank()) summarizeContent(content)
     }
 
     fun askFeed(question: String) {
-        val combinedContent = articleClusters.value.joinToString("\n\n") { "${it.representative.title}: ${it.representative.content}" }
-        if (combinedContent.isNotBlank()) {
-            askQuestion(combinedContent, question)
+        val content = articleClusters.value.joinToString("\n\n") { "${it.representative.title}: ${it.representative.content}" }
+        if (content.isNotBlank()) askQuestion(content, question)
+    }
+
+    private fun localizeError(e: Throwable): String {
+        val context = getApplication<Application>()
+        return when (e) {
+            is NoActiveModelException -> context.getString(R.string.error_no_active_model)
+            is UnsupportedStrategyException -> context.getString(R.string.error_unsupported_strategy)
+            else -> "${context.getString(R.string.ai_error_prefix)} ${e.localizedMessage.orEmpty()}"
         }
     }
-
-    fun clearAiResult() {
-        _aiResult.value = null
-    }
-
-
 }

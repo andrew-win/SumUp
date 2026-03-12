@@ -92,6 +92,9 @@
     <string name="summary_worker_no_articles_today">Немає нових статей для зведення за сьогодні.</string>
     <string name="summary_worker_empty_response">Порожня відповідь при генерації зведення</string>
     <string name="summary_worker_error_prefix">Помилка воркера</string>
+    <string name="error_no_active_model">Немає активної ШІ моделі</string>
+    <string name="error_unsupported_strategy">Екстрактивна сумаризація не підтримує запитання</string>
+    <string name="error_no_articles">Немає нових статей для сумаризації.</string>
 
     <string name="filter_date_all">Всі</string>
     <string name="filter_date_1h">1 год</string>

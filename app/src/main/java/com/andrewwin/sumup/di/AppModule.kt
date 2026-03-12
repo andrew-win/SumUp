@@ -15,17 +15,21 @@ import com.andrewwin.sumup.data.remote.YouTubeParser
 import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
 import com.andrewwin.sumup.data.repository.AiRepositoryImpl
 import com.andrewwin.sumup.data.repository.ArticleRepositoryImpl
+import com.andrewwin.sumup.data.repository.ModelRepositoryImpl
 import com.andrewwin.sumup.data.repository.SourceRepositoryImpl
+import com.andrewwin.sumup.data.repository.SummaryRepositoryImpl
+import com.andrewwin.sumup.data.repository.UserPreferencesRepositoryImpl
+import com.andrewwin.sumup.domain.DeduplicationService
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.repository.ModelRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
-import com.andrewwin.sumup.domain.DeduplicationService
+import com.andrewwin.sumup.domain.repository.SummaryRepository
+import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.GenerateSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.GenerateSummaryUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCaseImpl
-import com.andrewwin.sumup.data.repository.ModelRepositoryImpl
-import com.andrewwin.sumup.domain.repository.ModelRepository
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCaseImpl
 import dagger.Module
@@ -116,9 +120,18 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideManageModelUseCase(
-        modelRepository: ModelRepository
-    ): ManageModelUseCase = ManageModelUseCaseImpl(modelRepository)
+    fun provideSummaryRepository(summaryDao: SummaryDao): SummaryRepository =
+        SummaryRepositoryImpl(summaryDao)
+
+    @Provides
+    @Singleton
+    fun provideUserPreferencesRepository(userPreferencesDao: UserPreferencesDao): UserPreferencesRepository =
+        UserPreferencesRepositoryImpl(userPreferencesDao)
+
+    @Provides
+    @Singleton
+    fun provideManageModelUseCase(modelRepository: ModelRepository): ManageModelUseCase =
+        ManageModelUseCaseImpl(modelRepository)
 
     @Provides
     @Singleton
@@ -127,25 +140,18 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideDeduplicationService(articleDao: ArticleDao): DeduplicationService =
-        DeduplicationService(articleDao)
+    fun provideDeduplicationService(articleRepository: ArticleRepository): DeduplicationService =
+        DeduplicationService(articleRepository)
 
     @Provides
     @Singleton
-    fun provideRefreshArticlesUseCase(
-        articleRepository: ArticleRepository
-    ): RefreshArticlesUseCase = RefreshArticlesUseCaseImpl(articleRepository)
+    fun provideRefreshArticlesUseCase(articleRepository: ArticleRepository): RefreshArticlesUseCase =
+        RefreshArticlesUseCaseImpl(articleRepository)
 
     @Provides
     @Singleton
     fun provideGenerateSummaryUseCase(
         articleRepository: ArticleRepository,
-        aiRepository: AiRepository,
-        @ApplicationContext context: Context
-    ): GenerateSummaryUseCase = GenerateSummaryUseCaseImpl(
-        articleRepository = articleRepository,
-        aiRepository = aiRepository,
-        appContext = context
-    )
+        aiRepository: AiRepository
+    ): GenerateSummaryUseCase = GenerateSummaryUseCaseImpl(articleRepository, aiRepository)
 }
-

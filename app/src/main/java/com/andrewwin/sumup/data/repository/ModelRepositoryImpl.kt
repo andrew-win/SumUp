@@ -17,20 +17,17 @@ class ModelRepositoryImpl @Inject constructor(
     private val okHttpClient: OkHttpClient
 ) : ModelRepository {
 
-    private val MODEL_URL = "https://huggingface.co/onnx-community/distiluse-base-multilingual-v2-merged-onnx/resolve/main/combined_tokenizer_embedded_model.onnx?download=true"
-    private val MODEL_FILE_NAME = "dedup_model.onnx"
-
     override fun downloadModel(): Flow<Int> = flow {
         val file = getModelFile()
         val request = Request.Builder().url(MODEL_URL).build()
         okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw Exception("Failed to download model: ${response.code}")
+            if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
             val body = response.body ?: throw Exception("Empty response body")
             val totalBytes = body.contentLength()
-            
+
             body.byteStream().use { input ->
                 file.outputStream().use { output ->
-                    val buffer = ByteArray(8192)
+                    val buffer = ByteArray(DOWNLOAD_BUFFER_SIZE)
                     var downloaded = 0L
                     var read: Int
                     while (input.read(buffer).also { read = it } != -1) {
@@ -47,20 +44,18 @@ class ModelRepositoryImpl @Inject constructor(
 
     override fun deleteModel() {
         val file = getModelFile()
-        if (file.exists()) {
-            file.delete()
-        }
+        if (file.exists()) file.delete()
     }
 
-    override fun isModelExists(): Boolean {
-        return getModelFile().exists()
-    }
+    override fun isModelExists(): Boolean = getModelFile().exists()
 
-    override fun getModelPath(): String {
-        return getModelFile().absolutePath
-    }
+    override fun getModelPath(): String = getModelFile().absolutePath
 
-    private fun getModelFile(): File {
-        return File(context.filesDir, MODEL_FILE_NAME)
+    private fun getModelFile(): File = File(context.filesDir, MODEL_FILE_NAME)
+
+    companion object {
+        private const val MODEL_URL = "https://huggingface.co/onnx-community/distiluse-base-multilingual-v2-merged-onnx/resolve/main/combined_tokenizer_embedded_model.onnx?download=true"
+        private const val MODEL_FILE_NAME = "dedup_model.onnx"
+        private const val DOWNLOAD_BUFFER_SIZE = 8192
     }
 }
