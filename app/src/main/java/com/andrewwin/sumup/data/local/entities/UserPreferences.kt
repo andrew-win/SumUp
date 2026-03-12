@@ -18,5 +18,11 @@ data class UserPreferences(
     val isDeduplicationEnabled: Boolean = false,
     val deduplicationThreshold: Float = 0.85f,
     val minMentions: Int = 2,
-    val modelPath: String? = null
+    val modelPath: String? = null,
+    val isImportanceFilterEnabled: Boolean = false,
+    val importanceThreshold: Float = 0.3f,
+    val importanceMinContentLength: Int = 150,
+    val importanceWeightLength: Float = 0.3f,
+    val importanceWeightViews: Float = 0.4f,
+    val importanceWeightFacts: Float = 0.3f
 )

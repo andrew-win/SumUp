@@ -24,7 +24,7 @@ class TelegramParser {
 
             val lines = fullText.split("\n").filter { it.isNotBlank() }
             val title = lines.firstOrNull()?.take(100) ?: ""
-            
+
             val url = linkElement?.attr("href") ?: ""
             val dateStr = dateElement?.attr("datetime")
             val publishedAt = try {
@@ -33,16 +33,29 @@ class TelegramParser {
                 System.currentTimeMillis()
             }
 
+            val viewCount = parseViewCount(element.selectFirst(".tgme_widget_message_views")?.text())
+
             articles.add(
                 Article(
                     sourceId = sourceId,
                     title = title,
                     content = fullText,
                     url = url,
-                    publishedAt = publishedAt
+                    publishedAt = publishedAt,
+                    viewCount = viewCount
                 )
             )
         }
         return articles
+    }
+
+    private fun parseViewCount(text: String?): Long {
+        if (text.isNullOrBlank()) return 0L
+        val cleaned = text.trim().uppercase()
+        return when {
+            cleaned.endsWith("K") -> (cleaned.dropLast(1).toDoubleOrNull() ?: 0.0).times(1_000).toLong()
+            cleaned.endsWith("M") -> (cleaned.dropLast(1).toDoubleOrNull() ?: 0.0).times(1_000_000).toLong()
+            else -> cleaned.toLongOrNull() ?: 0L
+        }
     }
 }

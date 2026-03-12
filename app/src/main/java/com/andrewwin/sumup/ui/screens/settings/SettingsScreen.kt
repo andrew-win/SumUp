@@ -237,6 +237,152 @@ fun SettingsScreen(
             }
 
             item {
+                SettingsSection(title = stringResource(R.string.settings_importance_filter)) {
+                    val isEnabled = userPreferences.isImportanceFilterEnabled
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(R.string.settings_enable_importance_filter),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Switch(
+                            checked = isEnabled,
+                            onCheckedChange = { viewModel.updateImportanceFilterEnabled(it) },
+                            modifier = Modifier.scale(0.85f)
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            stringResource(
+                                R.string.settings_importance_threshold,
+                                String.format(Locale.US, "%.2f", userPreferences.importanceThreshold)
+                            ),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Slider(
+                            value = userPreferences.importanceThreshold,
+                            onValueChange = { viewModel.updateImportanceThreshold(it) },
+                            valueRange = 0.0f..1.0f,
+                            steps = 19,
+                            enabled = isEnabled,
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                activeTickColor = MaterialTheme.colorScheme.primaryContainer,
+                                inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
+                            )
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            stringResource(
+                                R.string.settings_importance_min_length,
+                                userPreferences.importanceMinContentLength
+                            ),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Slider(
+                            value = userPreferences.importanceMinContentLength.toFloat(),
+                            onValueChange = { viewModel.updateImportanceMinContentLength(it.toInt()) },
+                            valueRange = 50f..500f,
+                            steps = 44,
+                            enabled = isEnabled,
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                activeTickColor = MaterialTheme.colorScheme.primaryContainer,
+                                inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
+                            )
+                        )
+                    }
+
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                    Text(
+                        stringResource(R.string.settings_importance_weights_header),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Column {
+                        Text(
+                            stringResource(
+                                R.string.settings_importance_weight_length,
+                                String.format(Locale.US, "%.1f", userPreferences.importanceWeightLength)
+                            ),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Slider(
+                            value = userPreferences.importanceWeightLength,
+                            onValueChange = { viewModel.updateImportanceWeightLength(it) },
+                            valueRange = 0.0f..1.0f,
+                            steps = 9,
+                            enabled = isEnabled,
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                activeTickColor = MaterialTheme.colorScheme.primaryContainer,
+                                inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
+                            )
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            stringResource(
+                                R.string.settings_importance_weight_views,
+                                String.format(Locale.US, "%.1f", userPreferences.importanceWeightViews)
+                            ),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Slider(
+                            value = userPreferences.importanceWeightViews,
+                            onValueChange = { viewModel.updateImportanceWeightViews(it) },
+                            valueRange = 0.0f..1.0f,
+                            steps = 9,
+                            enabled = isEnabled,
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                activeTickColor = MaterialTheme.colorScheme.primaryContainer,
+                                inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
+                            )
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            stringResource(
+                                R.string.settings_importance_weight_facts,
+                                String.format(Locale.US, "%.1f", userPreferences.importanceWeightFacts)
+                            ),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Slider(
+                            value = userPreferences.importanceWeightFacts,
+                            onValueChange = { viewModel.updateImportanceWeightFacts(it) },
+                            valueRange = 0.0f..1.0f,
+                            steps = 9,
+                            enabled = isEnabled,
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                activeTickColor = MaterialTheme.colorScheme.primaryContainer,
+                                inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
+                            )
+                        )
+                    }
+                }
+            }
+
+            item {
                 SettingsSection(title = stringResource(R.string.nav_summary)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text(

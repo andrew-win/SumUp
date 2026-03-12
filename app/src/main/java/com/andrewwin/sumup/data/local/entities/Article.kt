@@ -29,6 +29,7 @@ data class Article(
     val content: String,
     val url: String,
     val publishedAt: Long,
+    val viewCount: Long = 0,
     val isRead: Boolean = false,
     val isFavorite: Boolean = false,
     @ColumnInfo(name = "embedding", typeAffinity = ColumnInfo.BLOB)

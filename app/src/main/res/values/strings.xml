@@ -95,6 +95,14 @@
     <string name="error_no_active_model">Немає активної ШІ моделі</string>
     <string name="error_unsupported_strategy">Екстрактивна сумаризація не підтримує запитання</string>
     <string name="error_no_articles">Немає нових статей для сумаризації.</string>
+    <string name="settings_importance_filter">Фільтр важливості</string>
+    <string name="settings_enable_importance_filter">Фільтрувати неважливі новини</string>
+    <string name="settings_importance_threshold">Поріг важливості: %s</string>
+    <string name="settings_importance_min_length">Мінімальна довжина: %d симв.</string>
+    <string name="settings_importance_weights_header">Коефіцієнти метрик</string>
+    <string name="settings_importance_weight_length">Коеф. довжини: %s</string>
+    <string name="settings_importance_weight_views">Коеф. переглядів: %s</string>
+    <string name="settings_importance_weight_facts">Коеф. фактів: %s</string>
 
     <string name="filter_date_all">Всі</string>
     <string name="filter_date_1h">1 год</string>

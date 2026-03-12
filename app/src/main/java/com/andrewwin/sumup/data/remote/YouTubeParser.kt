@@ -40,6 +40,7 @@ class YouTubeParser {
         var link = ""
         var description = ""
         var published = 0L
+        var viewCount = 0L
 
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
@@ -50,7 +51,11 @@ class YouTubeParser {
                     skip(parser)
                 }
                 "published" -> published = parseDate(readText(parser))
-                "media:group" -> description = readMediaGroup(parser)
+                "media:group" -> {
+                    val result = readMediaGroup(parser)
+                    description = result.first
+                    viewCount = result.second
+                }
                 else -> skip(parser)
             }
         }
@@ -59,21 +64,26 @@ class YouTubeParser {
             title = title,
             content = description,
             url = link,
-            publishedAt = if (published == 0L) System.currentTimeMillis() else published
+            publishedAt = if (published == 0L) System.currentTimeMillis() else published,
+            viewCount = viewCount
         )
     }
 
-    private fun readMediaGroup(parser: XmlPullParser): String {
+    private fun readMediaGroup(parser: XmlPullParser): Pair<String, Long> {
         var description = ""
+        var viewCount = 0L
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
-            if (parser.name == "media:description") {
-                description = TextCleaner.clean(readText(parser))
-            } else {
-                skip(parser)
+            when (parser.name) {
+                "media:description" -> description = TextCleaner.clean(readText(parser))
+                "media:statistics" -> {
+                    viewCount = parser.getAttributeValue(null, "views")?.toLongOrNull() ?: 0L
+                    skip(parser)
+                }
+                else -> skip(parser)
             }
         }
-        return description
+        return description to viewCount
     }
 
     private fun readText(parser: XmlPullParser): String {
@@ -86,17 +96,11 @@ class YouTubeParser {
     }
 
     private fun parseDate(dateString: String): Long {
-        return try {
-            dateFormat.parse(dateString)?.time ?: 0L
-        } catch (e: Exception) {
-            0L
-        }
+        return try { dateFormat.parse(dateString)?.time ?: 0L } catch (e: Exception) { 0L }
     }
 
     private fun skip(parser: XmlPullParser) {
-        if (parser.eventType != XmlPullParser.START_TAG) {
-            throw IllegalStateException()
-        }
+        if (parser.eventType != XmlPullParser.START_TAG) throw IllegalStateException()
         var depth = 1
         while (depth != 0) {
             when (parser.next()) {

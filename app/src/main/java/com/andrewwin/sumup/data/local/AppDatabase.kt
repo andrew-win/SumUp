@@ -26,7 +26,7 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
         Summary::class,
         UserPreferences::class
     ],
-    version = 7,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

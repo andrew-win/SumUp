@@ -19,6 +19,7 @@ import com.andrewwin.sumup.data.repository.ModelRepositoryImpl
 import com.andrewwin.sumup.data.repository.SourceRepositoryImpl
 import com.andrewwin.sumup.data.repository.SummaryRepositoryImpl
 import com.andrewwin.sumup.data.repository.UserPreferencesRepositoryImpl
+import com.andrewwin.sumup.domain.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.DeduplicationService
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
@@ -137,6 +138,10 @@ object AppModule {
     @Singleton
     fun provideWorkManager(@ApplicationContext context: Context): WorkManager =
         WorkManager.getInstance(context)
+
+    @Provides
+    @Singleton
+    fun provideArticleImportanceScorer(): ArticleImportanceScorer = ArticleImportanceScorer()
 
     @Provides
     @Singleton
