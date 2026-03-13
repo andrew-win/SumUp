@@ -43,7 +43,7 @@ class GetFeedArticlesUseCase @Inject constructor(
                 .flatMap { it.sources }
                 .associate { it.id to it.type }
 
-            var filteredArticles = articles
+            var processedArticles = articles
 
             if (groupId != null) {
                 val sourceIds = groupsWithSources
@@ -51,48 +51,42 @@ class GetFeedArticlesUseCase @Inject constructor(
                     ?.sources
                     ?.map { it.id }
                     .orEmpty()
-                filteredArticles = filteredArticles.filter { it.sourceId in sourceIds }
+                processedArticles = processedArticles.filter { it.sourceId in sourceIds }
             }
 
             dateFilterHours?.let { hours ->
                 val threshold = System.currentTimeMillis() - (hours * 60 * 60 * 1000L)
-                filteredArticles = filteredArticles.filter { it.publishedAt >= threshold }
+                processedArticles = processedArticles.filter { it.publishedAt >= threshold }
             }
 
             if (query.isNotBlank()) {
-                filteredArticles = filteredArticles.filter {
+                processedArticles = processedArticles.filter {
                     it.title.contains(query, ignoreCase = true) ||
                             it.content.contains(query, ignoreCase = true)
                 }
             }
 
+            // Optimized feed logic
             if (prefs.isImportanceFilterEnabled) {
-                filteredArticles = filteredArticles.filter { article ->
+                // 1. Filter by importance
+                processedArticles = processedArticles.filter { article ->
                     val sourceType = sourceTypeMap[article.sourceId] ?: SourceType.RSS
-                    importanceScorer.score(
-                        article,
-                        sourceType,
-                        minContentLength = prefs.importanceMinContentLength,
-                        weightLength = prefs.importanceWeightLength,
-                        weightViews = prefs.importanceWeightViews,
-                        weightFacts = prefs.importanceWeightFacts
-                    ) >= prefs.importanceThreshold
+                    importanceScorer.score(article, sourceType) >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
+                }
+
+                // 2. Deduplicate filtered articles
+                if (prefs.isDeduplicationEnabled && prefs.modelPath != null && processedArticles.isNotEmpty()) {
+                    if (deduplicationService.initialize(prefs.modelPath)) {
+                        return@combine deduplicationService.clusterArticles(
+                            processedArticles,
+                            prefs.deduplicationThreshold
+                        ).filter { it.duplicates.size + 1 >= prefs.minMentions }
+                    }
                 }
             }
 
-            if (prefs.isDeduplicationEnabled && prefs.modelPath != null && filteredArticles.isNotEmpty()) {
-                if (deduplicationService.initialize(prefs.modelPath)) {
-                    val clusters = deduplicationService.clusterArticles(
-                        filteredArticles,
-                        prefs.deduplicationThreshold
-                    )
-                    clusters.filter { it.duplicates.size + 1 >= prefs.minMentions }
-                } else {
-                    filteredArticles.map { ArticleCluster(it, emptyList()) }
-                }
-            } else {
-                filteredArticles.map { ArticleCluster(it, emptyList()) }
-            }
+            // Return "naked" feed or if deduplication failed/disabled
+            processedArticles.map { ArticleCluster(it, emptyList()) }
         }
     }
 }

@@ -7,12 +7,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -173,8 +171,8 @@ fun SettingsScreen(
                             Slider(
                                 value = userPreferences.deduplicationThreshold,
                                 onValueChange = { viewModel.updateDeduplicationThreshold(it) },
-                                valueRange = 0.5f..0.99f,
-                                steps = 48,
+                                valueRange = 0.3f..0.99f,
+                                steps = 69,
                                 colors = SliderDefaults.colors(
                                     thumbColor = MaterialTheme.colorScheme.primary,
                                     activeTrackColor = MaterialTheme.colorScheme.primary,
@@ -193,8 +191,8 @@ fun SettingsScreen(
                             Slider(
                                 value = userPreferences.minMentions.toFloat(),
                                 onValueChange = { viewModel.updateMinMentions(it.toInt()) },
-                                valueRange = 1f..5f,
-                                steps = 3,
+                                valueRange = 1f..10f,
+                                steps = 8,
                                 colors = SliderDefaults.colors(
                                     thumbColor = MaterialTheme.colorScheme.primary,
                                     activeTrackColor = MaterialTheme.colorScheme.primary,
@@ -238,8 +236,6 @@ fun SettingsScreen(
 
             item {
                 SettingsSection(title = stringResource(R.string.settings_importance_filter)) {
-                    val isEnabled = userPreferences.isImportanceFilterEnabled
-
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             stringResource(R.string.settings_enable_importance_filter),
@@ -247,136 +243,9 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.titleMedium
                         )
                         Switch(
-                            checked = isEnabled,
+                            checked = userPreferences.isImportanceFilterEnabled,
                             onCheckedChange = { viewModel.updateImportanceFilterEnabled(it) },
                             modifier = Modifier.scale(0.85f)
-                        )
-                    }
-
-                    Column {
-                        Text(
-                            stringResource(
-                                R.string.settings_importance_threshold,
-                                String.format(Locale.US, "%.2f", userPreferences.importanceThreshold)
-                            ),
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Slider(
-                            value = userPreferences.importanceThreshold,
-                            onValueChange = { viewModel.updateImportanceThreshold(it) },
-                            valueRange = 0.0f..1.0f,
-                            steps = 19,
-                            enabled = isEnabled,
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.primary,
-                                activeTrackColor = MaterialTheme.colorScheme.primary,
-                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                activeTickColor = MaterialTheme.colorScheme.primaryContainer,
-                                inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
-                            )
-                        )
-                    }
-
-                    Column {
-                        Text(
-                            stringResource(
-                                R.string.settings_importance_min_length,
-                                userPreferences.importanceMinContentLength
-                            ),
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Slider(
-                            value = userPreferences.importanceMinContentLength.toFloat(),
-                            onValueChange = { viewModel.updateImportanceMinContentLength(it.toInt()) },
-                            valueRange = 50f..500f,
-                            steps = 44,
-                            enabled = isEnabled,
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.primary,
-                                activeTrackColor = MaterialTheme.colorScheme.primary,
-                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                activeTickColor = MaterialTheme.colorScheme.primaryContainer,
-                                inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
-                            )
-                        )
-                    }
-
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    Text(
-                        stringResource(R.string.settings_importance_weights_header),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Column {
-                        Text(
-                            stringResource(
-                                R.string.settings_importance_weight_length,
-                                String.format(Locale.US, "%.1f", userPreferences.importanceWeightLength)
-                            ),
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Slider(
-                            value = userPreferences.importanceWeightLength,
-                            onValueChange = { viewModel.updateImportanceWeightLength(it) },
-                            valueRange = 0.0f..1.0f,
-                            steps = 9,
-                            enabled = isEnabled,
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.primary,
-                                activeTrackColor = MaterialTheme.colorScheme.primary,
-                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                activeTickColor = MaterialTheme.colorScheme.primaryContainer,
-                                inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
-                            )
-                        )
-                    }
-
-                    Column {
-                        Text(
-                            stringResource(
-                                R.string.settings_importance_weight_views,
-                                String.format(Locale.US, "%.1f", userPreferences.importanceWeightViews)
-                            ),
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Slider(
-                            value = userPreferences.importanceWeightViews,
-                            onValueChange = { viewModel.updateImportanceWeightViews(it) },
-                            valueRange = 0.0f..1.0f,
-                            steps = 9,
-                            enabled = isEnabled,
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.primary,
-                                activeTrackColor = MaterialTheme.colorScheme.primary,
-                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                activeTickColor = MaterialTheme.colorScheme.primaryContainer,
-                                inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
-                            )
-                        )
-                    }
-
-                    Column {
-                        Text(
-                            stringResource(
-                                R.string.settings_importance_weight_facts,
-                                String.format(Locale.US, "%.1f", userPreferences.importanceWeightFacts)
-                            ),
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Slider(
-                            value = userPreferences.importanceWeightFacts,
-                            onValueChange = { viewModel.updateImportanceWeightFacts(it) },
-                            valueRange = 0.0f..1.0f,
-                            steps = 9,
-                            enabled = isEnabled,
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.primary,
-                                activeTrackColor = MaterialTheme.colorScheme.primary,
-                                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                activeTickColor = MaterialTheme.colorScheme.primaryContainer,
-                                inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
-                            )
                         )
                     }
                 }
@@ -510,7 +379,7 @@ fun AiKeyItem(
             onClick = onDelete, 
             modifier = Modifier.size(32.dp)
         ) {
-            Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
         }
     }
 }

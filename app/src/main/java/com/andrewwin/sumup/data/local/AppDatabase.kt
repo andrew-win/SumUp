@@ -26,7 +26,7 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
         Summary::class,
         UserPreferences::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -56,7 +56,8 @@ abstract class AppDatabase : RoomDatabase() {
                                 "INSERT OR IGNORE INTO source_groups (id, name, isEnabled, isDeletable) VALUES (1, 'Без категорії', 1, 0)"
                             )
                             db.execSQL(
-                                "INSERT OR IGNORE INTO user_preferences (id, isScheduledSummaryEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationThreshold) VALUES (0, 0, 8, 0, 0, 0, 0.85)"
+                                "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationThreshold, minMentions, isImportanceFilterEnabled) " +
+                                "VALUES (0, 'ADAPTIVE', 0, 8, 0, 0, 0, 0.6, 2, 1)"
                             )
                         }
                     })

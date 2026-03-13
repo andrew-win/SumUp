@@ -151,26 +151,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(isImportanceFilterEnabled = enabled) } }
     }
 
-    fun updateImportanceThreshold(threshold: Float) {
-        viewModelScope.launch { updatePreferences { it.copy(importanceThreshold = threshold) } }
-    }
-
-    fun updateImportanceMinContentLength(length: Int) {
-        viewModelScope.launch { updatePreferences { it.copy(importanceMinContentLength = length) } }
-    }
-
-    fun updateImportanceWeightLength(weight: Float) {
-        viewModelScope.launch { updatePreferences { it.copy(importanceWeightLength = weight) } }
-    }
-
-    fun updateImportanceWeightViews(weight: Float) {
-        viewModelScope.launch { updatePreferences { it.copy(importanceWeightViews = weight) } }
-    }
-
-    fun updateImportanceWeightFacts(weight: Float) {
-        viewModelScope.launch { updatePreferences { it.copy(importanceWeightFacts = weight) } }
-    }
-
     private suspend fun updatePreferences(transform: (UserPreferences) -> UserPreferences) {
         userPreferencesRepository.updatePreferences(transform(userPreferences.value))
     }

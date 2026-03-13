@@ -2,70 +2,113 @@ package com.andrewwin.sumup.domain
 
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.SourceType
-import kotlin.math.ln
 import kotlin.math.min
 
 class ArticleImportanceScorer {
 
     fun score(
         article: Article,
-        sourceType: SourceType,
-        minContentLength: Int = DEFAULT_MIN_CONTENT_LENGTH,
-        weightLength: Float = DEFAULT_WEIGHT_LENGTH,
-        weightViews: Float = DEFAULT_WEIGHT_VIEWS,
-        weightFacts: Float = DEFAULT_WEIGHT_FACTS
+        sourceType: SourceType
     ): Float {
-        if (article.content.length < minContentLength) return 0f
+        if (article.content.length < MIN_CONTENT_LENGTH) return 0f
 
-        val lengthScore = computeLengthScore(article.content.length)
+        if (checkIsSpam(article, sourceType)) return 0f
+
         val viewScore = computeViewScore(article.viewCount, sourceType)
-        val factScore = computeFactScore(article.title + " " + article.content)
+        val factScore = computeFactScore(article.content)
 
-        val totalWeight = weightLength + weightViews + weightFacts
-        return if (totalWeight > 0f) {
-            (weightLength * lengthScore + weightViews * viewScore + weightFacts * factScore) / totalWeight
+        return viewScore + factScore
+    }
+
+    private fun checkIsSpam(article: Article, sourceType: SourceType): Boolean {
+        val text = article.content.lowercase()
+        
+        // 1. Keywords check
+        if (SPAM_KEYWORDS.any { text.contains(it) }) return true
+        
+        // 2. Phone numbers check (+380..., +38..., 38..., 380...)
+        if (PHONE_REGEX.containsMatchIn(article.content)) return true
+        
+        // 3. Links count check (2 or more, excluding source channel for Telegram)
+        val links = URL_REGEX.findAll(article.content).map { it.value }
+        val filteredLinks = if (sourceType == SourceType.TELEGRAM) {
+            val channelHandle = extractTelegramHandle(article.url)
+            if (channelHandle != null) {
+                links.filter { !it.contains(channelHandle, ignoreCase = true) }
+            } else links
         } else {
-            0f
+            links
+        }
+        
+        return filteredLinks.count() >= 2
+    }
+
+    private fun extractTelegramHandle(url: String): String? {
+        return try {
+            // Expected: https://t.me/handle/123 or https://t.me/handle
+            url.substringAfter("t.me/").substringBefore("/")
+        } catch (e: Exception) {
+            null
         }
     }
 
-    private fun computeLengthScore(length: Int): Float {
-        return min(length.toFloat() / MAX_LENGTH_FOR_FULL_SCORE, 1f)
-    }
-
     private fun computeViewScore(viewCount: Long, sourceType: SourceType): Float {
-        return when (sourceType) {
-            SourceType.RSS -> STATIC_RSS_VIEW_SCORE
-            SourceType.TELEGRAM, SourceType.YOUTUBE -> {
-                if (viewCount <= 0) return 0f
-                val logView = ln(viewCount.toDouble() + 1).toFloat()
-                min(logView / LOG_VIEW_SCALE, 1f)
-            }
+        if (sourceType == SourceType.RSS) return STATIC_RSS_VIEW_SCORE
+        
+        return when {
+            viewCount < 500 -> 0.05f
+            viewCount < 1000 -> 0.1f
+            viewCount < 5000 -> 0.2f
+            viewCount < 10000 -> 0.3f
+            viewCount < 50000 -> 0.4f
+            else -> 0.5f
         }
     }
 
     private fun computeFactScore(text: String): Float {
-        val words = text.split(Regex("\\s+"))
-        var factCount = 0
-        words.forEachIndexed { index, word ->
-            if (word.isBlank()) return@forEachIndexed
-            val isNumber = word.contains(Regex("\\d"))
-            val isMidSentenceCapitalized = index > 0 &&
-                word.first().isUpperCase() &&
-                !words[index - 1].endsWith(".")
-            if (isNumber || isMidSentenceCapitalized) factCount++
+        val sentences = text.split(Regex("(?<=[.!?])\\s+"))
+        var totalFactScore = 0f
+
+        sentences.forEach { sentence ->
+            val words = sentence.trim().split(Regex("\\s+"))
+            var i = 0
+            while (i < words.size) {
+                val word = words[i]
+                if (word.isEmpty()) {
+                    i++
+                    continue
+                }
+
+                // Check for numbers
+                if (word.contains(Regex("\\d"))) {
+                    totalFactScore += 0.1f
+                    i++
+                    continue
+                }
+
+                // Check for capitalized words (not the first word)
+                if (i > 0 && word.isNotEmpty() && word[0].isUpperCase()) {
+                    totalFactScore += 0.1f
+                    // Skip subsequent capitalized words as they form a single name/fact
+                    i++
+                    while (i < words.size && words[i].isNotEmpty() && words[i][0].isUpperCase()) {
+                        i++
+                    }
+                } else {
+                    i++
+                }
+            }
         }
-        return min(factCount.toFloat() / MAX_FACTS_FOR_FULL_SCORE, 1f)
+        return min(totalFactScore, 0.5f)
     }
 
     companion object {
-        const val DEFAULT_MIN_CONTENT_LENGTH = 150
-        const val DEFAULT_WEIGHT_LENGTH = 0.3f
-        const val DEFAULT_WEIGHT_VIEWS = 0.4f
-        const val DEFAULT_WEIGHT_FACTS = 0.3f
-        private const val MAX_LENGTH_FOR_FULL_SCORE = 500
-        private const val MAX_FACTS_FOR_FULL_SCORE = 10f
-        private const val LOG_VIEW_SCALE = 14f
-        private const val STATIC_RSS_VIEW_SCORE = 0.5f
+        private const val MIN_CONTENT_LENGTH = 150
+        private const val STATIC_RSS_VIEW_SCORE = 0.3f
+        const val IMPORTANCE_THRESHOLD = 0.5f
+
+        private val SPAM_KEYWORDS = listOf("реклама", "промо", "промокод")
+        private val PHONE_REGEX = Regex("(\\+?380|\\+?38|38|380)\\d{7,}")
+        private val URL_REGEX = Regex("https?://[^\\s]+", RegexOption.IGNORE_CASE)
     }
 }
