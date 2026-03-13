@@ -4,6 +4,7 @@
     <string name="nav_feed">Стрічка</string>
     <string name="nav_sources">Джерела</string>
     <string name="nav_settings">Параметри</string>
+    <string name="nav_webview">Перегляд</string>
     <string name="content_help">Допомога</string>
     <string name="add_group">Додати групу</string>
     <string name="add_source">Додати джерело</string>

@@ -9,6 +9,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Source
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.andrewwin.sumup.R
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 sealed class NavigationIcon {
     data class Vector(val imageVector: ImageVector) : NavigationIcon()
@@ -43,6 +45,17 @@ sealed class Screen(
         resourceId = R.string.nav_settings,
         icon = NavigationIcon.Vector(Icons.Default.Settings)
     )
+
+    data object WebView : Screen(
+        route = "webview/{url}",
+        resourceId = R.string.nav_webview,
+        icon = NavigationIcon.Vector(Icons.Default.Feed)
+    ) {
+        fun createRoute(url: String): String {
+            val encodedUrl = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
+            return "webview/$encodedUrl"
+        }
+    }
 }
 
 val navItems = listOf(

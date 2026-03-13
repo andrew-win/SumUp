@@ -37,7 +37,8 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedScreen(
-    viewModel: FeedViewModel = hiltViewModel()
+    viewModel: FeedViewModel = hiltViewModel(),
+    onOpenWebView: (String) -> Unit
 ) {
     val articleClusters by viewModel.articleClusters.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -54,7 +55,6 @@ fun FeedScreen(
     var userQuestion by remember { mutableStateOf("") }
 
     val listState = rememberLazyListState()
-    val uriHandler = LocalUriHandler.current
 
     Scaffold(
         topBar = {
@@ -115,7 +115,7 @@ fun FeedScreen(
                 items(articleClusters, key = { it.representative.article.id }) { cluster ->
                     ArticleClusterCard(
                         cluster = cluster,
-                        onOpenSource = { uriHandler.openUri(it.article.url) },
+                        onOpenSource = { onOpenWebView(it.article.url) },
                         onAiClick = { 
                             articleForAi = it
                             isFeedAiActive = false

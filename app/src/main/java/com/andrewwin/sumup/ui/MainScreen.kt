@@ -14,14 +14,19 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.andrewwin.sumup.ui.screens.feed.FeedScreen
 import com.andrewwin.sumup.ui.screens.settings.SettingsScreen
 import com.andrewwin.sumup.ui.screens.sources.SourcesScreen
 import com.andrewwin.sumup.ui.screens.summary.SummaryScreen
+import com.andrewwin.sumup.ui.screens.webview.WebViewScreen
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
 @Composable
 fun MainScreen() {
@@ -82,13 +87,28 @@ fun MainScreen() {
                     SummaryScreen()
                 }
                 composable(Screen.Feed.route) {
-                    FeedScreen()
+                    FeedScreen(
+                        onOpenWebView = { url ->
+                            navController.navigate(Screen.WebView.createRoute(url))
+                        }
+                    )
                 }
                 composable(Screen.Sources.route) {
                     SourcesScreen()
                 }
                 composable(Screen.Settings.route) {
                     SettingsScreen()
+                }
+                composable(
+                    route = Screen.WebView.route,
+                    arguments = listOf(navArgument("url") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val encodedUrl = backStackEntry.arguments?.getString("url") ?: ""
+                    val url = URLDecoder.decode(encodedUrl, StandardCharsets.UTF_8.toString())
+                    WebViewScreen(
+                        url = url,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
                 }
             }
         }

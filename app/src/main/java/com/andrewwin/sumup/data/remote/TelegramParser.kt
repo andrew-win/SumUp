@@ -25,7 +25,20 @@ class TelegramParser {
             val lines = fullText.split("\n").filter { it.isNotBlank() }
             val title = lines.firstOrNull()?.take(100) ?: ""
 
-            val url = linkElement?.attr("href") ?: ""
+            var url = linkElement?.attr("href") ?: ""
+            
+            // Нормалізація посилань Telegram для WebView
+            if (url.startsWith("tg:resolve")) {
+                val domain = url.substringAfter("domain=").substringBefore("&")
+                val post = url.substringAfter("post=").substringBefore("&")
+                url = "https://t.me/s/$domain/$post"
+            } else if (url.startsWith("https://t.me/")) {
+                val path = url.removePrefix("https://t.me/")
+                if (!path.startsWith("s/") && !path.startsWith("c/")) {
+                    url = "https://t.me/s/$path"
+                }
+            }
+
             val dateStr = dateElement?.attr("datetime")
             val publishedAt = try {
                 dateStr?.let { dateFormat.parse(it)?.time } ?: System.currentTimeMillis()
