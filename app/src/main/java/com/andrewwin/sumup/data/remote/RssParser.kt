@@ -1,9 +1,9 @@
 package com.andrewwin.sumup.data.remote
 
-import android.util.Xml
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.domain.TextCleaner
 import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserFactory
 import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.*
@@ -14,8 +14,9 @@ class RssParser {
 
     fun parse(inputStream: InputStream, sourceId: Long): List<Article> {
         inputStream.use {
-            val parser = Xml.newPullParser()
-            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+            val factory = XmlPullParserFactory.newInstance()
+            factory.isNamespaceAware = false
+            val parser = factory.newPullParser()
             parser.setInput(it, null)
             try {
                 parser.nextTag()
@@ -74,24 +75,30 @@ class RssParser {
     private fun readItem(parser: XmlPullParser, sourceId: Long): Article {
         var title = ""
         var link = ""
+        var guid = ""
         var description = ""
         var pubDate = 0L
 
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
             when (parser.name) {
-                "title" -> title = TextCleaner.clean(readText(parser))
-                "link" -> link = readText(parser)
-                "description" -> description = TextCleaner.clean(readText(parser))
-                "pubDate" -> pubDate = parseRssDate(readText(parser))
+                "title" -> title = TextCleaner.clean(parser.nextText())
+                "link" -> link = parser.nextText().trim()
+                "guid" -> guid = parser.nextText().trim()
+                "description" -> description = TextCleaner.clean(parser.nextText())
+                "pubDate" -> pubDate = parseRssDate(parser.nextText())
                 else -> skip(parser)
             }
         }
+
+        val rawUrl = if (guid.startsWith("http")) guid else link
+        val cleanUrl = rawUrl.substringBefore("#").substringBefore("?")
+
         return Article(
             sourceId = sourceId,
             title = title,
             content = description,
-            url = link,
+            url = cleanUrl,
             publishedAt = if (pubDate == 0L) System.currentTimeMillis() else pubDate
         )
     }
@@ -118,13 +125,17 @@ class RssParser {
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
             when (parser.name) {
-                "title" -> title = TextCleaner.clean(readText(parser))
+                "title" -> title = TextCleaner.clean(parser.nextText())
                 "link" -> {
-                    link = parser.getAttributeValue(null, "href") ?: ""
-                    parser.nextTag()
+                    val href = parser.getAttributeValue(null, "href") ?: ""
+                    val rel = parser.getAttributeValue(null, "rel") ?: ""
+                    if (rel == "alternate" || rel.isEmpty() || link.isEmpty()) {
+                        link = href
+                    }
+                    if (!parser.isEmptyElementTag) parser.next()
                 }
-                "summary", "content" -> summary = TextCleaner.clean(readText(parser))
-                "published", "updated" -> published = parseAtomDate(readText(parser))
+                "summary", "content" -> summary = TextCleaner.clean(parser.nextText())
+                "published", "updated" -> published = parseAtomDate(parser.nextText())
                 else -> skip(parser)
             }
         }
@@ -132,26 +143,17 @@ class RssParser {
             sourceId = sourceId,
             title = title,
             content = summary,
-            url = link,
+            url = link.substringBefore("#").substringBefore("?"),
             publishedAt = if (published == 0L) System.currentTimeMillis() else published
         )
     }
 
-    private fun readText(parser: XmlPullParser): String {
-        var result = ""
-        if (parser.next() == XmlPullParser.TEXT) {
-            result = parser.text
-            parser.nextTag()
-        }
-        return result
-    }
-
     private fun parseRssDate(dateString: String): Long {
-        return try { rssDateFormat.parse(dateString)?.time ?: 0L } catch (e: Exception) { 0L }
+        return try { rssDateFormat.parse(dateString.trim())?.time ?: 0L } catch (e: Exception) { 0L }
     }
 
     private fun parseAtomDate(dateString: String): Long {
-        return try { atomDateFormat.parse(dateString.take(19))?.time ?: 0L } catch (e: Exception) { 0L }
+        return try { atomDateFormat.parse(dateString.trim().take(19))?.time ?: 0L } catch (e: Exception) { 0L }
     }
 
     private fun skip(parser: XmlPullParser) {

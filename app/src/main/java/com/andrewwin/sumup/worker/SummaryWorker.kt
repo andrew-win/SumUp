@@ -45,8 +45,17 @@ class SummaryWorker @AssistedInject constructor(
             }
 
             val summaryText = when (prefs.aiStrategy) {
-                AiStrategy.EXTRACTIVE -> buildExtractiveSummary(articles.map { it.title }, articles.associate { it.title to it.content })
-                else -> buildCloudSummary(articles.take(MAX_ARTICLES_FOR_SUMMARIZATION), aiRepository)
+                AiStrategy.EXTRACTIVE -> {
+                    val fullContentMap = articles.associate { it.title to articleRepository.fetchFullContent(it) }
+                    buildExtractiveSummary(articles.map { it.title }, fullContentMap)
+                }
+                AiStrategy.CLOUD -> {
+                    val cloudArticles = articles.take(MAX_ARTICLES_FOR_SUMMARIZATION).map { 
+                        it.copy(content = articleRepository.fetchFullContent(it))
+                    }
+                    buildCloudSummary(cloudArticles, aiRepository)
+                }
+                AiStrategy.ADAPTIVE -> buildCloudSummary(articles.take(MAX_ARTICLES_FOR_SUMMARIZATION), aiRepository)
             }
 
             if (summaryText.isBlank()) {
@@ -72,11 +81,23 @@ class SummaryWorker @AssistedInject constructor(
         contentMap: Map<String, String>
     ): String {
         val centralHeadlines = ExtractiveSummarizer.getCentralHeadlines(headlines, EXTRACTIVE_TOP_COUNT)
-        return centralHeadlines.joinToString("\n\n") { title ->
+        val intro = applicationContext.getString(R.string.summary_extractive_intro, centralHeadlines.size)
+        
+        val summaryBody = centralHeadlines.mapIndexed { index, title ->
+            val header = applicationContext.getString(R.string.summary_extractive_item_header, index + 1, title)
             val content = contentMap[title].orEmpty()
-            val lines = ExtractiveSummarizer.summarize(content, EXTRACTIVE_SENTENCES_PER_ARTICLE)
-            "$title:\n" + lines.joinToString("\n") { "- $it" }
-        }
+            val sentences = ExtractiveSummarizer.summarize(content, EXTRACTIVE_SENTENCES_PER_ARTICLE)
+            
+            val contentText = if (sentences.size == 1) {
+                sentences.first()
+            } else {
+                sentences.joinToString("\n") { "- $it" }
+            }
+            
+            "$header\n$contentText"
+        }.joinToString("\n\n")
+
+        return "$intro\n\n$summaryBody"
     }
 
     private suspend fun buildCloudSummary(
@@ -92,9 +113,9 @@ class SummaryWorker @AssistedInject constructor(
 
     companion object {
         private const val MAX_ARTICLES_FOR_SUMMARIZATION = 10
-        private const val MAX_ARTICLE_CONTENT_CHARS = 800
+        private const val MAX_ARTICLE_CONTENT_CHARS = 1000 // Збільшено, бо тепер маємо повний текст
         private const val EXTRACTIVE_TOP_COUNT = 3
-        private const val EXTRACTIVE_SENTENCES_PER_ARTICLE = 2
+        private const val EXTRACTIVE_SENTENCES_PER_ARTICLE = 3
         private const val MAX_RETRY_ATTEMPTS = 2
     }
 }

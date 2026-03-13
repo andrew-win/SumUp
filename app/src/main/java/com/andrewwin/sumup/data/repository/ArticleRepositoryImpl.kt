@@ -29,7 +29,6 @@ class ArticleRepositoryImpl @Inject constructor(
                         val fetchedArticles = remoteArticleDataSource.fetchArticles(source.id, source.url, source.type)
                         
                         if (fetchedArticles.isNotEmpty()) {
-                            // Очищення футерів перед збереженням
                             val cleanedArticles = fetchedArticles.map { article ->
                                 article.copy(
                                     content = FooterCleaner.removeFooter(article.content, source.footerPattern)
@@ -51,4 +50,9 @@ class ArticleRepositoryImpl @Inject constructor(
 
     override suspend fun getEnabledArticlesOnce(): List<Article> =
         articleDao.getEnabledArticlesOnce()
+
+    override suspend fun fetchFullContent(article: Article): String {
+        val source = sourceDao.getSourceById(article.sourceId) ?: return article.content
+        return remoteArticleDataSource.fetchFullContent(article.url, source.type) ?: article.content
+    }
 }

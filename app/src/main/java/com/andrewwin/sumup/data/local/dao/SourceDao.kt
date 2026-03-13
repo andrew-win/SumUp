@@ -30,6 +30,9 @@ interface SourceDao {
     @Query("SELECT * FROM sources WHERE groupId = :groupId")
     fun getSourcesByGroupId(groupId: Long): Flow<List<Source>>
 
+    @Query("SELECT * FROM sources WHERE id = :sourceId")
+    suspend fun getSourceById(sourceId: Long): Source?
+
     @Transaction
     @Query("SELECT * FROM source_groups")
     fun getGroupsWithSources(): Flow<List<GroupWithSources>>

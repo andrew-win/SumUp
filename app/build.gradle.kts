@@ -67,6 +67,12 @@ dependencies {
     implementation(libs.androidx.hilt.work)
     ksp(libs.androidx.hilt.compiler)
 
+    // YouTube Transcripts Support
+    implementation("io.github.thoroldvix:youtube-transcript-api:0.4.0")
+    // Fix for NoClassDefFoundError: javax.xml.stream.XMLInputFactory on Android
+    implementation("com.fasterxml:aalto-xml:1.3.3")
+    implementation("stax:stax-api:1.0.1")
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

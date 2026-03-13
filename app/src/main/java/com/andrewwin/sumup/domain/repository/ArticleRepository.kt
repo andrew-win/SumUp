@@ -8,4 +8,5 @@ interface ArticleRepository {
     suspend fun refreshArticles()
     suspend fun updateArticle(article: Article)
     suspend fun getEnabledArticlesOnce(): List<Article>
+    suspend fun fetchFullContent(article: Article): String
 }

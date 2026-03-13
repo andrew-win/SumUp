@@ -195,6 +195,24 @@ class FeedViewModel @Inject constructor(
     fun setDateFilter(filter: DateFilter) { _dateFilter.value = filter }
     fun clearAiResult() { _aiResult.value = null }
 
+    fun summarizeArticle(article: Article) {
+        viewModelScope.launch {
+            _isAiLoading.value = true
+            _aiResult.value = null
+            _aiResult.value = summarizeContentUseCase(article).getOrElse { e -> localizeError(e) }
+            _isAiLoading.value = false
+        }
+    }
+
+    fun askQuestion(article: Article, question: String) {
+        viewModelScope.launch {
+            _isAiLoading.value = true
+            _aiResult.value = null
+            _aiResult.value = askQuestionUseCase(article, question).getOrElse { e -> localizeError(e) }
+            _isAiLoading.value = false
+        }
+    }
+
     fun summarizeContent(content: String) {
         viewModelScope.launch {
             _isAiLoading.value = true

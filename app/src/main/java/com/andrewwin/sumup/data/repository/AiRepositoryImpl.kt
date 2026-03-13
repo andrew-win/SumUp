@@ -22,21 +22,12 @@ class AiRepositoryImpl @Inject constructor(
 
     override val allConfigs: Flow<List<AiModelConfig>> = aiModelDao.getAllConfigs()
 
-    override suspend fun fetchAvailableModels(provider: AiProvider, apiKey: String): List<String> {
-        return aiService.fetchModels(provider, apiKey)
-    }
+    override suspend fun fetchAvailableModels(provider: AiProvider, apiKey: String): List<String> =
+        aiService.fetchModels(provider, apiKey)
 
-    override suspend fun addConfig(config: AiModelConfig) {
-        aiModelDao.insertConfig(config)
-    }
-
-    override suspend fun updateConfig(config: AiModelConfig) {
-        aiModelDao.updateConfig(config)
-    }
-
-    override suspend fun deleteConfig(config: AiModelConfig) {
-        aiModelDao.deleteConfig(config)
-    }
+    override suspend fun addConfig(config: AiModelConfig) = aiModelDao.insertConfig(config)
+    override suspend fun updateConfig(config: AiModelConfig) = aiModelDao.updateConfig(config)
+    override suspend fun deleteConfig(config: AiModelConfig) = aiModelDao.deleteConfig(config)
 
     override suspend fun summarize(content: String): String {
         val prefs = prefsDao.getUserPreferences().first()
@@ -44,24 +35,24 @@ class AiRepositoryImpl @Inject constructor(
         val activeConfig = aiModelDao.getActiveConfig()
 
         if (strategy == AiStrategy.EXTRACTIVE || (strategy == AiStrategy.ADAPTIVE && activeConfig == null)) {
-            return ExtractiveSummarizer.summarize(content).joinToString("\n") { "- $it" }
+            return ExtractiveSummarizer.summarize(content, 5).joinToString("\n") { "- $it" }
         }
 
         return when (strategy) {
             AiStrategy.CLOUD -> {
-                val config = aiModelDao.getActiveConfig() ?: throw NoActiveModelException()
-                aiService.generateResponse(config, SUMMARY_PROMPT, content)
+                val config = activeConfig ?: throw NoActiveModelException()
+                aiService.generateResponse(config, SUMMARY_PROMPT, content.take(MAX_AI_CONTENT_LENGTH))
             }
             AiStrategy.ADAPTIVE -> {
-                val processedContent = if (content.length > 1000) {
-                    ExtractiveSummarizer.summarize(content, 10).joinToString(" ")
+                val processedContent = if (content.length > MAX_AI_CONTENT_LENGTH) {
+                    ExtractiveSummarizer.summarize(content, 15).joinToString(" ")
                 } else {
                     content
                 }
                 aiService.generateResponse(activeConfig!!, SUMMARY_PROMPT, processedContent)
             }
             AiStrategy.EXTRACTIVE -> {
-                ExtractiveSummarizer.summarize(content).joinToString("\n") { "- $it" }
+                ExtractiveSummarizer.summarize(content, 5).joinToString("\n") { "- $it" }
             }
         }
     }
@@ -76,10 +67,11 @@ class AiRepositoryImpl @Inject constructor(
 
         val config = activeConfig ?: throw NoActiveModelException()
         val prompt = "$QUESTION_PROMPT_PREFIX $question\n\n$QUESTION_PROMPT_SUFFIX"
-        return aiService.generateResponse(config, prompt, content)
+        return aiService.generateResponse(config, prompt, content.take(MAX_AI_CONTENT_LENGTH))
     }
 
     companion object {
+        private const val MAX_AI_CONTENT_LENGTH = 12000
         private const val SUMMARY_PROMPT = "Зроби стислий підсумок цієї новини українською мовою:"
         private const val QUESTION_PROMPT_PREFIX = "Дай відповідь на питання:"
         private const val QUESTION_PROMPT_SUFFIX = "Базуючись на цьому тексті:"

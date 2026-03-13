@@ -190,7 +190,7 @@ fun FeedScreen(
                                 if (isFeedAiActive) {
                                     viewModel.summarizeFeed()
                                 } else {
-                                    articleForAi?.let { viewModel.summarizeContent(it.article.content) }
+                                    articleForAi?.let { viewModel.summarizeArticle(it.article) }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),

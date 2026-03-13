@@ -4,22 +4,27 @@ import kotlin.math.sqrt
 
 object ExtractiveSummarizer {
 
+    /**
+     * Витягує n найважливіших речень з тексту.
+     * Використовує покращений розподіл на речення (включаючи переноси рядків) 
+     * та очищення від не-буквено-цифрових символів на початку.
+     */
     fun summarize(text: String, n: Int = 3): List<String> {
-        val cleaned = text
-            .replace(Regex("Play Video|\\(.*?\\)|\".*?\""), "")
-            .replace("–", ".")
-            .replace(Regex("[ \t]+"), " ")
+        if (text.isBlank()) return emptyList()
 
-        val sentences = cleaned
-            .split(Regex("(?<=[.!?])(\\s|\n)+"))
+        // Розбиваємо текст на речення, враховуючи крапки, знаки оклику/питання та переноси рядків
+        val sentences = text
+            .split(Regex("(?<=[.!?])(\\s|\n)+|\n+"))
             .map { it.trim() }
-            .filter { it.isNotBlank() }
+            .filter { it.isNotBlank() && it.length > 10 } // Ігноруємо занадто короткі рядки
+            .map { cleanSentenceStart(it) }
 
         if (sentences.isEmpty()) return emptyList()
 
+        // Простий алгоритм ранжування: перше речення завжди важливе + довжина інших
         val scored = sentences.indices.map { i ->
             val sentence = sentences[i]
-            val score = sentence.length.toDouble() + (if (i == 0) 50.0 else 0.0)
+            val score = sentence.length.toDouble() + (if (i == 0) 100.0 else 0.0)
             sentence to score
         }
 
@@ -27,6 +32,22 @@ object ExtractiveSummarizer {
             .sortedByDescending { it.second }
             .take(n)
             .map { it.first }
+    }
+
+    /**
+     * Видаляє емодзі, дефіси та інші спецсимволи на початку речення,
+     * поки не знайдеться буква або цифра.
+     */
+    private fun cleanSentenceStart(sentence: String): String {
+        var startIndex = 0
+        while (startIndex < sentence.length && !sentence[startIndex].isLetterOrDigit()) {
+            startIndex++
+        }
+        return if (startIndex < sentence.length) {
+            sentence.substring(startIndex).replaceFirstChar { it.uppercase() }
+        } else {
+            sentence
+        }
     }
 
     fun getCentralHeadlines(headlines: List<String>, count: Int = 3): List<String> {
