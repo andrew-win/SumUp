@@ -8,25 +8,25 @@ object ExtractiveSummarizer {
         val cleaned = text
             .replace(Regex("Play Video|\\(.*?\\)|\".*?\""), "")
             .replace("–", ".")
-            .replace(Regex("\\s+"), " ")
+            .replace(Regex("[ \t]+"), " ")
 
         val sentences = cleaned
-            .split(Regex("(?<=[.!?])\\s+"))
+            .split(Regex("(?<=[.!?])(\\s|\n)+"))
             .map { it.trim() }
-            .filter { it.isNotEmpty() }
+            .filter { it.isNotBlank() }
 
         if (sentences.isEmpty()) return emptyList()
 
-        val scored = sentences.map { it to it.length }
-        val first = sentences.first()
+        val scored = sentences.indices.map { i ->
+            val sentence = sentences[i]
+            val score = sentence.length.toDouble() + (if (i == 0) 50.0 else 0.0)
+            sentence to score
+        }
 
-        val topN = scored
-            .drop(1)
+        return scored
             .sortedByDescending { it.second }
             .take(n)
             .map { it.first }
-
-        return listOf(first) + topN
     }
 
     fun getCentralHeadlines(headlines: List<String>, count: Int = 3): List<String> {

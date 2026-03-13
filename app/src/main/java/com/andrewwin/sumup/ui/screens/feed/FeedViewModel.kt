@@ -123,7 +123,6 @@ class FeedViewModel @Inject constructor(
             val breakIndex = breakMatch?.range?.first ?: -1
 
             if (breakIndex != -1 && breakIndex < MAX_TELEGRAM_TITLE_LENGTH) {
-                // Використовуємо substring до знаку пунктуації, щоб не включати його
                 displayTitle = fullText.substring(0, breakIndex).trim()
                 rawDescription = fullText.substring(breakMatch!!.range.last + 1).trim()
             } else if (fullText.length > MAX_TELEGRAM_TITLE_LENGTH) {
@@ -158,11 +157,24 @@ class FeedViewModel @Inject constructor(
 
     private fun formatDescription(content: String): String {
         if (content.isBlank()) return ""
-        val lines = content.lines().filter { it.isNotBlank() }
-        return if (lines.size > MAX_DESCRIPTION_LINES) {
-            lines.take(MAX_DESCRIPTION_LINES).joinToString("\n") + "\n" + getApplication<Application>().getString(R.string.ellipsis)
+        val allLines = content.lines()
+        
+        var nonBlankCount = 0
+        val limitedLines = mutableListOf<String>()
+        
+        for (line in allLines) {
+            if (line.isNotBlank()) {
+                nonBlankCount++
+            }
+            if (nonBlankCount > MAX_DESCRIPTION_LINES) break
+            limitedLines.add(line)
+        }
+
+        val result = limitedLines.joinToString("\n").trim()
+        return if (nonBlankCount > MAX_DESCRIPTION_LINES || limitedLines.size < allLines.size) {
+            result + "\n" + getApplication<Application>().getString(R.string.ellipsis)
         } else {
-            content
+            result
         }
     }
 
@@ -222,6 +234,6 @@ class FeedViewModel @Inject constructor(
 
     companion object {
         private const val MAX_TELEGRAM_TITLE_LENGTH = 150
-        private const val MAX_DESCRIPTION_LINES = 6
+        private const val MAX_DESCRIPTION_LINES = 8
     }
 }
