@@ -101,8 +101,10 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideSourceRepository(sourceDao: SourceDao): SourceRepository =
-        SourceRepositoryImpl(sourceDao)
+    fun provideSourceRepository(
+        sourceDao: SourceDao,
+        remoteArticleDataSource: RemoteArticleDataSource
+    ): SourceRepository = SourceRepositoryImpl(sourceDao, remoteArticleDataSource)
 
     @Provides
     @Singleton

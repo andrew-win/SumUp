@@ -4,6 +4,7 @@ import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
+import com.andrewwin.sumup.domain.FooterCleaner
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -25,9 +26,16 @@ class ArticleRepositoryImpl @Inject constructor(
             if (groupWithSources.group.isEnabled) {
                 groupWithSources.sources.forEach { source ->
                     if (source.isEnabled) {
-                        val articles = remoteArticleDataSource.fetchArticles(source.id, source.url, source.type)
-                        if (articles.isNotEmpty()) {
-                            articleDao.insertArticles(articles)
+                        val fetchedArticles = remoteArticleDataSource.fetchArticles(source.id, source.url, source.type)
+                        
+                        if (fetchedArticles.isNotEmpty()) {
+                            // Очищення футерів перед збереженням
+                            val cleanedArticles = fetchedArticles.map { article ->
+                                article.copy(
+                                    content = FooterCleaner.removeFooter(article.content, source.footerPattern)
+                                )
+                            }
+                            articleDao.insertArticles(cleanedArticles)
                         }
                     }
                 }

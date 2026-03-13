@@ -23,5 +23,6 @@ data class Source(
     val name: String,
     val url: String,
     val type: SourceType,
-    val isEnabled: Boolean = true
+    val isEnabled: Boolean = true,
+    val footerPattern: String? = null
 )

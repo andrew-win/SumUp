@@ -5,13 +5,17 @@ import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
+import com.andrewwin.sumup.domain.FooterCleaner
+import com.andrewwin.sumup.domain.TextCleaner
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 class SourceRepositoryImpl @Inject constructor(
-    private val sourceDao: SourceDao
+    private val sourceDao: SourceDao,
+    private val remoteArticleDataSource: RemoteArticleDataSource
 ) : SourceRepository {
 
     override val groupsWithSources: Flow<List<GroupWithSources>> = sourceDao.getGroupsWithSources()
@@ -43,7 +47,27 @@ class SourceRepositoryImpl @Inject constructor(
     }
 
     override suspend fun addSource(groupId: Long, name: String, url: String, type: SourceType) {
-        sourceDao.insertSource(Source(groupId = groupId, name = name, url = url, type = type))
+        val footerPattern = try {
+            // Беремо більше постів для аналізу (10), щоб краще відфільтрувати рекламу
+            val sampleArticles = remoteArticleDataSource.fetchArticles(0L, url, type).take(10)
+            if (sampleArticles.size >= 2) {
+                // Аналізуємо вже очищений від HTML текст
+                val cleanedContents = sampleArticles.map { TextCleaner.clean(it.content) }
+                FooterCleaner.findCommonFooter(cleanedContents)
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+
+        sourceDao.insertSource(
+            Source(
+                groupId = groupId,
+                name = name,
+                url = url,
+                type = type,
+                footerPattern = footerPattern
+            )
+        )
     }
 
     override suspend fun updateSource(source: Source) {
