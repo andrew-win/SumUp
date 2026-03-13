@@ -5,19 +5,20 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.local.dao.GroupWithSources
-import com.andrewwin.sumup.data.local.entities.SourceGroup
+import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.exception.NoActiveModelException
 import com.andrewwin.sumup.domain.exception.UnsupportedStrategyException
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.ArticleCluster
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.ai.AskQuestionUseCase
 import com.andrewwin.sumup.domain.usecase.ai.SummarizeContentUseCase
 import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
+import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
+import com.andrewwin.sumup.ui.screens.feed.model.ArticleUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -73,24 +74,97 @@ class FeedViewModel @Inject constructor(
     private val groupsWithSources: StateFlow<List<GroupWithSources>> = sourceRepository.groupsWithSources
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val groups: StateFlow<List<SourceGroup>> = groupsWithSources
+    val groups = groupsWithSources
         .map { list -> list.map { it.group }.filter { it.isEnabled } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val sources: StateFlow<List<com.andrewwin.sumup.data.local.entities.Source>> = groupsWithSources
-        .map { list -> list.flatMap { it.sources } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val articleClusters: StateFlow<List<ArticleClusterUiModel>> = combine(
+        getFeedArticlesUseCase(
+            _searchQuery,
+            _selectedGroupId,
+            _dateFilter.map { it.hours },
+            userPreferences
+        ),
+        groupsWithSources
+    ) { clusters, groupsList ->
+        val sourcesMap = groupsList.flatMap { it.sources }.associateBy { it.id }
+        val groupMap = groupsList.map { it.group }.associateBy { it.id }
 
-    val articleClusters: StateFlow<List<ArticleCluster>> = getFeedArticlesUseCase(
-        _searchQuery,
-        _selectedGroupId,
-        _dateFilter.map { it.hours },
-        userPreferences
-    ).stateIn(
+        clusters.map { cluster ->
+            ArticleClusterUiModel(
+                representative = mapToUiModel(cluster.representative, sourcesMap, groupMap),
+                duplicates = cluster.duplicates.map { (article, score) ->
+                    mapToUiModel(article, sourcesMap, groupMap) to score
+                }
+            )
+        }
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Lazily,
         initialValue = emptyList()
     )
+
+    private fun mapToUiModel(
+        article: Article,
+        sources: Map<Long, com.andrewwin.sumup.data.local.entities.Source>,
+        groups: Map<Long, com.andrewwin.sumup.data.local.entities.SourceGroup>
+    ): ArticleUiModel {
+        val source = sources[article.sourceId]
+        val group = source?.groupId?.let { groups[it] }
+        val sourceType = source?.type ?: SourceType.RSS
+
+        val displayTitle: String
+        val rawDescription: String
+
+        if (sourceType == SourceType.TELEGRAM) {
+            val fullText = article.content.trim()
+            
+            val breakMatch = Regex("[.!?](\\s|\n|$)|\n").find(fullText)
+            val breakIndex = breakMatch?.range?.first ?: -1
+
+            if (breakIndex != -1 && breakIndex < MAX_TELEGRAM_TITLE_LENGTH) {
+                // Використовуємо substring до знаку пунктуації, щоб не включати його
+                displayTitle = fullText.substring(0, breakIndex).trim()
+                rawDescription = fullText.substring(breakMatch!!.range.last + 1).trim()
+            } else if (fullText.length > MAX_TELEGRAM_TITLE_LENGTH) {
+                val slice = fullText.take(MAX_TELEGRAM_TITLE_LENGTH)
+                val lastSpace = slice.lastIndexOf(' ')
+                val cutPos = if (lastSpace > 50) lastSpace else MAX_TELEGRAM_TITLE_LENGTH
+                
+                displayTitle = fullText.substring(0, cutPos).trim().removeSuffix(".") + getApplication<Application>().getString(R.string.ellipsis)
+                rawDescription = fullText.substring(cutPos).trim()
+            } else {
+                displayTitle = fullText.removeSuffix(".")
+                rawDescription = ""
+            }
+        } else {
+            displayTitle = article.title.trim().removeSuffix(".")
+            val content = article.content.trim()
+            rawDescription = if (content.startsWith(article.title.trim(), ignoreCase = true)) {
+                content.substring(article.title.trim().length).trim().removePrefix(":").removePrefix("-").trim()
+            } else {
+                content
+            }
+        }
+
+        return ArticleUiModel(
+            article = article,
+            displayTitle = displayTitle,
+            displayContent = formatDescription(rawDescription),
+            sourceName = source?.name,
+            groupName = group?.name
+        )
+    }
+
+    private fun formatDescription(content: String): String {
+        if (content.isBlank()) return ""
+        val lines = content.lines().filter { it.isNotBlank() }
+        return if (lines.size > MAX_DESCRIPTION_LINES) {
+            lines.take(MAX_DESCRIPTION_LINES).joinToString("\n") + "\n" + getApplication<Application>().getString(R.string.ellipsis)
+        } else {
+            content
+        }
+    }
 
     init {
         refresh()
@@ -128,12 +202,12 @@ class FeedViewModel @Inject constructor(
     }
 
     fun summarizeFeed() {
-        val content = articleClusters.value.joinToString("\n\n") { "${it.representative.title}: ${it.representative.content}" }
+        val content = articleClusters.value.joinToString("\n\n") { "${it.representative.article.title}: ${it.representative.article.content}" }
         if (content.isNotBlank()) summarizeContent(content)
     }
 
     fun askFeed(question: String) {
-        val content = articleClusters.value.joinToString("\n\n") { "${it.representative.title}: ${it.representative.content}" }
+        val content = articleClusters.value.joinToString("\n\n") { "${it.representative.article.title}: ${it.representative.article.content}" }
         if (content.isNotBlank()) askQuestion(content, question)
     }
 
@@ -144,5 +218,10 @@ class FeedViewModel @Inject constructor(
             is UnsupportedStrategyException -> context.getString(R.string.error_unsupported_strategy)
             else -> "${context.getString(R.string.ai_error_prefix)} ${e.localizedMessage.orEmpty()}"
         }
+    }
+
+    companion object {
+        private const val MAX_TELEGRAM_TITLE_LENGTH = 150
+        private const val MAX_DESCRIPTION_LINES = 6
     }
 }

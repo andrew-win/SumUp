@@ -114,4 +114,5 @@
     <string name="source_type_rss">RSS Стрічка</string>
     <string name="source_type_telegram">Telegram Канал</string>
     <string name="source_type_youtube">YouTube Канал</string>
+    <string name="ellipsis">…</string>
 </resources>

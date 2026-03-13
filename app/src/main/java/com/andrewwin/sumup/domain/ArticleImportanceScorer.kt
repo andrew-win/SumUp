@@ -23,13 +23,10 @@ class ArticleImportanceScorer {
     private fun checkIsSpam(article: Article, sourceType: SourceType): Boolean {
         val text = article.content.lowercase()
         
-        // 1. Keywords check
         if (SPAM_KEYWORDS.any { text.contains(it) }) return true
         
-        // 2. Phone numbers check (+380..., +38..., 38..., 380...)
         if (PHONE_REGEX.containsMatchIn(article.content)) return true
         
-        // 3. Links count check (2 or more, excluding source channel for Telegram)
         val links = URL_REGEX.findAll(article.content).map { it.value }
         val filteredLinks = if (sourceType == SourceType.TELEGRAM) {
             val channelHandle = extractTelegramHandle(article.url)
@@ -45,7 +42,6 @@ class ArticleImportanceScorer {
 
     private fun extractTelegramHandle(url: String): String? {
         return try {
-            // Expected: https://t.me/handle/123 or https://t.me/handle
             url.substringAfter("t.me/").substringBefore("/")
         } catch (e: Exception) {
             null
@@ -79,17 +75,14 @@ class ArticleImportanceScorer {
                     continue
                 }
 
-                // Check for numbers
                 if (word.contains(Regex("\\d"))) {
                     totalFactScore += 0.1f
                     i++
                     continue
                 }
 
-                // Check for capitalized words (not the first word)
                 if (i > 0 && word.isNotEmpty() && word[0].isUpperCase()) {
                     totalFactScore += 0.1f
-                    // Skip subsequent capitalized words as they form a single name/fact
                     i++
                     while (i < words.size && words[i].isNotEmpty() && words[i][0].isUpperCase()) {
                         i++

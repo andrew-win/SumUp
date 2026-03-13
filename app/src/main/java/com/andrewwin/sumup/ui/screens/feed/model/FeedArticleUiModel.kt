@@ -1,0 +1,16 @@
+package com.andrewwin.sumup.ui.screens.feed.model
+
+import com.andrewwin.sumup.data.local.entities.Article
+
+data class ArticleUiModel(
+    val article: Article,
+    val displayTitle: String,
+    val displayContent: String,
+    val sourceName: String?,
+    val groupName: String?
+)
+
+data class ArticleClusterUiModel(
+    val representative: ArticleUiModel,
+    val duplicates: List<Pair<ArticleUiModel, Float>>
+)

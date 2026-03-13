@@ -1,19 +1,17 @@
 package com.andrewwin.sumup.ui.screens.feed
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
-import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -30,8 +28,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
-import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.domain.ArticleCluster
+import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
+import com.andrewwin.sumup.ui.screens.feed.model.ArticleUiModel
 import com.andrewwin.sumup.ui.theme.Rubik
 import java.text.SimpleDateFormat
 import java.util.*
@@ -50,11 +48,8 @@ fun FeedScreen(
     val isAiLoading by viewModel.isAiLoading.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
     val groups by viewModel.groups.collectAsState()
-    val sources by viewModel.sources.collectAsState()
 
-    var showDateMenu by remember { mutableStateOf(false) }
-    var showGroupMenu by remember { mutableStateOf(false) }
-    var articleForAi by remember { mutableStateOf<Article?>(null) }
+    var articleForAi by remember { mutableStateOf<ArticleUiModel?>(null) }
     var isFeedAiActive by remember { mutableStateOf(false) }
     var userQuestion by remember { mutableStateOf("") }
 
@@ -106,112 +101,21 @@ fun FeedScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 4.dp)
-                    ) {
-                        SearchBar(
-                            inputField = {
-                                SearchBarDefaults.InputField(
-                                    query = searchQuery,
-                                    onQueryChange = viewModel::onSearchQueryChange,
-                                    onSearch = {},
-                                    expanded = false,
-                                    onExpandedChange = {},
-                                    placeholder = { Text(stringResource(R.string.search_placeholder)) },
-                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
-                                )
-                            },
-                            expanded = false,
-                            onExpandedChange = {},
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = androidx.compose.foundation.shape.CircleShape,
-                            colors = SearchBarDefaults.colors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            )
-                        ) {}
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                stringResource(R.string.filter_label),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            Spacer(Modifier.weight(1f))
-
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                Box {
-                                    Row(
-                                        modifier = Modifier.clickable { showDateMenu = true },
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(stringResource(dateFilter.labelRes), color = MaterialTheme.colorScheme.onSurface)
-                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                    DropdownMenu(
-                                        expanded = showDateMenu,
-                                        onDismissRequest = { showDateMenu = false }
-                                    ) {
-                                        DateFilter.entries.forEach { filter ->
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(filter.labelRes)) },
-                                                onClick = {
-                                                    viewModel.setDateFilter(filter)
-                                                    showDateMenu = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Box {
-                                    Row(
-                                        modifier = Modifier.clickable { showGroupMenu = true },
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(groups.find { it.id == selectedGroupId }?.name ?: stringResource(R.string.filter_group), color = MaterialTheme.colorScheme.onSurface)
-                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                    DropdownMenu(
-                                        expanded = showGroupMenu,
-                                        onDismissRequest = { showGroupMenu = false }
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.all_groups)) },
-                                            onClick = {
-                                                viewModel.selectGroup(null)
-                                                showGroupMenu = false
-                                            }
-                                        )
-                                        groups.forEach { group ->
-                                            DropdownMenuItem(
-                                                text = { Text(group.name) },
-                                                onClick = {
-                                                    viewModel.selectGroup(group.id)
-                                                    showGroupMenu = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    FeedFilters(
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = viewModel::onSearchQueryChange,
+                        dateFilter = dateFilter,
+                        onDateFilterChange = viewModel::setDateFilter,
+                        selectedGroupId = selectedGroupId,
+                        onGroupSelect = viewModel::selectGroup,
+                        groups = groups
+                    )
                 }
 
-                items(articleClusters, key = { it.representative.id }) { cluster ->
+                items(articleClusters, key = { it.representative.article.id }) { cluster ->
                     ArticleClusterCard(
                         cluster = cluster,
-                        sources = sources,
-                        groups = groups,
-                        onOpenSource = { uriHandler.openUri(it.url) },
+                        onOpenSource = { uriHandler.openUri(it.article.url) },
                         onAiClick = { 
                             articleForAi = it
                             isFeedAiActive = false
@@ -270,7 +174,7 @@ fun FeedScreen(
                                     if (isFeedAiActive) {
                                         viewModel.askFeed(userQuestion)
                                     } else {
-                                        articleForAi?.let { viewModel.askQuestion(it.content, userQuestion) }
+                                        articleForAi?.let { viewModel.askQuestion(it.article.content, userQuestion) }
                                     }
                                 }) {
                                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
@@ -286,7 +190,7 @@ fun FeedScreen(
                                 if (isFeedAiActive) {
                                     viewModel.summarizeFeed()
                                 } else {
-                                    articleForAi?.let { viewModel.summarizeContent(it.content) }
+                                    articleForAi?.let { viewModel.summarizeContent(it.article.content) }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -309,19 +213,131 @@ fun FeedScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FeedFilters(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    dateFilter: DateFilter,
+    onDateFilterChange: (DateFilter) -> Unit,
+    selectedGroupId: Long?,
+    onGroupSelect: (Long?) -> Unit,
+    groups: List<com.andrewwin.sumup.data.local.entities.SourceGroup>
+) {
+    var showDateMenu by remember { mutableStateOf(false) }
+    var showGroupMenu by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 4.dp)
+    ) {
+        SearchBar(
+            inputField = {
+                SearchBarDefaults.InputField(
+                    query = searchQuery,
+                    onQueryChange = onSearchQueryChange,
+                    onSearch = {},
+                    expanded = false,
+                    onExpandedChange = {},
+                    placeholder = { Text(stringResource(R.string.search_placeholder)) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
+                )
+            },
+            expanded = false,
+            onExpandedChange = {},
+            modifier = Modifier.fillMaxWidth(),
+            shape = androidx.compose.foundation.shape.CircleShape,
+            colors = SearchBarDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
+        ) {}
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                stringResource(R.string.filter_label),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Box {
+                    Row(
+                        modifier = Modifier.clickable { showDateMenu = true },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(stringResource(dateFilter.labelRes), color = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    DropdownMenu(
+                        expanded = showDateMenu,
+                        onDismissRequest = { showDateMenu = false }
+                    ) {
+                        DateFilter.entries.forEach { filter ->
+                            DropdownMenuItem(
+                                text = { Text(stringResource(filter.labelRes)) },
+                                onClick = {
+                                    onDateFilterChange(filter)
+                                    showDateMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Box {
+                    Row(
+                        modifier = Modifier.clickable { showGroupMenu = true },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(groups.find { it.id == selectedGroupId }?.name ?: stringResource(R.string.filter_group), color = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    DropdownMenu(
+                        expanded = showGroupMenu,
+                        onDismissRequest = { showGroupMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.all_groups)) },
+                            onClick = {
+                                onGroupSelect(null)
+                                showGroupMenu = false
+                            }
+                        )
+                        groups.forEach { group ->
+                            DropdownMenuItem(
+                                text = { Text(group.name) },
+                                onClick = {
+                                    onGroupSelect(group.id)
+                                    showGroupMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun ArticleClusterCard(
-    cluster: ArticleCluster,
-    sources: List<com.andrewwin.sumup.data.local.entities.Source>,
-    groups: List<com.andrewwin.sumup.data.local.entities.SourceGroup>,
-    onOpenSource: (Article) -> Unit,
-    onAiClick: (Article) -> Unit
+    cluster: ArticleClusterUiModel,
+    onOpenSource: (ArticleUiModel) -> Unit,
+    onAiClick: (ArticleUiModel) -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
 
     Column {
         Text(
-            text = dateFormat.format(Date(cluster.representative.publishedAt)),
+            text = dateFormat.format(Date(cluster.representative.article.publishedAt)),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
@@ -336,51 +352,46 @@ fun ArticleClusterCard(
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column {
-            val source = sources.find { it.id == cluster.representative.sourceId }
-            val group = groups.find { it.id == source?.groupId }
-            
-            ArticleItem(
-                article = cluster.representative,
-                sourceName = source?.name,
-                groupName = group?.name,
-                onOpenSource = { onOpenSource(cluster.representative) },
-                onAiClick = { onAiClick(cluster.representative) }
-            )
-
-            if (cluster.duplicates.isNotEmpty()) {
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 24.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                ArticleItem(
+                    uiModel = cluster.representative,
+                    onOpenSource = { onOpenSource(cluster.representative) },
+                    onAiClick = { onAiClick(cluster.representative) }
                 )
-                
-                Column(modifier = Modifier.padding(24.dp)) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                        shape = MaterialTheme.shapes.medium
-                    ) {
-                        Text(
-                            text = stringResource(R.string.feed_similar_news, cluster.duplicates.size),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.Normal,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                    Spacer(Modifier.height(16.dp))
+
+                if (cluster.duplicates.isNotEmpty()) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 24.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    )
                     
-                    cluster.duplicates.forEach { (article, score) ->
-                        DuplicateItem(
-                            article = article,
-                            score = score,
-                            onOpenSource = { onOpenSource(article) },
-                            onAiClick = { onAiClick(article) }
-                        )
-                        if (article != cluster.duplicates.last().first) {
-                            Spacer(Modifier.height(12.dp))
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Text(
+                                text = stringResource(R.string.feed_similar_news, cluster.duplicates.size),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontWeight = FontWeight.Normal,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        
+                        cluster.duplicates.forEach { (uiModel, score) ->
+                            DuplicateItem(
+                                uiModel = uiModel,
+                                score = score,
+                                onOpenSource = { onOpenSource(uiModel) },
+                                onAiClick = { onAiClick(uiModel) }
+                            )
+                            if (uiModel != cluster.duplicates.last().first) {
+                                Spacer(Modifier.height(12.dp))
+                            }
                         }
                     }
                 }
-            }
             }
         }
     }
@@ -388,43 +399,35 @@ fun ArticleClusterCard(
 
 @Composable
 fun ArticleItem(
-    article: Article,
-    sourceName: String?,
-    groupName: String?,
+    uiModel: ArticleUiModel,
     onOpenSource: () -> Unit,
     onAiClick: () -> Unit
 ) {
-    val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
-    
     Column(modifier = Modifier.padding(24.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp)) {
-            if (groupName != null) {
+            uiModel.groupName?.let { name ->
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = androidx.compose.foundation.shape.CircleShape) {
-                    Text(groupName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                    Text(name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                 }
             }
-            if (sourceName != null) {
+            uiModel.sourceName?.let { name ->
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = androidx.compose.foundation.shape.CircleShape) {
-                    Text(sourceName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                    Text(name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                 }
             }
         }
         Text(
-            text = article.title,
+            text = uiModel.displayTitle,
             style = MaterialTheme.typography.titleMedium.copy(
                 fontFamily = Rubik,
                 fontWeight = FontWeight.SemiBold
             ),
-            maxLines = 5,
-            overflow = TextOverflow.Ellipsis,
             lineHeight = 22.sp
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            text = article.content,
+            text = uiModel.displayContent,
             style = MaterialTheme.typography.bodyMedium,
-            maxLines = 4,
-            overflow = TextOverflow.Ellipsis,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             lineHeight = 22.sp,
             fontWeight = FontWeight.Normal
@@ -463,7 +466,7 @@ fun ArticleItem(
 
 @Composable
 fun DuplicateItem(
-    article: Article,
+    uiModel: ArticleUiModel,
     score: Float,
     onOpenSource: () -> Unit,
     onAiClick: () -> Unit
@@ -488,7 +491,7 @@ fun DuplicateItem(
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = article.title,
+                text = uiModel.displayTitle,
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontFamily = Rubik,
                     fontWeight = FontWeight.SemiBold
