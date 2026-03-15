@@ -18,6 +18,9 @@ interface AiModelDao {
     @Delete
     suspend fun deleteConfig(config: AiModelConfig)
 
+    @Query("SELECT * FROM ai_model_configs WHERE isEnabled = 1")
+    suspend fun getEnabledConfigs(): List<AiModelConfig>
+
     @Query("SELECT * FROM ai_model_configs WHERE isEnabled = 1 LIMIT 1")
     suspend fun getActiveConfig(): AiModelConfig?
 }

@@ -93,14 +93,19 @@ class SummaryWorker @AssistedInject constructor(
                             it.copy(content = articleRepository.fetchFullContent(it))
                         }
                         buildCloudSummary(cloudArticles, aiRepository)
-                    } catch (e: NoActiveModelException) {
-                        Log.i(TAG, "Adaptive Strategy: No active model, falling back to extractive template")
-                        val fullContentMap = articles.map { article ->
-                            val source = articleRepository.getSourceById(article.sourceId)
-                            val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
-                            formatted.displayTitle to articleRepository.fetchFullContent(article)
-                        }.toMap()
-                        buildExtractiveSummary(fullContentMap.keys.toList(), fullContentMap)
+                    } catch (e: Exception) {
+                        if (e is com.andrewwin.sumup.domain.exception.NoActiveModelException || 
+                            e is com.andrewwin.sumup.domain.exception.AllAiModelsFailedException) {
+                            Log.i(TAG, "Adaptive Strategy: Cloud failed or unavailable, falling back to extractive template")
+                            val fullContentMap = articles.map { article ->
+                                val source = articleRepository.getSourceById(article.sourceId)
+                                val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
+                                formatted.displayTitle to articleRepository.fetchFullContent(article)
+                            }.toMap()
+                            buildExtractiveSummary(fullContentMap.keys.toList(), fullContentMap)
+                        } else {
+                            throw e
+                        }
                     }
                 }
             }

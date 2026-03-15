@@ -216,6 +216,7 @@ class FeedViewModel @Inject constructor(
         val context = getApplication<Application>()
         return when (e) {
             is NoActiveModelException -> context.getString(R.string.error_no_active_model)
+            is com.andrewwin.sumup.domain.exception.AllAiModelsFailedException -> context.getString(R.string.error_all_ai_models_failed)
             is UnsupportedStrategyException -> context.getString(R.string.error_unsupported_strategy)
             else -> "${context.getString(R.string.ai_error_prefix)} ${e.localizedMessage.orEmpty()}"
         }

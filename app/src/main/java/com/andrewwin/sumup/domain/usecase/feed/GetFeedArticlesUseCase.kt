@@ -66,21 +66,26 @@ class GetFeedArticlesUseCase @Inject constructor(
                 }
             }
 
-            // Optimized feed logic
+            // 1. Filter by importance if enabled
             if (prefs.isImportanceFilterEnabled) {
-                // 1. Filter by importance
                 processedArticles = processedArticles.filter { article ->
                     val sourceType = sourceTypeMap[article.sourceId] ?: SourceType.RSS
                     importanceScorer.score(article, sourceType) >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
                 }
+            }
 
-                // 2. Deduplicate filtered articles
-                if (prefs.isDeduplicationEnabled && prefs.modelPath != null && processedArticles.isNotEmpty()) {
-                    if (deduplicationService.initialize(prefs.modelPath)) {
-                        return@combine deduplicationService.clusterArticles(
-                            processedArticles,
-                            prefs.deduplicationThreshold
-                        ).filter { it.duplicates.size + 1 >= prefs.minMentions }
+            // 2. Deduplicate if enabled
+            if (prefs.isDeduplicationEnabled && prefs.modelPath != null && processedArticles.isNotEmpty()) {
+                if (deduplicationService.initialize(prefs.modelPath)) {
+                    val clusters = deduplicationService.clusterArticles(
+                        processedArticles,
+                        prefs.deduplicationThreshold
+                    )
+                    
+                    return@combine if (prefs.isHideSingleNewsEnabled) {
+                        clusters.filter { it.duplicates.size + 1 >= prefs.minMentions }
+                    } else {
+                        clusters
                     }
                 }
             }

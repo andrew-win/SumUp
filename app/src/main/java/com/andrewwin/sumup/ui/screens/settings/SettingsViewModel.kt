@@ -104,6 +104,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(minMentions = min) } }
     }
 
+    fun updateHideSingleNewsEnabled(enabled: Boolean) {
+        viewModelScope.launch { updatePreferences { it.copy(isHideSingleNewsEnabled = enabled) } }
+    }
+
     fun loadModels(provider: AiProvider, apiKey: String) {
         viewModelScope.launch {
             _isLoadingModels.value = true

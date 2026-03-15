@@ -76,6 +76,7 @@
     <string name="settings_deduplication">Дедуплікація</string>
     <string name="settings_enable_deduplication">Приховувати схожі новини</string>
     <string name="settings_deduplication_threshold">Поріг схожості: %s</string>
+    <string name="settings_hide_single_news">Приховувати поодинокі новини</string>
     <string name="settings_min_mentions">Мінімальна кількість згадок: %d</string>
     <string name="settings_model_status">Статус моделі: %s</string>
     <string name="model_status_idle">Не завантажено</string>
@@ -94,6 +95,7 @@
     <string name="summary_worker_empty_response">Порожня відповідь при генерації зведення</string>
     <string name="summary_worker_error_prefix">Помилка воркера</string>
     <string name="error_no_active_model">Немає активної ШІ моделі</string>
+    <string name="error_all_ai_models_failed">Всі доступні ШІ моделі не відповіли. Спробуйте пізніше.</string>
     <string name="error_unsupported_strategy">Екстрактивна сумаризація не підтримує запитання</string>
     <string name="error_no_articles">Немає нових статей для сумаризації.</string>
     <string name="settings_importance_filter">Важливість</string>
@@ -120,4 +122,5 @@
     <string name="summary_extractive_intro">Ось головні новини на даний період часу:</string>
     <string name="summary_extractive_item_header">%d. %s:</string>
     <string name="summary_article_format">%1$s: %2$s</string>
+    <string name="feed_empty_message">Новин не знайдено. Спробуйте оновити стрічку потянувши вниз</string>
 </resources>

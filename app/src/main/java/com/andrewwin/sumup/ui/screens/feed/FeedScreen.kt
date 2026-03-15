@@ -12,6 +12,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
+import androidx.compose.animation.*
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -31,6 +33,7 @@ import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleUiModel
 import com.andrewwin.sumup.ui.theme.Rubik
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -55,6 +58,12 @@ fun FeedScreen(
     var userQuestion by remember { mutableStateOf("") }
 
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val showBackToTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 100
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -76,14 +85,37 @@ fun FeedScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { isFeedAiActive = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = androidx.compose.foundation.shape.CircleShape,
-                modifier = Modifier.padding(16.dp)
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(28.dp))
+                AnimatedVisibility(
+                    visible = showBackToTop,
+                    enter = fadeIn() + scaleIn(),
+                    exit = fadeOut() + scaleOut()
+                ) {
+                    SmallFloatingActionButton(
+                        onClick = {
+                            scope.launch {
+                                listState.animateScrollToItem(0)
+                            }
+                        },
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        shape = androidx.compose.foundation.shape.CircleShape
+                    ) {
+                        Icon(Icons.Default.ArrowUpward, contentDescription = stringResource(R.string.back_to_top))
+                    }
+                }
+
+                FloatingActionButton(
+                    onClick = { isFeedAiActive = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = androidx.compose.foundation.shape.CircleShape
+                ) {
+                    Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(28.dp))
+                }
             }
         }
     ) { innerPadding ->
@@ -112,16 +144,36 @@ fun FeedScreen(
                     )
                 }
 
-                items(articleClusters, key = { it.representative.article.id }) { cluster ->
-                    ArticleClusterCard(
-                        cluster = cluster,
-                        onOpenSource = { onOpenWebView(it.article.url) },
-                        onAiClick = { 
-                            articleForAi = it
-                            isFeedAiActive = false
-                            viewModel.clearAiResult()
+                if (articleClusters.isEmpty() && !isRefreshing) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillParentMaxHeight(0.7f)
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = stringResource(R.string.feed_empty_message),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 24.sp
+                            )
                         }
-                    )
+                    }
+                } else {
+                    items(articleClusters, key = { it.representative.article.id }) { cluster ->
+                        ArticleClusterCard(
+                            cluster = cluster,
+                            onOpenSource = { onOpenWebView(it.article.url) },
+                            onAiClick = { 
+                                articleForAi = it
+                                isFeedAiActive = false
+                                viewModel.clearAiResult()
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -495,18 +547,16 @@ fun DuplicateItem(
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontFamily = Rubik,
                     fontWeight = FontWeight.SemiBold
-                ),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                )
             )
         }
         Spacer(Modifier.width(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             IconButton(onClick = onOpenSource, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.MoreHoriz, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.MoreHoriz, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onClick = onAiClick, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(painterResource(R.drawable.ic_ask_ai), contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

@@ -104,7 +104,14 @@ class AiService(private val okHttpClient: OkHttpClient) {
         val request = requestBuilder.post(body).build()
         
         okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw Exception("Запит до ШІ не вдався: ${response.code}")
+            if (!response.isSuccessful) {
+                val message = "Запит до ШІ не вдався: ${response.code}"
+                when (response.code) {
+                    429 -> throw com.andrewwin.sumup.domain.exception.AiRateLimitException(message)
+                    in 500..599 -> throw com.andrewwin.sumup.domain.exception.AiProviderUnavailableException(message, response.code)
+                    else -> throw Exception(message)
+                }
+            }
             val responseBody = response.body?.string() ?: throw Exception("Порожня відповідь від сервера")
             return parser(responseBody)
         }

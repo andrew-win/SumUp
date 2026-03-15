@@ -183,6 +183,19 @@ fun SettingsScreen(
                             )
                         }
 
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stringResource(R.string.settings_hide_single_news),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Switch(
+                                checked = userPreferences.isHideSingleNewsEnabled,
+                                onCheckedChange = { viewModel.updateHideSingleNewsEnabled(it) },
+                                modifier = Modifier.scale(0.85f)
+                            )
+                        }
+                        
                         Column {
                             Text(
                                 stringResource(R.string.settings_min_mentions, userPreferences.minMentions),

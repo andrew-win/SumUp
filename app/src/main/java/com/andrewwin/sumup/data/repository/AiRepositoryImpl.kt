@@ -42,50 +42,75 @@ class AiRepositoryImpl @Inject constructor(
             return sentences.joinToString("\n") { "- $it" }
         }
 
-        val activeConfig = aiModelDao.getActiveConfig()
-        if (activeConfig == null) {
-            Log.w("AiRepo", "No active config for cloud/adaptive strategy")
+        val enabledConfigs = aiModelDao.getEnabledConfigs()
+        if (enabledConfigs.isEmpty()) {
+            Log.w("AiRepo", "No enabled configs for cloud/adaptive strategy")
             throw NoActiveModelException()
         }
 
-        return try {
-            val response = when (strategy) {
-                AiStrategy.CLOUD -> {
-                    val config = activeConfig ?: throw NoActiveModelException()
-                    aiService.generateResponse(config, SUMMARY_PROMPT, content.take(MAX_AI_CONTENT_LENGTH))
-                }
-                AiStrategy.ADAPTIVE -> {
-                    val processedContent = if (content.length > MAX_AI_CONTENT_LENGTH) {
-                        Log.d("AiRepo", "Content exceeds limit, shrinking via Extractive")
-                        ExtractiveSummarizer.summarize(content, 15).joinToString(" ")
-                    } else {
-                        content
+        var lastException: Exception? = null
+        for (config in enabledConfigs) {
+            try {
+                Log.d("AiRepo", "Attempting summary with config: ${config.name}")
+                val response = when (strategy) {
+                    AiStrategy.CLOUD -> {
+                        aiService.generateResponse(config, SUMMARY_PROMPT, content.take(MAX_AI_CONTENT_LENGTH))
                     }
-                    aiService.generateResponse(activeConfig!!, SUMMARY_PROMPT, processedContent)
+                    AiStrategy.ADAPTIVE -> {
+                        val processedContent = if (content.length > MAX_AI_CONTENT_LENGTH) {
+                            Log.d("AiRepo", "Content exceeds limit, shrinking via Extractive")
+                            ExtractiveSummarizer.summarize(content, 15).joinToString(" ")
+                        } else {
+                            content
+                        }
+                        aiService.generateResponse(config, SUMMARY_PROMPT, processedContent)
+                    }
+                    else -> "" // Should not happen
                 }
-                AiStrategy.EXTRACTIVE -> {
-                    ExtractiveSummarizer.summarize(content, 5).joinToString("\n") { "- $it" }
-                }
+                Log.d("AiRepo", "AI response received from ${config.name}. Length: ${response.length}")
+                return response
+            } catch (e: com.andrewwin.sumup.domain.exception.AiServiceException) {
+                Log.w("AiRepo", "Failover: Config ${config.name} failed with ${e.javaClass.simpleName}. Trying next...", e)
+                lastException = e
+                continue
+            } catch (e: Exception) {
+                Log.e("AiRepo", "Non-failover error with config ${config.name}", e)
+                throw e
             }
-            Log.d("AiRepo", "AI response received. Length: ${response.length}")
-            response
-        } catch (e: Exception) {
-            Log.e("AiRepo", "AI summarization error", e)
-            throw e
         }
+
+        Log.e("AiRepo", "All AI models failed")
+        throw com.andrewwin.sumup.domain.exception.AllAiModelsFailedException()
     }
 
     override suspend fun askQuestion(content: String, question: String): String {
         val prefs = prefsDao.getUserPreferences().first()
-        val activeConfig = aiModelDao.getActiveConfig()
+        val enabledConfigs = aiModelDao.getEnabledConfigs()
 
-        if (prefs?.aiStrategy == AiStrategy.EXTRACTIVE || (prefs?.aiStrategy == AiStrategy.ADAPTIVE && activeConfig == null)) {
+        if (prefs?.aiStrategy == AiStrategy.EXTRACTIVE || (prefs?.aiStrategy == AiStrategy.ADAPTIVE && enabledConfigs.isEmpty())) {
             throw UnsupportedStrategyException()
         }
 
-        val config = activeConfig ?: throw NoActiveModelException()
-        val prompt = "$QUESTION_PROMPT_PREFIX $question\n\n$QUESTION_PROMPT_SUFFIX"
-        return aiService.generateResponse(config, prompt, content.take(MAX_AI_CONTENT_LENGTH))
+        if (enabledConfigs.isEmpty()) throw NoActiveModelException()
+
+        var lastException: Exception? = null
+        for (config in enabledConfigs) {
+            try {
+                Log.d("AiRepo", "Attempting question with config: ${config.name}")
+                val prompt = "$QUESTION_PROMPT_PREFIX $question\n\n$QUESTION_PROMPT_SUFFIX"
+                return aiService.generateResponse(config, prompt, content.take(MAX_AI_CONTENT_LENGTH))
+            } catch (e: com.andrewwin.sumup.domain.exception.AiServiceException) {
+                Log.w("AiRepo", "Failover: Config ${config.name} failed with ${e.javaClass.simpleName}. Trying next...", e)
+                lastException = e
+                continue
+            } catch (e: Exception) {
+                Log.e("AiRepo", "Non-failover error with config ${config.name}", e)
+                throw e
+            }
+        }
+
+        Log.e("AiRepo", "All AI models failed for question")
+        throw com.andrewwin.sumup.domain.exception.AllAiModelsFailedException()
     }
 
     companion object {

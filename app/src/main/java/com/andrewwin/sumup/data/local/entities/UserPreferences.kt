@@ -18,6 +18,7 @@ data class UserPreferences(
     val isDeduplicationEnabled: Boolean = false,
     val deduplicationThreshold: Float = 0.6f,
     val minMentions: Int = 2,
+    val isHideSingleNewsEnabled: Boolean = true,
     val modelPath: String? = null,
     val isImportanceFilterEnabled: Boolean = true
 )
