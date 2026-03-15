@@ -2,42 +2,37 @@ package com.andrewwin.sumup.domain
 
 object FooterCleaner {
 
-    private const val MIN_FOOTER_OCCURRENCE_RATIO = 0.5 // Рядок має бути хоча б у половині постів
+    private const val MIN_FOOTER_OCCURRENCE_RATIO = 0.5 
 
     /**
      * Знаходить спільний блок рядків у кінці постів.
-     * Використовує статистичний підхід для ігнорування постів-винятків (реклама тощо).
+     * Ігнорує порожні рядки при пошуку патерна, щоб він був стійким до різної кількості відступів.
      */
     fun findCommonFooter(texts: List<String>): String? {
-        if (texts.size < 2) return null
+        if (texts.size < 3) return null
 
-        // Розбиваємо кожен пост на рядки (відфільтровуємо порожні)
-        val postsLines = texts.map { it.lines().filter { line -> line.isNotBlank() } }
-        if (postsLines.isEmpty()) return null
-
-        val commonFooterLines = mutableListOf<String>()
+        // 1. Отримуємо лише змістовні рядки для кожного поста
+        val postsLines = texts.map { it.lines().map { line -> line.trim() }.filter { line -> line.isNotBlank() } }
         val maxLinesInAnyPost = postsLines.maxOf { it.size }
 
-        // Йдемо з кінця постів (індекс i - це зміщення від останнього рядка)
+        val commonFooterLines = mutableListOf<String>()
+
         for (i in 1..maxLinesInAnyPost) {
             val linesAtThisPosition = mutableMapOf<String, Int>()
             
             postsLines.forEach { lines ->
                 if (lines.size >= i) {
-                    val line = lines[lines.size - i].trim()
+                    val line = lines[lines.size - i]
                     linesAtThisPosition[line] = linesAtThisPosition.getOrDefault(line, 0) + 1
                 }
             }
 
-            // Знаходимо найпопулярніший рядок на цій позиції
             val mostFrequentEntry = linesAtThisPosition.maxByOrNull { it.value } ?: break
             val frequency = mostFrequentEntry.value.toDouble() / texts.size
 
-            // Якщо рядок зустрічається досить часто - додаємо його до футера
             if (frequency >= MIN_FOOTER_OCCURRENCE_RATIO) {
                 commonFooterLines.add(0, mostFrequentEntry.key)
             } else {
-                // Як тільки ланцюжок однакових кінцівок перервався - зупиняємось
                 break
             }
         }
@@ -50,22 +45,26 @@ object FooterCleaner {
     }
 
     /**
-     * Видаляє футер, якщо він знайдений у кінці тексту.
+     * Видаляє футер, ігноруючи порожні рядки між основним текстом та футером.
      */
     fun removeFooter(text: String, footerPattern: String?): String {
         if (footerPattern.isNullOrBlank()) return text
         
-        val trimmedText = text.trim()
-        val footerLines = footerPattern.lines().filter { it.isNotBlank() }
-        val textLines = trimmedText.lines().toMutableList()
+        val footerLines = footerPattern.lines().map { it.trim() }.filter { it.isNotBlank() }
+        if (footerLines.isEmpty()) return text
 
-        if (textLines.size < footerLines.size) return text
+        val originalLines = text.lines().toMutableList()
+        // Створюємо копію для пошуку, де відфільтровані порожні рядки, але зберігаємо індекси
+        val contentWithIndexes = originalLines.mapIndexed { index, s -> index to s.trim() }
+            .filter { it.second.isNotBlank() }
 
-        // Перевіряємо, чи останні рядки тексту збігаються з паттерном футера
+        if (contentWithIndexes.size < footerLines.size) return text
+
+        // Перевіряємо збіг з кінця
         var matches = true
         for (i in 1..footerLines.size) {
-            val textLine = textLines[textLines.size - i].trim()
-            val footerLine = footerLines[footerLines.size - i].trim()
+            val textLine = contentWithIndexes[contentWithIndexes.size - i].second
+            val footerLine = footerLines[footerLines.size - i]
             if (textLine != footerLine) {
                 matches = false
                 break
@@ -73,13 +72,11 @@ object FooterCleaner {
         }
 
         return if (matches) {
-            // Видаляємо відповідну кількість рядків з кінця
-            repeat(footerLines.size) { 
-                if (textLines.isNotEmpty() && textLines.last().isBlank() || matches) {
-                    textLines.removeAt(textLines.size - 1) 
-                }
-            }
-            textLines.joinToString("\n").trim()
+            // Знаходимо індекс першого рядка футера в оригінальному списку
+            val firstLineIndexInOriginal = contentWithIndexes[contentWithIndexes.size - footerLines.size].first
+            // Видаляємо все починаючи з цього індексу до кінця
+            val resultLines = originalLines.subList(0, firstLineIndexInOriginal)
+            resultLines.joinToString("\n").trim()
         } else {
             text
         }
