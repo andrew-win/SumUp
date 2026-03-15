@@ -70,7 +70,7 @@ class GetFeedArticlesUseCase @Inject constructor(
             if (prefs.isImportanceFilterEnabled) {
                 processedArticles = processedArticles.filter { article ->
                     val sourceType = sourceTypeMap[article.sourceId] ?: SourceType.RSS
-                    importanceScorer.score(article, sourceType) >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
+                    importanceScorer.score(article, sourceType, processedArticles) >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
                 }
             }
 

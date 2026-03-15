@@ -176,8 +176,12 @@ object AppModule {
     @Singleton
     fun provideBuildExtractiveSummaryUseCase(
         @dagger.hilt.android.qualifiers.ApplicationContext context: Context,
-        formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase
-    ): BuildExtractiveSummaryUseCase = BuildExtractiveSummaryUseCase(context, formatExtractiveSummaryUseCase)
+        formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase,
+        importanceScorer: ArticleImportanceScorer,
+        articleRepository: ArticleRepository
+    ): BuildExtractiveSummaryUseCase = BuildExtractiveSummaryUseCase(
+        context, formatExtractiveSummaryUseCase, importanceScorer, articleRepository
+    )
 
     @Provides
     @Singleton

@@ -72,14 +72,11 @@ class SummaryWorker @AssistedInject constructor(
             val summaryText = when (prefs.aiStrategy) {
                 AiStrategy.EXTRACTIVE -> {
                     Log.d(TAG, "Building Extractive summary")
-                    val fullContentMap = articles.map { article ->
-                        val source = articleRepository.getSourceById(article.sourceId)
-                        val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
-                        formatted.displayTitle to articleRepository.fetchFullContent(article)
-                    }.toMap()
+                    val articlesWithContent = articles.map { article ->
+                        article.copy(content = articleRepository.fetchFullContent(article))
+                    }
                     buildExtractiveSummary(
-                        headlines = fullContentMap.keys.toList(),
-                        contentMap = fullContentMap,
+                        articles = articlesWithContent,
                         topCount = prefs.extractiveNewsInScheduled,
                         sentencesPerArticle = prefs.extractiveSentencesInScheduled
                     )
@@ -102,14 +99,11 @@ class SummaryWorker @AssistedInject constructor(
                         if (e is com.andrewwin.sumup.domain.exception.NoActiveModelException || 
                             e is com.andrewwin.sumup.domain.exception.AllAiModelsFailedException) {
                             Log.i(TAG, "Adaptive Strategy: Cloud failed or unavailable, falling back to extractive template")
-                            val fullContentMap = articles.map { article ->
-                                val source = articleRepository.getSourceById(article.sourceId)
-                                val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
-                                formatted.displayTitle to articleRepository.fetchFullContent(article)
-                            }.toMap()
+                            val articlesWithContent = articles.map { article ->
+                                article.copy(content = articleRepository.fetchFullContent(article))
+                            }
                             buildExtractiveSummary(
-                                headlines = fullContentMap.keys.toList(),
-                                contentMap = fullContentMap,
+                                articles = articlesWithContent,
                                 topCount = prefs.extractiveNewsInScheduled,
                                 sentencesPerArticle = prefs.extractiveSentencesInScheduled
                             )
@@ -142,14 +136,12 @@ class SummaryWorker @AssistedInject constructor(
         }
     }
 
-    private fun buildExtractiveSummary(
-        headlines: List<String>,
-        contentMap: Map<String, String>,
+    private suspend fun buildExtractiveSummary(
+        articles: List<com.andrewwin.sumup.data.local.entities.Article>,
         topCount: Int,
         sentencesPerArticle: Int
     ): String = buildExtractiveSummaryUseCase(
-        headlines = headlines,
-        contentMap = contentMap,
+        articles = articles,
         topCount = topCount,
         sentencesPerArticle = sentencesPerArticle
     )

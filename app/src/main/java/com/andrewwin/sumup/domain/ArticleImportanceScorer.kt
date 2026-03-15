@@ -8,7 +8,8 @@ class ArticleImportanceScorer {
 
     fun score(
         article: Article,
-        sourceType: SourceType
+        sourceType: SourceType,
+        allArticles: List<Article> = emptyList()
     ): Float {
         if (article.content.length < MIN_CONTENT_LENGTH) return 0f
 
@@ -16,8 +17,9 @@ class ArticleImportanceScorer {
 
         val viewScore = computeViewScore(article.viewCount, sourceType)
         val factScore = computeFactScore(article.content)
+        val lexicalScore = computeLexicalScore(article, allArticles)
 
-        return viewScore + factScore
+        return (viewScore + factScore + lexicalScore).coerceAtMost(1.0f)
     }
 
     private fun checkIsSpam(article: Article, sourceType: SourceType): Boolean {
@@ -54,10 +56,10 @@ class ArticleImportanceScorer {
         return when {
             viewCount < 500 -> 0.05f
             viewCount < 1000 -> 0.1f
-            viewCount < 5000 -> 0.2f
-            viewCount < 10000 -> 0.3f
-            viewCount < 50000 -> 0.4f
-            else -> 0.5f
+            viewCount < 5000 -> 0.15f
+            viewCount < 10000 -> 0.2f
+            viewCount < 50000 -> 0.3f
+            else -> 0.4f
         }
     }
 
@@ -92,12 +94,37 @@ class ArticleImportanceScorer {
                 }
             }
         }
-        return min(totalFactScore, 0.5f)
+        return min(totalFactScore, 0.3f)
+    }
+
+    private fun computeLexicalScore(article: Article, allArticles: List<Article>): Float {
+        if (allArticles.isEmpty()) return 0f
+        
+        val articleWords = article.title.lowercase().split(Regex("\\s+")).toSet()
+        if (articleWords.isEmpty()) return 0f
+
+        var matchCount = 0
+        for (other in allArticles) {
+            if (other.url == article.url) continue // Skip self
+            
+            val otherWords = other.title.lowercase().split(Regex("\\s+")).toSet()
+            if (otherWords.isEmpty()) continue
+
+            val intersect = articleWords.intersect(otherWords).size.toFloat()
+            val union = articleWords.union(otherWords).size.toFloat()
+            val similarity = if (union > 0) intersect / union else 0f
+
+            if (similarity > 0.1f) {
+                matchCount++
+            }
+        }
+
+        return min(matchCount * 0.1f, 0.3f)
     }
 
     companion object {
         private const val MIN_CONTENT_LENGTH = 150
-        private const val STATIC_RSS_VIEW_SCORE = 0.3f
+        private const val STATIC_RSS_VIEW_SCORE = 0.2f
         const val IMPORTANCE_THRESHOLD = 0.5f
 
         private val SPAM_KEYWORDS = listOf("реклама", "промо", "промокод")

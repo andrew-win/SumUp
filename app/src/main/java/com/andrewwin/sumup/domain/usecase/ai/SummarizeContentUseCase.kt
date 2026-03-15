@@ -64,17 +64,13 @@ class SummarizeContentUseCase @Inject constructor(
             val prefs = userPreferencesRepository.preferences.first()
             
             if (prefs.aiStrategy == AiStrategy.EXTRACTIVE) {
-                val fullContentMap = mutableMapOf<String, String>()
+                val articlesWithContent = mutableListOf<Article>()
                 for (article in articles) {
-                    val source = articleRepository.getSourceById(article.sourceId)
-                    val sourceType = source?.type ?: SourceType.RSS
-                    val formatted = formatArticleHeadlineUseCase(article, sourceType)
-                    fullContentMap[formatted.displayTitle] = articleRepository.fetchFullContent(article)
+                    articlesWithContent.add(article.copy(content = articleRepository.fetchFullContent(article)))
                 }
                 
                 val summary = buildExtractiveSummaryUseCase(
-                    headlines = fullContentMap.keys.toList(),
-                    contentMap = fullContentMap,
+                    articles = articlesWithContent,
                     topCount = prefs.extractiveNewsInScheduled,
                     sentencesPerArticle = prefs.extractiveSentencesInScheduled
                 )
@@ -96,17 +92,13 @@ class SummarizeContentUseCase @Inject constructor(
                 Result.success(aiRepository.summarize(content))
             } catch (e: NoActiveModelException) {
                 // Adaptive Fallback for multiple articles
-                val fullContentMap = mutableMapOf<String, String>()
+                val articlesWithContent = mutableListOf<Article>()
                 for (article in articles) {
-                    val source = articleRepository.getSourceById(article.sourceId)
-                    val sourceType = source?.type ?: SourceType.RSS
-                    val formatted = formatArticleHeadlineUseCase(article, sourceType)
-                    fullContentMap[formatted.displayTitle] = articleRepository.fetchFullContent(article)
+                    articlesWithContent.add(article.copy(content = articleRepository.fetchFullContent(article)))
                 }
                 
                 val summary = buildExtractiveSummaryUseCase(
-                    headlines = fullContentMap.keys.toList(),
-                    contentMap = fullContentMap,
+                    articles = articlesWithContent,
                     topCount = prefs.extractiveNewsInScheduled,
                     sentencesPerArticle = prefs.extractiveSentencesInScheduled
                 )
