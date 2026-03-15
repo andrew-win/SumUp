@@ -73,6 +73,9 @@ dependencies {
     implementation("com.fasterxml:aalto-xml:1.3.3")
     implementation("stax:stax-api:1.0.1")
 
+    // Readability for smart content extraction
+    implementation("net.dankito.readability4j:readability4j:1.0.8")
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

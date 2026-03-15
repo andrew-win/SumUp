@@ -16,6 +16,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
+import net.dankito.readability4j.Readability4J
 import javax.inject.Inject
 
 class RemoteArticleDataSource @Inject constructor(
@@ -112,20 +113,20 @@ class RemoteArticleDataSource @Inject constructor(
                 return@withContext TranscriptFormatters.textFormatter().format(transcript.fetch())
             }
 
-            // Для RSS/Web використовуємо надійний Jsoup.connect()
-            val doc = Jsoup.connect(url)
-                .timeout(10000)
-                .followRedirects(true)
-                .get()
-
-            // Видаляємо все, що точно не є статтею
-            doc.select("script, style, nav, header, footer, noscript, aside, .ads, .menu, .sidebar").remove()
-
-            // Шукаємо за широким набором селекторів
-            val articleElement = doc.select("article, main, [role='main'], .post-content, .article-body, .entry-content, .content, #content").firstOrNull()
-                ?: doc.body()
-
-            return@withContext TextCleaner.clean(articleElement.html())
+            // Для RSS/Web використовуємо Readability4J для інтелектуального очищення
+            val response = okHttpClient.newCall(Request.Builder().url(url).build()).execute()
+            if (!response.isSuccessful) return@withContext null
+            
+            val html = response.body?.string() ?: return@withContext null
+            val readability = Readability4J(url, html)
+            val article = readability.parse()
+            
+            val cleanContent = article.content ?: article.textContent
+            return@withContext if (cleanContent != null) {
+                TextCleaner.clean(cleanContent)
+            } else {
+                null
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             null
