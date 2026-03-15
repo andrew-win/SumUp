@@ -143,7 +143,20 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(isImportanceFilterEnabled = enabled) } }
     }
 
+    fun updateExtractiveSentencesInFeed(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(extractiveSentencesInFeed = count) } }
+    }
+
+    fun updateExtractiveSentencesInScheduled(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(extractiveSentencesInScheduled = count) } }
+    }
+
+    fun updateExtractiveNewsInScheduled(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(extractiveNewsInScheduled = count) } }
+    }
+
     private suspend fun updatePreferences(transform: (UserPreferences) -> UserPreferences) {
         userPreferencesRepository.updatePreferences(transform(userPreferences.value))
     }
 }
+

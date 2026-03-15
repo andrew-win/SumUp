@@ -184,6 +184,15 @@ class FeedViewModel @Inject constructor(
         }
     }
 
+    fun summarizeContent(articles: List<Article>) {
+        viewModelScope.launch {
+            _isAiLoading.value = true
+            _aiResult.value = null
+            _aiResult.value = summarizeContentUseCase(articles).getOrElse { e -> localizeError(e) }
+            _isAiLoading.value = false
+        }
+    }
+
     fun summarizeContent(content: String) {
         viewModelScope.launch {
             _isAiLoading.value = true
@@ -203,12 +212,12 @@ class FeedViewModel @Inject constructor(
     }
 
     fun summarizeFeed() {
-        val content = articleClusters.value.joinToString("\n\n") { "${it.representative.article.title}: ${it.representative.article.content}" }
-        if (content.isNotBlank()) summarizeContent(content)
+        val articles = articleClusters.value.map { it.representative.article }
+        if (articles.isNotEmpty()) summarizeContent(articles)
     }
 
     fun askFeed(question: String) {
-        val content = articleClusters.value.joinToString("\n\n") { "${it.representative.article.title}: ${it.representative.article.content}" }
+        val content = articleClusters.value.joinToString("\n\n") { "${it.representative.displayTitle}: ${it.representative.article.content}" }
         if (content.isNotBlank()) askQuestion(content, question)
     }
 

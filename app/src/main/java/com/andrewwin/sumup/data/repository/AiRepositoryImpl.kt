@@ -36,11 +36,6 @@ class AiRepositoryImpl @Inject constructor(
         Log.d("AiRepo", "Summarize started, content length: ${content.length}")
         val prefs = prefsDao.getUserPreferences().first()
         val strategy = prefs?.aiStrategy ?: AiStrategy.ADAPTIVE
-        if (strategy == AiStrategy.EXTRACTIVE) {
-            Log.d("AiRepo", "Using Extractive strategy")
-            val sentences = ExtractiveSummarizer.summarize(content, 5)
-            return sentences.joinToString("\n") { "- $it" }
-        }
 
         val enabledConfigs = aiModelDao.getEnabledConfigs()
         if (enabledConfigs.isEmpty()) {

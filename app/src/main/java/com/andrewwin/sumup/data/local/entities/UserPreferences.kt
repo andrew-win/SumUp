@@ -20,5 +20,8 @@ data class UserPreferences(
     val minMentions: Int = 2,
     val isHideSingleNewsEnabled: Boolean = true,
     val modelPath: String? = null,
-    val isImportanceFilterEnabled: Boolean = true
+    val isImportanceFilterEnabled: Boolean = true,
+    val extractiveSentencesInFeed: Int = 3,
+    val extractiveSentencesInScheduled: Int = 5,
+    val extractiveNewsInScheduled: Int = 10
 )

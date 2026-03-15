@@ -77,7 +77,12 @@ class SummaryWorker @AssistedInject constructor(
                         val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
                         formatted.displayTitle to articleRepository.fetchFullContent(article)
                     }.toMap()
-                    buildExtractiveSummary(fullContentMap.keys.toList(), fullContentMap)
+                    buildExtractiveSummary(
+                        headlines = fullContentMap.keys.toList(),
+                        contentMap = fullContentMap,
+                        topCount = prefs.extractiveNewsInScheduled,
+                        sentencesPerArticle = prefs.extractiveSentencesInScheduled
+                    )
                 }
                 AiStrategy.CLOUD -> {
                     Log.d(TAG, "Building Cloud summary")
@@ -102,7 +107,12 @@ class SummaryWorker @AssistedInject constructor(
                                 val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
                                 formatted.displayTitle to articleRepository.fetchFullContent(article)
                             }.toMap()
-                            buildExtractiveSummary(fullContentMap.keys.toList(), fullContentMap)
+                            buildExtractiveSummary(
+                                headlines = fullContentMap.keys.toList(),
+                                contentMap = fullContentMap,
+                                topCount = prefs.extractiveNewsInScheduled,
+                                sentencesPerArticle = prefs.extractiveSentencesInScheduled
+                            )
                         } else {
                             throw e
                         }
@@ -134,12 +144,14 @@ class SummaryWorker @AssistedInject constructor(
 
     private fun buildExtractiveSummary(
         headlines: List<String>,
-        contentMap: Map<String, String>
+        contentMap: Map<String, String>,
+        topCount: Int,
+        sentencesPerArticle: Int
     ): String = buildExtractiveSummaryUseCase(
         headlines = headlines,
         contentMap = contentMap,
-        topCount = EXTRACTIVE_TOP_COUNT,
-        sentencesPerArticle = EXTRACTIVE_SENTENCES_PER_ARTICLE
+        topCount = topCount,
+        sentencesPerArticle = sentencesPerArticle
     )
 
     private suspend fun buildCloudSummary(

@@ -48,7 +48,7 @@ fun SourcesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.nav_sources), fontWeight = FontWeight.SemiBold) },
+                title = { Text(stringResource(R.string.nav_sources)) },
                 actions = {
                     FilledIconButton(
                         onClick = {},
@@ -67,9 +67,10 @@ fun SourcesScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddGroupDialog = true },
-                shape = MaterialTheme.shapes.extraLarge
+                shape = MaterialTheme.shapes.extraLarge,
+                modifier = Modifier.size(60.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_group))
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_group), modifier = Modifier.size(26.dp))
             }
         }
     ) { innerPadding ->
@@ -163,7 +164,6 @@ fun GroupCard(
                 Text(
                     text = groupWithSources.group.name,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(

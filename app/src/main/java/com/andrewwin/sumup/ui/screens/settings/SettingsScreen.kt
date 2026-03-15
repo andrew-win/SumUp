@@ -7,14 +7,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
@@ -38,7 +43,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.nav_settings), fontWeight = FontWeight.SemiBold) },
+                title = { Text(stringResource(R.string.nav_settings)) },
                 actions = {
                     FilledIconButton(
                         onClick = {},
@@ -81,7 +86,9 @@ fun SettingsScreen(
                             ) {
                                 Text(
                                     text = stringResource(labelRes),
-                                    style = MaterialTheme.typography.labelMedium
+                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 11.sp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -90,36 +97,22 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = stringResource(R.string.summary_cloud_type)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = stringResource(R.string.settings_cloud_api_label),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
+                SettingsSection(
+                    title = stringResource(R.string.settings_api_keys),
+                    trailing = {
+                        IconButton(
+                            onClick = { isAddingNew = true },
+                            modifier = Modifier.size(32.dp),
+                            colors = IconButtonDefaults.iconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             )
-                            IconButton(
-                                onClick = { isAddingNew = true },
-                                modifier = Modifier.size(32.dp),
-                                colors = IconButtonDefaults.iconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
-                            }
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
                         }
-                        
-                        HorizontalDivider(
-                            modifier = Modifier.padding(bottom = 8.dp),
-                            thickness = 0.5.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant
-                        )
-                        
+                    }
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         if (aiConfigs.isEmpty()) {
                             Text(
                                 stringResource(R.string.settings_api_keys_empty),
@@ -141,20 +134,58 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = stringResource(R.string.settings_local_models)) {
+                SettingsSection(title = stringResource(R.string.ai_strategy_extractive)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Text(
-                            text = stringResource(R.string.settings_deduplication),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                        
+                        Column {
+                            Text(
+                                stringResource(R.string.settings_extractive_sentences_feed, userPreferences.extractiveSentencesInFeed),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = userPreferences.extractiveSentencesInFeed.toFloat(),
+                                onValueChange = { viewModel.updateExtractiveSentencesInFeed(it.toInt()) },
+                                valueRange = 1f..10f,
+                                steps = 8
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                stringResource(R.string.settings_extractive_sentences_scheduled, userPreferences.extractiveSentencesInScheduled),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = userPreferences.extractiveSentencesInScheduled.toFloat(),
+                                onValueChange = { viewModel.updateExtractiveSentencesInScheduled(it.toInt()) },
+                                valueRange = 1f..10f,
+                                steps = 8
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                stringResource(R.string.settings_extractive_news_scheduled, userPreferences.extractiveNewsInScheduled),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = userPreferences.extractiveNewsInScheduled.toFloat(),
+                                onValueChange = { viewModel.updateExtractiveNewsInScheduled(it.toInt()) },
+                                valueRange = 1f..20f,
+                                steps = 18
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
+                SettingsSection(title = stringResource(R.string.settings_deduplication)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 stringResource(R.string.settings_enable_deduplication),
                                 modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.titleMedium
+                                style = MaterialTheme.typography.bodyLarge
                             )
                             Switch(
                                 checked = userPreferences.isDeduplicationEnabled,
@@ -162,11 +193,24 @@ fun SettingsScreen(
                                 modifier = Modifier.scale(0.85f)
                             )
                         }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stringResource(R.string.settings_hide_single_news),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Switch(
+                                checked = userPreferences.isHideSingleNewsEnabled,
+                                onCheckedChange = { viewModel.updateHideSingleNewsEnabled(it) },
+                                modifier = Modifier.scale(0.85f)
+                            )
+                        }
                         
                         Column {
                             Text(
                                 stringResource(R.string.settings_deduplication_threshold, String.format(Locale.US, "%.2f", userPreferences.deduplicationThreshold)),
-                                style = MaterialTheme.typography.titleMedium
+                                style = MaterialTheme.typography.bodyLarge
                             )
                             Slider(
                                 value = userPreferences.deduplicationThreshold,
@@ -182,24 +226,11 @@ fun SettingsScreen(
                                 )
                             )
                         }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                stringResource(R.string.settings_hide_single_news),
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Switch(
-                                checked = userPreferences.isHideSingleNewsEnabled,
-                                onCheckedChange = { viewModel.updateHideSingleNewsEnabled(it) },
-                                modifier = Modifier.scale(0.85f)
-                            )
-                        }
                         
                         Column {
                             Text(
                                 stringResource(R.string.settings_min_mentions, userPreferences.minMentions),
-                                style = MaterialTheme.typography.titleMedium
+                                style = MaterialTheme.typography.bodyLarge
                             )
                             Slider(
                                 value = userPreferences.minMentions.toFloat(),
@@ -216,6 +247,7 @@ fun SettingsScreen(
                             )
                         }
 
+                        Spacer(Modifier.height(4.dp))
                         val statusText = when (val s = downloadState) {
                             is ModelDownloadState.Idle -> stringResource(R.string.model_status_idle)
                             is ModelDownloadState.Downloading -> stringResource(R.string.model_status_downloading, s.progress)
@@ -226,7 +258,7 @@ fun SettingsScreen(
                         
                         Text(
                             stringResource(R.string.settings_model_status, statusText),
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.bodyLarge
                         )
                         
                         Button(
@@ -239,8 +271,7 @@ fun SettingsScreen(
                         ) {
                             Text(
                                 text = stringResource(if (downloadState is ModelDownloadState.Ready) R.string.settings_delete_model else R.string.settings_download_model),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Normal
+                                style = MaterialTheme.typography.labelLarge
                             )
                         }
                     }
@@ -253,7 +284,7 @@ fun SettingsScreen(
                         Text(
                             stringResource(R.string.settings_enable_importance_filter),
                             modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.bodyLarge
                         )
                         Switch(
                             checked = userPreferences.isImportanceFilterEnabled,
@@ -265,20 +296,13 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = stringResource(R.string.nav_summary)) {
+                SettingsSection(title = stringResource(R.string.settings_scheduled_summary)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Text(
-                            text = stringResource(R.string.settings_scheduling),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                        
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 stringResource(R.string.settings_scheduled_summary),
                                 modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.titleMedium
+                                style = MaterialTheme.typography.bodyLarge
                             )
                             Switch(
                                 checked = userPreferences.isScheduledSummaryEnabled,
@@ -298,7 +322,7 @@ fun SettingsScreen(
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 text = stringResource(R.string.settings_time_label, String.format(Locale.getDefault(), "%02d:%02d", userPreferences.scheduledHour, userPreferences.scheduledMinute)),
-                                style = MaterialTheme.typography.titleMedium
+                                style = MaterialTheme.typography.bodyLarge
                             )
                         }
                     }
@@ -337,22 +361,35 @@ fun SettingsScreen(
 @Composable
 fun SettingsSection(
     title: String,
+    trailing: @Composable (() -> Unit)? = null,
     headerContent: @Composable (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
-        )
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
+            shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    trailing?.invoke()
+                }
+                HorizontalDivider(
+                    modifier = Modifier.padding(bottom = 12.dp),
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
                 headerContent?.invoke()
                 content()
             }
@@ -367,27 +404,48 @@ fun AiKeyItem(
     onDelete: () -> Unit,
     onToggle: (Boolean) -> Unit
 ) {
-    val maskedKey = remember(config.apiKey) {
-        if (config.apiKey.length > 8) config.apiKey.take(4) + "...." + config.apiKey.takeLast(4)
-        else "...."
+    val providerIconRes = when (config.provider) {
+        AiProvider.GEMINI -> R.drawable.ic_gemini_ai_provider
+        AiProvider.GROQ -> R.drawable.ic_groq_ai_provider
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onEdit)
-            .padding(vertical = 8.dp), 
+            .clickable(onClick = onEdit),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Icon(
+            painter = painterResource(providerIconRes),
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.secondary
+        )
+        Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = config.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Normal)
-            Text(text = maskedKey, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                text = config.name, 
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Normal
+            )
+            Text(
+                text = config.modelName,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
         }
         Switch(
             checked = config.isEnabled, 
             onCheckedChange = onToggle, 
             modifier = Modifier.scale(0.75f)
         )
+        IconButton(
+            onClick = onEdit, 
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(androidx.compose.material.icons.Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+        }
         IconButton(
             onClick = onDelete, 
             modifier = Modifier.size(32.dp)
@@ -459,5 +517,5 @@ fun AiConfigDialog(
 @Composable
 fun ScheduledTimePickerDialog(hour: Int, minute: Int, onDismiss: () -> Unit, onConfirm: (Int, Int) -> Unit) {
     val timeState = rememberTimePickerState(initialHour = hour, initialMinute = minute)
-    AlertDialog(onDismissRequest = onDismiss, confirmButton = { TextButton(onClick = { onConfirm(timeState.hour, timeState.minute) }) { Text("OK") } }, dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }, text = { TimePicker(state = timeState) })
+    AlertDialog(onDismissRequest = onDismiss, confirmButton = { TextButton(onClick = { onConfirm(timeState.hour, timeState.minute) }) { Text(stringResource(R.string.ok)) } }, dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }, text = { TimePicker(state = timeState) })
 }

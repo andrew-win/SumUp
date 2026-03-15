@@ -9,12 +9,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,8 +45,7 @@ fun SummaryScreen(
             TopAppBar(
                 title = { 
                     Text(
-                        stringResource(R.string.nav_summary),
-                        fontWeight = FontWeight.SemiBold
+                        stringResource(R.string.nav_summary)
                     ) 
                 },
                 actions = {
@@ -75,24 +72,7 @@ fun SummaryScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
-            item {
-                StatusCard(
-                    isEnabled = userPreferences.isScheduledSummaryEnabled,
-                    hour = userPreferences.scheduledHour,
-                    minute = userPreferences.scheduledMinute,
-                    hasTodaySummary = todaySummary != null
-                )
-            }
-
             if (todaySummary != null) {
-                item {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.summary_latest),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
                 item {
                     SummaryCard(summary = todaySummary)
                 }
@@ -119,50 +99,12 @@ fun SummaryScreen(
                     Spacer(Modifier.height(16.dp))
                     Text(
                         text = stringResource(R.string.summary_history_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        style = MaterialTheme.typography.titleMedium
                     )
                 }
                 items(olderSummaries, key = { it.id }) { summary ->
                     SummaryCard(summary = summary)
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun StatusCard(isEnabled: Boolean, hour: Int, minute: Int, hasTodaySummary: Boolean) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(12.dp))
-            Column {
-                val timeText = String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
-                Text(
-                    text = if (isEnabled)
-                        stringResource(R.string.summary_next_at, timeText)
-                    else
-                        stringResource(R.string.summary_scheduling_disabled),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Text(
-                    text = if (hasTodaySummary)
-                        stringResource(R.string.summary_status_ready)
-                    else
-                        stringResource(R.string.summary_status_waiting),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                )
             }
         }
     }

@@ -68,7 +68,7 @@ fun FeedScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.nav_feed), fontWeight = FontWeight.SemiBold) },
+                title = { Text(stringResource(R.string.nav_feed)) },
                 actions = {
                     FilledIconButton(
                         onClick = {},
@@ -112,9 +112,10 @@ fun FeedScreen(
                     onClick = { isFeedAiActive = true },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = androidx.compose.foundation.shape.CircleShape
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.size(width = 60.dp, height = 52.dp)
                 ) {
-                    Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(28.dp))
+                    Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(38.dp))
                 }
             }
         }
@@ -129,7 +130,7 @@ fun FeedScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(top = 0.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 item {
@@ -417,18 +418,11 @@ fun ArticleClusterCard(
                     )
                     
                     Column(modifier = Modifier.padding(24.dp)) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                            shape = MaterialTheme.shapes.medium
-                        ) {
-                            Text(
-                                text = stringResource(R.string.feed_similar_news, cluster.duplicates.size),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontWeight = FontWeight.Normal,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
+                        Text(
+                            text = stringResource(R.string.feed_similar_news, cluster.duplicates.size),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         Spacer(Modifier.height(16.dp))
                         
                         cluster.duplicates.forEach { (uiModel, score) ->
@@ -480,7 +474,7 @@ fun ArticleItem(
         Text(
             text = uiModel.displayContent,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurface,
             lineHeight = 22.sp,
             fontWeight = FontWeight.Normal
         )
@@ -491,23 +485,31 @@ fun ArticleItem(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FilledTonalIconButton(
+                FilledIconButton(
                     onClick = onOpenSource,
                     modifier = Modifier
                         .clip(RoundedCornerShape(50.dp))
-                        .width(50.dp)
-                        .height(30.dp),
-                    shape = MaterialTheme.shapes.medium
+                        .width(56.dp)
+                        .height(34.dp),
+                    shape = RoundedCornerShape(50.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
                 ) {
                     Icon(Icons.Default.MoreHoriz, contentDescription = null)
                 }
-                FilledTonalIconButton(
+                FilledIconButton(
                     onClick = onAiClick,
                     modifier = Modifier
                         .clip(RoundedCornerShape(50.dp))
-                        .width(50.dp)
-                        .height(30.dp),
-                    shape = MaterialTheme.shapes.medium
+                        .width(56.dp)
+                        .height(34.dp),
+                    shape = RoundedCornerShape(50.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
                 ) {
                     Icon(painterResource(R.drawable.ic_ask_ai), contentDescription = null)
                 }
@@ -530,11 +532,11 @@ fun DuplicateItem(
         Surface(
             color = MaterialTheme.colorScheme.surfaceVariant,
             shape = androidx.compose.foundation.shape.CircleShape,
-            modifier = Modifier.size(36.dp)
+            modifier = Modifier.width(44.dp).height(30.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = "${(score * 100).toInt()}%",
+                    text = stringResource(R.string.feed_similarity_score, (score * 100).toInt()),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -552,11 +554,27 @@ fun DuplicateItem(
         }
         Spacer(Modifier.width(16.dp))
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            IconButton(onClick = onOpenSource, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.MoreHoriz, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            IconButton(
+                onClick = onOpenSource,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Default.MoreHoriz,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-            IconButton(onClick = onAiClick, modifier = Modifier.size(32.dp)) {
-                Icon(painterResource(R.drawable.ic_ask_ai), contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            IconButton(
+                onClick = onAiClick,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    painterResource(R.drawable.ic_ask_ai),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
