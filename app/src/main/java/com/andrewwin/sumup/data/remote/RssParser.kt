@@ -1,7 +1,6 @@
 package com.andrewwin.sumup.data.remote
 
 import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.domain.TextCleaner
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.InputStream
@@ -82,10 +81,10 @@ class RssParser {
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
             when (parser.name) {
-                "title" -> title = TextCleaner.clean(parser.nextText())
+                "title" -> title = parser.nextText()
                 "link" -> link = parser.nextText().trim()
                 "guid" -> guid = parser.nextText().trim()
-                "description" -> description = TextCleaner.clean(parser.nextText())
+                "description" -> description = parser.nextText()
                 "pubDate" -> pubDate = parseRssDate(parser.nextText())
                 else -> skip(parser)
             }
@@ -125,7 +124,7 @@ class RssParser {
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
             when (parser.name) {
-                "title" -> title = TextCleaner.clean(parser.nextText())
+                "title" -> title = parser.nextText()
                 "link" -> {
                     val href = parser.getAttributeValue(null, "href") ?: ""
                     val rel = parser.getAttributeValue(null, "rel") ?: ""
@@ -134,7 +133,7 @@ class RssParser {
                     }
                     if (!parser.isEmptyElementTag) parser.next()
                 }
-                "summary", "content" -> summary = TextCleaner.clean(parser.nextText())
+                "summary", "content" -> summary = parser.nextText()
                 "published", "updated" -> published = parseAtomDate(parser.nextText())
                 else -> skip(parser)
             }

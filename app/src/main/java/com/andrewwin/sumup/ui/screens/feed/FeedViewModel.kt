@@ -17,6 +17,7 @@ import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.ai.AskQuestionUseCase
 import com.andrewwin.sumup.domain.usecase.ai.SummarizeContentUseCase
 import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
+import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -47,7 +48,8 @@ class FeedViewModel @Inject constructor(
     private val summarizeContentUseCase: SummarizeContentUseCase,
     private val askQuestionUseCase: AskQuestionUseCase,
     private val sourceRepository: SourceRepository,
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase
 ) : AndroidViewModel(application) {
 
     private val _searchQuery = MutableStateFlow("")
@@ -113,43 +115,12 @@ class FeedViewModel @Inject constructor(
         val group = source?.groupId?.let { groups[it] }
         val sourceType = source?.type ?: SourceType.RSS
 
-        val displayTitle: String
-        val rawDescription: String
-
-        if (sourceType == SourceType.TELEGRAM) {
-            val fullText = article.content.trim()
-            
-            val breakMatch = Regex("[.!?](\\s|\n|$)|\n").find(fullText)
-            val breakIndex = breakMatch?.range?.first ?: -1
-
-            if (breakIndex != -1 && breakIndex < MAX_TELEGRAM_TITLE_LENGTH) {
-                displayTitle = fullText.substring(0, breakIndex).trim()
-                rawDescription = fullText.substring(breakMatch!!.range.last + 1).trim()
-            } else if (fullText.length > MAX_TELEGRAM_TITLE_LENGTH) {
-                val slice = fullText.take(MAX_TELEGRAM_TITLE_LENGTH)
-                val lastSpace = slice.lastIndexOf(' ')
-                val cutPos = if (lastSpace > 50) lastSpace else MAX_TELEGRAM_TITLE_LENGTH
-                
-                displayTitle = fullText.substring(0, cutPos).trim().removeSuffix(".") + getApplication<Application>().getString(R.string.ellipsis)
-                rawDescription = fullText.substring(cutPos).trim()
-            } else {
-                displayTitle = fullText.removeSuffix(".")
-                rawDescription = ""
-            }
-        } else {
-            displayTitle = article.title.trim().removeSuffix(".")
-            val content = article.content.trim()
-            rawDescription = if (content.startsWith(article.title.trim(), ignoreCase = true)) {
-                content.substring(article.title.trim().length).trim().removePrefix(":").removePrefix("-").trim()
-            } else {
-                content
-            }
-        }
+        val formatted = formatArticleHeadlineUseCase(article, sourceType)
 
         return ArticleUiModel(
             article = article,
-            displayTitle = displayTitle,
-            displayContent = formatDescription(rawDescription),
+            displayTitle = formatted.displayTitle,
+            displayContent = formatDescription(formatted.displayContent),
             sourceName = source?.name,
             groupName = group?.name
         )
@@ -251,7 +222,6 @@ class FeedViewModel @Inject constructor(
     }
 
     companion object {
-        private const val MAX_TELEGRAM_TITLE_LENGTH = 150
-        private const val MAX_DESCRIPTION_LINES = 8
+        private const val MAX_DESCRIPTION_LINES = 12
     }
 }

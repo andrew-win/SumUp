@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.data.repository
 
+import android.util.Log
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
@@ -10,6 +11,7 @@ import com.andrewwin.sumup.domain.ExtractiveSummarizer
 import com.andrewwin.sumup.domain.exception.NoActiveModelException
 import com.andrewwin.sumup.domain.exception.UnsupportedStrategyException
 import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -17,7 +19,8 @@ import javax.inject.Inject
 class AiRepositoryImpl @Inject constructor(
     private val aiModelDao: AiModelDao,
     private val prefsDao: UserPreferencesDao,
-    private val aiService: AiService
+    private val aiService: AiService,
+    private val formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase
 ) : AiRepository {
 
     override val allConfigs: Flow<List<AiModelConfig>> = aiModelDao.getAllConfigs()
@@ -30,30 +33,45 @@ class AiRepositoryImpl @Inject constructor(
     override suspend fun deleteConfig(config: AiModelConfig) = aiModelDao.deleteConfig(config)
 
     override suspend fun summarize(content: String): String {
+        Log.d("AiRepo", "Summarize started, content length: ${content.length}")
         val prefs = prefsDao.getUserPreferences().first()
         val strategy = prefs?.aiStrategy ?: AiStrategy.ADAPTIVE
-        val activeConfig = aiModelDao.getActiveConfig()
-
-        if (strategy == AiStrategy.EXTRACTIVE || (strategy == AiStrategy.ADAPTIVE && activeConfig == null)) {
-            return ExtractiveSummarizer.summarize(content, 5).joinToString("\n") { "- $it" }
+        if (strategy == AiStrategy.EXTRACTIVE) {
+            Log.d("AiRepo", "Using Extractive strategy")
+            val sentences = ExtractiveSummarizer.summarize(content, 5)
+            return sentences.joinToString("\n") { "- $it" }
         }
 
-        return when (strategy) {
-            AiStrategy.CLOUD -> {
-                val config = activeConfig ?: throw NoActiveModelException()
-                aiService.generateResponse(config, SUMMARY_PROMPT, content.take(MAX_AI_CONTENT_LENGTH))
-            }
-            AiStrategy.ADAPTIVE -> {
-                val processedContent = if (content.length > MAX_AI_CONTENT_LENGTH) {
-                    ExtractiveSummarizer.summarize(content, 15).joinToString(" ")
-                } else {
-                    content
+        val activeConfig = aiModelDao.getActiveConfig()
+        if (activeConfig == null) {
+            Log.w("AiRepo", "No active config for cloud/adaptive strategy")
+            throw NoActiveModelException()
+        }
+
+        return try {
+            val response = when (strategy) {
+                AiStrategy.CLOUD -> {
+                    val config = activeConfig ?: throw NoActiveModelException()
+                    aiService.generateResponse(config, SUMMARY_PROMPT, content.take(MAX_AI_CONTENT_LENGTH))
                 }
-                aiService.generateResponse(activeConfig!!, SUMMARY_PROMPT, processedContent)
+                AiStrategy.ADAPTIVE -> {
+                    val processedContent = if (content.length > MAX_AI_CONTENT_LENGTH) {
+                        Log.d("AiRepo", "Content exceeds limit, shrinking via Extractive")
+                        ExtractiveSummarizer.summarize(content, 15).joinToString(" ")
+                    } else {
+                        content
+                    }
+                    aiService.generateResponse(activeConfig!!, SUMMARY_PROMPT, processedContent)
+                }
+                AiStrategy.EXTRACTIVE -> {
+                    ExtractiveSummarizer.summarize(content, 5).joinToString("\n") { "- $it" }
+                }
             }
-            AiStrategy.EXTRACTIVE -> {
-                ExtractiveSummarizer.summarize(content, 5).joinToString("\n") { "- $it" }
-            }
+            Log.d("AiRepo", "AI response received. Length: ${response.length}")
+            response
+        } catch (e: Exception) {
+            Log.e("AiRepo", "AI summarization error", e)
+            throw e
         }
     }
 

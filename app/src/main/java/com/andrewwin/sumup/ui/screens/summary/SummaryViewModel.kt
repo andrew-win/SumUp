@@ -52,13 +52,13 @@ class SummaryViewModel @Inject constructor(
             runCatching {
                 refreshArticlesUseCase()
                 val summaryText = generateSummaryUseCase()
-                summaryRepository.insertSummary(Summary(content = summaryText))
+                summaryRepository.insertSummary(Summary(content = summaryText, strategy = userPreferences.value.aiStrategy))
             }.onFailure { e ->
                 val message = when (e) {
                     is NoArticlesException -> return@onFailure
                     else -> e.localizedMessage.orEmpty()
                 }
-                summaryRepository.insertSummary(Summary(content = message))
+                summaryRepository.insertSummary(Summary(content = message, strategy = userPreferences.value.aiStrategy))
             }
             _isGenerating.value = false
         }

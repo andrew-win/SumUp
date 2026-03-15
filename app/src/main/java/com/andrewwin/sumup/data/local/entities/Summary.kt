@@ -7,5 +7,6 @@ import androidx.room.PrimaryKey
 data class Summary(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val content: String,
+    val strategy: AiStrategy = AiStrategy.ADAPTIVE,
     val createdAt: Long = System.currentTimeMillis()
 )

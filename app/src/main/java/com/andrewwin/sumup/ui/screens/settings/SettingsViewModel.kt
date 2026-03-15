@@ -3,10 +3,7 @@ package com.andrewwin.sumup.ui.screens.settings
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.BackoffPolicy
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
+import com.andrewwin.sumup.domain.usecase.settings.ScheduleSummaryUseCase
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
@@ -23,8 +20,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.util.Calendar
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 sealed class ModelDownloadState {
@@ -41,7 +36,7 @@ class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val aiRepository: AiRepository,
     private val manageModelUseCase: ManageModelUseCase,
-    private val workManager: WorkManager
+    private val scheduleSummaryUseCase: ScheduleSummaryUseCase
 ) : AndroidViewModel(application) {
 
     val aiConfigs: StateFlow<List<AiModelConfig>> = aiRepository.allConfigs
@@ -136,14 +131,7 @@ class SettingsViewModel @Inject constructor(
 
     fun updateScheduledSummary(enabled: Boolean, hour: Int, minute: Int) {
         viewModelScope.launch {
-            updatePreferences {
-                it.copy(
-                    isScheduledSummaryEnabled = enabled,
-                    scheduledHour = hour,
-                    scheduledMinute = minute
-                )
-            }
-            if (enabled) scheduleWorker(hour, minute) else workManager.cancelUniqueWork(SCHEDULED_SUMMARY_WORK_NAME)
+            scheduleSummaryUseCase(enabled, hour, minute)
         }
     }
 
@@ -153,31 +141,5 @@ class SettingsViewModel @Inject constructor(
 
     private suspend fun updatePreferences(transform: (UserPreferences) -> UserPreferences) {
         userPreferencesRepository.updatePreferences(transform(userPreferences.value))
-    }
-
-    private fun scheduleWorker(hour: Int, minute: Int) {
-        val currentDate = Calendar.getInstance()
-        val dueDate = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-            if (before(currentDate)) add(Calendar.HOUR_OF_DAY, 24)
-        }
-
-        val initialDelay = maxOf(dueDate.timeInMillis - currentDate.timeInMillis, MIN_INITIAL_DELAY_MS)
-
-        val request = PeriodicWorkRequestBuilder<SummaryWorker>(24, TimeUnit.HOURS)
-            .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
-            .setBackoffCriteria(BackoffPolicy.LINEAR, BACKOFF_DELAY_MINUTES, TimeUnit.MINUTES)
-            .build()
-
-        workManager.enqueueUniquePeriodicWork(SCHEDULED_SUMMARY_WORK_NAME, ExistingPeriodicWorkPolicy.REPLACE, request)
-    }
-
-    companion object {
-        private const val SCHEDULED_SUMMARY_WORK_NAME = "scheduled_summary"
-        private const val MIN_INITIAL_DELAY_MS = 5000L
-        private const val BACKOFF_DELAY_MINUTES = 15L
     }
 }

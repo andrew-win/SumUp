@@ -4,24 +4,17 @@ import kotlin.math.sqrt
 
 object ExtractiveSummarizer {
 
-    /**
-     * Витягує n найважливіших речень з тексту.
-     * Використовує покращений розподіл на речення (включаючи переноси рядків) 
-     * та очищення від не-буквено-цифрових символів на початку.
-     */
     fun summarize(text: String, n: Int = 3): List<String> {
         if (text.isBlank()) return emptyList()
 
-        // Розбиваємо текст на речення, враховуючи крапки, знаки оклику/питання та переноси рядків
         val sentences = text
             .split(Regex("(?<=[.!?])(\\s|\n)+|\n+"))
             .map { it.trim() }
-            .filter { it.isNotBlank() && it.length > 10 } // Ігноруємо занадто короткі рядки
+            .filter { it.isNotBlank() && it.length > 10 }
             .map { cleanSentenceStart(it) }
 
         if (sentences.isEmpty()) return emptyList()
 
-        // Простий алгоритм ранжування: перше речення завжди важливе + довжина інших
         val scored = sentences.indices.map { i ->
             val sentence = sentences[i]
             val score = sentence.length.toDouble() + (if (i == 0) 100.0 else 0.0)
@@ -34,10 +27,6 @@ object ExtractiveSummarizer {
             .map { it.first }
     }
 
-    /**
-     * Видаляє емодзі, дефіси та інші спецсимволи на початку речення,
-     * поки не знайдеться буква або цифра.
-     */
     private fun cleanSentenceStart(sentence: String): String {
         var startIndex = 0
         while (startIndex < sentence.length && !sentence[startIndex].isLetterOrDigit()) {
@@ -50,7 +39,7 @@ object ExtractiveSummarizer {
         }
     }
 
-    fun getCentralHeadlines(headlines: List<String>, count: Int = 3): List<String> {
+    fun getCentralHeadlines(headlines: List<String>, count: Int = 3, alpha: Double = 0.7): List<String> {
         if (headlines.isEmpty()) return emptyList()
         if (headlines.size <= count) return headlines
 
@@ -67,17 +56,33 @@ object ExtractiveSummarizer {
             }
         }
 
-        return scores.indices
-            .sortedByDescending { scores[it] }
-            .take(count)
-            .map { headlines[it] }
+        val selected = mutableListOf<Int>()
+        val used = BooleanArray(headlines.size) { false }
+
+        while (selected.size < count && selected.size < headlines.size) {
+            val nextIndex = scores.indices
+                .filter { !used[it] }
+                .maxByOrNull { scores[it] } ?: break
+
+            selected.add(nextIndex)
+            used[nextIndex] = true
+
+            for (i in scores.indices) {
+                if (!used[i]) {
+                    val maxSim = selected.maxOf { cosineSim(vectors[i], vectors[it]) }
+                    scores[i] *= (1.0 - maxSim * alpha) // penalize схожі
+                }
+            }
+        }
+
+        return selected.map { headlines[it] }
     }
 
     private fun cosineSim(a: Map<String, Double>, b: Map<String, Double>): Double {
         var dot = 0.0
         var magA = 0.0
         var magB = 0.0
-        
+
         a.forEach { (k, v) ->
             val vb = b[k] ?: 0.0
             dot += v * vb

@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
+import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Summary
 import java.text.SimpleDateFormat
 import java.util.*
@@ -237,8 +238,13 @@ fun SummaryCard(summary: Summary) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.End
                 ) {
+                    val strategyLabel = when (summary.strategy) {
+                        AiStrategy.CLOUD -> stringResource(R.string.ai_strategy_cloud)
+                        AiStrategy.EXTRACTIVE -> stringResource(R.string.ai_strategy_extractive)
+                        AiStrategy.ADAPTIVE -> stringResource(R.string.ai_strategy_adaptive)
+                    }
                     Text(
-                        text = if (isError) stringResource(R.string.summary_system_notice) else stringResource(R.string.summary_cloud_type),
+                        text = if (isError) stringResource(R.string.summary_system_notice) else strategyLabel,
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Normal

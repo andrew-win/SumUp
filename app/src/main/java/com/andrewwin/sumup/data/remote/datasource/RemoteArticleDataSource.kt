@@ -5,11 +5,9 @@ import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.RssParser
 import com.andrewwin.sumup.data.remote.TelegramParser
 import com.andrewwin.sumup.data.remote.YouTubeParser
-import com.andrewwin.sumup.domain.TextCleaner
-import io.github.thoroldvix.api.TranscriptFormatters
 import io.github.thoroldvix.api.YoutubeClient
-import io.github.thoroldvix.api.YoutubeTranscriptApi
 import io.github.thoroldvix.api.TranscriptApiFactory
+import io.github.thoroldvix.api.TranscriptFormatters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -122,11 +120,7 @@ class RemoteArticleDataSource @Inject constructor(
             val article = readability.parse()
             
             val cleanContent = article.content ?: article.textContent
-            return@withContext if (cleanContent != null) {
-                TextCleaner.clean(cleanContent)
-            } else {
-                null
-            }
+            return@withContext cleanContent
         } catch (e: Exception) {
             e.printStackTrace()
             null

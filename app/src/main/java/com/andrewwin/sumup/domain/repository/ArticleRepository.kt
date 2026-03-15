@@ -8,5 +8,7 @@ interface ArticleRepository {
     suspend fun refreshArticles()
     suspend fun updateArticle(article: Article)
     suspend fun getEnabledArticlesOnce(): List<Article>
+    suspend fun getEnabledArticlesSince(timestamp: Long): List<Article>
+    suspend fun getSourceById(id: Long): com.andrewwin.sumup.data.local.entities.Source?
     suspend fun fetchFullContent(article: Article): String
 }

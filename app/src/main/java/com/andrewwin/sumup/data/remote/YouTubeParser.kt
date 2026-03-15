@@ -2,7 +2,6 @@ package com.andrewwin.sumup.data.remote
 
 import android.util.Xml
 import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.domain.TextCleaner
 import org.xmlpull.v1.XmlPullParser
 import java.io.InputStream
 import java.text.SimpleDateFormat
@@ -45,7 +44,7 @@ class YouTubeParser {
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
             when (parser.name) {
-                "title" -> title = TextCleaner.clean(readText(parser))
+                "title" -> title = readText(parser)
                 "link" -> {
                     link = parser.getAttributeValue(null, "href")
                     skip(parser)
@@ -75,7 +74,7 @@ class YouTubeParser {
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
             when (parser.name) {
-                "media:description" -> description = TextCleaner.clean(readText(parser))
+                "media:description" -> description = readText(parser)
                 "media:statistics" -> {
                     viewCount = parser.getAttributeValue(null, "views")?.toLongOrNull() ?: 0L
                     skip(parser)

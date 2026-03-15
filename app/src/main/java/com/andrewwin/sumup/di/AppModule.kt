@@ -33,6 +33,12 @@ import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCaseImpl
+import com.andrewwin.sumup.domain.repository.SummaryScheduler
+import com.andrewwin.sumup.data.local.scheduler.SummarySchedulerImpl
+import com.andrewwin.sumup.domain.usecase.CleanArticleTextUseCase
+import com.andrewwin.sumup.domain.usecase.BuildExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
+import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -96,8 +102,9 @@ object AppModule {
     fun provideArticleRepository(
         articleDao: ArticleDao,
         sourceDao: SourceDao,
-        remoteArticleDataSource: RemoteArticleDataSource
-    ): ArticleRepository = ArticleRepositoryImpl(articleDao, sourceDao, remoteArticleDataSource)
+        remoteArticleDataSource: RemoteArticleDataSource,
+        cleanArticleTextUseCase: CleanArticleTextUseCase
+    ): ArticleRepository = ArticleRepositoryImpl(articleDao, sourceDao, remoteArticleDataSource, cleanArticleTextUseCase)
 
     @Provides
     @Singleton
@@ -111,8 +118,9 @@ object AppModule {
     fun provideAiRepository(
         aiModelDao: AiModelDao,
         userPreferencesDao: UserPreferencesDao,
-        aiService: AiService
-    ): AiRepository = AiRepositoryImpl(aiModelDao, userPreferencesDao, aiService)
+        aiService: AiService,
+        formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase
+    ): AiRepository = AiRepositoryImpl(aiModelDao, userPreferencesDao, aiService, formatExtractiveSummaryUseCase)
 
     @Provides
     @Singleton
@@ -157,8 +165,36 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideFormatArticleHeadlineUseCase(): FormatArticleHeadlineUseCase = FormatArticleHeadlineUseCase()
+
+    @Provides
+    @Singleton
+    fun provideFormatExtractiveSummaryUseCase(@dagger.hilt.android.qualifiers.ApplicationContext context: Context): FormatExtractiveSummaryUseCase = 
+        FormatExtractiveSummaryUseCase(context)
+
+    @Provides
+    @Singleton
+    fun provideBuildExtractiveSummaryUseCase(
+        @dagger.hilt.android.qualifiers.ApplicationContext context: Context,
+        formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase
+    ): BuildExtractiveSummaryUseCase = BuildExtractiveSummaryUseCase(context, formatExtractiveSummaryUseCase)
+
+    @Provides
+    @Singleton
     fun provideGenerateSummaryUseCase(
         articleRepository: ArticleRepository,
-        aiRepository: AiRepository
-    ): GenerateSummaryUseCase = GenerateSummaryUseCaseImpl(articleRepository, aiRepository)
+        aiRepository: AiRepository,
+        formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase,
+        buildExtractiveSummaryUseCase: BuildExtractiveSummaryUseCase
+    ): GenerateSummaryUseCase = GenerateSummaryUseCaseImpl(
+        articleRepository, 
+        aiRepository, 
+        formatArticleHeadlineUseCase, 
+        buildExtractiveSummaryUseCase
+    )
+
+    @Provides
+    @Singleton
+    fun provideSummaryScheduler(workManager: WorkManager): SummaryScheduler =
+        SummarySchedulerImpl(workManager)
 }
