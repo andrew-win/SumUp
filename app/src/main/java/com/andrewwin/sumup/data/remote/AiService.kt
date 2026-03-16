@@ -17,11 +17,25 @@ class AiService(private val okHttpClient: OkHttpClient) {
         val url = when (provider) {
             AiProvider.GEMINI -> "https://generativelanguage.googleapis.com/v1/models?key=$apiKey"
             AiProvider.GROQ -> "https://api.groq.com/openai/v1/models"
+            AiProvider.OPENROUTER -> "https://openrouter.ai/api/v1/models"
+            AiProvider.COHERE -> "https://api.cohere.com/v1/models"
+            AiProvider.CHATGPT -> "https://api.openai.com/v1/models"
+            AiProvider.CLAUDE -> "https://api.anthropic.com/v1/models"
         }
 
         val requestBuilder = Request.Builder().url(url)
-        if (provider == AiProvider.GROQ) {
-            requestBuilder.addHeader("Authorization", "Bearer $apiKey")
+        when (provider) {
+            AiProvider.GROQ, AiProvider.OPENROUTER, AiProvider.CHATGPT -> {
+                requestBuilder.addHeader("Authorization", "Bearer $apiKey")
+            }
+            AiProvider.COHERE -> {
+                requestBuilder.addHeader("Authorization", "Bearer $apiKey")
+            }
+            AiProvider.CLAUDE -> {
+                requestBuilder.addHeader("x-api-key", apiKey)
+                requestBuilder.addHeader("anthropic-version", "2023-06-01")
+            }
+            else -> Unit
         }
 
         val request = requestBuilder.get().build()
@@ -48,6 +62,30 @@ class AiService(private val okHttpClient: OkHttpClient) {
                         modelNames.add(data.getJSONObject(i).getString("id"))
                     }
                 }
+                AiProvider.OPENROUTER -> {
+                    val data = json.getJSONArray("data")
+                    for (i in 0 until data.length()) {
+                        modelNames.add(data.getJSONObject(i).getString("id"))
+                    }
+                }
+                AiProvider.COHERE -> {
+                    val models = json.getJSONArray("models")
+                    for (i in 0 until models.length()) {
+                        modelNames.add(models.getJSONObject(i).getString("name"))
+                    }
+                }
+                AiProvider.CHATGPT -> {
+                    val data = json.getJSONArray("data")
+                    for (i in 0 until data.length()) {
+                        modelNames.add(data.getJSONObject(i).getString("id"))
+                    }
+                }
+                AiProvider.CLAUDE -> {
+                    val data = json.getJSONArray("data")
+                    for (i in 0 until data.length()) {
+                        modelNames.add(data.getJSONObject(i).getString("id"))
+                    }
+                }
             }
             modelNames.sorted()
         }
@@ -57,6 +95,10 @@ class AiService(private val okHttpClient: OkHttpClient) {
         when (config.provider) {
             AiProvider.GEMINI -> callGemini(config, prompt, content)
             AiProvider.GROQ -> callGroq(config, prompt, content)
+            AiProvider.OPENROUTER -> callOpenRouter(config, prompt, content)
+            AiProvider.COHERE -> callCohere(config, prompt, content)
+            AiProvider.CHATGPT -> callChatGpt(config, prompt, content)
+            AiProvider.CLAUDE -> callClaude(config, prompt, content)
         }
     }
 
@@ -91,6 +133,86 @@ class AiService(private val okHttpClient: OkHttpClient) {
         return executeRequest(url, json, requestBuilder) { response ->
             val choices = JSONObject(response).getJSONArray("choices")
             choices.getJSONObject(0).getJSONObject("message").getString("content")
+        }
+    }
+
+    private fun callOpenRouter(config: AiModelConfig, prompt: String, content: String): String {
+        val url = "https://openrouter.ai/api/v1/chat/completions"
+        val json = JSONObject().apply {
+            put("model", config.modelName)
+            put("messages", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", "$prompt\n\n$content")
+                })
+            })
+        }
+        val requestBuilder = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer ${config.apiKey}")
+
+        return executeRequest(url, json, requestBuilder) { response ->
+            val choices = JSONObject(response).getJSONArray("choices")
+            choices.getJSONObject(0).getJSONObject("message").getString("content")
+        }
+    }
+
+    private fun callChatGpt(config: AiModelConfig, prompt: String, content: String): String {
+        val url = "https://api.openai.com/v1/chat/completions"
+        val json = JSONObject().apply {
+            put("model", config.modelName)
+            put("messages", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", "$prompt\n\n$content")
+                })
+            })
+        }
+        val requestBuilder = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer ${config.apiKey}")
+
+        return executeRequest(url, json, requestBuilder) { response ->
+            val choices = JSONObject(response).getJSONArray("choices")
+            choices.getJSONObject(0).getJSONObject("message").getString("content")
+        }
+    }
+
+    private fun callCohere(config: AiModelConfig, prompt: String, content: String): String {
+        val url = "https://api.cohere.com/v1/chat"
+        val json = JSONObject().apply {
+            put("model", config.modelName)
+            put("message", "$prompt\n\n$content")
+        }
+        val requestBuilder = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer ${config.apiKey}")
+
+        return executeRequest(url, json, requestBuilder) { response ->
+            JSONObject(response).getString("text")
+        }
+    }
+
+    private fun callClaude(config: AiModelConfig, prompt: String, content: String): String {
+        val url = "https://api.anthropic.com/v1/messages"
+        val json = JSONObject().apply {
+            put("model", config.modelName)
+            put("max_tokens", 1024)
+            put("messages", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", "$prompt\n\n$content")
+                })
+            })
+        }
+        val requestBuilder = Request.Builder()
+            .url(url)
+            .addHeader("x-api-key", config.apiKey)
+            .addHeader("anthropic-version", "2023-06-01")
+
+        return executeRequest(url, json, requestBuilder) { response ->
+            val contentItems = JSONObject(response).getJSONArray("content")
+            contentItems.getJSONObject(0).getString("text")
         }
     }
 

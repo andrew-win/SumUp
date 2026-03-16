@@ -142,4 +142,10 @@
     <string name="summary_prompt_default">Зроби стислий підсумок цієї новини українською мовою:</string>
     <string name="ai_question_prompt_prefix">Дай відповідь на питання:</string>
     <string name="ai_question_prompt_suffix">Базуючись на цьому тексті:</string>
+    <string name="provider_gemini">Gemini</string>
+    <string name="provider_groq">Groq</string>
+    <string name="provider_openrouter">OpenRouter</string>
+    <string name="provider_cohere">Cohere</string>
+    <string name="provider_chatgpt">ChatGPT</string>
+    <string name="provider_claude">Claude</string>
 </resources>

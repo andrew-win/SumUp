@@ -494,6 +494,10 @@ fun AiKeyItem(
     val providerIconRes = when (config.provider) {
         AiProvider.GEMINI -> R.drawable.ic_gemini_ai_provider
         AiProvider.GROQ -> R.drawable.ic_groq_ai_provider
+        AiProvider.OPENROUTER -> R.drawable.ic_openrouter_ai_provider
+        AiProvider.COHERE -> R.drawable.ic_cohere_ai_provider
+        AiProvider.CHATGPT -> R.drawable.ic_chatgpt_ai_provider
+        AiProvider.CLAUDE -> R.drawable.ic_claude_ai_provider
     }
 
     Row(
@@ -568,12 +572,31 @@ fun AiConfigDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.dialog_config_name)) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = MaterialTheme.shapes.large)
                 ExposedDropdownMenuBox(expanded = expandedProvider, onExpandedChange = { expandedProvider = !expandedProvider }) {
-                    OutlinedTextField(value = provider.displayName, onValueChange = {}, readOnly = true, label = { Text(stringResource(R.string.dialog_provider)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedProvider) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable, true).fillMaxWidth(), shape = MaterialTheme.shapes.large)
-                    ExposedDropdownMenu(expanded = expandedProvider, onDismissRequest = { expandedProvider = false }) {
-                        AiProvider.entries.forEach { entry ->
-                            DropdownMenuItem(text = { Text(entry.displayName) }, onClick = { provider = entry; modelName = ""; expandedProvider = false })
+                OutlinedTextField(value = stringResource(provider.labelRes), onValueChange = {}, readOnly = true, label = { Text(stringResource(R.string.dialog_provider)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedProvider) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable, true).fillMaxWidth(), shape = MaterialTheme.shapes.large)
+                ExposedDropdownMenu(expanded = expandedProvider, onDismissRequest = { expandedProvider = false }) {
+                    AiProvider.entries.forEach { entry ->
+                        val iconRes = when (entry) {
+                            AiProvider.GEMINI -> R.drawable.ic_gemini_ai_provider
+                            AiProvider.GROQ -> R.drawable.ic_groq_ai_provider
+                            AiProvider.OPENROUTER -> R.drawable.ic_openrouter_ai_provider
+                            AiProvider.COHERE -> R.drawable.ic_cohere_ai_provider
+                            AiProvider.CHATGPT -> R.drawable.ic_chatgpt_ai_provider
+                            AiProvider.CLAUDE -> R.drawable.ic_claude_ai_provider
                         }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(entry.labelRes)) },
+                            onClick = { provider = entry; modelName = ""; expandedProvider = false },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(iconRes),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
                     }
+                }
                 }
                 OutlinedTextField(value = apiKey, onValueChange = { apiKey = it }, label = { Text(stringResource(R.string.dialog_api_key)) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = MaterialTheme.shapes.large)
                 Row(verticalAlignment = Alignment.CenterVertically) {
