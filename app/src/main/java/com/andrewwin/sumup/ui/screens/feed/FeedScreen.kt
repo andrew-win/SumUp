@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import android.util.Log
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
@@ -387,10 +388,15 @@ fun ArticleClusterCard(
     onAiClick: (ArticleUiModel) -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
+    val publishedAt = cluster.representative.article.publishedAt
+    val url = cluster.representative.article.url
+    LaunchedEffect(publishedAt, url) {
+        Log.d("FeedScreen", "displayDate url=$url publishedAt=$publishedAt")
+    }
 
     Column {
         Text(
-            text = dateFormat.format(Date(cluster.representative.article.publishedAt)),
+            text = dateFormat.format(Date(publishedAt)),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)

@@ -6,6 +6,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.andrewwin.sumup.ui.theme.SumUpTheme
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalTextToolbar
+import android.os.Build
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -14,7 +17,17 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             SumUpTheme {
-                MainScreen()
+                val isMiuiDevice = Build.MANUFACTURER.equals("Xiaomi", true) ||
+                    Build.BRAND.equals("Xiaomi", true) ||
+                    Build.BRAND.equals("Redmi", true) ||
+                    Build.BRAND.equals("POCO", true)
+                if (isMiuiDevice) {
+                    CompositionLocalProvider(LocalTextToolbar provides NoOpTextToolbar) {
+                        MainScreen()
+                    }
+                } else {
+                    MainScreen()
+                }
             }
         }
     }

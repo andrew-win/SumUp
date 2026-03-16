@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.ui.screens.feed
 
 import android.app.Application
+import android.util.Log
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -116,6 +117,11 @@ class FeedViewModel @Inject constructor(
         val sourceType = source?.type ?: SourceType.RSS
 
         val formatted = formatArticleHeadlineUseCase(article, sourceType)
+
+        Log.d(
+            TAG,
+            "mapToUiModel id=${article.id} url=${article.url} publishedAt=${article.publishedAt} sourceId=${article.sourceId}"
+        )
 
         return ArticleUiModel(
             article = article,
@@ -233,5 +239,6 @@ class FeedViewModel @Inject constructor(
 
     companion object {
         private const val MAX_DESCRIPTION_LINES = 12
+        private const val TAG = "FeedViewModel"
     }
 }

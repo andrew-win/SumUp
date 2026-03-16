@@ -3,62 +3,171 @@ package com.andrewwin.sumup.data.remote
 import com.andrewwin.sumup.data.local.entities.Article
 import org.jsoup.Jsoup
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Locale
 
 class TelegramParser {
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
 
     fun parse(html: String, sourceId: Long): List<Article> {
+        return parseWithDebug(html, sourceId).articles
+    }
+
+    fun parseWithDebug(html: String, sourceId: Long): TelegramParseResult {
         val doc = Jsoup.parse(html)
         val messages = doc.select(".tgme_widget_message")
-        val articles = mutableListOf<Article>()
+        val partsByKey = linkedMapOf<String, MessageParts>()
 
         messages.forEach { element ->
-            val textElement = element.selectFirst(".tgme_widget_message_text") ?: return@forEach
-            val dateElement = element.selectFirst("time")
-            val linkElement = element.selectFirst(".tgme_widget_message_date")
+            val key = buildKey(element)
+            val parts = partsByKey.getOrPut(key) { MessageParts() }
 
-            val fullText = textElement.wholeText()
-            if (fullText.isBlank()) return@forEach
+            val text = element.selectFirst(".tgme_widget_message_text")?.wholeText()?.trim().orEmpty()
+            if (text.isNotBlank()) {
+                parts.text = if (parts.text.isNullOrBlank()) text else parts.text + "\n" + text
+            }
+
+            val linkElement = element.selectFirst(".tgme_widget_message_date")
+            val url = normalizeUrl(linkElement?.attr("href").orEmpty())
+            if (url.isNotBlank() && parts.url.isNullOrBlank()) {
+                parts.url = url
+            }
+
+            val dateStr = extractDateTime(element)
+            if (!dateStr.isNullOrBlank() && parts.dateStr.isNullOrBlank()) {
+                parts.dateStr = dateStr
+            }
+
+            val epochStr = extractEpoch(element)
+            if (!epochStr.isNullOrBlank() && parts.epochStr.isNullOrBlank()) {
+                parts.epochStr = epochStr
+            }
+
+            val viewCount = parseViewCount(
+                element.selectFirst(".tgme_widget_message_views")?.text()
+            )
+            if (viewCount > 0L) {
+                parts.viewCount = maxOf(parts.viewCount ?: 0L, viewCount)
+            }
+        }
+
+        val articles = partsByKey.values.mapNotNull { parts ->
+            val fullText = parts.text?.trim().orEmpty()
+            if (fullText.isBlank()) return@mapNotNull null
 
             val lines = fullText.split("\n").filter { it.isNotBlank() }
             val title = lines.firstOrNull()?.take(100) ?: ""
 
-            var url = linkElement?.attr("href") ?: ""
-            
-            // Нормалізація посилань Telegram для WebView
-            if (url.startsWith("tg:resolve")) {
-                val domain = url.substringAfter("domain=").substringBefore("&")
-                val post = url.substringAfter("post=").substringBefore("&")
-                url = "https://t.me/s/$domain/$post"
-            } else if (url.startsWith("https://t.me/")) {
-                val path = url.removePrefix("https://t.me/")
-                if (!path.startsWith("s/") && !path.startsWith("c/")) {
-                    url = "https://t.me/s/$path"
-                }
-            }
+            val publishedAt = parseDate(parts.dateStr)
+                ?: parseEpoch(parts.epochStr)
+                ?: System.currentTimeMillis()
 
-            val dateStr = dateElement?.attr("datetime")
-            val publishedAt = try {
-                dateStr?.let { dateFormat.parse(it)?.time } ?: System.currentTimeMillis()
-            } catch (e: Exception) {
-                System.currentTimeMillis()
-            }
-
-            val viewCount = parseViewCount(element.selectFirst(".tgme_widget_message_views")?.text())
-
-            articles.add(
-                Article(
-                    sourceId = sourceId,
-                    title = title,
-                    content = fullText,
-                    url = url,
-                    publishedAt = publishedAt,
-                    viewCount = viewCount
-                )
+            Article(
+                sourceId = sourceId,
+                title = title,
+                content = fullText,
+                url = parts.url.orEmpty(),
+                publishedAt = publishedAt,
+                viewCount = parts.viewCount ?: 0L
             )
         }
-        return articles
+
+        val sortedArticles = articles
+            .distinctBy { it.url }
+            .sortedByDescending { it.publishedAt }
+
+        val debug = partsByKey.map { (key, parts) ->
+            TelegramParseDebug(
+                key = key,
+                url = parts.url,
+                dateStr = parts.dateStr,
+                epochStr = parts.epochStr,
+                parsedAt = parseDate(parts.dateStr) ?: parseEpoch(parts.epochStr),
+                textLength = parts.text?.length ?: 0
+            )
+        }
+
+        return TelegramParseResult(sortedArticles, debug)
+    }
+
+    private fun buildKey(element: org.jsoup.nodes.Element): String {
+        val byPost = element.attr("data-post")
+        if (byPost.isNotBlank()) return byPost
+        val byId = element.id()
+        if (byId.isNotBlank()) return byId
+        val byMsgId = element.attr("data-message-id")
+        if (byMsgId.isNotBlank()) return byMsgId
+        return element.selectFirst(".tgme_widget_message_date")?.attr("href").orEmpty()
+    }
+
+    private fun parseDate(value: String?): Long? {
+        if (value.isNullOrBlank()) return null
+        val normalized = if (value.endsWith("Z")) value.dropLast(1) + "+00:00" else value
+        val formats = listOf(
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US),
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US),
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.US),
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.US),
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US),
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US),
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US),
+            SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        )
+        for (format in formats) {
+            runCatching { format.parse(normalized)?.time }.getOrNull()?.let { return it }
+        }
+        return null
+    }
+
+    private fun parseEpoch(value: String?): Long? {
+        val raw = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        val number = raw.toLongOrNull() ?: return null
+        return if (raw.length >= 13) number else number * 1000L
+    }
+
+    private fun extractDateTime(element: org.jsoup.nodes.Element): String? {
+        return sequenceOf(
+            element.selectFirst("time[datetime]")?.attr("datetime"),
+            element.selectFirst(".tgme_widget_message_date time")?.attr("datetime"),
+            element.selectFirst("[datetime]")?.attr("datetime"),
+            element.parents().select("time[datetime]").firstOrNull()?.attr("datetime"),
+            element.parents().select("[datetime]").firstOrNull()?.attr("datetime")
+        ).firstOrNull { !it.isNullOrBlank() }
+    }
+
+    private fun extractEpoch(element: org.jsoup.nodes.Element): String? {
+        return sequenceOf(
+            element.selectFirst("time")?.attr("data-time"),
+            element.selectFirst("time")?.attr("data-timestamp"),
+            element.selectFirst("time")?.attr("data-published"),
+            element.selectFirst(".tgme_widget_message_date")?.attr("data-time"),
+            element.selectFirst(".tgme_widget_message_date")?.attr("data-timestamp"),
+            element.selectFirst(".tgme_widget_message_date")?.attr("data-date"),
+            element.selectFirst(".tgme_widget_message_date")?.attr("data-published"),
+            element.selectFirst("[data-time]")?.attr("data-time"),
+            element.selectFirst("[data-timestamp]")?.attr("data-timestamp"),
+            element.selectFirst("[data-date]")?.attr("data-date"),
+            element.selectFirst("[data-published]")?.attr("data-published"),
+            element.attr("data-time"),
+            element.attr("data-timestamp"),
+            element.attr("data-date"),
+            element.attr("data-published")
+        ).firstOrNull { !it.isNullOrBlank() }
+    }
+
+    private fun normalizeUrl(url: String): String {
+        return when {
+            url.startsWith("tg:resolve") -> {
+                val domain = url.substringAfter("domain=").substringBefore("&")
+                val post = url.substringAfter("post=").substringBefore("&")
+                "https://t.me/s/$domain/$post"
+            }
+            url.startsWith("https://t.me/") -> {
+                val path = url.removePrefix("https://t.me/")
+                if (!path.startsWith("s/") && !path.startsWith("c/")) {
+                    "https://t.me/s/$path"
+                } else url
+            }
+            else -> url
+        }
     }
 
     private fun parseViewCount(text: String?): Long {
@@ -70,4 +179,26 @@ class TelegramParser {
             else -> cleaned.toLongOrNull() ?: 0L
         }
     }
+
+    private data class MessageParts(
+        var text: String? = null,
+        var url: String? = null,
+        var dateStr: String? = null,
+        var epochStr: String? = null,
+        var viewCount: Long? = null
+    )
 }
+
+data class TelegramParseDebug(
+    val key: String,
+    val url: String?,
+    val dateStr: String?,
+    val epochStr: String?,
+    val parsedAt: Long?,
+    val textLength: Int
+)
+
+data class TelegramParseResult(
+    val articles: List<Article>,
+    val debug: List<TelegramParseDebug>
+)
