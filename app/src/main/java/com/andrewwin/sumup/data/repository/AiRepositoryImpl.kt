@@ -36,6 +36,7 @@ class AiRepositoryImpl @Inject constructor(
         Log.d("AiRepo", "Summarize started, content length: ${content.length}")
         val prefs = prefsDao.getUserPreferences().first()
         val strategy = prefs?.aiStrategy ?: AiStrategy.ADAPTIVE
+        val maxTotalChars = (prefs?.aiMaxCharsTotal ?: DEFAULT_MAX_AI_CONTENT_LENGTH).coerceAtLeast(1000)
 
         val enabledConfigs = aiModelDao.getEnabledConfigs()
         if (enabledConfigs.isEmpty()) {
@@ -49,10 +50,10 @@ class AiRepositoryImpl @Inject constructor(
                 Log.d("AiRepo", "Attempting summary with config: ${config.name}")
                 val response = when (strategy) {
                     AiStrategy.CLOUD -> {
-                        aiService.generateResponse(config, SUMMARY_PROMPT, content.take(MAX_AI_CONTENT_LENGTH))
+                        aiService.generateResponse(config, SUMMARY_PROMPT, content.take(maxTotalChars))
                     }
                     AiStrategy.ADAPTIVE -> {
-                        val processedContent = if (content.length > MAX_AI_CONTENT_LENGTH) {
+                        val processedContent = if (content.length > maxTotalChars) {
                             Log.d("AiRepo", "Content exceeds limit, shrinking via Extractive")
                             ExtractiveSummarizer.summarize(content, 15).joinToString(" ")
                         } else {
@@ -80,6 +81,7 @@ class AiRepositoryImpl @Inject constructor(
 
     override suspend fun askQuestion(content: String, question: String): String {
         val prefs = prefsDao.getUserPreferences().first()
+        val maxTotalChars = (prefs?.aiMaxCharsTotal ?: DEFAULT_MAX_AI_CONTENT_LENGTH).coerceAtLeast(1000)
         val enabledConfigs = aiModelDao.getEnabledConfigs()
 
         if (prefs?.aiStrategy == AiStrategy.EXTRACTIVE || (prefs?.aiStrategy == AiStrategy.ADAPTIVE && enabledConfigs.isEmpty())) {
@@ -93,7 +95,7 @@ class AiRepositoryImpl @Inject constructor(
             try {
                 Log.d("AiRepo", "Attempting question with config: ${config.name}")
                 val prompt = "$QUESTION_PROMPT_PREFIX $question\n\n$QUESTION_PROMPT_SUFFIX"
-                return aiService.generateResponse(config, prompt, content.take(MAX_AI_CONTENT_LENGTH))
+                return aiService.generateResponse(config, prompt, content.take(maxTotalChars))
             } catch (e: com.andrewwin.sumup.domain.exception.AiServiceException) {
                 Log.w("AiRepo", "Failover: Config ${config.name} failed with ${e.javaClass.simpleName}. Trying next...", e)
                 lastException = e
@@ -109,7 +111,7 @@ class AiRepositoryImpl @Inject constructor(
     }
 
     companion object {
-        private const val MAX_AI_CONTENT_LENGTH = 12000
+        private const val DEFAULT_MAX_AI_CONTENT_LENGTH = 12000
         private const val SUMMARY_PROMPT = "Зроби стислий підсумок цієї новини українською мовою:"
         private const val QUESTION_PROMPT_PREFIX = "Дай відповідь на питання:"
         private const val QUESTION_PROMPT_SUFFIX = "Базуючись на цьому тексті:"

@@ -86,18 +86,20 @@ class SummaryWorker @AssistedInject constructor(
                 }
                 AiStrategy.CLOUD -> {
                     Log.d(TAG, "Building Cloud summary")
+                    val perArticleLimit = prefs.aiMaxCharsPerArticle.coerceAtLeast(200)
                     val cloudArticles = articles.take(MAX_ARTICLES_FOR_SUMMARIZATION).map { 
                         it.copy(content = articleRepository.fetchFullContent(it))
                     }
-                    buildCloudSummary(cloudArticles, aiRepository)
+                    buildCloudSummary(cloudArticles, aiRepository, perArticleLimit)
                 }
                 AiStrategy.ADAPTIVE -> {
                     Log.d(TAG, "Building Adaptive summary")
                     try {
+                        val perArticleLimit = prefs.aiMaxCharsPerArticle.coerceAtLeast(200)
                         val cloudArticles = articles.take(MAX_ARTICLES_FOR_SUMMARIZATION).map { 
                             it.copy(content = articleRepository.fetchFullContent(it))
                         }
-                        buildCloudSummary(cloudArticles, aiRepository)
+                        buildCloudSummary(cloudArticles, aiRepository, perArticleLimit)
                     } catch (e: Exception) {
                         if (e is com.andrewwin.sumup.domain.exception.NoActiveModelException || 
                             e is com.andrewwin.sumup.domain.exception.AllAiModelsFailedException) {
@@ -156,10 +158,11 @@ class SummaryWorker @AssistedInject constructor(
 
     private suspend fun buildCloudSummary(
         articles: List<com.andrewwin.sumup.data.local.entities.Article>,
-        aiRepo: AiRepository
+        aiRepo: AiRepository,
+        perArticleLimit: Int
     ): String {
         val content = articles.joinToString("\n\n") { article ->
-            val truncated = article.content.take(MAX_ARTICLE_CONTENT_CHARS)
+            val truncated = article.content.take(perArticleLimit)
             applicationContext.getString(R.string.summary_article_format, article.title, truncated)
         }
         return aiRepo.summarize(content)
@@ -168,7 +171,6 @@ class SummaryWorker @AssistedInject constructor(
     companion object {
         private const val TAG = "SummaryWorker"
         private const val MAX_ARTICLES_FOR_SUMMARIZATION = 15
-        private const val MAX_ARTICLE_CONTENT_CHARS = 1000
         private const val EXTRACTIVE_TOP_COUNT = 5
         private const val EXTRACTIVE_SENTENCES_PER_ARTICLE = 5
         private const val MAX_RETRY_ATTEMPTS = 2

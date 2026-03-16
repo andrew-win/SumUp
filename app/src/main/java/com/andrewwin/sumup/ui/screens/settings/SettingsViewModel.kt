@@ -155,8 +155,19 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(extractiveNewsInScheduled = count) } }
     }
 
+    fun updateAiMaxCharsPerArticle(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(aiMaxCharsPerArticle = count) } }
+    }
+
+    fun updateAiMaxCharsPerFeedArticle(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(aiMaxCharsPerFeedArticle = count) } }
+    }
+
+    fun updateAiMaxCharsTotal(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(aiMaxCharsTotal = count) } }
+    }
+
     private suspend fun updatePreferences(transform: (UserPreferences) -> UserPreferences) {
         userPreferencesRepository.updatePreferences(transform(userPreferences.value))
     }
 }
-

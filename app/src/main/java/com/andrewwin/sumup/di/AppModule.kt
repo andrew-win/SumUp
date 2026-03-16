@@ -185,12 +185,14 @@ object AppModule {
         articleRepository: ArticleRepository,
         aiRepository: AiRepository,
         formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase,
-        buildExtractiveSummaryUseCase: BuildExtractiveSummaryUseCase
+        buildExtractiveSummaryUseCase: BuildExtractiveSummaryUseCase,
+        userPreferencesRepository: UserPreferencesRepository
     ): GenerateSummaryUseCase = GenerateSummaryUseCaseImpl(
         articleRepository, 
         aiRepository, 
         formatArticleHeadlineUseCase, 
-        buildExtractiveSummaryUseCase
+        buildExtractiveSummaryUseCase,
+        userPreferencesRepository
     )
 
     @Provides

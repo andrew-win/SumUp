@@ -111,6 +111,10 @@
     <string name="settings_extractive_sentences_feed">Речень у стрічці: %d</string>
     <string name="settings_extractive_sentences_scheduled">Речень у запланованих: %d</string>
     <string name="settings_extractive_news_scheduled">Кількість новин у запланованих: %d</string>
+    <string name="settings_ai_limits">Ліміт для ШІ-обробки</string>
+    <string name="settings_ai_chars_per_article_processing">Символів на новину при обробці: %d</string>
+    <string name="settings_ai_chars_per_feed_article">Символів при відповіді на конкретну новину у стрічці: %d</string>
+    <string name="settings_ai_chars_total">Символів на увесь зміст: %d</string>
 
     <string name="filter_date_all">Всі</string>
     <string name="filter_date_1h">1 год</string>

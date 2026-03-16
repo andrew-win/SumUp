@@ -83,12 +83,13 @@ class SummarizeContentUseCase @Inject constructor(
 
             // Cloud/Adaptive strategy for multiple articles
             val contentBuilder = StringBuilder()
+            val perArticleLimit = prefs.aiMaxCharsPerFeedArticle.coerceAtLeast(200)
             for (article in articles) {
                 val source = articleRepository.getSourceById(article.sourceId)
                 val sourceType = source?.type ?: SourceType.RSS
                 val formatted = formatArticleHeadlineUseCase(article, sourceType)
                 if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
-                contentBuilder.append("${formatted.displayTitle}: ${article.content.take(1000)}")
+                contentBuilder.append("${formatted.displayTitle}: ${article.content.take(perArticleLimit)}")
             }
             val content = contentBuilder.toString()
 

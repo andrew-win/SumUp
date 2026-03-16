@@ -223,7 +223,10 @@ class FeedViewModel @Inject constructor(
     }
 
     fun askFeed(question: String) {
-        val content = articleClusters.value.joinToString("\n\n") { "${it.representative.displayTitle}: ${it.representative.article.content}" }
+        val perArticleLimit = userPreferences.value.aiMaxCharsPerFeedArticle.coerceAtLeast(200)
+        val content = articleClusters.value.joinToString("\n\n") {
+            "${it.representative.displayTitle}: ${it.representative.article.content.take(perArticleLimit)}"
+        }
         if (content.isNotBlank()) askQuestion(content, question)
     }
 

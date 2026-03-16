@@ -134,6 +134,49 @@ fun SettingsScreen(
             }
 
             item {
+                SettingsSection(title = stringResource(R.string.settings_ai_limits)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Column {
+                            Text(
+                                stringResource(R.string.settings_ai_chars_per_article_processing, userPreferences.aiMaxCharsPerArticle),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = userPreferences.aiMaxCharsPerArticle.toFloat(),
+                                onValueChange = { viewModel.updateAiMaxCharsPerArticle(it.toInt()) },
+                                valueRange = 200f..3000f,
+                                steps = 28
+                            )
+                        }
+                        Column {
+                            Text(
+                                stringResource(R.string.settings_ai_chars_per_feed_article, userPreferences.aiMaxCharsPerFeedArticle),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = userPreferences.aiMaxCharsPerFeedArticle.toFloat(),
+                                onValueChange = { viewModel.updateAiMaxCharsPerFeedArticle(it.toInt()) },
+                                valueRange = 200f..3000f,
+                                steps = 28
+                            )
+                        }
+                        Column {
+                            Text(
+                                stringResource(R.string.settings_ai_chars_total, userPreferences.aiMaxCharsTotal),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = userPreferences.aiMaxCharsTotal.toFloat(),
+                                onValueChange = { viewModel.updateAiMaxCharsTotal(it.toInt()) },
+                                valueRange = 2000f..20000f,
+                                steps = 35
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
                 SettingsSection(title = stringResource(R.string.ai_strategy_extractive)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Column {

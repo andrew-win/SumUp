@@ -23,5 +23,8 @@ data class UserPreferences(
     val isImportanceFilterEnabled: Boolean = true,
     val extractiveSentencesInFeed: Int = 3,
     val extractiveSentencesInScheduled: Int = 5,
-    val extractiveNewsInScheduled: Int = 10
+    val extractiveNewsInScheduled: Int = 10,
+    val aiMaxCharsPerArticle: Int = 1000,
+    val aiMaxCharsPerFeedArticle: Int = 1000,
+    val aiMaxCharsTotal: Int = 12000
 )

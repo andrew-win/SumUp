@@ -3,6 +3,7 @@ package com.andrewwin.sumup.domain.usecase
 import android.util.Log
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 interface GenerateSummaryUseCase {
@@ -13,7 +14,8 @@ class GenerateSummaryUseCaseImpl @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val aiRepository: AiRepository,
     private val formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase,
-    private val buildExtractiveSummaryUseCase: BuildExtractiveSummaryUseCase
+    private val buildExtractiveSummaryUseCase: BuildExtractiveSummaryUseCase,
+    private val userPreferencesRepository: com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 ) : GenerateSummaryUseCase {
 
     override suspend fun invoke(): String {
@@ -30,10 +32,11 @@ class GenerateSummaryUseCaseImpl @Inject constructor(
         Log.d("SummaryUseCase", "Taking top ${articlesToSummarize.size} articles")
         
         return try {
+            val perArticleLimit = userPreferencesRepository.preferences.first().aiMaxCharsPerArticle.coerceAtLeast(200)
             val content = articlesToSummarize.map { article ->
                 val source = articleRepository.getSourceById(article.sourceId)
                 val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
-                "${formatted.displayTitle}: ${formatted.displayContent}"
+                "${formatted.displayTitle}: ${formatted.displayContent.take(perArticleLimit)}"
             }.joinToString(separator = "\n\n")
             aiRepository.summarize(content)
         } catch (e: com.andrewwin.sumup.domain.exception.NoActiveModelException) {
