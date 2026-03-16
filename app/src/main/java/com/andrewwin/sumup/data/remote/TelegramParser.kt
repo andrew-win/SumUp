@@ -47,6 +47,10 @@ class TelegramParser {
             if (viewCount > 0L) {
                 parts.viewCount = maxOf(parts.viewCount ?: 0L, viewCount)
             }
+
+            if (parts.mediaUrl.isNullOrBlank()) {
+                parts.mediaUrl = extractMediaUrl(element)
+            }
         }
 
         val articles = partsByKey.values.mapNotNull { parts ->
@@ -64,6 +68,7 @@ class TelegramParser {
                 sourceId = sourceId,
                 title = title,
                 content = fullText,
+                mediaUrl = parts.mediaUrl,
                 url = parts.url.orEmpty(),
                 publishedAt = publishedAt,
                 viewCount = parts.viewCount ?: 0L
@@ -185,8 +190,17 @@ class TelegramParser {
         var url: String? = null,
         var dateStr: String? = null,
         var epochStr: String? = null,
-        var viewCount: Long? = null
+        var viewCount: Long? = null,
+        var mediaUrl: String? = null
     )
+}
+
+private fun extractMediaUrl(element: org.jsoup.nodes.Element): String? {
+    val photo = element.selectFirst(".tgme_widget_message_photo_wrap")
+    val style = photo?.attr("style").orEmpty()
+    val styleUrl = Regex("url\\(['\\\"]?(.*?)['\\\"]?\\)").find(style)?.groups?.get(1)?.value
+    if (!styleUrl.isNullOrBlank()) return styleUrl
+    return element.selectFirst("img")?.attr("src")
 }
 
 data class TelegramParseDebug(

@@ -139,6 +139,7 @@
     <string name="settings_summary_prompt">Промпт для сумаризації</string>
     <string name="settings_summary_prompt_hint">Напишіть інструкцію для моделі</string>
     <string name="settings_custom_summary_prompt">Кастомний промпт</string>
+    <string name="settings_feed_media">Показувати медіа у стрічці</string>
     <string name="summary_prompt_default">Зроби стислий підсумок цієї новини українською мовою:</string>
     <string name="ai_question_prompt_prefix">Дай відповідь на питання:</string>
     <string name="ai_question_prompt_suffix">Базуючись на цьому тексті:</string>

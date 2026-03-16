@@ -254,6 +254,19 @@ fun SettingsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
+                                stringResource(R.string.settings_feed_media),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Switch(
+                                checked = userPreferences.isFeedMediaEnabled,
+                                onCheckedChange = { viewModel.updateFeedMediaEnabled(it) },
+                                modifier = Modifier.scale(0.85f)
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
                                 stringResource(R.string.settings_enable_importance_filter),
                                 modifier = Modifier.weight(1f),
                                 style = MaterialTheme.typography.bodyLarge

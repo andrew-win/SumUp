@@ -27,6 +27,8 @@ data class Article(
     val sourceId: Long,
     val title: String,
     val content: String,
+    val mediaUrl: String? = null,
+    val videoId: String? = null,
     val url: String,
     val publishedAt: Long,
     val viewCount: Long = 0,

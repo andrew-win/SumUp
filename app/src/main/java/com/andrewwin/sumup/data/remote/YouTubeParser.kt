@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.data.remote
 
+import android.util.Log
 import android.util.Xml
 import com.andrewwin.sumup.data.local.entities.Article
 import org.xmlpull.v1.XmlPullParser
@@ -8,6 +9,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class YouTubeParser {
+    private val tag = "YouTubeParser"
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
 
     fun parse(inputStream: InputStream, sourceId: Long): List<Article> {
@@ -40,6 +42,8 @@ class YouTubeParser {
         var description = ""
         var published = 0L
         var viewCount = 0L
+        var videoId = ""
+        var thumbnailUrl: String? = null
 
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
@@ -49,32 +53,72 @@ class YouTubeParser {
                     link = parser.getAttributeValue(null, "href")
                     skip(parser)
                 }
+                "yt:videoId", "videoId" -> videoId = extractVideoIdFromText(readText(parser)).orEmpty()
+                "id" -> {
+                    val value = readText(parser).trim()
+                    if (value.startsWith("yt:video:")) {
+                        videoId = extractVideoIdFromText(value.removePrefix("yt:video:")).orEmpty()
+                    }
+                }
                 "published" -> published = parseDate(readText(parser))
                 "media:group" -> {
                     val result = readMediaGroup(parser)
-                    description = result.first
-                    viewCount = result.second
+                    description = result.description
+                    viewCount = result.viewCount
+                    thumbnailUrl = result.thumbnailUrl ?: thumbnailUrl
+                    if (videoId.isBlank() && !result.videoId.isNullOrBlank()) {
+                        videoId = result.videoId
+                    }
                 }
                 else -> skip(parser)
             }
         }
+        if (videoId.isBlank()) {
+            videoId = extractVideoIdFromUrl(link).orEmpty()
+        }
+        videoId = extractVideoIdFromText(videoId).orEmpty()
+        Log.d(
+            tag,
+            "parse entry title=${title.take(64)} link=$link videoId=${videoId.ifBlank { "EMPTY" }} thumbnail=${thumbnailUrl.orEmpty()}"
+        )
         return Article(
             sourceId = sourceId,
             title = title,
             content = description,
+            mediaUrl = thumbnailUrl,
+            videoId = videoId.ifBlank { null },
             url = link,
             publishedAt = if (published == 0L) System.currentTimeMillis() else published,
             viewCount = viewCount
         )
     }
 
-    private fun readMediaGroup(parser: XmlPullParser): Pair<String, Long> {
+    private fun readMediaGroup(parser: XmlPullParser): MediaGroupData {
         var description = ""
         var viewCount = 0L
+        var thumbnailUrl: String? = null
+        var videoId: String? = null
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
             when (parser.name) {
                 "media:description" -> description = readText(parser)
+                "media:content" -> {
+                    val url = parser.getAttributeValue(null, "url")
+                    if (!url.isNullOrBlank() && videoId.isNullOrBlank()) {
+                        videoId = extractVideoIdFromUrl(url)
+                    }
+                    skip(parser)
+                }
+                "media:thumbnail" -> {
+                    val url = parser.getAttributeValue(null, "url")
+                    if (!url.isNullOrBlank()) {
+                        thumbnailUrl = url
+                        if (videoId.isNullOrBlank()) {
+                            videoId = extractVideoIdFromUrl(url)
+                        }
+                    }
+                    skip(parser)
+                }
                 "media:statistics" -> {
                     viewCount = parser.getAttributeValue(null, "views")?.toLongOrNull() ?: 0L
                     skip(parser)
@@ -82,7 +126,12 @@ class YouTubeParser {
                 else -> skip(parser)
             }
         }
-        return description to viewCount
+        return MediaGroupData(
+            description = description,
+            viewCount = viewCount,
+            thumbnailUrl = thumbnailUrl,
+            videoId = videoId
+        )
     }
 
     private fun readText(parser: XmlPullParser): String {
@@ -108,4 +157,33 @@ class YouTubeParser {
             }
         }
     }
+
+    private fun extractVideoIdFromUrl(url: String?): String? {
+        if (url.isNullOrBlank()) return null
+        val vParam = Regex("[?&]v=([^?&#]+)").find(url)?.groupValues?.get(1)
+        if (!vParam.isNullOrBlank()) return extractVideoIdFromText(vParam)
+        val shorts = Regex("youtube\\.com/shorts/([^?&#]+)").find(url)?.groupValues?.get(1)
+        if (!shorts.isNullOrBlank()) return extractVideoIdFromText(shorts)
+        val embed = Regex("youtube\\.com/embed/([^?&#]+)").find(url)?.groupValues?.get(1)
+        if (!embed.isNullOrBlank()) return extractVideoIdFromText(embed)
+        val legacy = Regex("youtube\\.com/v/([^?&#]+)").find(url)?.groupValues?.get(1)
+        if (!legacy.isNullOrBlank()) return extractVideoIdFromText(legacy)
+        val thumb = Regex("ytimg\\.com/vi/([^/]+)/").find(url)?.groupValues?.get(1)
+        if (!thumb.isNullOrBlank()) return extractVideoIdFromText(thumb)
+        val short = Regex("youtu\\.be/([^?&#]+)").find(url)?.groupValues?.get(1)
+        return extractVideoIdFromText(short)
+    }
+
+    private fun extractVideoIdFromText(text: String?): String? {
+        if (text.isNullOrBlank()) return null
+        val match = Regex("[A-Za-z0-9_-]{11}").find(text)
+        return match?.value
+    }
+
+    private data class MediaGroupData(
+        val description: String,
+        val viewCount: Long,
+        val thumbnailUrl: String?,
+        val videoId: String?
+    )
 }

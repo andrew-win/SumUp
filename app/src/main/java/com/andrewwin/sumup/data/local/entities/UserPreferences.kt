@@ -29,5 +29,6 @@ data class UserPreferences(
     val aiMaxCharsPerFeedArticle: Int = 1000,
     val aiMaxCharsTotal: Int = 12000,
     val summaryPrompt: String = "",
-    val isCustomSummaryPromptEnabled: Boolean = false
+    val isCustomSummaryPromptEnabled: Boolean = false,
+    val isFeedMediaEnabled: Boolean = false
 )

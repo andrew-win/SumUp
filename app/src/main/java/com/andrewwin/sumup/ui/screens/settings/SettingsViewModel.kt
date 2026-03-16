@@ -159,6 +159,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updateCustomSummaryPromptEnabledUseCase(enabled) }
     }
 
+    fun updateFeedMediaEnabled(enabled: Boolean) {
+        viewModelScope.launch { updatePreferences { it.copy(isFeedMediaEnabled = enabled) } }
+    }
+
     fun updateExtractiveSentencesInFeed(count: Int) {
         viewModelScope.launch { updatePreferences { it.copy(extractiveSentencesInFeed = count) } }
     }

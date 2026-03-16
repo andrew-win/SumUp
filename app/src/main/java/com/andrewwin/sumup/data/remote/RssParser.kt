@@ -77,6 +77,7 @@ class RssParser {
         var guid = ""
         var description = ""
         var pubDate = 0L
+        var mediaUrl: String? = null
 
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
@@ -85,6 +86,11 @@ class RssParser {
                 "link" -> link = parser.nextText().trim()
                 "guid" -> guid = parser.nextText().trim()
                 "description" -> description = parser.nextText()
+                "enclosure", "media:content", "media:thumbnail" -> {
+                    val url = parser.getAttributeValue(null, "url")
+                    if (!url.isNullOrBlank()) mediaUrl = url
+                    if (!parser.isEmptyElementTag) parser.next()
+                }
                 "pubDate" -> pubDate = parseRssDate(parser.nextText())
                 else -> skip(parser)
             }
@@ -93,10 +99,13 @@ class RssParser {
         val rawUrl = if (guid.startsWith("http")) guid else link
         val cleanUrl = rawUrl.substringBefore("#").substringBefore("?")
 
+        val fallbackMedia = extractImageFromHtml(description)
+
         return Article(
             sourceId = sourceId,
             title = title,
             content = description,
+            mediaUrl = mediaUrl ?: fallbackMedia,
             url = cleanUrl,
             publishedAt = if (pubDate == 0L) System.currentTimeMillis() else pubDate
         )
@@ -120,6 +129,7 @@ class RssParser {
         var link = ""
         var summary = ""
         var published = 0L
+        var mediaUrl: String? = null
 
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
@@ -128,20 +138,32 @@ class RssParser {
                 "link" -> {
                     val href = parser.getAttributeValue(null, "href") ?: ""
                     val rel = parser.getAttributeValue(null, "rel") ?: ""
+                    val type = parser.getAttributeValue(null, "type") ?: ""
                     if (rel == "alternate" || rel.isEmpty() || link.isEmpty()) {
                         link = href
+                    }
+                    val isImage = type.startsWith("image/")
+                    if ((rel == "enclosure" || isImage) && !href.isNullOrBlank()) {
+                        mediaUrl = href
                     }
                     if (!parser.isEmptyElementTag) parser.next()
                 }
                 "summary", "content" -> summary = parser.nextText()
+                "media:content", "media:thumbnail" -> {
+                    val url = parser.getAttributeValue(null, "url")
+                    if (!url.isNullOrBlank()) mediaUrl = url
+                    if (!parser.isEmptyElementTag) parser.next()
+                }
                 "published", "updated" -> published = parseAtomDate(parser.nextText())
                 else -> skip(parser)
             }
         }
+        val fallbackMedia = extractImageFromHtml(summary)
         return Article(
             sourceId = sourceId,
             title = title,
             content = summary,
+            mediaUrl = mediaUrl ?: fallbackMedia,
             url = link.substringBefore("#").substringBefore("?"),
             publishedAt = if (published == 0L) System.currentTimeMillis() else published
         )
@@ -164,5 +186,10 @@ class RssParser {
                 XmlPullParser.START_TAG -> depth++
             }
         }
+    }
+
+    private fun extractImageFromHtml(html: String): String? {
+        val regex = Regex("<img[^>]+src=[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
+        return regex.find(html)?.groups?.get(1)?.value
     }
 }

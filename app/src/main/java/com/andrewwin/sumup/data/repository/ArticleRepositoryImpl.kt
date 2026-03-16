@@ -56,6 +56,15 @@ class ArticleRepositoryImpl @Inject constructor(
                                 )
                             }
                             articleDao.insertArticles(cleanedArticles)
+                            cleanedArticles.forEach { article ->
+                                if (!article.mediaUrl.isNullOrBlank() || !article.videoId.isNullOrBlank()) {
+                                    articleDao.updateMediaByUrl(
+                                        url = article.url,
+                                        mediaUrl = article.mediaUrl,
+                                        videoId = article.videoId
+                                    )
+                                }
+                            }
                         }
                     }
                 }

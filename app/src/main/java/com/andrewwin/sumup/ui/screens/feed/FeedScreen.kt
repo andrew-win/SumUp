@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
@@ -28,9 +29,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import android.util.Log
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.window.Dialog
+import coil.compose.AsyncImage
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
+import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleUiModel
 import com.andrewwin.sumup.ui.theme.Rubik
@@ -57,6 +62,7 @@ fun FeedScreen(
     var articleForAi by remember { mutableStateOf<ArticleUiModel?>(null) }
     var isFeedAiActive by remember { mutableStateOf(false) }
     var userQuestion by remember { mutableStateOf("") }
+    var expandedImageUrl by remember { mutableStateOf<String?>(null) }
 
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -168,6 +174,8 @@ fun FeedScreen(
                     items(articleClusters, key = { it.representative.article.id }) { cluster ->
                         ArticleClusterCard(
                             cluster = cluster,
+                            isMediaEnabled = userPreferences.isFeedMediaEnabled,
+                            onMediaClick = { expandedImageUrl = it },
                             onOpenSource = { onOpenWebView(it.article.url) },
                             onAiClick = { 
                                 articleForAi = it
@@ -261,6 +269,34 @@ fun FeedScreen(
                         }
                     }
                     Spacer(Modifier.height(48.dp))
+                }
+            }
+        }
+
+        if (expandedImageUrl != null) {
+            Dialog(onDismissRequest = { expandedImageUrl = null }) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.surface)
+                ) {
+                    AsyncImage(
+                        model = expandedImageUrl,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                    IconButton(
+                        onClick = { expandedImageUrl = null },
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(16.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = null)
+                    }
                 }
             }
         }
@@ -384,15 +420,14 @@ fun FeedFilters(
 @Composable
 fun ArticleClusterCard(
     cluster: ArticleClusterUiModel,
+    isMediaEnabled: Boolean,
+    onMediaClick: (String) -> Unit,
     onOpenSource: (ArticleUiModel) -> Unit,
     onAiClick: (ArticleUiModel) -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
     val publishedAt = cluster.representative.article.publishedAt
     val url = cluster.representative.article.url
-    LaunchedEffect(publishedAt, url) {
-        Log.d("FeedScreen", "displayDate url=$url publishedAt=$publishedAt")
-    }
 
     Column {
         Text(
@@ -413,6 +448,8 @@ fun ArticleClusterCard(
             Column {
                 ArticleItem(
                     uiModel = cluster.representative,
+                    isMediaEnabled = isMediaEnabled,
+                    onMediaClick = onMediaClick,
                     onOpenSource = { onOpenSource(cluster.representative) },
                     onAiClick = { onAiClick(cluster.representative) }
                 )
@@ -452,10 +489,34 @@ fun ArticleClusterCard(
 @Composable
 fun ArticleItem(
     uiModel: ArticleUiModel,
+    isMediaEnabled: Boolean,
+    onMediaClick: (String) -> Unit,
     onOpenSource: () -> Unit,
     onAiClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    val mediaUrl = uiModel.article.mediaUrl
+    val shouldShowMedia = isMediaEnabled &&
+        !mediaUrl.isNullOrBlank() &&
+        (uiModel.sourceType == SourceType.RSS || uiModel.sourceType == SourceType.TELEGRAM || uiModel.sourceType == SourceType.YOUTUBE)
     Column(modifier = Modifier.padding(24.dp)) {
+        if (shouldShowMedia) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable { mediaUrl?.let(onMediaClick) }
+            ) {
+                AsyncImage(
+                    model = mediaUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp)) {
             uiModel.groupName?.let { name ->
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = androidx.compose.foundation.shape.CircleShape) {

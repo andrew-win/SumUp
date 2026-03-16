@@ -120,11 +120,12 @@ class FeedViewModel @Inject constructor(
 
         Log.d(
             TAG,
-            "mapToUiModel id=${article.id} url=${article.url} publishedAt=${article.publishedAt} sourceId=${article.sourceId}"
+            "mapToUiModel id=${article.id} url=${article.url} publishedAt=${article.publishedAt} sourceId=${article.sourceId} sourceType=$sourceType videoId=${article.videoId.orEmpty()} mediaUrl=${article.mediaUrl.orEmpty()}"
         )
 
         return ArticleUiModel(
             article = article,
+            sourceType = sourceType,
             displayTitle = formatted.displayTitle,
             displayContent = formatDescription(formatted.displayContent),
             sourceName = source?.name,
