@@ -140,6 +140,13 @@
     <string name="settings_summary_prompt_hint">Напишіть інструкцію для моделі</string>
     <string name="settings_custom_summary_prompt">Кастомний промпт</string>
     <string name="settings_feed_media">Показувати медіа у стрічці</string>
+    <string name="export_feed_pdf">Експорт стрічки у PDF</string>
+    <string name="export_pdf_error">Не вдалося експортувати PDF</string>
+    <string name="feed_pdf_file_name">feed-%s.pdf</string>
+    <string name="feed_pdf_title">Стрічка новин</string>
+    <string name="feed_pdf_generated">Згенеровано: %s</string>
+    <string name="feed_pdf_item_header">%s</string>
+    <string name="feed_pdf_item_meta">%1$s · %2$s</string>
     <string name="summary_prompt_default">Зроби стислий підсумок цієї новини українською мовою:</string>
     <string name="ai_question_prompt_prefix">Дай відповідь на питання:</string>
     <string name="ai_question_prompt_suffix">Базуючись на цьому тексті:</string>

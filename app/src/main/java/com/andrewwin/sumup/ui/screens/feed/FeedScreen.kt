@@ -28,6 +28,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -39,6 +42,7 @@ import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleUiModel
 import com.andrewwin.sumup.ui.theme.Rubik
+import com.andrewwin.sumup.ui.util.PdfExporter
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -58,6 +62,7 @@ fun FeedScreen(
     val isAiLoading by viewModel.isAiLoading.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
     val groups by viewModel.groups.collectAsState()
+    val context = LocalContext.current
 
     var articleForAi by remember { mutableStateOf<ArticleUiModel?>(null) }
     var isFeedAiActive by remember { mutableStateOf(false) }
@@ -66,6 +71,25 @@ fun FeedScreen(
 
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val articles = articleClusters.map { it.representative }
+        scope.launch {
+            val result = PdfExporter.exportFeedToPdf(
+                context = context,
+                articles = articles,
+                uri = uri,
+                includeMedia = userPreferences.isFeedMediaEnabled
+            )
+            if (result.isFailure) {
+                android.widget.Toast
+                    .makeText(context, context.getString(R.string.export_pdf_error), android.widget.Toast.LENGTH_SHORT)
+                    .show()
+            }
+        }
+    }
     val showBackToTop by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 100
@@ -148,7 +172,13 @@ fun FeedScreen(
                         onDateFilterChange = viewModel::setDateFilter,
                         selectedGroupId = selectedGroupId,
                         onGroupSelect = viewModel::selectGroup,
-                        groups = groups
+                        groups = groups,
+                        onExportPdf = {
+                            val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                            val name = context.getString(R.string.feed_pdf_file_name, date)
+                            exportLauncher.launch(name)
+                        },
+                        isExportEnabled = articleClusters.isNotEmpty()
                     )
                 }
 
@@ -312,7 +342,9 @@ fun FeedFilters(
     onDateFilterChange: (DateFilter) -> Unit,
     selectedGroupId: Long?,
     onGroupSelect: (Long?) -> Unit,
-    groups: List<com.andrewwin.sumup.data.local.entities.SourceGroup>
+    groups: List<com.andrewwin.sumup.data.local.entities.SourceGroup>,
+    onExportPdf: () -> Unit,
+    isExportEnabled: Boolean
 ) {
     var showDateMenu by remember { mutableStateOf(false) }
     var showGroupMenu by remember { mutableStateOf(false) }
@@ -322,31 +354,51 @@ fun FeedFilters(
             .fillMaxWidth()
             .padding(bottom = 4.dp)
     ) {
-        SearchBar(
-            inputField = {
-                SearchBarDefaults.InputField(
-                    query = searchQuery,
-                    onQueryChange = onSearchQueryChange,
-                    onSearch = {},
-                    expanded = false,
-                    onExpandedChange = {},
-                    placeholder = { Text(stringResource(R.string.search_placeholder)) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(56.dp),
+                shape = androidx.compose.foundation.shape.CircleShape,
+                placeholder = { Text(stringResource(R.string.search_placeholder)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    disabledContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                    disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
                 )
-            },
-            expanded = false,
-            onExpandedChange = {},
-            modifier = Modifier.fillMaxWidth(),
-            shape = androidx.compose.foundation.shape.CircleShape,
-            colors = SearchBarDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surface
             )
-        ) {}
+
+            IconButton(
+                onClick = onExportPdf,
+                enabled = isExportEnabled,
+                modifier = Modifier.size(56.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.PictureAsPdf,
+                    contentDescription = stringResource(R.string.export_feed_pdf),
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 12.dp),
+                .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
