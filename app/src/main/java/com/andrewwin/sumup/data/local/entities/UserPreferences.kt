@@ -21,10 +21,13 @@ data class UserPreferences(
     val isHideSingleNewsEnabled: Boolean = true,
     val modelPath: String? = null,
     val isImportanceFilterEnabled: Boolean = true,
+    val isAdaptiveExtractivePreprocessingEnabled: Boolean = true,
     val extractiveSentencesInFeed: Int = 3,
     val extractiveSentencesInScheduled: Int = 5,
     val extractiveNewsInScheduled: Int = 10,
     val aiMaxCharsPerArticle: Int = 1000,
     val aiMaxCharsPerFeedArticle: Int = 1000,
-    val aiMaxCharsTotal: Int = 12000
+    val aiMaxCharsTotal: Int = 12000,
+    val summaryPrompt: String = "",
+    val isCustomSummaryPromptEnabled: Boolean = false
 )

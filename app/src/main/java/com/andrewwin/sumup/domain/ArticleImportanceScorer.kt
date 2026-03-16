@@ -50,14 +50,16 @@ class ArticleImportanceScorer {
 
     private fun computeViewScore(viewCount: Long, sourceType: SourceType): Float {
         if (sourceType == SourceType.RSS) return STATIC_RSS_VIEW_SCORE
-        
+
         return when {
             viewCount < 500 -> 0.05f
             viewCount < 1000 -> 0.1f
-            viewCount < 5000 -> 0.2f
-            viewCount < 10000 -> 0.3f
-            viewCount < 50000 -> 0.4f
-            else -> 0.5f
+            viewCount < 5000 -> 0.15f
+            viewCount < 20000 -> 0.2f
+            viewCount < 50000 -> 0.25f
+            viewCount < 100000 -> 0.3f
+            viewCount < 250000 -> 0.35f
+            else -> 0.4f
         }
     }
 
@@ -76,13 +78,13 @@ class ArticleImportanceScorer {
                 }
 
                 if (word.contains(Regex("\\d"))) {
-                    totalFactScore += 0.1f
+                    totalFactScore += 0.075f
                     i++
                     continue
                 }
 
                 if (i > 0 && word.isNotEmpty() && word[0].isUpperCase()) {
-                    totalFactScore += 0.1f
+                    totalFactScore += 0.075f
                     i++
                     while (i < words.size && words[i].isNotEmpty() && words[i][0].isUpperCase()) {
                         i++
@@ -92,12 +94,12 @@ class ArticleImportanceScorer {
                 }
             }
         }
-        return min(totalFactScore, 0.5f)
+        return min(totalFactScore, 0.6f)
     }
 
     companion object {
-        private const val MIN_CONTENT_LENGTH = 150
-        private const val STATIC_RSS_VIEW_SCORE = 0.3f
+        private const val MIN_CONTENT_LENGTH = 125
+        private const val STATIC_RSS_VIEW_SCORE = 0.25f
         const val IMPORTANCE_THRESHOLD = 0.5f
 
         private val SPAM_KEYWORDS = listOf("реклама", "промо", "промокод")

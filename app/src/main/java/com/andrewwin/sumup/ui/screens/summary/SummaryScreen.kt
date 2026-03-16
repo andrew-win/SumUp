@@ -71,26 +71,35 @@ fun SummaryScreen(
             contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item {
+                val statusText = if (userPreferences.isScheduledSummaryEnabled) {
+                    val nextMillis = getNextScheduledTimeMillis(
+                        userPreferences.scheduledHour,
+                        userPreferences.scheduledMinute
+                    )
+                    val format = SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA"))
+                    stringResource(R.string.summary_next_at, format.format(Date(nextMillis)))
+                } else {
+                    stringResource(R.string.summary_scheduling_disabled)
+                }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                    )
+                ) {
+                    Text(
+                        text = statusText,
+                        modifier = Modifier.padding(24.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             if (todaySummary != null) {
                 item {
                     SummaryCard(summary = todaySummary)
-                }
-            } else if (userPreferences.isScheduledSummaryEnabled) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                        )
-                    ) {
-                        Text(
-                            text = stringResource(R.string.summary_not_ready),
-                            modifier = Modifier.padding(24.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                 }
             }
 
@@ -202,4 +211,18 @@ private fun isSameDay(t1: Long, t2: Long): Boolean {
     val cal2 = Calendar.getInstance().apply { timeInMillis = t2 }
     return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
            cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+}
+
+private fun getNextScheduledTimeMillis(hour: Int, minute: Int): Long {
+    val now = Calendar.getInstance()
+    val next = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, hour)
+        set(Calendar.MINUTE, minute)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    if (next.timeInMillis <= now.timeInMillis) {
+        next.add(Calendar.DAY_OF_YEAR, 1)
+    }
+    return next.timeInMillis
 }

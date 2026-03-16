@@ -14,6 +14,8 @@ import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.ArticleImportanceScorer
+import com.andrewwin.sumup.data.local.dao.AiModelDao
+import com.andrewwin.sumup.domain.DeduplicationService
 import com.andrewwin.sumup.domain.usecase.NoArticlesException
 import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
 import com.andrewwin.sumup.domain.usecase.BuildExtractiveSummaryUseCase
@@ -31,6 +33,8 @@ class SummaryWorker @AssistedInject constructor(
     private val summaryRepository: SummaryRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val articleImportanceScorer: ArticleImportanceScorer,
+    private val aiModelDao: AiModelDao,
+    private val deduplicationService: DeduplicationService,
     private val formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase,
     private val buildExtractiveSummaryUseCase: BuildExtractiveSummaryUseCase
 ) : CoroutineWorker(context, params) {
@@ -53,10 +57,39 @@ class SummaryWorker @AssistedInject constructor(
             val recentArticles = articleRepository.getEnabledArticlesSince(dayTimestamp)
             Log.d(TAG, "Fetched ${recentArticles.size} recent articles (last 24h)")
 
+            val useSimilarityBoost =
+                prefs.aiStrategy == AiStrategy.EXTRACTIVE ||
+                (prefs.aiStrategy == AiStrategy.ADAPTIVE && aiModelDao.getEnabledConfigs().isEmpty())
+
+            val similarityCounts = if (useSimilarityBoost && prefs.modelPath != null &&
+                deduplicationService.initialize(prefs.modelPath) && recentArticles.size >= 2
+            ) {
+                val clusters = deduplicationService.clusterArticles(
+                    recentArticles,
+                    prefs.deduplicationThreshold
+                )
+                val map = mutableMapOf<Long, Int>()
+                for (cluster in clusters) {
+                    val count = cluster.duplicates.size
+                    map[cluster.representative.id] = count
+                    for (duplicate in cluster.duplicates) {
+                        map[duplicate.first.id] = count
+                    }
+                }
+                map
+            } else {
+                emptyMap()
+            }
+
             // Фільтрація за важливістю
             val articles = recentArticles.filter { article ->
                 val source = articleRepository.getSourceById(article.sourceId)
-                articleImportanceScorer.score(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS) >= 0.3f // Поріг для зведення
+                val baseScore = articleImportanceScorer.score(
+                    article,
+                    source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS
+                )
+                val boostedScore = baseScore + (similarityCounts[article.id] ?: 0) * SIMILARITY_BOOST_PER_ARTICLE
+                boostedScore >= 0.5f // Поріг для зведення
             }
             Log.d(TAG, "Articles after importance screening: ${articles.size}")
 
@@ -96,8 +129,16 @@ class SummaryWorker @AssistedInject constructor(
                     Log.d(TAG, "Building Adaptive summary")
                     try {
                         val perArticleLimit = prefs.aiMaxCharsPerArticle.coerceAtLeast(200)
-                        val cloudArticles = articles.take(MAX_ARTICLES_FOR_SUMMARIZATION).map { 
-                            it.copy(content = articleRepository.fetchFullContent(it))
+                        val cloudArticles = articles.take(MAX_ARTICLES_FOR_SUMMARIZATION).map { article -> 
+                            if (prefs.isAdaptiveExtractivePreprocessingEnabled) {
+                                val fullContent = articleRepository.fetchFullContent(article)
+                                val extractive = ExtractiveSummarizer
+                                    .summarize(fullContent, prefs.extractiveSentencesInScheduled)
+                                    .joinToString(" ")
+                                article.copy(content = extractive)
+                            } else {
+                                article.copy(content = articleRepository.fetchFullContent(article))
+                            }
                         }
                         buildCloudSummary(cloudArticles, aiRepository, perArticleLimit)
                     } catch (e: Exception) {
@@ -174,5 +215,6 @@ class SummaryWorker @AssistedInject constructor(
         private const val EXTRACTIVE_TOP_COUNT = 5
         private const val EXTRACTIVE_SENTENCES_PER_ARTICLE = 5
         private const val MAX_RETRY_ATTEMPTS = 2
+        private const val SIMILARITY_BOOST_PER_ARTICLE = 0.15f
     }
 }

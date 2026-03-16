@@ -89,7 +89,13 @@ class SummarizeContentUseCase @Inject constructor(
                 val sourceType = source?.type ?: SourceType.RSS
                 val formatted = formatArticleHeadlineUseCase(article, sourceType)
                 if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
-                contentBuilder.append("${formatted.displayTitle}: ${article.content.take(perArticleLimit)}")
+                val rawContent = if (prefs.aiStrategy == AiStrategy.ADAPTIVE && prefs.isAdaptiveExtractivePreprocessingEnabled) {
+                    val fullContent = articleRepository.fetchFullContent(article)
+                    ExtractiveSummarizer.summarize(fullContent, prefs.extractiveSentencesInFeed).joinToString(" ")
+                } else {
+                    article.content
+                }
+                contentBuilder.append("${formatted.displayTitle}: ${rawContent.take(perArticleLimit)}")
             }
             val content = contentBuilder.toString()
 

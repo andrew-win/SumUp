@@ -39,6 +39,7 @@ fun SettingsScreen(
     var showConfigDialog by remember { mutableStateOf<AiModelConfig?>(null) }
     var isAddingNew by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
+    var summaryPrompt by remember(userPreferences.summaryPrompt) { mutableStateOf(userPreferences.summaryPrompt) }
 
     Scaffold(
         topBar = {
@@ -98,7 +99,7 @@ fun SettingsScreen(
 
             item {
                 SettingsSection(
-                    title = stringResource(R.string.settings_api_keys),
+                    title = stringResource(R.string.settings_cloud_summary),
                     trailing = {
                         IconButton(
                             onClick = { isAddingNew = true },
@@ -128,6 +129,33 @@ fun SettingsScreen(
                                     onToggle = { viewModel.toggleAiConfig(config, it) }
                                 )
                             }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stringResource(R.string.settings_custom_summary_prompt),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Switch(
+                                checked = userPreferences.isCustomSummaryPromptEnabled,
+                                onCheckedChange = { viewModel.updateCustomSummaryPromptEnabled(it) },
+                                modifier = Modifier.scale(0.85f)
+                            )
+                        }
+
+                        if (userPreferences.isCustomSummaryPromptEnabled) {
+                            OutlinedTextField(
+                                value = summaryPrompt,
+                                onValueChange = {
+                                    summaryPrompt = it
+                                    viewModel.updateSummaryPrompt(it)
+                                },
+                                label = { Text(stringResource(R.string.settings_summary_prompt)) },
+                                placeholder = { Text(stringResource(R.string.settings_summary_prompt_hint)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.large
+                            )
                         }
                     }
                 }
@@ -222,8 +250,21 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = stringResource(R.string.settings_deduplication)) {
+                SettingsSection(title = stringResource(R.string.settings_filtering)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stringResource(R.string.settings_enable_importance_filter),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Switch(
+                                checked = userPreferences.isImportanceFilterEnabled,
+                                onCheckedChange = { viewModel.updateImportanceFilterEnabled(it) },
+                                modifier = Modifier.scale(0.85f)
+                            )
+                        }
+
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 stringResource(R.string.settings_enable_deduplication),
@@ -322,23 +363,6 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = stringResource(R.string.settings_importance_filter)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            stringResource(R.string.settings_enable_importance_filter),
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Switch(
-                            checked = userPreferences.isImportanceFilterEnabled,
-                            onCheckedChange = { viewModel.updateImportanceFilterEnabled(it) },
-                            modifier = Modifier.scale(0.85f)
-                        )
-                    }
-                }
-            }
-
-            item {
                 SettingsSection(title = stringResource(R.string.settings_scheduled_summary)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -371,6 +395,26 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            item {
+                SettingsSection(title = stringResource(R.string.settings_adaptive_summary)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stringResource(R.string.settings_adaptive_extractive_preprocess),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Switch(
+                                checked = userPreferences.isAdaptiveExtractivePreprocessingEnabled,
+                                onCheckedChange = { viewModel.updateAdaptiveExtractivePreprocessingEnabled(it) },
+                                modifier = Modifier.scale(0.85f)
+                            )
+                        }
+                    }
+                }
+            }
+
         }
 
         if (isAddingNew) {

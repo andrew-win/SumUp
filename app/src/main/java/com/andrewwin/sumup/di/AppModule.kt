@@ -19,6 +19,7 @@ import com.andrewwin.sumup.data.repository.ModelRepositoryImpl
 import com.andrewwin.sumup.data.repository.SourceRepositoryImpl
 import com.andrewwin.sumup.data.repository.SummaryRepositoryImpl
 import com.andrewwin.sumup.data.repository.UserPreferencesRepositoryImpl
+import com.andrewwin.sumup.data.provider.AiPromptProviderImpl
 import com.andrewwin.sumup.domain.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.DeduplicationService
 import com.andrewwin.sumup.domain.repository.AiRepository
@@ -27,6 +28,7 @@ import com.andrewwin.sumup.domain.repository.ModelRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.provider.AiPromptProvider
 import com.andrewwin.sumup.domain.usecase.GenerateSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.GenerateSummaryUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
@@ -119,8 +121,15 @@ object AppModule {
         aiModelDao: AiModelDao,
         userPreferencesDao: UserPreferencesDao,
         aiService: AiService,
-        formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase
-    ): AiRepository = AiRepositoryImpl(aiModelDao, userPreferencesDao, aiService, formatExtractiveSummaryUseCase)
+        formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase,
+        aiPromptProvider: AiPromptProvider
+    ): AiRepository = AiRepositoryImpl(
+        aiModelDao,
+        userPreferencesDao,
+        aiService,
+        formatExtractiveSummaryUseCase,
+        aiPromptProvider
+    )
 
     @Provides
     @Singleton
@@ -178,6 +187,12 @@ object AppModule {
         @dagger.hilt.android.qualifiers.ApplicationContext context: Context,
         formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase
     ): BuildExtractiveSummaryUseCase = BuildExtractiveSummaryUseCase(context, formatExtractiveSummaryUseCase)
+
+    @Provides
+    @Singleton
+    fun provideAiPromptProvider(
+        @ApplicationContext context: Context
+    ): AiPromptProvider = AiPromptProviderImpl(context)
 
     @Provides
     @Singleton

@@ -10,6 +10,7 @@ import com.andrewwin.sumup.data.remote.AiService
 import com.andrewwin.sumup.domain.ExtractiveSummarizer
 import com.andrewwin.sumup.domain.exception.NoActiveModelException
 import com.andrewwin.sumup.domain.exception.UnsupportedStrategyException
+import com.andrewwin.sumup.domain.provider.AiPromptProvider
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
 import kotlinx.coroutines.flow.Flow
@@ -20,7 +21,8 @@ class AiRepositoryImpl @Inject constructor(
     private val aiModelDao: AiModelDao,
     private val prefsDao: UserPreferencesDao,
     private val aiService: AiService,
-    private val formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase
+    private val formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase,
+    private val aiPromptProvider: AiPromptProvider
 ) : AiRepository {
 
     override val allConfigs: Flow<List<AiModelConfig>> = aiModelDao.getAllConfigs()
@@ -50,16 +52,26 @@ class AiRepositoryImpl @Inject constructor(
                 Log.d("AiRepo", "Attempting summary with config: ${config.name}")
                 val response = when (strategy) {
                     AiStrategy.CLOUD -> {
-                        aiService.generateResponse(config, SUMMARY_PROMPT, content.take(maxTotalChars))
+                        val prompt = if (prefs?.isCustomSummaryPromptEnabled == true) {
+                            prefs.summaryPrompt.ifBlank { aiPromptProvider.defaultSummaryPrompt() }
+                        } else {
+                            aiPromptProvider.defaultSummaryPrompt()
+                        }
+                        aiService.generateResponse(config, prompt, content.take(maxTotalChars))
                     }
                     AiStrategy.ADAPTIVE -> {
-                        val processedContent = if (content.length > maxTotalChars) {
+                        val processedContent = if (prefs?.isAdaptiveExtractivePreprocessingEnabled == true && content.length > maxTotalChars) {
                             Log.d("AiRepo", "Content exceeds limit, shrinking via Extractive")
                             ExtractiveSummarizer.summarize(content, 15).joinToString(" ")
                         } else {
-                            content
+                            content.take(maxTotalChars)
                         }
-                        aiService.generateResponse(config, SUMMARY_PROMPT, processedContent)
+                        val prompt = if (prefs?.isCustomSummaryPromptEnabled == true) {
+                            prefs.summaryPrompt.ifBlank { aiPromptProvider.defaultSummaryPrompt() }
+                        } else {
+                            aiPromptProvider.defaultSummaryPrompt()
+                        }
+                        aiService.generateResponse(config, prompt, processedContent)
                     }
                     else -> "" // Should not happen
                 }
@@ -94,7 +106,7 @@ class AiRepositoryImpl @Inject constructor(
         for (config in enabledConfigs) {
             try {
                 Log.d("AiRepo", "Attempting question with config: ${config.name}")
-                val prompt = "$QUESTION_PROMPT_PREFIX $question\n\n$QUESTION_PROMPT_SUFFIX"
+                val prompt = "${aiPromptProvider.questionPromptPrefix()} $question\n\n${aiPromptProvider.questionPromptSuffix()}"
                 return aiService.generateResponse(config, prompt, content.take(maxTotalChars))
             } catch (e: com.andrewwin.sumup.domain.exception.AiServiceException) {
                 Log.w("AiRepo", "Failover: Config ${config.name} failed with ${e.javaClass.simpleName}. Trying next...", e)
@@ -112,8 +124,5 @@ class AiRepositoryImpl @Inject constructor(
 
     companion object {
         private const val DEFAULT_MAX_AI_CONTENT_LENGTH = 12000
-        private const val SUMMARY_PROMPT = "Зроби стислий підсумок цієї новини українською мовою:"
-        private const val QUESTION_PROMPT_PREFIX = "Дай відповідь на питання:"
-        private const val QUESTION_PROMPT_SUFFIX = "Базуючись на цьому тексті:"
     }
 }

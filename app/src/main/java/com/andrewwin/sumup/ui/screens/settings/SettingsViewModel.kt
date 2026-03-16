@@ -11,6 +11,8 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
+import com.andrewwin.sumup.domain.usecase.settings.UpdateCustomSummaryPromptEnabledUseCase
+import com.andrewwin.sumup.domain.usecase.settings.UpdateSummaryPromptUseCase
 import com.andrewwin.sumup.worker.SummaryWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -36,7 +38,9 @@ class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val aiRepository: AiRepository,
     private val manageModelUseCase: ManageModelUseCase,
-    private val scheduleSummaryUseCase: ScheduleSummaryUseCase
+    private val scheduleSummaryUseCase: ScheduleSummaryUseCase,
+    private val updateSummaryPromptUseCase: UpdateSummaryPromptUseCase,
+    private val updateCustomSummaryPromptEnabledUseCase: UpdateCustomSummaryPromptEnabledUseCase
 ) : AndroidViewModel(application) {
 
     val aiConfigs: StateFlow<List<AiModelConfig>> = aiRepository.allConfigs
@@ -141,6 +145,18 @@ class SettingsViewModel @Inject constructor(
 
     fun updateImportanceFilterEnabled(enabled: Boolean) {
         viewModelScope.launch { updatePreferences { it.copy(isImportanceFilterEnabled = enabled) } }
+    }
+
+    fun updateAdaptiveExtractivePreprocessingEnabled(enabled: Boolean) {
+        viewModelScope.launch { updatePreferences { it.copy(isAdaptiveExtractivePreprocessingEnabled = enabled) } }
+    }
+
+    fun updateSummaryPrompt(prompt: String) {
+        viewModelScope.launch { updateSummaryPromptUseCase(prompt) }
+    }
+
+    fun updateCustomSummaryPromptEnabled(enabled: Boolean) {
+        viewModelScope.launch { updateCustomSummaryPromptEnabledUseCase(enabled) }
     }
 
     fun updateExtractiveSentencesInFeed(count: Int) {

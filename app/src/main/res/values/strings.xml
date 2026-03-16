@@ -102,6 +102,9 @@
     <string name="error_no_articles">Немає нових статей для сумаризації.</string>
     <string name="settings_importance_filter">Важливість</string>
     <string name="settings_enable_importance_filter">Приховувати малоінформативні</string>
+    <string name="settings_adaptive_summary">Адаптивна сумаризація</string>
+    <string name="settings_adaptive_extractive_preprocess">Використовувати екстрактивну сумаризацію перед відправкою хмарним моделем</string>
+    <string name="settings_filtering">Фільтрація</string>
     <string name="settings_importance_threshold">Поріг важливості: %s</string>
     <string name="settings_importance_min_length">Мінімальна довжина: %d симв.</string>
     <string name="settings_importance_weights_header">Коефіцієнти метрик</string>
@@ -132,4 +135,11 @@
     <string name="summary_extractive_item_header">%d. %s:</string>
     <string name="summary_article_format">%1$s: %2$s</string>
     <string name="feed_empty_message">Новин не знайдено. Спробуйте оновити стрічку потянувши вниз</string>
+    <string name="settings_cloud_summary">Хмарна сумаризація</string>
+    <string name="settings_summary_prompt">Промпт для сумаризації</string>
+    <string name="settings_summary_prompt_hint">Напишіть інструкцію для моделі</string>
+    <string name="settings_custom_summary_prompt">Кастомний промпт</string>
+    <string name="summary_prompt_default">Зроби стислий підсумок цієї новини українською мовою:</string>
+    <string name="ai_question_prompt_prefix">Дай відповідь на питання:</string>
+    <string name="ai_question_prompt_suffix">Базуючись на цьому тексті:</string>
 </resources>
