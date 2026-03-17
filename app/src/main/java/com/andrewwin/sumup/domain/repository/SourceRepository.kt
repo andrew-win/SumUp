@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 interface SourceRepository {
     val groupsWithSources: Flow<List<GroupWithSources>>
     suspend fun getSourcesByGroupId(groupId: Long): List<Source>
+    suspend fun getSourcesByIds(sourceIds: List<Long>): List<Source>
     suspend fun addGroup(name: String)
     suspend fun updateGroup(group: SourceGroup)
     suspend fun toggleGroup(group: SourceGroup, isEnabled: Boolean)

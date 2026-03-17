@@ -5,12 +5,19 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.extensions.OrtxPackage
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -28,6 +35,7 @@ class DeduplicationService(
     private val ortEnv: OrtEnvironment = OrtEnvironment.getEnvironment()
     private var ortSession: OrtSession? = null
     private val embeddingCache = ConcurrentHashMap<String, FloatArray>()
+    private val embeddingMutex = Mutex()
 
     suspend fun initialize(modelPath: String): Boolean = withContext(Dispatchers.IO) {
         runCatching {
@@ -69,7 +77,9 @@ class DeduplicationService(
 
             val toUpdate = embeddingsWithUpdates.mapNotNull { it.second }
             if (toUpdate.isNotEmpty()) {
-                toUpdate.forEach { articleRepository.updateArticle(it) }
+                withContext(Dispatchers.IO) {
+                    toUpdate.forEach { articleRepository.updateArticle(it) }
+                }
             }
 
             val embeddings = articles.map { embeddingCache.getValue(it.url) }
@@ -95,6 +105,149 @@ class DeduplicationService(
 
             clusters
         }
+
+    suspend fun warmUpEmbeddings(
+        articles: List<Article>,
+        throttleMs: Long = 20L
+    ) = withContext(Dispatchers.Default.limitedParallelism(2)) {
+        val session = ortSession ?: return@withContext
+        for (article in articles) {
+            embeddingMutex.withLock {
+                getOrComputeEmbedding(session, article)
+            }
+            if (throttleMs > 0) delay(throttleMs)
+        }
+    }
+
+    fun clusterArticlesIncremental(
+        articles: List<Article>,
+        threshold: Float,
+        emitEvery: Int = 12,
+        throttleMs: Long = 25L
+    ): Flow<List<ArticleCluster>> =
+        flow {
+            val session = ortSession ?: run {
+                emit(articles.map { ArticleCluster(it, emptyList()) })
+                return@flow
+            }
+            if (articles.size < 2) {
+                emit(articles.map { ArticleCluster(it, emptyList()) })
+                return@flow
+            }
+
+            val clusters = mutableListOf<MutableCluster>()
+
+            for ((index, article) in articles.withIndex()) {
+                val embedding = embeddingMutex.withLock {
+                    getOrComputeEmbedding(session, article)
+                }
+                var matchedCluster: MutableCluster? = null
+                var matchedScore = 0f
+
+                for (cluster in clusters) {
+                    val score = dotProduct(embedding, cluster.repEmbedding)
+                    if (score >= threshold) {
+                        matchedCluster = cluster
+                        matchedScore = score
+                        break
+                    }
+                }
+
+                if (matchedCluster != null) {
+                    matchedCluster.duplicates.add(article to matchedScore)
+                    persistSimilarities(matchedCluster.representative.id, article.id, matchedScore)
+                } else {
+                    clusters.add(MutableCluster(article, embedding, mutableListOf()))
+                }
+
+                if ((index + 1) % emitEvery == 0) {
+                    emit(clusters.map { it.toCluster() })
+                }
+
+                if (throttleMs > 0) delay(throttleMs)
+            }
+
+            emit(clusters.map { it.toCluster() })
+        }.flowOn(Dispatchers.Default.limitedParallelism(2))
+
+    fun attachNewArticlesIncremental(
+        existingClusters: List<ArticleCluster>,
+        newArticles: List<Article>,
+        threshold: Float,
+        emitEvery: Int = 12,
+        throttleMs: Long = 25L
+    ): Flow<List<ArticleCluster>> =
+        flow {
+            if (newArticles.isEmpty()) {
+                emit(existingClusters)
+                return@flow
+            }
+            val session = ortSession ?: run {
+                emit(existingClusters + newArticles.map { ArticleCluster(it, emptyList()) })
+                return@flow
+            }
+
+            val clusters = existingClusters.map { cluster ->
+                val repEmbedding = getOrComputeEmbedding(session, cluster.representative)
+                MutableCluster(
+                    representative = cluster.representative,
+                    repEmbedding = repEmbedding,
+                    duplicates = cluster.duplicates.toMutableList()
+                )
+            }.toMutableList()
+
+            for ((index, article) in newArticles.withIndex()) {
+                val embedding = embeddingMutex.withLock {
+                    getOrComputeEmbedding(session, article)
+                }
+                var matchedCluster: MutableCluster? = null
+                var matchedScore = 0f
+
+                for (cluster in clusters) {
+                    val score = dotProduct(embedding, cluster.repEmbedding)
+                    if (score >= threshold) {
+                        matchedCluster = cluster
+                        matchedScore = score
+                        break
+                    }
+                }
+
+                if (matchedCluster != null) {
+                    matchedCluster.duplicates.add(article to matchedScore)
+                    persistSimilarities(matchedCluster.representative.id, article.id, matchedScore)
+                } else {
+                    clusters.add(MutableCluster(article, embedding, mutableListOf()))
+                }
+
+                if ((index + 1) % emitEvery == 0) {
+                    emit(clusters.map { it.toCluster() })
+                }
+
+                if (throttleMs > 0) delay(throttleMs)
+            }
+
+            emit(clusters.map { it.toCluster() })
+        }.flowOn(Dispatchers.Default.limitedParallelism(2))
+
+    private suspend fun getOrComputeEmbedding(session: OrtSession, article: Article): FloatArray {
+        val cached = embeddingCache[article.url]
+        if (cached != null) return cached
+
+        val stored = article.embedding?.let { toFloatArray(it) }
+        if (stored != null) {
+            val normalized = normalize(stored)
+            embeddingCache[article.url] = normalized
+            return normalized
+        }
+
+        val raw = getEmbedding(session, article.title)
+        val normalized = normalize(raw)
+        embeddingCache[article.url] = normalized
+        withContext(Dispatchers.IO) {
+            articleRepository.updateArticle(article.copy(embedding = toByteArray(raw)))
+        }
+        return normalized
+    }
 
     private fun getEmbedding(session: OrtSession, text: String): FloatArray {
         return runCatching {
@@ -152,6 +305,22 @@ class DeduplicationService(
         ortSession?.close()
         ortSession = null
         embeddingCache.clear()
+    }
+
+    private data class MutableCluster(
+        val representative: Article,
+        val repEmbedding: FloatArray,
+        val duplicates: MutableList<Pair<Article, Float>>
+    ) {
+        fun toCluster(): ArticleCluster = ArticleCluster(representative, duplicates.toList())
+    }
+
+    private suspend fun persistSimilarities(representativeId: Long, articleId: Long, score: Float) {
+        withContext(Dispatchers.IO) {
+            articleRepository.upsertSimilarities(
+                listOf(ArticleSimilarity(representativeId, articleId, score))
+            )
+        }
     }
 
     companion object {

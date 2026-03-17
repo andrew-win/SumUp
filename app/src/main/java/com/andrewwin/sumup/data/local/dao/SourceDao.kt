@@ -33,6 +33,9 @@ interface SourceDao {
     @Query("SELECT * FROM sources WHERE id = :sourceId")
     suspend fun getSourceById(sourceId: Long): Source?
 
+    @Query("SELECT * FROM sources WHERE id IN (:sourceIds)")
+    suspend fun getSourcesByIds(sourceIds: List<Long>): List<Source>
+
     @Transaction
     @Query("SELECT * FROM source_groups")
     fun getGroupsWithSources(): Flow<List<GroupWithSources>>

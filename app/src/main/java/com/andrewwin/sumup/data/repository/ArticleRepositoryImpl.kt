@@ -2,8 +2,10 @@ package com.andrewwin.sumup.data.repository
 
 import android.util.Log
 import com.andrewwin.sumup.data.local.dao.ArticleDao
+import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.FooterCleaner
 import com.andrewwin.sumup.domain.TextCleaner
@@ -17,6 +19,7 @@ import javax.inject.Inject
 
 class ArticleRepositoryImpl @Inject constructor(
     private val articleDao: ArticleDao,
+    private val articleSimilarityDao: ArticleSimilarityDao,
     private val sourceDao: SourceDao,
     private val remoteArticleDataSource: RemoteArticleDataSource,
     private val cleanArticleTextUseCase: CleanArticleTextUseCase
@@ -70,8 +73,8 @@ class ArticleRepositoryImpl @Inject constructor(
                 }
             }
         }
-        val oneWeekAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L)
-        articleDao.deleteOldArticles(oneWeekAgo)
+        val threeDaysAgo = System.currentTimeMillis() - (3 * 24 * 60 * 60 * 1000L)
+        articleDao.deleteOldArticles(threeDaysAgo)
     }
 
     override suspend fun updateArticle(article: Article) = articleDao.updateArticle(article)
@@ -90,5 +93,23 @@ class ArticleRepositoryImpl @Inject constructor(
         
         // Централізоване очищення повного тексту
         return cleanArticleTextUseCase(fullContent, source.type, source.footerPattern)
+    }
+
+    override suspend fun getSimilaritiesForArticles(articleIds: List<Long>): List<ArticleSimilarity> =
+        articleSimilarityDao.getSimilaritiesForArticles(articleIds)
+
+    override suspend fun upsertSimilarities(items: List<ArticleSimilarity>) {
+        if (items.isEmpty()) return
+        articleSimilarityDao.upsertSimilarities(items)
+    }
+
+    override suspend fun clearAllArticles() {
+        articleSimilarityDao.deleteAll()
+        articleDao.deleteAllArticles()
+    }
+
+    override suspend fun clearEmbeddings() {
+        articleSimilarityDao.deleteAll()
+        articleDao.clearEmbeddings()
     }
 }

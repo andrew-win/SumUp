@@ -20,7 +20,13 @@ class TelegramParser {
             val key = buildKey(element)
             val parts = partsByKey.getOrPut(key) { MessageParts() }
 
-            val text = element.selectFirst(".tgme_widget_message_text")?.wholeText()?.trim().orEmpty()
+            val messageClone = element.clone()
+            messageClone.select(".tgme_widget_message_reply").remove()
+            val text = messageClone
+                .selectFirst(".tgme_widget_message_text")
+                ?.wholeText()
+                ?.trim()
+                .orEmpty()
             if (text.isNotBlank()) {
                 parts.text = if (parts.text.isNullOrBlank()) text else parts.text + "\n" + text
             }
@@ -58,7 +64,10 @@ class TelegramParser {
             if (fullText.isBlank()) return@mapNotNull null
 
             val lines = fullText.split("\n").filter { it.isNotBlank() }
-            val title = lines.firstOrNull()?.take(100) ?: ""
+            val cleanedLines = dropLeadingQuotedLines(lines)
+            val cleanedText = cleanedLines.joinToString("\n").trim()
+            val titleSource = if (cleanedLines.isNotEmpty()) cleanedLines else lines
+            val title = titleSource.firstOrNull()?.take(100) ?: ""
 
             val publishedAt = parseDate(parts.dateStr)
                 ?: parseEpoch(parts.epochStr)
@@ -67,7 +76,7 @@ class TelegramParser {
             Article(
                 sourceId = sourceId,
                 title = title,
-                content = fullText,
+                content = if (cleanedText.isBlank()) fullText else cleanedText,
                 mediaUrl = parts.mediaUrl,
                 url = parts.url.orEmpty(),
                 publishedAt = publishedAt,
@@ -185,6 +194,48 @@ class TelegramParser {
         }
     }
 
+    private fun dropLeadingQuotedLines(lines: List<String>): List<String> {
+        var index = 0
+        while (index < lines.size) {
+            val line = lines[index].trimStart()
+            if (line.startsWith("|") || line.startsWith("│") || line.startsWith("╎")) {
+                index++
+                continue
+            }
+            break
+        }
+        return lines.drop(index)
+    }
+
+    private fun stripReplyPrefix(text: String, replyText: String): String {
+        val normalizedReply = replyText.replace("\\s+".toRegex(), " ").trim()
+        if (normalizedReply.isBlank()) return text
+
+        val lines = text.split("\n").map { it.trimEnd() }
+        var acc = StringBuilder()
+        for (i in lines.indices) {
+            if (lines[i].isBlank()) continue
+            if (acc.isNotEmpty()) acc.append(' ')
+            acc.append(lines[i].trim())
+            val normalizedAcc = acc.toString().replace("\\s+".toRegex(), " ").trim()
+            if (normalizedAcc == normalizedReply) {
+                val remaining = lines.drop(i + 1).joinToString("\n").trim()
+                return remaining
+            }
+            if (normalizedReply.startsWith(normalizedAcc)) {
+                continue
+            }
+            break
+        }
+
+        val normalizedText = text.replace("\\s+".toRegex(), " ").trim()
+        return if (normalizedText.startsWith(normalizedReply)) {
+            normalizedText.removePrefix(normalizedReply).trimStart()
+        } else {
+            text
+        }
+    }
+
     private data class MessageParts(
         var text: String? = null,
         var url: String? = null,
@@ -196,11 +247,21 @@ class TelegramParser {
 }
 
 private fun extractMediaUrl(element: org.jsoup.nodes.Element): String? {
-    val photo = element.selectFirst(".tgme_widget_message_photo_wrap")
-    val style = photo?.attr("style").orEmpty()
+    val clone = element.clone()
+    clone.select(".tgme_widget_message_reply").remove()
+
+    val mediaElement = clone.selectFirst(
+        ".tgme_widget_message_photo_wrap, .tgme_widget_message_video_thumb, .tgme_widget_message_media"
+    )
+    val style = mediaElement?.attr("style").orEmpty()
     val styleUrl = Regex("url\\(['\\\"]?(.*?)['\\\"]?\\)").find(style)?.groups?.get(1)?.value
     if (!styleUrl.isNullOrBlank()) return styleUrl
-    return element.selectFirst("img")?.attr("src")
+
+    val img = clone.selectFirst(
+        ".tgme_widget_message_photo_wrap img, .tgme_widget_message_video_thumb img, .tgme_widget_message_media img"
+    )
+    val src = img?.attr("src").orEmpty()
+    return src.ifBlank { null }
 }
 
 data class TelegramParseDebug(

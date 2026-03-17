@@ -22,7 +22,9 @@ class ArticleImportanceScorer {
 
     private fun checkIsSpam(article: Article, sourceType: SourceType): Boolean {
         val text = article.content.lowercase()
-        
+
+        if (text.contains(SPAM_MARKER)) return true
+
         if (SPAM_KEYWORDS.any { text.contains(it) }) return true
         
         if (PHONE_REGEX.containsMatchIn(article.content)) return true
@@ -37,7 +39,7 @@ class ArticleImportanceScorer {
             links
         }
         
-        return filteredLinks.count() >= 2
+        return filteredLinks.count() >= 5
     }
 
     private fun extractTelegramHandle(url: String): String? {
@@ -52,13 +54,13 @@ class ArticleImportanceScorer {
         if (sourceType == SourceType.RSS) return STATIC_RSS_VIEW_SCORE
 
         return when {
-            viewCount < 500 -> 0.05f
-            viewCount < 1000 -> 0.1f
-            viewCount < 5000 -> 0.15f
-            viewCount < 20000 -> 0.2f
-            viewCount < 50000 -> 0.25f
-            viewCount < 100000 -> 0.3f
-            viewCount < 250000 -> 0.35f
+            viewCount < 500 -> 0.1f
+            viewCount < 1000 -> 0.15f
+            viewCount < 5000 -> 0.2f
+            viewCount < 20000 -> 0.25f
+            viewCount < 50000 -> 0.3f
+            viewCount < 100000 -> 0.35f
+            viewCount < 250000 -> 0.4f
             else -> 0.4f
         }
     }
@@ -78,13 +80,13 @@ class ArticleImportanceScorer {
                 }
 
                 if (word.contains(Regex("\\d"))) {
-                    totalFactScore += 0.075f
+                    totalFactScore += 0.1f
                     i++
                     continue
                 }
 
                 if (i > 0 && word.isNotEmpty() && word[0].isUpperCase()) {
-                    totalFactScore += 0.075f
+                    totalFactScore += 0.1f
                     i++
                     while (i < words.size && words[i].isNotEmpty() && words[i][0].isUpperCase()) {
                         i++
@@ -98,11 +100,12 @@ class ArticleImportanceScorer {
     }
 
     companion object {
-        private const val MIN_CONTENT_LENGTH = 125
+        private const val MIN_CONTENT_LENGTH = 50
         private const val STATIC_RSS_VIEW_SCORE = 0.25f
         const val IMPORTANCE_THRESHOLD = 0.5f
 
         private val SPAM_KEYWORDS = listOf("реклама", "промо", "промокод")
+        private const val SPAM_MARKER = "[ad]"
         private val PHONE_REGEX = Regex("(\\+?380|\\+?38|38|380)\\d{7,}")
         private val URL_REGEX = Regex("https?://[^\\s]+", RegexOption.IGNORE_CASE)
     }

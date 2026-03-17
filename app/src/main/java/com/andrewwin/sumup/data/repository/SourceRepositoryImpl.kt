@@ -23,6 +23,9 @@ class SourceRepositoryImpl @Inject constructor(
     override suspend fun getSourcesByGroupId(groupId: Long): List<Source> =
         sourceDao.getSourcesByGroupId(groupId).first()
 
+    override suspend fun getSourcesByIds(sourceIds: List<Long>): List<Source> =
+        sourceDao.getSourcesByIds(sourceIds)
+
     override suspend fun addGroup(name: String) {
         sourceDao.insertGroup(SourceGroup(name = name))
     }

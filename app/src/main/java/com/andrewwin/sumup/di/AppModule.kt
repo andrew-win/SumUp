@@ -5,9 +5,11 @@ import androidx.work.WorkManager
 import com.andrewwin.sumup.data.local.AppDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.dao.ArticleDao
+import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
+import com.andrewwin.sumup.data.cache.InMemoryFeedCache
 import com.andrewwin.sumup.data.remote.AiService
 import com.andrewwin.sumup.data.remote.RssParser
 import com.andrewwin.sumup.data.remote.TelegramParser
@@ -24,6 +26,7 @@ import com.andrewwin.sumup.domain.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.DeduplicationService
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.repository.FeedCache
 import com.andrewwin.sumup.domain.repository.ModelRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
@@ -60,6 +63,9 @@ object AppModule {
 
     @Provides
     fun provideArticleDao(db: AppDatabase): ArticleDao = db.articleDao()
+
+    @Provides
+    fun provideArticleSimilarityDao(db: AppDatabase): ArticleSimilarityDao = db.articleSimilarityDao()
 
     @Provides
     fun provideSourceDao(db: AppDatabase): SourceDao = db.sourceDao()
@@ -103,10 +109,17 @@ object AppModule {
     @Singleton
     fun provideArticleRepository(
         articleDao: ArticleDao,
+        articleSimilarityDao: ArticleSimilarityDao,
         sourceDao: SourceDao,
         remoteArticleDataSource: RemoteArticleDataSource,
         cleanArticleTextUseCase: CleanArticleTextUseCase
-    ): ArticleRepository = ArticleRepositoryImpl(articleDao, sourceDao, remoteArticleDataSource, cleanArticleTextUseCase)
+    ): ArticleRepository = ArticleRepositoryImpl(
+        articleDao,
+        articleSimilarityDao,
+        sourceDao,
+        remoteArticleDataSource,
+        cleanArticleTextUseCase
+    )
 
     @Provides
     @Singleton
@@ -166,6 +179,10 @@ object AppModule {
     @Singleton
     fun provideDeduplicationService(articleRepository: ArticleRepository): DeduplicationService =
         DeduplicationService(articleRepository)
+
+    @Provides
+    @Singleton
+    fun provideFeedCache(): FeedCache = InMemoryFeedCache()
 
     @Provides
     @Singleton

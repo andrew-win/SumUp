@@ -81,13 +81,19 @@ class FeedViewModel @Inject constructor(
         .map { list -> list.map { it.group }.filter { it.isEnabled } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    private val feedResultFlow = getFeedArticlesUseCase(
+        _searchQuery,
+        _selectedGroupId,
+        _dateFilter.map { it.hours },
+        userPreferences
+    ).stateIn(viewModelScope, SharingStarted.Lazily, GetFeedArticlesUseCase.FeedResult(emptyList(), false))
+
+    val isDedupInProgress: StateFlow<Boolean> = feedResultFlow
+        .map { it.isDedupInProgress }
+        .stateIn(viewModelScope, SharingStarted.Lazily, false)
+
     val articleClusters: StateFlow<List<ArticleClusterUiModel>> = combine(
-        getFeedArticlesUseCase(
-            _searchQuery,
-            _selectedGroupId,
-            _dateFilter.map { it.hours },
-            userPreferences
-        ),
+        feedResultFlow.map { it.clusters },
         groupsWithSources
     ) { clusters, groupsList ->
         val sourcesMap = groupsList.flatMap { it.sources }.associateBy { it.id }

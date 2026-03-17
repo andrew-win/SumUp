@@ -40,6 +40,8 @@ fun SettingsScreen(
     var isAddingNew by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var summaryPrompt by remember(userPreferences.summaryPrompt) { mutableStateOf(userPreferences.summaryPrompt) }
+    var showClearArticlesDialog by remember { mutableStateOf(false) }
+    var showClearEmbeddingsDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -428,6 +430,41 @@ fun SettingsScreen(
                 }
             }
 
+            item {
+                SettingsSection(title = stringResource(R.string.settings_memory)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(
+                            onClick = { showClearArticlesDialog = true },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            shape = MaterialTheme.shapes.extraLarge,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
+                            Text(
+                                text = stringResource(R.string.settings_clear_articles),
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
+
+                        Button(
+                            onClick = { showClearEmbeddingsDialog = true },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            shape = MaterialTheme.shapes.extraLarge,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
+                            Text(
+                                text = stringResource(R.string.settings_clear_embeddings),
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         if (isAddingNew) {
@@ -453,6 +490,40 @@ fun SettingsScreen(
                 minute = userPreferences.scheduledMinute,
                 onDismiss = { showTimePicker = false },
                 onConfirm = { h, m -> viewModel.updateScheduledSummary(true, h, m); showTimePicker = false }
+            )
+        }
+
+        if (showClearArticlesDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearArticlesDialog = false },
+                title = { Text(stringResource(R.string.settings_clear_articles)) },
+                text = { Text(stringResource(R.string.settings_clear_articles_confirm)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.clearAllArticles()
+                        showClearArticlesDialog = false
+                    }) { Text(stringResource(R.string.delete)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearArticlesDialog = false }) { Text(stringResource(R.string.cancel)) }
+                }
+            )
+        }
+
+        if (showClearEmbeddingsDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearEmbeddingsDialog = false },
+                title = { Text(stringResource(R.string.settings_clear_embeddings)) },
+                text = { Text(stringResource(R.string.settings_clear_embeddings_confirm)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.clearEmbeddings()
+                        showClearEmbeddingsDialog = false
+                    }) { Text(stringResource(R.string.delete)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearEmbeddingsDialog = false }) { Text(stringResource(R.string.cancel)) }
+                }
             )
         }
     }

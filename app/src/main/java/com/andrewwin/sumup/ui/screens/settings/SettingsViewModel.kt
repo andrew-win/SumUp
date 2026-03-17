@@ -9,6 +9,7 @@ import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.settings.UpdateCustomSummaryPromptEnabledUseCase
@@ -37,6 +38,7 @@ class SettingsViewModel @Inject constructor(
     application: Application,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val aiRepository: AiRepository,
+    private val articleRepository: ArticleRepository,
     private val manageModelUseCase: ManageModelUseCase,
     private val scheduleSummaryUseCase: ScheduleSummaryUseCase,
     private val updateSummaryPromptUseCase: UpdateSummaryPromptUseCase,
@@ -185,6 +187,18 @@ class SettingsViewModel @Inject constructor(
 
     fun updateAiMaxCharsTotal(count: Int) {
         viewModelScope.launch { updatePreferences { it.copy(aiMaxCharsTotal = count) } }
+    }
+
+    fun clearAllArticles() {
+        viewModelScope.launch(Dispatchers.IO) {
+            articleRepository.clearAllArticles()
+        }
+    }
+
+    fun clearEmbeddings() {
+        viewModelScope.launch(Dispatchers.IO) {
+            articleRepository.clearEmbeddings()
+        }
     }
 
     private suspend fun updatePreferences(transform: (UserPreferences) -> UserPreferences) {

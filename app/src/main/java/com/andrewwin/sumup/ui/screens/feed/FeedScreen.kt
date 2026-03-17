@@ -60,6 +60,7 @@ fun FeedScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val aiResult by viewModel.aiResult.collectAsState()
     val isAiLoading by viewModel.isAiLoading.collectAsState()
+    val isDedupInProgress by viewModel.isDedupInProgress.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
     val groups by viewModel.groups.collectAsState()
     val context = LocalContext.current
@@ -191,13 +192,30 @@ fun FeedScreen(
                                 .padding(32.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = stringResource(R.string.feed_empty_message),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                                lineHeight = 24.sp
-                            )
+                            if (isDedupInProgress) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                    Text(
+                                        text = stringResource(R.string.feed_searching_similar),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        lineHeight = 24.sp
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    text = stringResource(R.string.feed_empty_message),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 24.sp
+                                )
+                            }
                         }
                     }
                 } else {
@@ -211,7 +229,9 @@ fun FeedScreen(
                                 articleForAi = it
                                 isFeedAiActive = false
                                 viewModel.clearAiResult()
-                            }
+                            },
+                            isDedupInProgress = isDedupInProgress,
+                            minMentions = userPreferences.minMentions
                         )
                     }
                 }
@@ -475,7 +495,9 @@ fun ArticleClusterCard(
     isMediaEnabled: Boolean,
     onMediaClick: (String) -> Unit,
     onOpenSource: (ArticleUiModel) -> Unit,
-    onAiClick: (ArticleUiModel) -> Unit
+    onAiClick: (ArticleUiModel) -> Unit,
+    isDedupInProgress: Boolean,
+    minMentions: Int
 ) {
     val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
     val publishedAt = cluster.representative.article.publishedAt
@@ -529,6 +551,25 @@ fun ArticleClusterCard(
                             )
                             if (uiModel != cluster.duplicates.last().first) {
                                 Spacer(Modifier.height(12.dp))
+                            }
+                        }
+
+                        if (isDedupInProgress) {
+                            Spacer(Modifier.height(16.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = stringResource(R.string.feed_searching_similar),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }

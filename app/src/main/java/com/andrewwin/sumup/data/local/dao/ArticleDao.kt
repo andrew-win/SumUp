@@ -51,6 +51,12 @@ interface ArticleDao {
     @Delete
     suspend fun deleteArticle(article: Article)
 
+    @Query("UPDATE articles SET embedding = NULL")
+    suspend fun clearEmbeddings()
+
+    @Query("DELETE FROM articles")
+    suspend fun deleteAllArticles()
+
     @Query("DELETE FROM articles WHERE publishedAt < :timestamp")
     suspend fun deleteOldArticles(timestamp: Long)
 }

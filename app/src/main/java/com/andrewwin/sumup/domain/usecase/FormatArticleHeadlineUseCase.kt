@@ -20,9 +20,12 @@ class FormatArticleHeadlineUseCase @Inject constructor() {
     operator fun invoke(article: Article, sourceType: SourceType): FormattedArticle {
         val displayTitle: String
         val rawDescription: String
+        val contentForDisplay = article.content
+            .replace(Regex("(?m)^\\[ad\\]\\s*"), "")
+            .trim()
 
         if (sourceType == SourceType.TELEGRAM) {
-            val fullText = article.content.trim()
+            val fullText = contentForDisplay.trim()
             
             // Look for first sentence boundary or newline
             val breakMatch = Regex("[.!?](\\s|\n|$)|\n").find(fullText)
@@ -44,7 +47,7 @@ class FormatArticleHeadlineUseCase @Inject constructor() {
             }
         } else {
             displayTitle = article.title.trim().removeSuffix(".")
-            val content = article.content.trim()
+            val content = contentForDisplay.trim()
             
             // If content starts with the title, strip it
             rawDescription = if (content.startsWith(article.title.trim(), ignoreCase = true)) {
