@@ -8,6 +8,8 @@ interface ArticleRepository {
     val enabledArticles: Flow<List<Article>>
     suspend fun refreshArticles()
     suspend fun updateArticle(article: Article)
+    suspend fun updateArticles(articles: List<Article>)
+    suspend fun getEmbeddingsByIds(ids: List<Long>): Map<Long, ByteArray?>
     suspend fun getEnabledArticlesOnce(): List<Article>
     suspend fun getEnabledArticlesSince(timestamp: Long): List<Article>
     suspend fun getSourceById(id: Long): com.andrewwin.sumup.data.local.entities.Source?

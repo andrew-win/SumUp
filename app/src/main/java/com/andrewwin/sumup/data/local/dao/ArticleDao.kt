@@ -48,6 +48,12 @@ interface ArticleDao {
     @Update
     suspend fun updateArticle(article: Article)
 
+    @Update
+    suspend fun updateArticles(articles: List<Article>)
+
+    @Query("SELECT id, embedding FROM articles WHERE id IN (:ids)")
+    suspend fun getEmbeddingsByIds(ids: List<Long>): List<ArticleEmbedding>
+
     @Delete
     suspend fun deleteArticle(article: Article)
 
@@ -60,3 +66,8 @@ interface ArticleDao {
     @Query("DELETE FROM articles WHERE publishedAt < :timestamp")
     suspend fun deleteOldArticles(timestamp: Long)
 }
+
+data class ArticleEmbedding(
+    val id: Long,
+    val embedding: ByteArray?
+)

@@ -79,6 +79,16 @@ class ArticleRepositoryImpl @Inject constructor(
 
     override suspend fun updateArticle(article: Article) = articleDao.updateArticle(article)
 
+    override suspend fun updateArticles(articles: List<Article>) {
+        if (articles.isEmpty()) return
+        articleDao.updateArticles(articles)
+    }
+
+    override suspend fun getEmbeddingsByIds(ids: List<Long>): Map<Long, ByteArray?> {
+        if (ids.isEmpty()) return emptyMap()
+        return articleDao.getEmbeddingsByIds(ids).associate { it.id to it.embedding }
+    }
+
     override suspend fun getEnabledArticlesOnce(): List<Article> = articleDao.getEnabledArticlesOnce()
 
     override suspend fun getEnabledArticlesSince(timestamp: Long): List<Article> =
