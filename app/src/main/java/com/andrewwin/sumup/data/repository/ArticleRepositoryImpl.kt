@@ -13,6 +13,7 @@ import com.andrewwin.sumup.domain.usecase.CleanArticleTextUseCase
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -25,7 +26,9 @@ class ArticleRepositoryImpl @Inject constructor(
     private val cleanArticleTextUseCase: CleanArticleTextUseCase
 ) : ArticleRepository {
 
-    override val enabledArticles: Flow<List<Article>> = articleDao.getEnabledArticles()
+    override val enabledArticles: Flow<List<Article>> =
+        articleDao.getEnabledArticles()
+            .onEach { Log.d("ArticleRepo", "enabledArticles flow size=${it.size}") }
 
     override suspend fun refreshArticles() = withContext(Dispatchers.IO) {
         Log.d("ArticleRepo", "refreshArticles started")
@@ -58,7 +61,9 @@ class ArticleRepositoryImpl @Inject constructor(
                                     content = cleanArticleTextUseCase(article.content, source.type, currentFooter)
                                 )
                             }
-                            articleDao.insertArticles(cleanedArticles)
+                            val insertResults = articleDao.insertArticles(cleanedArticles)
+                            val insertedCount = insertResults.count { it != -1L }
+                            Log.d("ArticleRepo", "Inserted $insertedCount/${cleanedArticles.size} articles")
                             cleanedArticles.forEach { article ->
                                 if (!article.mediaUrl.isNullOrBlank() || !article.videoId.isNullOrBlank()) {
                                     articleDao.updateMediaByUrl(
@@ -68,13 +73,23 @@ class ArticleRepositoryImpl @Inject constructor(
                                     )
                                 }
                             }
+                            val enabledNow = articleDao.getEnabledArticlesOnce()
+                            Log.d("ArticleRepo", "Enabled articles after insert: ${enabledNow.size}")
                         }
                     }
                 }
             }
         }
         val threeDaysAgo = System.currentTimeMillis() - (3 * 24 * 60 * 60 * 1000L)
-        articleDao.deleteOldArticles(threeDaysAgo)
+        val newerCount = articleDao.countArticlesNewerThan(threeDaysAgo)
+        val olderCount = articleDao.countArticlesOlderThan(threeDaysAgo)
+        if (newerCount > 0) {
+            val deleted = articleDao.deleteOldArticles(threeDaysAgo)
+            Log.d("ArticleRepo", "Deleted old articles: $deleted (older=$olderCount newer=$newerCount)")
+        } else {
+            Log.w("ArticleRepo", "Skip deleteOldArticles: newerCount=0 olderCount=$olderCount (timestamps likely invalid)")
+        }
+        Unit
     }
 
     override suspend fun updateArticle(article: Article) = articleDao.updateArticle(article)
@@ -121,5 +136,9 @@ class ArticleRepositoryImpl @Inject constructor(
     override suspend fun clearEmbeddings() {
         articleSimilarityDao.deleteAll()
         articleDao.clearEmbeddings()
+    }
+
+    override suspend fun clearSimilarities() {
+        articleSimilarityDao.deleteAll()
     }
 }

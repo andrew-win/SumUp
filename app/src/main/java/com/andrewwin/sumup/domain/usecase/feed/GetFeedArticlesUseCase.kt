@@ -6,13 +6,13 @@ import com.andrewwin.sumup.domain.ArticleCluster
 import com.andrewwin.sumup.domain.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.DeduplicationService
 import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.repository.FeedCache
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.delay
@@ -20,15 +20,16 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import android.util.Log
 import javax.inject.Inject
 
 class GetFeedArticlesUseCase @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
     private val deduplicationService: DeduplicationService,
-    private val importanceScorer: ArticleImportanceScorer,
-    private val feedCache: FeedCache
+    private val importanceScorer: ArticleImportanceScorer
 ) {
+    private val tag = "GetFeedArticles"
     operator fun invoke(
         searchQueryFlow: Flow<String>,
         selectedGroupIdFlow: Flow<Long?>,
@@ -50,6 +51,7 @@ class GetFeedArticlesUseCase @Inject constructor(
         return combine(flow1, flow2) { triple1, triple2 ->
             val (articles, groupsWithSources, query) = triple1
             val (groupId, dateFilterHours, prefs) = triple2
+            Log.d(tag, "pipeline input articles=${articles.size} groupId=$groupId dateFilterHours=$dateFilterHours query='${query}' prefs=dedup=${prefs.isDeduplicationEnabled} modelPath=${prefs.modelPath.orEmpty()} minMentions=${prefs.minMentions} importance=${prefs.isImportanceFilterEnabled}")
 
             val sourceTypeMap = groupsWithSources
                 .flatMap { it.sources }
@@ -86,8 +88,10 @@ class GetFeedArticlesUseCase @Inject constructor(
                 }
             }
 
+            Log.d(tag, "after filters articles=${processedArticles.size}")
+
             FeedPipelineState(processedArticles, prefs)
-        }
+        }.flowOn(Dispatchers.Default)
             .debounce(DEDUP_START_DEBOUNCE_MS)
             .flatMapLatest { state ->
                 flow {
@@ -104,14 +108,24 @@ class GetFeedArticlesUseCase @Inject constructor(
                             emptyList()
                         }
 
-                        val initial = applyMinMentionsFilter(baseClusters, state.prefs)
+                        val initialClusters = when {
+                            // If dedup is enabled and we don't have any clusters yet,
+                            // avoid showing non-deduped singletons to prevent flicker.
+                            state.shouldDedup && baseClusters.isEmpty() -> emptyList()
+                            baseClusters.isEmpty() && state.articles.isNotEmpty() ->
+                                state.articles.map { ArticleCluster(it, emptyList()) }
+                            else -> baseClusters
+                        }
+
+                        val initial = applyMinMentionsFilter(initialClusters, state.prefs)
+                        Log.d(tag, "baseClusters=${baseClusters.size} initial=${initial.size} shouldDedup=${state.shouldDedup}")
                         val usedIds = baseClusters
                             .flatMap { cluster -> listOf(cluster.representative.id) + cluster.duplicates.map { it.first.id } }
                             .toSet()
                         val newArticles = state.articles.filterNot { usedIds.contains(it.id) }
                         val shouldRunDedup = state.shouldDedup && newArticles.isNotEmpty()
+                        Log.d(tag, "newArticles=${newArticles.size} shouldRunDedup=$shouldRunDedup")
 
-                        feedCache.set(initial)
                         emit(FeedResult(initial, shouldRunDedup))
                         var lastEmitted = initial
 
@@ -133,7 +147,8 @@ class GetFeedArticlesUseCase @Inject constructor(
                         warmupJob.cancel()
                         val initialized = deduplicationService.initialize(state.prefs.modelPath!!)
                         if (!initialized) {
-                            emit(FeedResult(lastEmitted, false))
+                            val fallback = state.articles.map { ArticleCluster(it, emptyList()) }
+                            emit(FeedResult(fallback, false))
                             return@coroutineScope
                         }
 
@@ -150,20 +165,15 @@ class GetFeedArticlesUseCase @Inject constructor(
                                 val filtered = applyMinMentionsFilter(clusters, state.prefs)
                                 lastClusters = filtered
                                 lastEmitted = filtered
-                                feedCache.set(filtered)
                                 emit(FeedResult(filtered, true))
                             }
 
                         lastClusters?.let { final ->
                             val filteredFinal = applyMinMentionsFilter(final, state.prefs)
-                            feedCache.set(filteredFinal)
                             emit(FeedResult(filteredFinal, false))
                         }
                     }
                 }
-            }
-            .onStart {
-                feedCache.get()?.let { emit(FeedResult(it, false)) }
             }
     }
 
@@ -172,6 +182,9 @@ class GetFeedArticlesUseCase @Inject constructor(
         prefs: UserPreferences
     ): List<ArticleCluster> {
         if (!prefs.isDeduplicationEnabled || prefs.modelPath == null) return clusters
+        if (clusters.isEmpty()) return clusters
+        // If dedup hasn't produced any matches yet, don't hide singletons.
+        if (clusters.all { it.duplicates.isEmpty() }) return clusters
         return clusters.filter { it.duplicates.size + 1 >= prefs.minMentions }
     }
 
@@ -282,10 +295,10 @@ class GetFeedArticlesUseCase @Inject constructor(
     )
 
     private companion object {
-        private const val DEDUP_DELAY_MS = 10_000L
+        private const val DEDUP_DELAY_MS = 1_000L
         private const val DEDUP_EMIT_EVERY = 1
         private const val DEDUP_THROTTLE_MS = 25L
-        private const val EMBED_WARMUP_DELAY_MS = 2_000L
+        private const val EMBED_WARMUP_DELAY_MS = 500L
         private const val EMBED_WARMUP_THROTTLE_MS = 20L
         private const val DEDUP_START_DEBOUNCE_MS = 1_200L
     }

@@ -183,7 +183,10 @@ fun FeedScreen(
                     )
                 }
 
-                if (articleClusters.isEmpty() && !isRefreshing) {
+                val showLoading = userPreferences.isDeduplicationEnabled &&
+                    articleClusters.isEmpty() &&
+                    isDedupInProgress
+                if (showLoading) {
                     item {
                         Box(
                             modifier = Modifier
@@ -192,30 +195,38 @@ fun FeedScreen(
                                 .padding(32.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (isDedupInProgress) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(24.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(Modifier.height(12.dp))
-                                    Text(
-                                        text = stringResource(R.string.feed_searching_similar),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center,
-                                        lineHeight = 24.sp
-                                    )
-                                }
-                            } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.height(12.dp))
                                 Text(
-                                    text = stringResource(R.string.feed_empty_message),
+                                    text = stringResource(R.string.feed_searching_similar),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center,
                                     lineHeight = 24.sp
                                 )
                             }
+                        }
+                    }
+                } else if (articleClusters.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillParentMaxHeight(0.7f)
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = stringResource(R.string.feed_empty_message),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 24.sp
+                            )
                         }
                     }
                 } else {

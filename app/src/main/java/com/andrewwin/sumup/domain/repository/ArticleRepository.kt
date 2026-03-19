@@ -18,4 +18,5 @@ interface ArticleRepository {
     suspend fun upsertSimilarities(items: List<ArticleSimilarity>)
     suspend fun clearAllArticles()
     suspend fun clearEmbeddings()
+    suspend fun clearSimilarities()
 }

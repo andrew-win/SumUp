@@ -9,7 +9,6 @@ import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
-import com.andrewwin.sumup.data.cache.InMemoryFeedCache
 import com.andrewwin.sumup.data.remote.AiService
 import com.andrewwin.sumup.data.remote.RssParser
 import com.andrewwin.sumup.data.remote.TelegramParser
@@ -26,7 +25,6 @@ import com.andrewwin.sumup.domain.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.DeduplicationService
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.repository.FeedCache
 import com.andrewwin.sumup.domain.repository.ModelRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
@@ -49,7 +47,9 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import android.util.Log
 import okhttp3.OkHttpClient
+import okhttp3.Response
 import javax.inject.Singleton
 
 @Module
@@ -81,14 +81,37 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient = OkHttpClient()
+    fun provideOkHttpClient(): OkHttpClient =
+        OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val startNanos = System.nanoTime()
+                Log.d("OkHttp", "-> ${request.method} ${request.url}")
+                val response = chain.proceed(request)
+                val tookMs = (System.nanoTime() - startNanos) / 1_000_000
+                logResponse(response, tookMs)
+                response
+            }
+            .build()
+
+    private fun logResponse(response: Response, tookMs: Long) {
+        val url = response.request.url.toString()
+        val code = response.code
+        val contentType = response.body?.contentType()?.toString().orEmpty()
+        val contentLength = response.body?.contentLength() ?: -1L
+        Log.d("OkHttp", "<- $code (${tookMs}ms) $url contentType=$contentType length=$contentLength")
+        val preview = response.peekBody(2048).string()
+        if (preview.isNotBlank()) {
+            Log.d("OkHttp", "body preview: ${preview.take(2048)}")
+        }
+    }
 
     @Provides
     @Singleton
     fun provideAiService(okHttpClient: OkHttpClient): AiService = AiService(okHttpClient)
 
     @Provides
-    fun provideRssParser(): RssParser = RssParser()
+    fun provideRssParser(okHttpClient: OkHttpClient): RssParser = RssParser(okHttpClient)
 
     @Provides
     fun provideTelegramParser(): TelegramParser = TelegramParser()
@@ -179,10 +202,6 @@ object AppModule {
     @Singleton
     fun provideDeduplicationService(articleRepository: ArticleRepository): DeduplicationService =
         DeduplicationService(articleRepository)
-
-    @Provides
-    @Singleton
-    fun provideFeedCache(): FeedCache = InMemoryFeedCache()
 
     @Provides
     @Singleton

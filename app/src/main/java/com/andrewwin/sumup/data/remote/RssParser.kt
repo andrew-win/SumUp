@@ -1,195 +1,106 @@
 package com.andrewwin.sumup.data.remote
 
 import com.andrewwin.sumup.data.local.entities.Article
-import org.xmlpull.v1.XmlPullParser
-import org.xmlpull.v1.XmlPullParserFactory
-import java.io.InputStream
+import android.util.Log
+import com.prof18.rssparser.RssParser as ProfRssParser
+import com.prof18.rssparser.RssParserBuilder
+import com.prof18.rssparser.model.RssChannel
+import com.prof18.rssparser.model.RssItem
+import okhttp3.OkHttpClient
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Locale
+import javax.inject.Inject
 
-class RssParser {
-    private val rssDateFormat = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.US)
-    private val atomDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+class RssParser @Inject constructor(
+    okHttpClient: OkHttpClient
+) {
+    private val tag = "RssParser"
+    private val parser: ProfRssParser = RssParserBuilder(callFactory = okHttpClient).build()
+    private val rssDateFormats = listOf(
+        SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.US).apply { isLenient = false },
+        SimpleDateFormat("EEE, dd MMM yy HH:mm:ss Z", Locale.US).apply { isLenient = false },
+        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).apply { isLenient = false }
+    )
 
-    fun parse(inputStream: InputStream, sourceId: Long): List<Article> {
-        inputStream.use {
-            val factory = XmlPullParserFactory.newInstance()
-            factory.isNamespaceAware = false
-            val parser = factory.newPullParser()
-            parser.setInput(it, null)
-            try {
-                parser.nextTag()
-            } catch (e: Exception) {
-                return emptyList()
-            }
-            
-            return when (parser.name) {
-                "rss" -> readRss(parser, sourceId)
-                "feed" -> readAtom(parser, sourceId)
-                else -> readGeneric(parser, sourceId)
-            }
+    suspend fun parseUrl(url: String, sourceId: Long): List<Article> {
+        return runCatching {
+            Log.d(tag, "parseUrl: $url")
+            val channel = parser.getRssChannel(url)
+            val mapped = mapChannel(channel, sourceId)
+            Log.d(tag, "parseUrl: items=${mapped.size} title=${channel.title.orEmpty()}")
+            mapped
+        }.getOrElse { e ->
+            Log.e(tag, "parseUrl failed for $url: ${e.message}", e)
+            emptyList()
         }
     }
 
-    private fun readGeneric(parser: XmlPullParser, sourceId: Long): List<Article> {
-        val articles = mutableListOf<Article>()
-        try {
-            while (parser.next() != XmlPullParser.END_DOCUMENT) {
-                if (parser.eventType != XmlPullParser.START_TAG) continue
-                when (parser.name) {
-                    "item" -> articles.add(readItem(parser, sourceId))
-                    "entry" -> articles.add(readAtomEntry(parser, sourceId))
-                }
-            }
-        } catch (e: Exception) { }
-        return articles
+    suspend fun parseXml(xml: String, sourceId: Long): List<Article> {
+        return runCatching {
+            val channel = parser.parse(xml)
+            mapChannel(channel, sourceId)
+        }.getOrElse { e ->
+            Log.e(tag, "parseXml failed: ${e.message}", e)
+            emptyList()
+        }
     }
 
-    private fun readRss(parser: XmlPullParser, sourceId: Long): List<Article> {
-        val articles = mutableListOf<Article>()
-        while (parser.next() != XmlPullParser.END_TAG) {
-            if (parser.eventType != XmlPullParser.START_TAG) continue
-            if (parser.name == "channel") {
-                articles.addAll(readChannel(parser, sourceId))
-            } else {
-                skip(parser)
-            }
+    private fun mapChannel(channel: RssChannel, sourceId: Long): List<Article> {
+        return channel.items.orEmpty().mapNotNull { item ->
+            mapItem(item, sourceId)
         }
-        return articles
     }
 
-    private fun readChannel(parser: XmlPullParser, sourceId: Long): List<Article> {
-        val articles = mutableListOf<Article>()
-        while (parser.next() != XmlPullParser.END_TAG) {
-            if (parser.eventType != XmlPullParser.START_TAG) continue
-            if (parser.name == "item") {
-                articles.add(readItem(parser, sourceId))
-            } else {
-                skip(parser)
-            }
-        }
-        return articles
-    }
-
-    private fun readItem(parser: XmlPullParser, sourceId: Long): Article {
-        var title = ""
-        var link = ""
-        var guid = ""
-        var description = ""
-        var pubDate = 0L
-        var mediaUrl: String? = null
-
-        while (parser.next() != XmlPullParser.END_TAG) {
-            if (parser.eventType != XmlPullParser.START_TAG) continue
-            when (parser.name) {
-                "title" -> title = parser.nextText()
-                "link" -> link = parser.nextText().trim()
-                "guid" -> guid = parser.nextText().trim()
-                "description" -> description = parser.nextText()
-                "enclosure", "media:content", "media:thumbnail" -> {
-                    val url = parser.getAttributeValue(null, "url")
-                    if (!url.isNullOrBlank()) mediaUrl = url
-                    if (!parser.isEmptyElementTag) parser.next()
-                }
-                "pubDate" -> pubDate = parseRssDate(parser.nextText())
-                else -> skip(parser)
-            }
-        }
-
+    private fun mapItem(item: RssItem, sourceId: Long): Article? {
+        val title = item.title.orEmpty()
+        val link = item.link.orEmpty()
+        val guid = item.guid.orEmpty()
+        val description = item.description.orEmpty()
+        val content = item.content.orEmpty()
+        val pubDate = parseRssDate(item.pubDate.orEmpty())
         val rawUrl = if (guid.startsWith("http")) guid else link
+        if (rawUrl.isBlank()) return null
         val cleanUrl = rawUrl.substringBefore("#").substringBefore("?")
 
-        val fallbackMedia = extractImageFromHtml(description)
+        val mediaUrl = extractImageFromHtml(content.ifBlank { description })
 
         return Article(
             sourceId = sourceId,
             title = title,
-            content = description,
-            mediaUrl = mediaUrl ?: fallbackMedia,
+            content = if (content.isNotBlank()) content else description,
+            mediaUrl = mediaUrl,
             url = cleanUrl,
             publishedAt = if (pubDate == 0L) System.currentTimeMillis() else pubDate
         )
     }
 
-    private fun readAtom(parser: XmlPullParser, sourceId: Long): List<Article> {
-        val articles = mutableListOf<Article>()
-        while (parser.next() != XmlPullParser.END_TAG) {
-            if (parser.eventType != XmlPullParser.START_TAG) continue
-            if (parser.name == "entry") {
-                articles.add(readAtomEntry(parser, sourceId))
-            } else {
-                skip(parser)
-            }
-        }
-        return articles
-    }
-
-    private fun readAtomEntry(parser: XmlPullParser, sourceId: Long): Article {
-        var title = ""
-        var link = ""
-        var summary = ""
-        var published = 0L
-        var mediaUrl: String? = null
-
-        while (parser.next() != XmlPullParser.END_TAG) {
-            if (parser.eventType != XmlPullParser.START_TAG) continue
-            when (parser.name) {
-                "title" -> title = parser.nextText()
-                "link" -> {
-                    val href = parser.getAttributeValue(null, "href") ?: ""
-                    val rel = parser.getAttributeValue(null, "rel") ?: ""
-                    val type = parser.getAttributeValue(null, "type") ?: ""
-                    if (rel == "alternate" || rel.isEmpty() || link.isEmpty()) {
-                        link = href
-                    }
-                    val isImage = type.startsWith("image/")
-                    if ((rel == "enclosure" || isImage) && !href.isNullOrBlank()) {
-                        mediaUrl = href
-                    }
-                    if (!parser.isEmptyElementTag) parser.next()
-                }
-                "summary", "content" -> summary = parser.nextText()
-                "media:content", "media:thumbnail" -> {
-                    val url = parser.getAttributeValue(null, "url")
-                    if (!url.isNullOrBlank()) mediaUrl = url
-                    if (!parser.isEmptyElementTag) parser.next()
-                }
-                "published", "updated" -> published = parseAtomDate(parser.nextText())
-                else -> skip(parser)
-            }
-        }
-        val fallbackMedia = extractImageFromHtml(summary)
-        return Article(
-            sourceId = sourceId,
-            title = title,
-            content = summary,
-            mediaUrl = mediaUrl ?: fallbackMedia,
-            url = link.substringBefore("#").substringBefore("?"),
-            publishedAt = if (published == 0L) System.currentTimeMillis() else published
-        )
-    }
-
     private fun parseRssDate(dateString: String): Long {
-        return try { rssDateFormat.parse(dateString.trim())?.time ?: 0L } catch (e: Exception) { 0L }
-    }
-
-    private fun parseAtomDate(dateString: String): Long {
-        return try { atomDateFormat.parse(dateString.trim().take(19))?.time ?: 0L } catch (e: Exception) { 0L }
-    }
-
-    private fun skip(parser: XmlPullParser) {
-        if (parser.eventType != XmlPullParser.START_TAG) throw IllegalStateException()
-        var depth = 1
-        while (depth != 0) {
-            when (parser.next()) {
-                XmlPullParser.END_TAG -> depth--
-                XmlPullParser.START_TAG -> depth++
-            }
+        val trimmed = dateString.trim()
+        val formats = when {
+            Regex(",\\s\\d{2}\\s\\p{Alpha}{3}\\s\\d{2}\\s").containsMatchIn(trimmed) ->
+                listOf(rssDateFormats[1], rssDateFormats[0], rssDateFormats[2])
+            Regex(",\\s\\d{2}\\s\\p{Alpha}{3}\\s\\d{4}\\s").containsMatchIn(trimmed) ->
+                listOf(rssDateFormats[0], rssDateFormats[1], rssDateFormats[2])
+            else -> rssDateFormats
         }
+        for (format in formats) {
+            try {
+                val parsed = format.parse(trimmed)
+                if (parsed != null) {
+                    val ts = parsed.time
+                    return if (ts >= MIN_REASONABLE_TIMESTAMP) ts else 0L
+                }
+            } catch (_: Exception) { }
+        }
+        return 0L
     }
 
     private fun extractImageFromHtml(html: String): String? {
         val regex = Regex("<img[^>]+src=[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
         return regex.find(html)?.groups?.get(1)?.value
+    }
+
+    companion object {
+        private const val MIN_REASONABLE_TIMESTAMP = 946684800000L // 2000-01-01
     }
 }

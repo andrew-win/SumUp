@@ -55,17 +55,14 @@ class RemoteArticleDataSource @Inject constructor(
         }
     }
 
-    private fun fetchRssArticles(sourceId: Long, url: String): List<Article> {
-        return try {
-            val request = Request.Builder().url(url).build()
-            okHttpClient.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body?.byteStream()
-                    if (body != null) return rssParser.parse(body, sourceId)
-                }
-            }
-            emptyList()
-        } catch (e: Exception) { emptyList() }
+    private suspend fun fetchRssArticles(sourceId: Long, url: String): List<Article> {
+        val httpsUrl = if (url.startsWith("http://")) "https://${url.removePrefix("http://")}" else url
+        val primary = rssParser.parseUrl(httpsUrl, sourceId)
+        return if (primary.isNotEmpty() || httpsUrl == url) {
+            primary
+        } else {
+            rssParser.parseUrl(url, sourceId)
+        }
     }
 
     private fun fetchTelegramArticles(sourceId: Long, url: String): List<Article> {

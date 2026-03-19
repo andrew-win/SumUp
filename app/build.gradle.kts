@@ -58,6 +58,7 @@ dependencies {
     implementation(libs.androidx.work.runtime)
     implementation(libs.jsoup)
     implementation(libs.coil.compose)
+    implementation("com.prof18.rssparser:rssparser:6.1.4")
 
     implementation(libs.onnxruntime.android)
     implementation(libs.onnxruntime.extensions.android)

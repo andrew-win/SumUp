@@ -40,7 +40,7 @@ interface ArticleDao {
     fun getArticlesBySource(sourceId: Long): Flow<List<Article>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertArticles(articles: List<Article>)
+    suspend fun insertArticles(articles: List<Article>): List<Long>
 
     @Query("UPDATE articles SET mediaUrl = :mediaUrl, videoId = :videoId WHERE url = :url")
     suspend fun updateMediaByUrl(url: String, mediaUrl: String?, videoId: String?)
@@ -64,7 +64,13 @@ interface ArticleDao {
     suspend fun deleteAllArticles()
 
     @Query("DELETE FROM articles WHERE publishedAt < :timestamp")
-    suspend fun deleteOldArticles(timestamp: Long)
+    suspend fun deleteOldArticles(timestamp: Long): Int
+
+    @Query("SELECT COUNT(*) FROM articles WHERE publishedAt >= :timestamp")
+    suspend fun countArticlesNewerThan(timestamp: Long): Int
+
+    @Query("SELECT COUNT(*) FROM articles WHERE publishedAt < :timestamp")
+    suspend fun countArticlesOlderThan(timestamp: Long): Int
 }
 
 data class ArticleEmbedding(

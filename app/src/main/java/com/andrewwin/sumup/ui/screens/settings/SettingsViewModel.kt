@@ -103,7 +103,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun updateDeduplicationThreshold(threshold: Float) {
-        viewModelScope.launch { updatePreferences { it.copy(deduplicationThreshold = threshold) } }
+        viewModelScope.launch(Dispatchers.IO) {
+            articleRepository.clearSimilarities()
+            updatePreferences { it.copy(deduplicationThreshold = threshold) }
+        }
     }
 
     fun updateMinMentions(min: Int) {

@@ -28,8 +28,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 import javax.inject.Inject
 
 enum class DateFilter(@StringRes val labelRes: Int, val hours: Int?) {
@@ -88,18 +91,15 @@ class FeedViewModel @Inject constructor(
         userPreferences
     ).stateIn(viewModelScope, SharingStarted.Lazily, GetFeedArticlesUseCase.FeedResult(emptyList(), false))
 
-    val isDedupInProgress: StateFlow<Boolean> = feedResultFlow
-        .map { it.isDedupInProgress }
-        .stateIn(viewModelScope, SharingStarted.Lazily, false)
-
-    val articleClusters: StateFlow<List<ArticleClusterUiModel>> = combine(
-        feedResultFlow.map { it.clusters },
+    private val feedUiFlow = combine(
+        feedResultFlow,
         groupsWithSources
-    ) { clusters, groupsList ->
+    ) { feed, groupsList ->
+        Log.d(TAG, "clusters=${feed.clusters.size} groups=${groupsList.size}")
         val sourcesMap = groupsList.flatMap { it.sources }.associateBy { it.id }
         val groupMap = groupsList.map { it.group }.associateBy { it.id }
 
-        clusters.map { cluster ->
+        val clusters = feed.clusters.map { cluster ->
             ArticleClusterUiModel(
                 representative = mapToUiModel(cluster.representative, sourcesMap, groupMap),
                 duplicates = cluster.duplicates.map { (article, score) ->
@@ -107,11 +107,38 @@ class FeedViewModel @Inject constructor(
                 }
             )
         }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.Lazily,
-        initialValue = emptyList()
-    )
+
+        FeedUiState(
+            clusters = clusters,
+            isDedupInProgress = feed.isDedupInProgress
+        )
+    }
+        .flowOn(Dispatchers.Default)
+
+    private val stableFeedUiFlow = feedUiFlow
+        .scan(FeedUiState(emptyList(), false)) { prev, current ->
+            val shouldKeepPrev = current.clusters.isEmpty() &&
+                current.isDedupInProgress &&
+                prev.clusters.isNotEmpty()
+            if (shouldKeepPrev) {
+                prev.copy(isDedupInProgress = true)
+            } else {
+                current
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, FeedUiState(emptyList(), false))
+
+    val isDedupInProgress: StateFlow<Boolean> = stableFeedUiFlow
+        .map { it.isDedupInProgress }
+        .stateIn(viewModelScope, SharingStarted.Lazily, false)
+
+    val articleClusters: StateFlow<List<ArticleClusterUiModel>> = stableFeedUiFlow
+        .map { it.clusters }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Lazily,
+            initialValue = emptyList()
+        )
 
     private fun mapToUiModel(
         article: Article,
@@ -251,4 +278,9 @@ class FeedViewModel @Inject constructor(
         private const val MAX_DESCRIPTION_LINES = 12
         private const val TAG = "FeedViewModel"
     }
+
+    private data class FeedUiState(
+        val clusters: List<ArticleClusterUiModel>,
+        val isDedupInProgress: Boolean
+    )
 }
