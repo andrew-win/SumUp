@@ -38,10 +38,12 @@ import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCaseImpl
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.data.local.scheduler.SummarySchedulerImpl
+import com.andrewwin.sumup.data.logger.AndroidPerformanceLogger
 import com.andrewwin.sumup.domain.usecase.CleanArticleTextUseCase
 import com.andrewwin.sumup.domain.usecase.BuildExtractiveSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
 import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.logger.PerformanceLogger
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -250,4 +252,10 @@ object AppModule {
     @Singleton
     fun provideSummaryScheduler(workManager: WorkManager): SummaryScheduler =
         SummarySchedulerImpl(workManager)
+
+    @Provides
+    @Singleton
+    fun providePerformanceLogger(
+        androidPerformanceLogger: AndroidPerformanceLogger
+    ): PerformanceLogger = androidPerformanceLogger
 }

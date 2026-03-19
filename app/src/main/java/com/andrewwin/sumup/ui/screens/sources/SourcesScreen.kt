@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -142,7 +143,7 @@ fun GroupCard(
     onEditSource: (Source) -> Unit,
     onDeleteSource: (Source) -> Unit
 ) {
-    var isExpanded by remember { mutableStateOf(false) }
+    var isExpanded by rememberSaveable(groupWithSources.group.id) { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
@@ -177,7 +178,7 @@ fun GroupCard(
                 }
                 
                 Box {
-                    var showDropdown by remember { mutableStateOf(false) }
+                    var showDropdown by rememberSaveable(groupWithSources.group.id) { mutableStateOf(false) }
                     IconButton(onClick = { showDropdown = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = null, modifier = Modifier.size(24.dp))
                     }
@@ -375,7 +376,7 @@ fun GroupDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    var name by remember { mutableStateOf(group?.name ?: "") }
+    var name by remember(group?.id) { mutableStateOf(group?.name ?: "") }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(if (group == null) R.string.add_group else R.string.edit_group)) },
@@ -417,9 +418,9 @@ fun SourceDialog(
     onDismiss: () -> Unit,
     onConfirm: (String, String, SourceType) -> Unit
 ) {
-    var name by remember { mutableStateOf(source?.name ?: "") }
-    var url by remember { mutableStateOf(source?.url ?: "") }
-    var type by remember { mutableStateOf(source?.type ?: SourceType.RSS) }
+    var name by remember(source?.id) { mutableStateOf(source?.name ?: "") }
+    var url by remember(source?.id) { mutableStateOf(source?.url ?: "") }
+    var type by remember(source?.id) { mutableStateOf(source?.type ?: SourceType.RSS) }
     var expanded by remember { mutableStateOf(false) }
 
     AlertDialog(

@@ -9,6 +9,8 @@ android {
     namespace = "com.andrewwin.sumup"
     compileSdk = 36
 
+    flavorDimensions += "abi"
+
     defaultConfig {
         applicationId = "com.andrewwin.sumup"
         minSdk = 24
@@ -17,6 +19,18 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    productFlavors {
+        create("universal") {
+            dimension = "abi"
+        }
+        create("phoneArm64") {
+            dimension = "abi"
+            ndk {
+                abiFilters += "arm64-v8a"
+            }
+        }
     }
 
     buildTypes {

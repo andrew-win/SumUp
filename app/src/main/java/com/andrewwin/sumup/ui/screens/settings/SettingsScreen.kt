@@ -10,6 +10,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -42,6 +43,14 @@ fun SettingsScreen(
     var summaryPrompt by remember(userPreferences.summaryPrompt) { mutableStateOf(userPreferences.summaryPrompt) }
     var showClearArticlesDialog by remember { mutableStateOf(false) }
     var showClearEmbeddingsDialog by remember { mutableStateOf(false) }
+    var aiMaxCharsPerArticle by rememberSaveable(userPreferences.aiMaxCharsPerArticle) { mutableStateOf(userPreferences.aiMaxCharsPerArticle.toFloat()) }
+    var aiMaxCharsPerFeedArticle by rememberSaveable(userPreferences.aiMaxCharsPerFeedArticle) { mutableStateOf(userPreferences.aiMaxCharsPerFeedArticle.toFloat()) }
+    var aiMaxCharsTotal by rememberSaveable(userPreferences.aiMaxCharsTotal) { mutableStateOf(userPreferences.aiMaxCharsTotal.toFloat()) }
+    var extractiveSentencesInFeed by rememberSaveable(userPreferences.extractiveSentencesInFeed) { mutableStateOf(userPreferences.extractiveSentencesInFeed.toFloat()) }
+    var extractiveSentencesInScheduled by rememberSaveable(userPreferences.extractiveSentencesInScheduled) { mutableStateOf(userPreferences.extractiveSentencesInScheduled.toFloat()) }
+    var extractiveNewsInScheduled by rememberSaveable(userPreferences.extractiveNewsInScheduled) { mutableStateOf(userPreferences.extractiveNewsInScheduled.toFloat()) }
+    var deduplicationThreshold by rememberSaveable(userPreferences.deduplicationThreshold) { mutableStateOf(userPreferences.deduplicationThreshold) }
+    var minMentions by rememberSaveable(userPreferences.minMentions) { mutableStateOf(userPreferences.minMentions.toFloat()) }
 
     Scaffold(
         topBar = {
@@ -168,36 +177,45 @@ fun SettingsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Column {
                             Text(
-                                stringResource(R.string.settings_ai_chars_per_article_processing, userPreferences.aiMaxCharsPerArticle),
+                                stringResource(R.string.settings_ai_chars_per_article_processing, aiMaxCharsPerArticle.toInt()),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Slider(
-                                value = userPreferences.aiMaxCharsPerArticle.toFloat(),
-                                onValueChange = { viewModel.updateAiMaxCharsPerArticle(it.toInt()) },
+                                value = aiMaxCharsPerArticle,
+                                onValueChange = { aiMaxCharsPerArticle = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateAiMaxCharsPerArticle(aiMaxCharsPerArticle.toInt())
+                                },
                                 valueRange = 200f..3000f,
                                 steps = 28
                             )
                         }
                         Column {
                             Text(
-                                stringResource(R.string.settings_ai_chars_per_feed_article, userPreferences.aiMaxCharsPerFeedArticle),
+                                stringResource(R.string.settings_ai_chars_per_feed_article, aiMaxCharsPerFeedArticle.toInt()),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Slider(
-                                value = userPreferences.aiMaxCharsPerFeedArticle.toFloat(),
-                                onValueChange = { viewModel.updateAiMaxCharsPerFeedArticle(it.toInt()) },
+                                value = aiMaxCharsPerFeedArticle,
+                                onValueChange = { aiMaxCharsPerFeedArticle = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateAiMaxCharsPerFeedArticle(aiMaxCharsPerFeedArticle.toInt())
+                                },
                                 valueRange = 200f..3000f,
                                 steps = 28
                             )
                         }
                         Column {
                             Text(
-                                stringResource(R.string.settings_ai_chars_total, userPreferences.aiMaxCharsTotal),
+                                stringResource(R.string.settings_ai_chars_total, aiMaxCharsTotal.toInt()),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Slider(
-                                value = userPreferences.aiMaxCharsTotal.toFloat(),
-                                onValueChange = { viewModel.updateAiMaxCharsTotal(it.toInt()) },
+                                value = aiMaxCharsTotal,
+                                onValueChange = { aiMaxCharsTotal = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateAiMaxCharsTotal(aiMaxCharsTotal.toInt())
+                                },
                                 valueRange = 2000f..20000f,
                                 steps = 35
                             )
@@ -211,12 +229,15 @@ fun SettingsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Column {
                             Text(
-                                stringResource(R.string.settings_extractive_sentences_feed, userPreferences.extractiveSentencesInFeed),
+                                stringResource(R.string.settings_extractive_sentences_feed, extractiveSentencesInFeed.toInt()),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Slider(
-                                value = userPreferences.extractiveSentencesInFeed.toFloat(),
-                                onValueChange = { viewModel.updateExtractiveSentencesInFeed(it.toInt()) },
+                                value = extractiveSentencesInFeed,
+                                onValueChange = { extractiveSentencesInFeed = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateExtractiveSentencesInFeed(extractiveSentencesInFeed.toInt())
+                                },
                                 valueRange = 1f..10f,
                                 steps = 8
                             )
@@ -224,12 +245,15 @@ fun SettingsScreen(
 
                         Column {
                             Text(
-                                stringResource(R.string.settings_extractive_sentences_scheduled, userPreferences.extractiveSentencesInScheduled),
+                                stringResource(R.string.settings_extractive_sentences_scheduled, extractiveSentencesInScheduled.toInt()),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Slider(
-                                value = userPreferences.extractiveSentencesInScheduled.toFloat(),
-                                onValueChange = { viewModel.updateExtractiveSentencesInScheduled(it.toInt()) },
+                                value = extractiveSentencesInScheduled,
+                                onValueChange = { extractiveSentencesInScheduled = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateExtractiveSentencesInScheduled(extractiveSentencesInScheduled.toInt())
+                                },
                                 valueRange = 1f..10f,
                                 steps = 8
                             )
@@ -237,12 +261,15 @@ fun SettingsScreen(
 
                         Column {
                             Text(
-                                stringResource(R.string.settings_extractive_news_scheduled, userPreferences.extractiveNewsInScheduled),
+                                stringResource(R.string.settings_extractive_news_scheduled, extractiveNewsInScheduled.toInt()),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Slider(
-                                value = userPreferences.extractiveNewsInScheduled.toFloat(),
-                                onValueChange = { viewModel.updateExtractiveNewsInScheduled(it.toInt()) },
+                                value = extractiveNewsInScheduled,
+                                onValueChange = { extractiveNewsInScheduled = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateExtractiveNewsInScheduled(extractiveNewsInScheduled.toInt())
+                                },
                                 valueRange = 1f..20f,
                                 steps = 18
                             )
@@ -308,12 +335,15 @@ fun SettingsScreen(
                         
                         Column {
                             Text(
-                                stringResource(R.string.settings_deduplication_threshold, String.format(Locale.US, "%.2f", userPreferences.deduplicationThreshold)),
+                                stringResource(R.string.settings_deduplication_threshold, String.format(Locale.US, "%.2f", deduplicationThreshold)),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Slider(
-                                value = userPreferences.deduplicationThreshold,
-                                onValueChange = { viewModel.updateDeduplicationThreshold(it) },
+                                value = deduplicationThreshold,
+                                onValueChange = { deduplicationThreshold = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateDeduplicationThreshold(deduplicationThreshold)
+                                },
                                 valueRange = 0.3f..0.99f,
                                 steps = 69,
                                 colors = SliderDefaults.colors(
@@ -328,12 +358,15 @@ fun SettingsScreen(
                         
                         Column {
                             Text(
-                                stringResource(R.string.settings_min_mentions, userPreferences.minMentions),
+                                stringResource(R.string.settings_min_mentions, minMentions.toInt()),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Slider(
-                                value = userPreferences.minMentions.toFloat(),
-                                onValueChange = { viewModel.updateMinMentions(it.toInt()) },
+                                value = minMentions,
+                                onValueChange = { minMentions = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateMinMentions(minMentions.toInt())
+                                },
                                 valueRange = 1f..10f,
                                 steps = 8,
                                 colors = SliderDefaults.colors(
@@ -638,10 +671,10 @@ fun AiConfigDialog(
     onDismiss: () -> Unit,
     onConfirm: (AiModelConfig) -> Unit
 ) {
-    var name by remember { mutableStateOf(config?.name ?: "") }
-    var apiKey by remember { mutableStateOf(config?.apiKey ?: "") }
-    var provider by remember { mutableStateOf(config?.provider ?: AiProvider.GEMINI) }
-    var modelName by remember { mutableStateOf(config?.modelName ?: "") }
+    var name by remember(config?.id) { mutableStateOf(config?.name ?: "") }
+    var apiKey by remember(config?.id) { mutableStateOf(config?.apiKey ?: "") }
+    var provider by remember(config?.id) { mutableStateOf(config?.provider ?: AiProvider.GEMINI) }
+    var modelName by remember(config?.id) { mutableStateOf(config?.modelName ?: "") }
     
     val availableModels by viewModel.availableModels.collectAsState()
     val isLoadingModels by viewModel.isLoadingModels.collectAsState()

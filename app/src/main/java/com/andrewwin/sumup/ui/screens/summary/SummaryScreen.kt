@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -125,7 +126,7 @@ fun SummaryCard(summary: Summary) {
     val isError = summary.content.startsWith(stringResource(R.string.error_prefix)) || 
                   summary.content.startsWith(stringResource(R.string.no_articles_prefix))
     
-    var isExpanded by remember { mutableStateOf(false) }
+    var isExpanded by rememberSaveable(summary.id) { mutableStateOf(false) }
     
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(

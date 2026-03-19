@@ -12,6 +12,7 @@ import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.exception.NoActiveModelException
 import com.andrewwin.sumup.domain.exception.UnsupportedStrategyException
+import com.andrewwin.sumup.domain.ArticleCluster
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
@@ -27,9 +28,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -53,7 +54,8 @@ class FeedViewModel @Inject constructor(
     private val askQuestionUseCase: AskQuestionUseCase,
     private val sourceRepository: SourceRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase
+    private val formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase,
+    private val feedUiModelMapper: FeedUiModelMapper
 ) : AndroidViewModel(application) {
 
     private val _searchQuery = MutableStateFlow("")
@@ -89,24 +91,20 @@ class FeedViewModel @Inject constructor(
         _selectedGroupId,
         _dateFilter.map { it.hours },
         userPreferences
-    ).stateIn(viewModelScope, SharingStarted.Lazily, GetFeedArticlesUseCase.FeedResult(emptyList(), false))
+    )
+        .distinctUntilChangedBy { it.signature() }
+        .stateIn(viewModelScope, SharingStarted.Lazily, GetFeedArticlesUseCase.FeedResult(emptyList(), false))
 
     private val feedUiFlow = combine(
         feedResultFlow,
-        groupsWithSources
+        groupsWithSources.distinctUntilChangedBy { it.signature() }
     ) { feed, groupsList ->
-        Log.d(TAG, "clusters=${feed.clusters.size} groups=${groupsList.size}")
-        val sourcesMap = groupsList.flatMap { it.sources }.associateBy { it.id }
-        val groupMap = groupsList.map { it.group }.associateBy { it.id }
-
-        val clusters = feed.clusters.map { cluster ->
-            ArticleClusterUiModel(
-                representative = mapToUiModel(cluster.representative, sourcesMap, groupMap),
-                duplicates = cluster.duplicates.map { (article, score) ->
-                    mapToUiModel(article, sourcesMap, groupMap) to score
-                }
-            )
-        }
+        Log.d(TAG, "clusters=${feed.clusters.size} groups=${groupsList.size} inProgress=${feed.isDedupInProgress}")
+        val clusters = feedUiModelMapper.map(
+            clusters = feed.clusters,
+            groupsWithSources = groupsList,
+            ellipsis = getApplication<Application>().getString(R.string.ellipsis)
+        )
 
         FeedUiState(
             clusters = clusters,
@@ -115,79 +113,20 @@ class FeedViewModel @Inject constructor(
     }
         .flowOn(Dispatchers.Default)
 
-    private val stableFeedUiFlow = feedUiFlow
-        .scan(FeedUiState(emptyList(), false)) { prev, current ->
-            val shouldKeepPrev = current.clusters.isEmpty() &&
-                current.isDedupInProgress &&
-                prev.clusters.isNotEmpty()
-            if (shouldKeepPrev) {
-                prev.copy(isDedupInProgress = true)
-            } else {
-                current
-            }
-        }
+    private val feedUiState: StateFlow<FeedUiState> = feedUiFlow
         .stateIn(viewModelScope, SharingStarted.Lazily, FeedUiState(emptyList(), false))
 
-    val isDedupInProgress: StateFlow<Boolean> = stableFeedUiFlow
+    val isDedupInProgress: StateFlow<Boolean> = feedUiState
         .map { it.isDedupInProgress }
         .stateIn(viewModelScope, SharingStarted.Lazily, false)
 
-    val articleClusters: StateFlow<List<ArticleClusterUiModel>> = stableFeedUiFlow
+    val articleClusters: StateFlow<List<ArticleClusterUiModel>> = feedUiState
         .map { it.clusters }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.Lazily,
             initialValue = emptyList()
         )
-
-    private fun mapToUiModel(
-        article: Article,
-        sources: Map<Long, com.andrewwin.sumup.data.local.entities.Source>,
-        groups: Map<Long, com.andrewwin.sumup.data.local.entities.SourceGroup>
-    ): ArticleUiModel {
-        val source = sources[article.sourceId]
-        val group = source?.groupId?.let { groups[it] }
-        val sourceType = source?.type ?: SourceType.RSS
-
-        val formatted = formatArticleHeadlineUseCase(article, sourceType)
-
-        Log.d(
-            TAG,
-            "mapToUiModel id=${article.id} url=${article.url} publishedAt=${article.publishedAt} sourceId=${article.sourceId} sourceType=$sourceType videoId=${article.videoId.orEmpty()} mediaUrl=${article.mediaUrl.orEmpty()}"
-        )
-
-        return ArticleUiModel(
-            article = article,
-            sourceType = sourceType,
-            displayTitle = formatted.displayTitle,
-            displayContent = formatDescription(formatted.displayContent),
-            sourceName = source?.name,
-            groupName = group?.name
-        )
-    }
-
-    private fun formatDescription(content: String): String {
-        if (content.isBlank()) return ""
-        val allLines = content.lines()
-        
-        var nonBlankCount = 0
-        val limitedLines = mutableListOf<String>()
-        
-        for (line in allLines) {
-            if (line.isNotBlank()) {
-                nonBlankCount++
-            }
-            if (nonBlankCount > MAX_DESCRIPTION_LINES) break
-            limitedLines.add(line)
-        }
-
-        val result = limitedLines.joinToString("\n").trim()
-        return if (nonBlankCount > MAX_DESCRIPTION_LINES || limitedLines.size < allLines.size) {
-            result + "\n" + getApplication<Application>().getString(R.string.ellipsis)
-        } else {
-            result
-        }
-    }
 
     init {
         refresh()
@@ -275,7 +214,6 @@ class FeedViewModel @Inject constructor(
     }
 
     companion object {
-        private const val MAX_DESCRIPTION_LINES = 12
         private const val TAG = "FeedViewModel"
     }
 
@@ -283,4 +221,34 @@ class FeedViewModel @Inject constructor(
         val clusters: List<ArticleClusterUiModel>,
         val isDedupInProgress: Boolean
     )
+}
+
+private fun GetFeedArticlesUseCase.FeedResult.signature(): Long {
+    var hash = if (isDedupInProgress) 1L else 0L
+    for (cluster in clusters) {
+        hash = hash xor cluster.representative.id
+        hash *= 1099511628211L
+        for ((article, _) in cluster.duplicates) {
+            hash = hash xor article.id
+            hash *= 1099511628211L
+        }
+    }
+    return hash
+}
+
+private fun List<GroupWithSources>.signature(): Long {
+    var hash = size.toLong()
+    for (groupWithSources in this) {
+        hash = hash xor groupWithSources.group.id
+        hash *= 1099511628211L
+        hash = hash xor if (groupWithSources.group.isEnabled) 1L else 0L
+        hash *= 1099511628211L
+        for (source in groupWithSources.sources) {
+            hash = hash xor source.id
+            hash *= 1099511628211L
+            hash = hash xor if (source.isEnabled) 1L else 0L
+            hash *= 1099511628211L
+        }
+    }
+    return hash
 }
