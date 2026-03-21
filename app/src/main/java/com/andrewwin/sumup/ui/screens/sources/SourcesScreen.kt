@@ -94,6 +94,33 @@ fun SourcesScreen(
                     onDeleteSource = { viewModel.deleteSource(it) }
                 )
             }
+
+            item {
+                Spacer(modifier = Modifier.height(32.dp))
+                val isModelLoaded by viewModel.isModelLoaded.collectAsState()
+                val suggestedThemes by viewModel.suggestedThemes.collectAsState()
+                val titleText = if (isModelLoaded) {
+                    "Підписуйтесь на теми:"
+                } else {
+                    "Підписуйтесь на теми (для персоналізації завантажте ШІ-модель):"
+                }
+
+                Text(
+                    text = titleText,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Normal),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 8.dp).padding(bottom = 12.dp)
+                )
+
+                suggestedThemes.forEach { suggestion ->
+                    SuggestedThemeItem(
+                        suggestion = suggestion,
+                        onToggle = { isSubscribed ->
+                            viewModel.toggleThemeSubscription(suggestion, isSubscribed)
+                        }
+                    )
+                }
+            }
         }
 
         if (showAddGroupDialog) {
@@ -506,3 +533,37 @@ fun SourceDialog(
         }
     )
 }
+
+@Composable
+fun SuggestedThemeItem(
+    suggestion: com.andrewwin.sumup.domain.usecase.sources.ThemeSuggestion,
+    onToggle: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp, horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = suggestion.theme.title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Normal
+            )
+            if (suggestion.isRecommended) {
+                Text(
+                    text = "⭐️ Рекомендовано",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                )
+            }
+        }
+        Checkbox(
+            checked = suggestion.isSubscribed,
+            onCheckedChange = { onToggle(it) }
+        )
+    }
+}
+

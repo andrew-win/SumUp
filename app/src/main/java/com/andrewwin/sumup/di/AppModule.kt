@@ -258,4 +258,9 @@ object AppModule {
     fun providePerformanceLogger(
         androidPerformanceLogger: AndroidPerformanceLogger
     ): PerformanceLogger = androidPerformanceLogger
+
+    @Provides
+    @Singleton
+    fun provideEmbeddingService(): com.andrewwin.sumup.domain.repository.EmbeddingService =
+        com.andrewwin.sumup.data.repository.EmbeddingServiceImpl()
 }
