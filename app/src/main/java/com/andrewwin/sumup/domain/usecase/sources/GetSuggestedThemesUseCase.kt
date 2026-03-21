@@ -36,17 +36,10 @@ enum class SuggestedTheme(val title: String, val sources: List<ThemeSource>) {
         )
     ),
     POLITICS(
-        "Політика", listOf(
+        "Політика та суспільні події", listOf(
             ThemeSource("https://www.rbc.ua/static/rss/ukrnet.politics.ukr.rss.xml", SourceType.RSS),
             ThemeSource("https://www.suspilne.media/rss/all.rss", SourceType.RSS),
             ThemeSource("https://www.holosameryky.com/api/zqoy_l-vomx-tpeikty", SourceType.RSS)
-        )
-    ),
-    SOCIAL(
-        "Суспільні події", listOf(
-            ThemeSource("https://www.radiosvoboda.org/api/zjmkrl-vomx-tpeb-jq", SourceType.RSS),
-            ThemeSource("https://www.ms.detector.media/rss/", SourceType.RSS),
-            ThemeSource("https://www.holosameryky.com/api/ztoyml-vomx-tpekkt_", SourceType.RSS)
         )
     ),
     WEATHER(
@@ -78,12 +71,14 @@ class GetSuggestedThemesUseCase @Inject constructor(
     private val tag = "GetSuggestedThemes"
     private val prefs: SharedPreferences = context.getSharedPreferences("suggested_themes_prefs", Context.MODE_PRIVATE)
 
-    operator fun invoke(): Flow<List<ThemeSuggestion>> = flow {
-        Log.d(tag, "Started GetSuggestedThemesUseCase")
+    operator fun invoke(forceRefresh: Boolean = false): Flow<List<ThemeSuggestion>> = flow {
+        Log.d(tag, "Started GetSuggestedThemesUseCase (forceRefresh=$forceRefresh)")
         val groupsWithSources = sourceRepository.groupsWithSources.first()
-        val allSourcesUrls = groupsWithSources.flatMap { it.sources }.map { it.url }.toSet()
+        val allSources = groupsWithSources.flatMap { it.sources }
+        val allSourcesUrls = allSources.map { it.url }.toSet()
+        val sourceIdByUrl = allSources.associate { it.url to it.id }
         val currentSourcesHash = allSourcesUrls.hashCode()
-        val sourceTypeMap = groupsWithSources.flatMap { it.sources }.associate { it.id to it.type }
+        val sourceTypeMap = allSources.associate { it.id to it.type }
 
         val lastSavedHash = prefs.getInt("sourcesHash", -1)
         val savedThemeUrls = prefs.getStringSet("savedThemes", null)
@@ -98,8 +93,8 @@ class GetSuggestedThemesUseCase @Inject constructor(
             return@flow
         }
         
-        // If we have a cache and sources haven't changed, return cache
-        if (savedThemeUrls != null && currentSourcesHash == lastSavedHash) {
+        // If we have a cache and sources haven't changed, and not forcing refresh, return cache
+        if (!forceRefresh && savedThemeUrls != null && currentSourcesHash == lastSavedHash) {
             Log.d(tag, "Returning themes from SharedPreferences.")
             val cached = SuggestedTheme.entries.map { 
                  ThemeSuggestion(it, score = 10f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) }, isRecommended = savedThemeUrls.contains(it.title)) 
@@ -108,7 +103,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
             return@flow
         }
 
-        // Initial emit: if no cache, emit all. If cache out of date, emit cache while recalculating
+        // Initial emit: if no cache, emit all. If cache exists (even if out of date or forcing), emit it while recalculating
         if (savedThemeUrls == null) {
             emit(SuggestedTheme.entries.map { 
                 ThemeSuggestion(it, 0f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) })
@@ -120,7 +115,8 @@ class GetSuggestedThemesUseCase @Inject constructor(
             emit(cached)
         }
         
-        val userArticles = articleRepository.getEnabledArticlesOnce()
+        val allEnabledArticles = articleRepository.getEnabledArticlesOnce()
+        val userArticles = allEnabledArticles
             .groupBy { it.sourceId }
             .flatMap { entry -> 
                 entry.value.sortedByDescending { it.publishedAt }
@@ -159,12 +155,20 @@ class GetSuggestedThemesUseCase @Inject constructor(
         for (theme in SuggestedTheme.entries) {
             Log.d(tag, "Processing theme: ${theme.title}")
             val firstSource = theme.sources.first()
-            val themeArticles = try {
-                remoteArticleDataSource.fetchArticles(-1L, firstSource.url, firstSource.type)
-            } catch (e: Exception) {
-                Log.e(tag, "Failed to fetch articles for theme ${theme.title}", e)
-                emptyList()
+            
+            // Optimization: if we already have articles for this source, use them instead of fetching
+            val themeArticles = if (allSourcesUrls.contains(firstSource.url)) {
+                val sId = sourceIdByUrl[firstSource.url]
+                allEnabledArticles.filter { it.sourceId == sId }
+            } else {
+                try {
+                    remoteArticleDataSource.fetchArticles(-1L, firstSource.url, firstSource.type)
+                } catch (e: Exception) {
+                    Log.e(tag, "Failed to fetch articles for theme ${theme.title}", e)
+                    emptyList()
+                }
             }
+
             if (themeArticles.isEmpty()) {
                 Log.d(tag, "No articles found for theme: ${theme.title}")
                 suggestions.add(ThemeSuggestion(theme, 0f, isSubscribed = theme.sources.all { allSourcesUrls.contains(it.url) }))
