@@ -28,21 +28,15 @@ class ArticleRepositoryImpl @Inject constructor(
 
     override val enabledArticles: Flow<List<Article>> =
         articleDao.getEnabledArticles()
-            .onEach { Log.d("ArticleRepo", "enabledArticles flow size=${it.size}") }
 
     override suspend fun refreshArticles() = withContext(Dispatchers.IO) {
-        Log.d("ArticleRepo", "refreshArticles started")
         val groups = sourceDao.getGroupsWithSources().first()
-        Log.d("ArticleRepo", "Found ${groups.size} groups")
         groups.forEach { groupWithSources ->
             if (groupWithSources.group.isEnabled) {
-                Log.d("ArticleRepo", "Processing group: ${groupWithSources.group.name}")
                 groupWithSources.sources.forEach { source ->
                     if (source.isEnabled) {
-                        Log.d("ArticleRepo", "Fetching from source: ${source.name} (${source.url})")
                         val fetchedArticles = remoteArticleDataSource.fetchArticles(source.id, source.url, source.type)
-                        Log.d("ArticleRepo", "Fetched ${fetchedArticles.size} articles from ${source.name}")
-                        
+
                         if (fetchedArticles.isNotEmpty()) {
                             // 1. Адаптивне оновлення патерна футера
                             // Якщо у нас є свіжі статті, спробуємо знайти актуальний футер
@@ -63,7 +57,6 @@ class ArticleRepositoryImpl @Inject constructor(
                             }
                             val insertResults = articleDao.insertArticles(cleanedArticles)
                             val insertedCount = insertResults.count { it != -1L }
-                            Log.d("ArticleRepo", "Inserted $insertedCount/${cleanedArticles.size} articles")
                             cleanedArticles.forEach { article ->
                                 if (!article.mediaUrl.isNullOrBlank() || !article.videoId.isNullOrBlank()) {
                                     articleDao.updateMediaByUrl(
@@ -74,7 +67,6 @@ class ArticleRepositoryImpl @Inject constructor(
                                 }
                             }
                             val enabledNow = articleDao.getEnabledArticlesOnce()
-                            Log.d("ArticleRepo", "Enabled articles after insert: ${enabledNow.size}")
                         }
                     }
                 }
@@ -85,9 +77,6 @@ class ArticleRepositoryImpl @Inject constructor(
         val olderCount = articleDao.countArticlesOlderThan(threeDaysAgo)
         if (newerCount > 0) {
             val deleted = articleDao.deleteOldArticles(threeDaysAgo)
-            Log.d("ArticleRepo", "Deleted old articles: $deleted (older=$olderCount newer=$newerCount)")
-        } else {
-            Log.w("ArticleRepo", "Skip deleteOldArticles: newerCount=0 olderCount=$olderCount (timestamps likely invalid)")
         }
         Unit
     }

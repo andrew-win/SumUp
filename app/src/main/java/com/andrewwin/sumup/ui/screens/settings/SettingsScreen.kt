@@ -26,6 +26,8 @@ import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
+import com.andrewwin.sumup.data.local.entities.AppLanguage
+import com.andrewwin.sumup.data.local.entities.AppThemeMode
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -96,6 +98,52 @@ fun SettingsScreen(
                                 shape = SegmentedButtonDefaults.itemShape(index = index, count = strategies.size),
                                 onClick = { viewModel.updateAiStrategy(strategy) },
                                 selected = userPreferences.aiStrategy == strategy
+                            ) {
+                                Text(
+                                    text = stringResource(labelRes),
+                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 11.sp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                SettingsSection(title = stringResource(R.string.settings_language)) {
+                    val languages = listOf(
+                        AppLanguage.UK to R.string.settings_language_uk,
+                        AppLanguage.EN to R.string.settings_language_en
+                    )
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        languages.forEachIndexed { index, (lang, labelRes) ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = languages.size),
+                                onClick = { viewModel.updateAppLanguage(lang) },
+                                selected = userPreferences.appLanguage == lang
+                            ) {
+                                Text(text = stringResource(labelRes), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                SettingsSection(title = stringResource(R.string.settings_theme)) {
+                    val themeModes = listOf(
+                        AppThemeMode.SYSTEM to R.string.settings_theme_system,
+                        AppThemeMode.LIGHT to R.string.settings_theme_light,
+                        AppThemeMode.DARK to R.string.settings_theme_dark
+                    )
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        themeModes.forEachIndexed { index, (mode, labelRes) ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = themeModes.size),
+                                onClick = { viewModel.updateAppThemeMode(mode) },
+                                selected = userPreferences.appThemeMode == mode
                             ) {
                                 Text(
                                     text = stringResource(labelRes),

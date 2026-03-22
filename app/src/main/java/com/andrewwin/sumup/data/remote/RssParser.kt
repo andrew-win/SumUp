@@ -1,8 +1,6 @@
 package com.andrewwin.sumup.data.remote
 
 import com.andrewwin.sumup.data.local.entities.Article
-import android.util.Log
-import com.prof18.rssparser.RssParser as ProfRssParser
 import com.prof18.rssparser.RssParserBuilder
 import com.prof18.rssparser.model.RssChannel
 import com.prof18.rssparser.model.RssItem
@@ -10,6 +8,7 @@ import okhttp3.OkHttpClient
 import java.text.SimpleDateFormat
 import java.util.Locale
 import javax.inject.Inject
+import com.prof18.rssparser.RssParser as ProfRssParser
 
 class RssParser @Inject constructor(
     okHttpClient: OkHttpClient
@@ -24,13 +23,10 @@ class RssParser @Inject constructor(
 
     suspend fun parseUrl(url: String, sourceId: Long): List<Article> {
         return runCatching {
-            Log.d(tag, "parseUrl: $url")
             val channel = parser.getRssChannel(url)
             val mapped = mapChannel(channel, sourceId)
-            Log.d(tag, "parseUrl: items=${mapped.size} title=${channel.title.orEmpty()}")
             mapped
         }.getOrElse { e ->
-            Log.e(tag, "parseUrl failed for $url: ${e.message}", e)
             emptyList()
         }
     }
@@ -40,7 +36,6 @@ class RssParser @Inject constructor(
             val channel = parser.parse(xml)
             mapChannel(channel, sourceId)
         }.getOrElse { e ->
-            Log.e(tag, "parseXml failed: ${e.message}", e)
             emptyList()
         }
     }

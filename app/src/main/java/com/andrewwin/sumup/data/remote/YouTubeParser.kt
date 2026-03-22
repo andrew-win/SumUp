@@ -1,12 +1,11 @@
 package com.andrewwin.sumup.data.remote
 
-import android.util.Log
 import android.util.Xml
 import com.andrewwin.sumup.data.local.entities.Article
 import org.xmlpull.v1.XmlPullParser
 import java.io.InputStream
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Locale
 
 class YouTubeParser {
     private val tag = "YouTubeParser"
@@ -77,10 +76,7 @@ class YouTubeParser {
             videoId = extractVideoIdFromUrl(link).orEmpty()
         }
         videoId = extractVideoIdFromText(videoId).orEmpty()
-        Log.d(
-            tag,
-            "parse entry title=${title.take(64)} link=$link videoId=${videoId.ifBlank { "EMPTY" }} thumbnail=${thumbnailUrl.orEmpty()}"
-        )
+
         return Article(
             sourceId = sourceId,
             title = title,

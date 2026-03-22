@@ -1,17 +1,16 @@
 package com.andrewwin.sumup.data.remote
 
-import android.util.Log
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 class AiService(private val okHttpClient: OkHttpClient) {
 
@@ -54,8 +53,6 @@ class AiService(private val okHttpClient: OkHttpClient) {
                         val model = models.getJSONObject(i)
                         val name = model.getString("name").removePrefix("models/")
                         val supportedMethods = model.getJSONArray("supportedGenerationMethods").toString()
-
-                        Log.d("AiService", "[$i] $name → $supportedMethods")  // ← додай це
 
                         if (type == AiModelType.SUMMARY && supportedMethods.contains("generateContent")) {
                             modelNames.add(name)

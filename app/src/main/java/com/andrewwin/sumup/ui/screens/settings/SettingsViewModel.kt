@@ -1,6 +1,8 @@
 package com.andrewwin.sumup.ui.screens.settings
 
 import android.app.Application
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.domain.usecase.settings.ScheduleSummaryUseCase
@@ -8,6 +10,8 @@ import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
+import com.andrewwin.sumup.data.local.entities.AppLanguage
+import com.andrewwin.sumup.data.local.entities.AppThemeMode
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
@@ -176,6 +180,21 @@ class SettingsViewModel @Inject constructor(
 
     fun updateFeedMediaEnabled(enabled: Boolean) {
         viewModelScope.launch { updatePreferences { it.copy(isFeedMediaEnabled = enabled) } }
+    }
+
+    fun updateAppThemeMode(themeMode: AppThemeMode) {
+        viewModelScope.launch { updatePreferences { it.copy(appThemeMode = themeMode) } }
+    }
+
+    fun updateAppLanguage(language: AppLanguage) {
+        viewModelScope.launch {
+            updatePreferences { it.copy(appLanguage = language) }
+            val languageTag = when (language) {
+                AppLanguage.UK -> "uk"
+                AppLanguage.EN -> "en"
+            }
+            AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
+        }
     }
 
     fun updateExtractiveSentencesInFeed(count: Int) {

@@ -7,6 +7,14 @@ enum class AiStrategy {
     CLOUD, LOCAL, ADAPTIVE
 }
 
+enum class AppThemeMode {
+    SYSTEM, LIGHT, DARK
+}
+
+enum class AppLanguage {
+    UK, EN
+}
+
 @Entity(tableName = "user_preferences")
 data class UserPreferences(
     @PrimaryKey val id: Int = 0,
@@ -31,5 +39,7 @@ data class UserPreferences(
     val aiMaxCharsTotal: Int = 12000,
     val summaryPrompt: String = "",
     val isCustomSummaryPromptEnabled: Boolean = false,
-    val isFeedMediaEnabled: Boolean = false
+    val isFeedMediaEnabled: Boolean = false,
+    val appThemeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    val appLanguage: AppLanguage = AppLanguage.UK
 )

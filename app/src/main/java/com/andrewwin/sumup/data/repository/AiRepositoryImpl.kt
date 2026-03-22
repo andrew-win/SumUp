@@ -1,6 +1,5 @@
 package com.andrewwin.sumup.data.repository
 
-import android.util.Log
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
@@ -39,7 +38,6 @@ class AiRepositoryImpl @Inject constructor(
     override suspend fun deleteConfig(config: AiModelConfig) = aiModelDao.deleteConfig(config)
 
     override suspend fun summarize(content: String): String {
-        Log.d("AiRepo", "Summarize started, content length: ${content.length}")
         val prefs = prefsDao.getUserPreferences().first()
         val strategy = prefs?.aiStrategy ?: AiStrategy.ADAPTIVE
         val maxTotalChars = (prefs?.aiMaxCharsTotal ?: DEFAULT_MAX_AI_CONTENT_LENGTH).coerceAtLeast(1000)
@@ -50,16 +48,13 @@ class AiRepositoryImpl @Inject constructor(
 
         val enabledConfigs = aiModelDao.getEnabledConfigsByType(AiModelType.SUMMARY)
         if (enabledConfigs.isEmpty()) {
-            Log.w("AiRepo", "No enabled cloud configs. Falling back to local/extractive.")
             return ExtractiveSummarizer.summarize(content, prefs?.extractiveSentencesInScheduled ?: 5).joinToString(" ")
         }
 
         var lastException: Exception? = null
         for (config in enabledConfigs) {
             try {
-                Log.d("AiRepo", "Attempting summary with config: ${config.name}")
                 val processedContent = if (strategy == AiStrategy.ADAPTIVE && prefs?.isAdaptiveExtractivePreprocessingEnabled == true && content.length > maxTotalChars) {
-                    Log.d("AiRepo", "Content exceeds limit, shrinking via Extractive")
                     ExtractiveSummarizer.summarize(content, 15).joinToString(" ")
                 } else {
                     content.take(maxTotalChars)
@@ -73,11 +68,9 @@ class AiRepositoryImpl @Inject constructor(
                 
                 return aiService.generateResponse(config, prompt, processedContent)
             } catch (e: com.andrewwin.sumup.domain.exception.AiServiceException) {
-                Log.w("AiRepo", "Failover: Config ${config.name} failed. Trying next...", e)
                 lastException = e
                 continue
             } catch (e: Exception) {
-                Log.e("AiRepo", "Non-failover error with config ${config.name}", e)
                 throw e
             }
         }
@@ -117,7 +110,6 @@ class AiRepositoryImpl @Inject constructor(
             try {
                 return aiService.generateEmbedding(config, text)
             } catch (e: Exception) {
-                Log.w("AiRepo", "Cloud embedding failed for ${config.name}", e)
                 continue
             }
         }

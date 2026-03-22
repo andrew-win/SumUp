@@ -107,6 +107,13 @@
     <string name="settings_adaptive_summary">Адаптивна сумаризація</string>
     <string name="settings_adaptive_extractive_preprocess">Використовувати екстрактивну сумаризацію перед відправкою хмарним моделем</string>
     <string name="settings_filtering">Фільтрація</string>
+    <string name="settings_language">Мова</string>
+    <string name="settings_language_uk">Українська</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_theme">Тема</string>
+    <string name="settings_theme_system">Системна</string>
+    <string name="settings_theme_light">Світла</string>
+    <string name="settings_theme_dark">Темна</string>
     <string name="settings_importance_threshold">Поріг важливості: %s</string>
     <string name="settings_importance_min_length">Мінімальна довжина: %d симв.</string>
     <string name="settings_importance_weights_header">Коефіцієнти метрик</string>
