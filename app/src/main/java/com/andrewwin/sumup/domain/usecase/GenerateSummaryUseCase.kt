@@ -38,7 +38,10 @@ class GenerateSummaryUseCaseImpl @Inject constructor(
                 val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
                 "${formatted.displayTitle}: ${formatted.displayContent.take(perArticleLimit)}"
             }.joinToString(separator = "\n\n")
-            aiRepository.summarize(content)
+            aiRepository.summarize(
+                content = content,
+                extractiveSentenceCount = userPreferencesRepository.preferences.first().extractiveSentencesInScheduled
+            )
         } catch (e: com.andrewwin.sumup.domain.exception.NoActiveModelException) {
             Log.i("SummaryUseCase", "Adaptive Strategy fallback: No active model, using extractive template")
             val fullContentMap = articlesToSummarize.map { article ->

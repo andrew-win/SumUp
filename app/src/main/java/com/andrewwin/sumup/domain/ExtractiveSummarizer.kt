@@ -2,75 +2,89 @@ package com.andrewwin.sumup.domain
 
 import kotlin.math.sqrt
 
+private const val MMR_LAMBDA = 0.7
+
 object ExtractiveSummarizer {
 
     fun summarize(text: String, n: Int = 3): List<String> {
         if (text.isBlank()) return emptyList()
+        val targetCount = n.coerceAtLeast(1)
 
-        val sentences = text
-            .split(Regex("(?<=[.!?])(\\s|\n)+|\n+"))
-            .map { it.trim() }
-            .filter { it.isNotBlank() && it.length > 10 }
-            .map { cleanSentenceStart(it) }
+        val sentences = extractSentences(text, targetCount)
 
         if (sentences.isEmpty()) return emptyList()
 
-        val scored = sentences.indices.map { i ->
-            val sentence = sentences[i]
-            val score = sentence.length.toDouble() + (if (i == 0) 100.0 else 0.0)
-            sentence to score
-        }
-
-        return scored
+        val topIndices = sentences.indices
+            .map { i -> i to scoreSentence(sentences[i], i) }
             .sortedByDescending { it.second }
-            .take(n)
+            .take(targetCount)
             .map { it.first }
+            .toSortedSet()
+
+        return sentences.filterIndexed { i, _ -> i in topIndices }
+    }
+
+    private fun extractSentences(text: String, targetCount: Int): List<String> {
+        val primary = text
+            .split(PRIMARY_SENTENCE_SPLIT_REGEX)
+            .asSequence()
+            .map { it.trim() }
+            .map { cleanSentenceStart(it) }
+            .filter { it.isNotBlank() }
+            .toList()
+            .takeIf { it.size >= targetCount }
+
+        if (primary != null) return primary
+
+        val fallback = text
+            .split(FALLBACK_SENTENCE_SPLIT_REGEX)
+            .asSequence()
+            .map { it.trim() }
+            .map { cleanSentenceStart(it) }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .toList()
+
+        return if (fallback.isNotEmpty()) fallback else emptyList()
+    }
+
+    private fun scoreSentence(sentence: String, position: Int): Double {
+        val positionScore = when (position) {
+            0 -> 2.0
+            1 -> 1.5
+            else -> 1.0
+        }
+        val lengthScore = sentence.split(Regex("\\s+")).size.toDouble()
+        return positionScore * lengthScore
     }
 
     private fun cleanSentenceStart(sentence: String): String {
-        var startIndex = 0
-        while (startIndex < sentence.length && !sentence[startIndex].isLetterOrDigit()) {
-            startIndex++
-        }
-        return if (startIndex < sentence.length) {
-            sentence.substring(startIndex).replaceFirstChar { it.uppercase() }
-        } else {
-            sentence
-        }
+        val trimmed = sentence.dropWhile { !it.isLetterOrDigit() }
+        if (trimmed.isBlank()) return ""
+        return trimmed.replaceFirstChar { it.uppercase() }
     }
 
-    fun getCentralHeadlines(headlines: List<String>, count: Int = 3, alpha: Double = 0.7): List<String> {
+    fun getCentralHeadlines(headlines: List<String>, count: Int = 3): List<String> {
         if (headlines.isEmpty()) return emptyList()
         if (headlines.size <= count) return headlines
 
-        val allWords = headlines.flatMap { it.lowercase().split(Regex("\\s+")) }.toSet()
-        val vectors = headlines.map { h ->
-            val words = h.lowercase().split(Regex("\\s+"))
-            allWords.associateWith { word -> if (word in words) 1.0 else 0.0 }
-        }
+        val wordSets = headlines.map { h -> h.lowercase().split(Regex("\\s+")).toSet() }
 
-        val scores = DoubleArray(headlines.size)
-        for (i in headlines.indices) {
-            for (j in headlines.indices) {
-                if (i != j) scores[i] += cosineSim(vectors[i], vectors[j])
-            }
+        val scores = DoubleArray(headlines.size) { i ->
+            headlines.indices.sumOf { j -> if (i != j) jaccardSim(wordSets[i], wordSets[j]) else 0.0 }
         }
 
         val selected = mutableListOf<Int>()
-        val used = BooleanArray(headlines.size) { false }
+        val used = BooleanArray(headlines.size)
 
-        while (selected.size < count && selected.size < headlines.size) {
-            val nextIndex = scores.indices
-                .filter { !used[it] }
-                .maxByOrNull { scores[it] } ?: break
-
-            selected.add(nextIndex)
-            used[nextIndex] = true
-
+        while (selected.size < count) {
+            val next = scores.indices.filter { !used[it] }.maxByOrNull { scores[it] } ?: break
+            selected.add(next)
+            used[next] = true
             for (i in scores.indices) {
                 if (!used[i]) {
-                    val maxSim = selected.maxOf { cosineSim(vectors[i], vectors[it]) }
-                    scores[i] *= (1.0 - maxSim * alpha) // penalize схожі
+                    val maxSim = selected.maxOf { jaccardSim(wordSets[i], wordSets[it]) }
+                    scores[i] *= (1.0 - maxSim * MMR_LAMBDA)
                 }
             }
         }
@@ -78,18 +92,12 @@ object ExtractiveSummarizer {
         return selected.map { headlines[it] }
     }
 
-    private fun cosineSim(a: Map<String, Double>, b: Map<String, Double>): Double {
-        var dot = 0.0
-        var magA = 0.0
-        var magB = 0.0
-
-        a.forEach { (k, v) ->
-            val vb = b[k] ?: 0.0
-            dot += v * vb
-            magA += v * v
-        }
-        b.values.forEach { v -> magB += v * v }
-
-        return if (magA == 0.0 || magB == 0.0) 0.0 else dot / (sqrt(magA) * sqrt(magB))
+    private fun jaccardSim(a: Set<String>, b: Set<String>): Double {
+        val intersection = a.intersect(b).size.toDouble()
+        val union = a.union(b).size.toDouble()
+        return if (union == 0.0) 0.0 else intersection / union
     }
+
+    private val PRIMARY_SENTENCE_SPLIT_REGEX = Regex("(?<=[.!?…])\\s+|\\n+")
+    private val FALLBACK_SENTENCE_SPLIT_REGEX = Regex("(?<=[;:])\\s+|\\n+")
 }

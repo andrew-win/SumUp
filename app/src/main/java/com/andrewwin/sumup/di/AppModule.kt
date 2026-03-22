@@ -148,8 +148,9 @@ object AppModule {
     @Singleton
     fun provideSourceRepository(
         sourceDao: SourceDao,
-        remoteArticleDataSource: RemoteArticleDataSource
-    ): SourceRepository = SourceRepositoryImpl(sourceDao, remoteArticleDataSource)
+        remoteArticleDataSource: RemoteArticleDataSource,
+        cleanArticleTextUseCase: CleanArticleTextUseCase
+    ): SourceRepository = SourceRepositoryImpl(sourceDao, remoteArticleDataSource, cleanArticleTextUseCase)
 
     @Provides
     @Singleton
@@ -258,11 +259,6 @@ object AppModule {
     @Singleton
     fun provideEmbeddingService(): com.andrewwin.sumup.domain.repository.EmbeddingService =
         com.andrewwin.sumup.data.repository.EmbeddingServiceImpl()
-
-    @Provides
-    @Singleton
-    fun providePerformanceLogger(): com.andrewwin.sumup.domain.logger.PerformanceLogger =
-        com.andrewwin.sumup.data.logger.AndroidPerformanceLogger()
 
     @Provides
     @Singleton

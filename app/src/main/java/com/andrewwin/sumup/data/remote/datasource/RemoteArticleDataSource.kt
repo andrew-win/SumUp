@@ -5,16 +5,14 @@ import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.RssParser
 import com.andrewwin.sumup.data.remote.TelegramParser
 import com.andrewwin.sumup.data.remote.YouTubeParser
-import io.github.thoroldvix.api.YoutubeClient
 import io.github.thoroldvix.api.TranscriptApiFactory
 import io.github.thoroldvix.api.TranscriptFormatters
+import io.github.thoroldvix.api.YoutubeClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.jsoup.Jsoup
-import net.dankito.readability4j.Readability4J
 import javax.inject.Inject
 
 class RemoteArticleDataSource @Inject constructor(
@@ -108,18 +106,11 @@ class RemoteArticleDataSource @Inject constructor(
                 return@withContext TranscriptFormatters.textFormatter().format(transcript.fetch())
             }
 
-            // Для RSS/Web використовуємо Readability4J для інтелектуального очищення
             val response = okHttpClient.newCall(Request.Builder().url(url).build()).execute()
             if (!response.isSuccessful) return@withContext null
-            
-            val html = response.body?.string() ?: return@withContext null
-            val readability = Readability4J(url, html)
-            val article = readability.parse()
-            
-            val cleanContent = article.content ?: article.textContent
-            return@withContext cleanContent
+
+            return@withContext response.body?.string()
         } catch (e: Exception) {
-            e.printStackTrace()
             null
         }
     }

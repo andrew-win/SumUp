@@ -137,7 +137,7 @@ class SummaryWorker @AssistedInject constructor(
                     }
                     
                     try {
-                        buildCloudSummary(processedArticles, aiRepository, perArticleLimit)
+                        buildCloudSummary(processedArticles, aiRepository, perArticleLimit, prefs.extractiveSentencesInScheduled)
                     } catch (e: Exception) {
                         Log.e(TAG, "Cloud summary failed, falling back to local", e)
                         val fullContentMap = articles.map { article ->
@@ -192,13 +192,14 @@ class SummaryWorker @AssistedInject constructor(
     private suspend fun buildCloudSummary(
         articles: List<com.andrewwin.sumup.data.local.entities.Article>,
         aiRepo: AiRepository,
-        perArticleLimit: Int
+        perArticleLimit: Int,
+        extractiveSentenceCount: Int
     ): String {
         val content = articles.joinToString("\n\n") { article ->
             val truncated = article.content.take(perArticleLimit)
             applicationContext.getString(R.string.summary_article_format, article.title, truncated)
         }
-        return aiRepo.summarize(content)
+        return aiRepo.summarize(content, extractiveSentenceCount)
     }
 
     companion object {

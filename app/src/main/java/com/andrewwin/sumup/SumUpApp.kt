@@ -16,7 +16,6 @@ class SumUpApp : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d("SumUpApp", "Application onCreate, initializing WorkManager...")
         try {
             Configuration.Builder()
                 .setWorkerFactory(workerFactory)
@@ -24,7 +23,6 @@ class SumUpApp : Application(), Configuration.Provider {
                 .let { config ->
                     WorkManager.initialize(this, config)
                 }
-            Log.d("SumUpApp", "WorkManager initialized successfully")
         } catch (e: Exception) {
             Log.e("SumUpApp", "WorkManager already initialized or failed", e)
         }

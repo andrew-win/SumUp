@@ -6,16 +6,16 @@ import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
-import com.andrewwin.sumup.domain.FooterCleaner
-import com.andrewwin.sumup.domain.TextCleaner
 import com.andrewwin.sumup.domain.repository.SourceRepository
+import com.andrewwin.sumup.domain.usecase.CleanArticleTextUseCase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 class SourceRepositoryImpl @Inject constructor(
     private val sourceDao: SourceDao,
-    private val remoteArticleDataSource: RemoteArticleDataSource
+    private val remoteArticleDataSource: RemoteArticleDataSource,
+    private val cleanArticleTextUseCase: CleanArticleTextUseCase
 ) : SourceRepository {
 
     override val groupsWithSources: Flow<List<GroupWithSources>> = sourceDao.getGroupsWithSources()
@@ -50,13 +50,11 @@ class SourceRepositoryImpl @Inject constructor(
     }
 
     override suspend fun addSource(groupId: Long, name: String, url: String, type: SourceType) {
+        val normalizedUrl = normalizeUrl(url, type)
         val footerPattern = try {
-            // Беремо більше постів для аналізу (10), щоб краще відфільтрувати рекламу
-            val sampleArticles = remoteArticleDataSource.fetchArticles(0L, url, type).take(10)
+            val sampleArticles = remoteArticleDataSource.fetchArticles(0L, normalizedUrl, type).take(10)
             if (sampleArticles.size >= 2) {
-                // Аналізуємо вже очищений від HTML текст
-                val cleanedContents = sampleArticles.map { TextCleaner.clean(it.content) }
-                FooterCleaner.findCommonFooter(cleanedContents)
+                cleanArticleTextUseCase(sampleArticles.map { it.content })
             } else null
         } catch (e: Exception) {
             null
@@ -66,7 +64,7 @@ class SourceRepositoryImpl @Inject constructor(
             Source(
                 groupId = groupId,
                 name = name,
-                url = url,
+                url = normalizedUrl,
                 type = type,
                 footerPattern = footerPattern
             )
@@ -74,10 +72,23 @@ class SourceRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateSource(source: Source) {
-        sourceDao.updateSource(source)
+        sourceDao.updateSource(source.copy(url = normalizeUrl(source.url, source.type)))
     }
 
     override suspend fun deleteSource(source: Source) {
         sourceDao.deleteSource(source)
+    }
+
+    private fun normalizeUrl(url: String, type: SourceType): String {
+        val trimmed = url.trim()
+        if (trimmed.isBlank()) return trimmed
+        if (type != SourceType.RSS) return trimmed
+
+        return when {
+            trimmed.startsWith("https://", ignoreCase = true) -> trimmed
+            trimmed.startsWith("http://", ignoreCase = true) -> "https://${trimmed.removePrefix("http://")}"
+            trimmed.startsWith("//") -> "https:$trimmed"
+            else -> "https://$trimmed"
+        }
     }
 }

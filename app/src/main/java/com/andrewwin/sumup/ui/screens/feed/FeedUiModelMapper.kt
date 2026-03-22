@@ -6,15 +6,13 @@ import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.domain.ArticleCluster
-import com.andrewwin.sumup.domain.logger.PerformanceLogger
 import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleUiModel
 import javax.inject.Inject
 
 class FeedUiModelMapper @Inject constructor(
-    private val formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase,
-    private val performanceLogger: PerformanceLogger
+    private val formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase
 ) {
     private var lastKey: Int = 0
     private var lastSourcesMap: Map<Long, Source> = emptyMap()
@@ -25,7 +23,6 @@ class FeedUiModelMapper @Inject constructor(
         groupsWithSources: List<GroupWithSources>,
         ellipsis: String
     ): List<ArticleClusterUiModel> {
-        val start = System.nanoTime()
         val key = buildKey(groupsWithSources)
         val sourcesMap: Map<Long, Source>
         val groupMap: Map<Long, SourceGroup>
@@ -49,8 +46,6 @@ class FeedUiModelMapper @Inject constructor(
                 }
             )
         }
-        val durationMs = (System.nanoTime() - start) / 1_000_000
-        performanceLogger.log(TAG, "map clusters=${clusters.size} result=${result.size} ms=$durationMs")
         return result
     }
 
@@ -101,7 +96,6 @@ class FeedUiModelMapper @Inject constructor(
 
     companion object {
         private const val MAX_DESCRIPTION_LINES = 12
-        private const val TAG = "FeedPerf"
     }
 
     private fun buildKey(groupsWithSources: List<GroupWithSources>): Int {

@@ -62,7 +62,7 @@ class RssParser @Inject constructor(
         return Article(
             sourceId = sourceId,
             title = title,
-            content = if (content.isNotBlank()) content else description,
+            content = if (description.isNotBlank()) description else content,
             mediaUrl = mediaUrl,
             url = cleanUrl,
             publishedAt = if (pubDate == 0L) System.currentTimeMillis() else pubDate

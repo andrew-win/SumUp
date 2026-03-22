@@ -1,39 +1,35 @@
 package com.andrewwin.sumup.ui.screens.feed
 
 import android.app.Application
-import android.util.Log
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.dao.GroupWithSources
 import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.exception.NoActiveModelException
 import com.andrewwin.sumup.domain.exception.UnsupportedStrategyException
-import com.andrewwin.sumup.domain.ArticleCluster
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.ai.AskQuestionUseCase
 import com.andrewwin.sumup.domain.usecase.ai.SummarizeContentUseCase
 import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
-import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
-import com.andrewwin.sumup.ui.screens.feed.model.ArticleUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
 import javax.inject.Inject
 
 enum class DateFilter(@StringRes val labelRes: Int, val hours: Int?) {
@@ -99,7 +95,6 @@ class FeedViewModel @Inject constructor(
         feedResultFlow,
         groupsWithSources.distinctUntilChangedBy { it.signature() }
     ) { feed, groupsList ->
-        Log.d(TAG, "clusters=${feed.clusters.size} groups=${groupsList.size} inProgress=${feed.isDedupInProgress}")
         val clusters = feedUiModelMapper.map(
             clusters = feed.clusters,
             groupsWithSources = groupsList,

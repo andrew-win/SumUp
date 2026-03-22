@@ -40,7 +40,12 @@ class SummarizeContentUseCase @Inject constructor(
             }
 
             // Cloud/Adaptive strategies are handled inside aiRepository.summarize with fallback to local
-            Result.success(aiRepository.summarize(fullContent))
+            Result.success(
+                aiRepository.summarize(
+                    content = fullContent,
+                    extractiveSentenceCount = prefs.extractiveSentencesInFeed
+                )
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -85,7 +90,12 @@ class SummarizeContentUseCase @Inject constructor(
                 contentBuilder.append("${formatted.displayTitle}: ${rawContent.take(perArticleLimit)}")
             }
             
-            Result.success(aiRepository.summarize(contentBuilder.toString()))
+            Result.success(
+                aiRepository.summarize(
+                    content = contentBuilder.toString(),
+                    extractiveSentenceCount = prefs.extractiveSentencesInFeed
+                )
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -93,7 +103,13 @@ class SummarizeContentUseCase @Inject constructor(
 
     suspend operator fun invoke(content: String): Result<String> {
         return try {
-            Result.success(aiRepository.summarize(content))
+            val prefs = userPreferencesRepository.preferences.first()
+            Result.success(
+                aiRepository.summarize(
+                    content = content,
+                    extractiveSentenceCount = prefs.extractiveSentencesInFeed
+                )
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }

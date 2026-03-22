@@ -12,7 +12,7 @@ interface AiRepository {
     suspend fun addConfig(config: AiModelConfig)
     suspend fun updateConfig(config: AiModelConfig)
     suspend fun deleteConfig(config: AiModelConfig)
-    suspend fun summarize(content: String): String
+    suspend fun summarize(content: String, extractiveSentenceCount: Int? = null): String
     suspend fun askQuestion(content: String, question: String): String
     suspend fun embed(text: String): FloatArray?
     suspend fun hasEnabledEmbeddingConfig(): Boolean

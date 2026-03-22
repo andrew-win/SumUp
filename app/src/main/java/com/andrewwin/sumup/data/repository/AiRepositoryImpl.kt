@@ -37,25 +37,26 @@ class AiRepositoryImpl @Inject constructor(
     override suspend fun updateConfig(config: AiModelConfig) = aiModelDao.updateConfig(config)
     override suspend fun deleteConfig(config: AiModelConfig) = aiModelDao.deleteConfig(config)
 
-    override suspend fun summarize(content: String): String {
+    override suspend fun summarize(content: String, extractiveSentenceCount: Int?): String {
         val prefs = prefsDao.getUserPreferences().first()
         val strategy = prefs?.aiStrategy ?: AiStrategy.ADAPTIVE
         val maxTotalChars = (prefs?.aiMaxCharsTotal ?: DEFAULT_MAX_AI_CONTENT_LENGTH).coerceAtLeast(1000)
+        val sentenceCount = extractiveSentenceCount ?: (prefs?.extractiveSentencesInScheduled ?: 5)
 
         if (strategy == AiStrategy.LOCAL) {
-            return ExtractiveSummarizer.summarize(content, prefs?.extractiveSentencesInScheduled ?: 5).joinToString(" ")
+            return ExtractiveSummarizer.summarize(content, sentenceCount).joinToString(" ")
         }
 
         val enabledConfigs = aiModelDao.getEnabledConfigsByType(AiModelType.SUMMARY)
         if (enabledConfigs.isEmpty()) {
-            return ExtractiveSummarizer.summarize(content, prefs?.extractiveSentencesInScheduled ?: 5).joinToString(" ")
+            return ExtractiveSummarizer.summarize(content, sentenceCount).joinToString(" ")
         }
 
         var lastException: Exception? = null
         for (config in enabledConfigs) {
             try {
                 val processedContent = if (strategy == AiStrategy.ADAPTIVE && prefs?.isAdaptiveExtractivePreprocessingEnabled == true && content.length > maxTotalChars) {
-                    ExtractiveSummarizer.summarize(content, 15).joinToString(" ")
+                    ExtractiveSummarizer.summarize(content, sentenceCount).joinToString(" ")
                 } else {
                     content.take(maxTotalChars)
                 }
@@ -76,7 +77,7 @@ class AiRepositoryImpl @Inject constructor(
         }
 
         // If all cloud fails, fallback to extractive as a last resort for CLOUD/ADAPTIVE
-        return ExtractiveSummarizer.summarize(content, prefs?.extractiveSentencesInScheduled ?: 5).joinToString(" ")
+        return ExtractiveSummarizer.summarize(content, sentenceCount).joinToString(" ")
     }
 
     override suspend fun askQuestion(content: String, question: String): String {

@@ -1,19 +1,15 @@
 package com.andrewwin.sumup.data.repository
 
-import android.util.Log
 import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
-import com.andrewwin.sumup.domain.FooterCleaner
-import com.andrewwin.sumup.domain.TextCleaner
-import com.andrewwin.sumup.domain.usecase.CleanArticleTextUseCase
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.usecase.CleanArticleTextUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -38,17 +34,15 @@ class ArticleRepositoryImpl @Inject constructor(
                         val fetchedArticles = remoteArticleDataSource.fetchArticles(source.id, source.url, source.type)
 
                         if (fetchedArticles.isNotEmpty()) {
-                            // 1. Адаптивне оновлення патерна футера
-                            // Якщо у нас є свіжі статті, спробуємо знайти актуальний футер
-                            val cleanedContents = fetchedArticles.take(10).map { TextCleaner.clean(it.content) }
-                            val newFooterPattern = FooterCleaner.findCommonFooter(cleanedContents)
-                            
-                            // Оновлюємо патерн у БД, якщо він змінився і він не порожній
+                            val cleanedContents = fetchedArticles
+                                .take(10)
+                                .map { it.content }
+                            val newFooterPattern = cleanArticleTextUseCase(cleanedContents)
+
                             if (newFooterPattern != null && newFooterPattern != source.footerPattern) {
                                 sourceDao.updateSource(source.copy(footerPattern = newFooterPattern))
                             }
 
-                            // 2. Очищення статей перед збереженням
                             val currentFooter = newFooterPattern ?: source.footerPattern
                             val cleanedArticles = fetchedArticles.map { article ->
                                 article.copy(
@@ -66,7 +60,6 @@ class ArticleRepositoryImpl @Inject constructor(
                                     )
                                 }
                             }
-                            val enabledNow = articleDao.getEnabledArticlesOnce()
                         }
                     }
                 }
@@ -74,9 +67,8 @@ class ArticleRepositoryImpl @Inject constructor(
         }
         val threeDaysAgo = System.currentTimeMillis() - (3 * 24 * 60 * 60 * 1000L)
         val newerCount = articleDao.countArticlesNewerThan(threeDaysAgo)
-        val olderCount = articleDao.countArticlesOlderThan(threeDaysAgo)
         if (newerCount > 0) {
-            val deleted = articleDao.deleteOldArticles(threeDaysAgo)
+            articleDao.deleteOldArticles(threeDaysAgo)
         }
         Unit
     }
@@ -103,10 +95,9 @@ class ArticleRepositoryImpl @Inject constructor(
 
     override suspend fun fetchFullContent(article: Article): String {
         val source = sourceDao.getSourceById(article.sourceId) ?: return article.content
-        val fullContent = remoteArticleDataSource.fetchFullContent(article.url, source.type) ?: article.content
-        
-        // Централізоване очищення повного тексту
-        return cleanArticleTextUseCase(fullContent, source.type, source.footerPattern)
+        val remoteContent = remoteArticleDataSource.fetchFullContent(article.url, source.type) ?: article.content
+        val mainContent = cleanArticleTextUseCase.extractMainContent(article.url, remoteContent, source.type)
+        return cleanArticleTextUseCase(mainContent, source.type, source.footerPattern)
     }
 
     override suspend fun getSimilaritiesForArticles(articleIds: List<Long>): List<ArticleSimilarity> =

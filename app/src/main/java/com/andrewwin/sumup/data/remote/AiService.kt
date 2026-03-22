@@ -3,6 +3,8 @@ package com.andrewwin.sumup.data.remote
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
+import com.andrewwin.sumup.domain.exception.AiProviderUnavailableException
+import com.andrewwin.sumup.domain.exception.AiRateLimitException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -14,7 +16,17 @@ import org.json.JSONObject
 
 class AiService(private val okHttpClient: OkHttpClient) {
 
-    suspend fun fetchModels(provider: AiProvider, apiKey: String, type: AiModelType): List<String> = withContext(Dispatchers.IO) {
+    suspend fun fetchModels(provider: AiProvider, apiKey: String, type: AiModelType): List<String> =
+        withContext(Dispatchers.IO) {
+            val request = buildFetchModelsRequest(provider, apiKey)
+            okHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) throw Exception("Помилка завантаження моделей: ${response.code}")
+                val json = JSONObject(response.body?.string() ?: throw Exception("Порожня відповідь"))
+                parseFetchModelsResponse(provider, type, json).sorted()
+            }
+        }
+
+    private fun buildFetchModelsRequest(provider: AiProvider, apiKey: String): Request {
         val url = when (provider) {
             AiProvider.GEMINI -> "https://generativelanguage.googleapis.com/v1beta/models?key=$apiKey"
             AiProvider.GROQ -> "https://api.groq.com/openai/v1/models"
@@ -23,119 +35,159 @@ class AiService(private val okHttpClient: OkHttpClient) {
             AiProvider.CHATGPT -> "https://api.openai.com/v1/models"
             AiProvider.CLAUDE -> "https://api.anthropic.com/v1/models"
         }
+        return Request.Builder().url(url)
+            .applyAuthHeaders(provider, apiKey)
+            .get()
+            .build()
+    }
 
-        val requestBuilder = Request.Builder().url(url)
-        when (provider) {
-            AiProvider.GROQ, AiProvider.OPENROUTER, AiProvider.CHATGPT -> {
-                requestBuilder.addHeader("Authorization", "Bearer $apiKey")
-            }
-            AiProvider.COHERE -> {
-                requestBuilder.addHeader("Authorization", "Bearer $apiKey")
-            }
-            AiProvider.CLAUDE -> {
-                requestBuilder.addHeader("x-api-key", apiKey)
-                requestBuilder.addHeader("anthropic-version", "2023-06-01")
-            }
-            else -> Unit
-        }
-
-        val request = requestBuilder.get().build()
-        okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw Exception("Помилка завантаження моделей: ${response.code}")
-            val responseBody = response.body?.string() ?: throw Exception("Порожня відповідь")
-            val json = JSONObject(responseBody)
-            
-            val modelNames = mutableListOf<String>()
-            when (provider) {
-                AiProvider.GEMINI -> {
-                    val models = json.getJSONArray("models")
-                    for (i in 0 until models.length()) {
-                        val model = models.getJSONObject(i)
-                        val name = model.getString("name").removePrefix("models/")
-                        val supportedMethods = model.getJSONArray("supportedGenerationMethods").toString()
-
-                        if (type == AiModelType.SUMMARY && supportedMethods.contains("generateContent")) {
-                            modelNames.add(name)
-                        } else if (type == AiModelType.EMBEDDING && supportedMethods.contains("embedContent")) {
-                            modelNames.add(name)
+    private fun parseFetchModelsResponse(provider: AiProvider, type: AiModelType, json: JSONObject): List<String> {
+        return when (provider) {
+            AiProvider.GEMINI -> {
+                json.getJSONArray("models").toObjectList()
+                    .filter { model ->
+                        val methods = model.getJSONArray("supportedGenerationMethods").toString()
+                        when (type) {
+                            AiModelType.SUMMARY -> methods.contains("generateContent")
+                            AiModelType.EMBEDDING -> methods.contains("embedContent")
                         }
                     }
-                }
-                else -> {
-                    val dataKey = if (provider == AiProvider.COHERE) "models" else "data"
-                    val idKey = if (provider == AiProvider.COHERE) "name" else "id"
-                    val data = json.getJSONArray(dataKey)
-                    for (i in 0 until data.length()) {
-                        val modelId = data.getJSONObject(i).getString(idKey)
-                        if (isModelMatchesType(modelId, type)) {
-                            modelNames.add(modelId)
-                        }
-                    }
-                }
+                    .map { it.getString("name").removePrefix("models/") }
             }
-            modelNames.sorted()
+            else -> {
+                val dataKey = if (provider == AiProvider.COHERE) "models" else "data"
+                val idKey = if (provider == AiProvider.COHERE) "name" else "id"
+                json.getJSONArray(dataKey).toObjectList()
+                    .map { it.getString(idKey) }
+                    .filter { isModelMatchingType(it, type) }
+            }
         }
     }
 
-    private fun isModelMatchesType(modelId: String, type: AiModelType): Boolean {
+    private fun isModelMatchingType(modelId: String, type: AiModelType): Boolean {
         val id = modelId.lowercase()
         val isEmbedding = id.contains("emb")
         val isExcluded = id.contains("whisper") || id.contains("tts") || id.contains("dall-e")
-        
-        return if (type == AiModelType.EMBEDDING) {
-            isEmbedding && !isExcluded
-        } else {
-            !isEmbedding && !isExcluded
+        return when (type) {
+            AiModelType.EMBEDDING -> isEmbedding && !isExcluded
+            AiModelType.SUMMARY -> !isEmbedding && !isExcluded
         }
     }
 
-    suspend fun generateResponse(config: AiModelConfig, prompt: String, content: String): String = withContext(Dispatchers.IO) {
-        when (config.provider) {
-            AiProvider.GEMINI -> callGemini(config, prompt, content)
-            AiProvider.GROQ -> callGroq(config, prompt, content)
-            AiProvider.OPENROUTER -> callOpenRouter(config, prompt, content)
-            AiProvider.COHERE -> callCohere(config, prompt, content)
-            AiProvider.CHATGPT -> callChatGpt(config, prompt, content)
-            AiProvider.CLAUDE -> callClaude(config, prompt, content)
+    suspend fun generateResponse(config: AiModelConfig, prompt: String, content: String): String =
+        withContext(Dispatchers.IO) {
+            when (config.provider) {
+                AiProvider.GEMINI -> callGemini(config, prompt, content)
+                AiProvider.GROQ -> callOpenAiCompatible(config, prompt, content, "https://api.groq.com/openai/v1/chat/completions")
+                AiProvider.OPENROUTER -> callOpenAiCompatible(config, prompt, content, "https://openrouter.ai/api/v1/chat/completions")
+                AiProvider.CHATGPT -> callOpenAiCompatible(config, prompt, content, "https://api.openai.com/v1/chat/completions")
+                AiProvider.COHERE -> callCohere(config, prompt, content)
+                AiProvider.CLAUDE -> callClaude(config, prompt, content)
+            }
+        }
+
+    suspend fun generateEmbedding(config: AiModelConfig, text: String): FloatArray =
+        withContext(Dispatchers.IO) {
+            when (config.provider) {
+                AiProvider.GEMINI -> callGeminiEmbedding(config, text)
+                AiProvider.CHATGPT -> callOpenAiCompatibleEmbedding(config, text, "https://api.openai.com/v1/embeddings")
+                AiProvider.COHERE -> callCohereEmbedding(config, text)
+                else -> throw Exception("Provider ${config.provider} does not support embeddings")
+            }
+        }
+
+    private fun callGemini(config: AiModelConfig, prompt: String, content: String): String {
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/${config.modelName}:generateContent?key=${config.apiKey}"
+        val json = JSONObject().apply {
+            put("contents", JSONArray().put(JSONObject().apply {
+                put("parts", JSONArray().put(JSONObject().put("text", "$prompt\n\n$content")))
+            }))
+        }
+        return executeRequest(Request.Builder().url(url), json) { response ->
+            JSONObject(response)
+                .getJSONArray("candidates")
+                .getJSONObject(0)
+                .getJSONObject("content")
+                .getJSONArray("parts")
+                .getJSONObject(0)
+                .getString("text")
         }
     }
 
-    suspend fun generateEmbedding(config: AiModelConfig, text: String): FloatArray = withContext(Dispatchers.IO) {
-        when (config.provider) {
-            AiProvider.GEMINI -> callGeminiEmbedding(config, text)
-            AiProvider.CHATGPT -> callChatGptEmbedding(config, text)
-            AiProvider.COHERE -> callCohereEmbedding(config, text)
-            else -> throw Exception("Provider ${config.provider} does not support embeddings")
+    private fun callOpenAiCompatible(config: AiModelConfig, prompt: String, content: String, url: String): String {
+        val json = JSONObject().apply {
+            put("model", config.modelName)
+            put("messages", JSONArray().put(JSONObject().apply {
+                put("role", "user")
+                put("content", "$prompt\n\n$content")
+            }))
+        }
+        val requestBuilder = Request.Builder().url(url)
+            .addHeader("Authorization", "Bearer ${config.apiKey}")
+        return executeRequest(requestBuilder, json) { response ->
+            JSONObject(response)
+                .getJSONArray("choices")
+                .getJSONObject(0)
+                .getJSONObject("message")
+                .getString("content")
         }
     }
 
-    private fun callGeminiEmbedding(config: AiModelConfig, text: String, taskType: String = "SEMANTIC_SIMILARITY"): FloatArray {
+    private fun callCohere(config: AiModelConfig, prompt: String, content: String): String {
+        val url = "https://api.cohere.com/v1/chat"
+        val json = JSONObject().apply {
+            put("model", config.modelName)
+            put("message", "$prompt\n\n$content")
+        }
+        val requestBuilder = Request.Builder().url(url)
+            .addHeader("Authorization", "Bearer ${config.apiKey}")
+        return executeRequest(requestBuilder, json) { response ->
+            JSONObject(response).getString("text")
+        }
+    }
+
+    private fun callClaude(config: AiModelConfig, prompt: String, content: String): String {
+        val url = "https://api.anthropic.com/v1/messages"
+        val json = JSONObject().apply {
+            put("model", config.modelName)
+            put("max_tokens", 1024)
+            put("messages", JSONArray().put(JSONObject().apply {
+                put("role", "user")
+                put("content", "$prompt\n\n$content")
+            }))
+        }
+        val requestBuilder = Request.Builder().url(url)
+            .addHeader("x-api-key", config.apiKey)
+            .addHeader("anthropic-version", "2023-06-01")
+        return executeRequest(requestBuilder, json) { response ->
+            JSONObject(response).getJSONArray("content").getJSONObject(0).getString("text")
+        }
+    }
+
+    private fun callGeminiEmbedding(config: AiModelConfig, text: String): FloatArray {
         val url = "https://generativelanguage.googleapis.com/v1beta/models/${config.modelName}:embedContent?key=${config.apiKey}"
         val json = JSONObject().apply {
-            put("taskType", taskType)
+            put("taskType", "SEMANTIC_SIMILARITY")
             put("outputDimensionality", 768)
             put("content", JSONObject().apply {
                 put("parts", JSONArray().put(JSONObject().put("text", text)))
             })
         }
-        return executeRequest(url, json) { response ->
+        return executeRequest(Request.Builder().url(url), json) { response ->
             val values = JSONObject(response).getJSONObject("embedding").getJSONArray("values")
             FloatArray(values.length()) { i -> values.getDouble(i).toFloat() }
         }
     }
 
-    private fun callChatGptEmbedding(config: AiModelConfig, text: String): FloatArray {
-        val url = "https://api.openai.com/v1/embeddings"
+    private fun callOpenAiCompatibleEmbedding(config: AiModelConfig, text: String, url: String): FloatArray {
         val json = JSONObject().apply {
             put("model", config.modelName)
             put("input", text)
         }
-        val requestBuilder = Request.Builder()
-            .url(url)
+        val requestBuilder = Request.Builder().url(url)
             .addHeader("Authorization", "Bearer ${config.apiKey}")
-        return executeRequest(url, json, requestBuilder) { response ->
-            val data = JSONObject(response).getJSONArray("data").getJSONObject(0)
-            val embedding = data.getJSONArray("embedding")
+        return executeRequest(requestBuilder, json) { response ->
+            val embedding = JSONObject(response).getJSONArray("data").getJSONObject(0).getJSONArray("embedding")
             FloatArray(embedding.length()) { i -> embedding.getDouble(i).toFloat() }
         }
     }
@@ -147,150 +199,42 @@ class AiService(private val okHttpClient: OkHttpClient) {
             put("texts", JSONArray().put(text))
             put("input_type", "classification")
         }
-        val requestBuilder = Request.Builder()
-            .url(url)
+        val requestBuilder = Request.Builder().url(url)
             .addHeader("Authorization", "Bearer ${config.apiKey}")
-        return executeRequest(url, json, requestBuilder) { response ->
-            val embeddings = JSONObject(response).getJSONArray("embeddings")
-            val firstEmbedding = embeddings.getJSONArray(0)
+        return executeRequest(requestBuilder, json) { response ->
+            val firstEmbedding = JSONObject(response).getJSONArray("embeddings").getJSONArray(0)
             FloatArray(firstEmbedding.length()) { i -> firstEmbedding.getDouble(i).toFloat() }
         }
     }
 
-    private fun callGemini(config: AiModelConfig, prompt: String, content: String): String {
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/${config.modelName}:generateContent?key=${config.apiKey}"
-        val json = JSONObject().apply {
-            put("contents", JSONArray().put(JSONObject().apply {
-                put("parts", JSONArray().put(JSONObject().put("text", "$prompt\n\n$content")))
-            }))
-        }
-        return executeRequest(url, json) { response ->
-            val candidates = JSONObject(response).getJSONArray("candidates")
-            candidates.getJSONObject(0).getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text")
-        }
-    }
-
-    private fun callGroq(config: AiModelConfig, prompt: String, content: String): String {
-        val url = "https://api.groq.com/openai/v1/chat/completions"
-        val json = JSONObject().apply {
-            put("model", config.modelName)
-            put("messages", JSONArray().apply {
-                put(JSONObject().apply {
-                    put("role", "user")
-                    put("content", "$prompt\n\n$content")
-                })
-            })
-        }
-        val requestBuilder = Request.Builder()
-            .url(url)
-            .addHeader("Authorization", "Bearer ${config.apiKey}")
-        
-        return executeRequest(url, json, requestBuilder) { response ->
-            val choices = JSONObject(response).getJSONArray("choices")
-            choices.getJSONObject(0).getJSONObject("message").getString("content")
-        }
-    }
-
-    private fun callOpenRouter(config: AiModelConfig, prompt: String, content: String): String {
-        val url = "https://openrouter.ai/api/v1/chat/completions"
-        val json = JSONObject().apply {
-            put("model", config.modelName)
-            put("messages", JSONArray().apply {
-                put(JSONObject().apply {
-                    put("role", "user")
-                    put("content", "$prompt\n\n$content")
-                })
-            })
-        }
-        val requestBuilder = Request.Builder()
-            .url(url)
-            .addHeader("Authorization", "Bearer ${config.apiKey}")
-
-        return executeRequest(url, json, requestBuilder) { response ->
-            val choices = JSONObject(response).getJSONArray("choices")
-            choices.getJSONObject(0).getJSONObject("message").getString("content")
-        }
-    }
-
-    private fun callChatGpt(config: AiModelConfig, prompt: String, content: String): String {
-        val url = "https://api.openai.com/v1/chat/completions"
-        val json = JSONObject().apply {
-            put("model", config.modelName)
-            put("messages", JSONArray().apply {
-                put(JSONObject().apply {
-                    put("role", "user")
-                    put("content", "$prompt\n\n$content")
-                })
-            })
-        }
-        val requestBuilder = Request.Builder()
-            .url(url)
-            .addHeader("Authorization", "Bearer ${config.apiKey}")
-
-        return executeRequest(url, json, requestBuilder) { response ->
-            val choices = JSONObject(response).getJSONArray("choices")
-            choices.getJSONObject(0).getJSONObject("message").getString("content")
-        }
-    }
-
-    private fun callCohere(config: AiModelConfig, prompt: String, content: String): String {
-        val url = "https://api.cohere.com/v1/chat"
-        val json = JSONObject().apply {
-            put("model", config.modelName)
-            put("message", "$prompt\n\n$content")
-        }
-        val requestBuilder = Request.Builder()
-            .url(url)
-            .addHeader("Authorization", "Bearer ${config.apiKey}")
-
-        return executeRequest(url, json, requestBuilder) { response ->
-            JSONObject(response).getString("text")
-        }
-    }
-
-    private fun callClaude(config: AiModelConfig, prompt: String, content: String): String {
-        val url = "https://api.anthropic.com/v1/messages"
-        val json = JSONObject().apply {
-            put("model", config.modelName)
-            put("max_tokens", 1024)
-            put("messages", JSONArray().apply {
-                put(JSONObject().apply {
-                    put("role", "user")
-                    put("content", "$prompt\n\n$content")
-                })
-            })
-        }
-        val requestBuilder = Request.Builder()
-            .url(url)
-            .addHeader("x-api-key", config.apiKey)
-            .addHeader("anthropic-version", "2023-06-01")
-
-        return executeRequest(url, json, requestBuilder) { response ->
-            val contentItems = JSONObject(response).getJSONArray("content")
-            contentItems.getJSONObject(0).getString("text")
-        }
-    }
-
-    private fun <T> executeRequest(
-        url: String, 
-        json: JSONObject, 
-        requestBuilder: Request.Builder = Request.Builder().url(url),
-        parser: (String) -> T
-    ): T {
+    private fun <T> executeRequest(requestBuilder: Request.Builder, json: JSONObject, parser: (String) -> T): T {
         val body = json.toString().toRequestBody("application/json".toMediaType())
         val request = requestBuilder.post(body).build()
-        
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 val message = "Запит до ШІ не вдався: ${response.code}"
-                when (response.code) {
-                    429 -> throw com.andrewwin.sumup.domain.exception.AiRateLimitException(message)
-                    in 500..599 -> throw com.andrewwin.sumup.domain.exception.AiProviderUnavailableException(message, response.code)
-                    else -> throw Exception(message)
+                throw when (response.code) {
+                    429 -> AiRateLimitException(message)
+                    in 500..599 -> AiProviderUnavailableException(message, response.code)
+                    else -> Exception(message)
                 }
             }
-            val responseBody = response.body?.string() ?: throw Exception("Порожня відповідь від сервера")
-            return parser(responseBody)
+            val body = response.body?.string() ?: throw Exception("Порожня відповідь від сервера")
+            return parser(body)
         }
     }
+
+    private fun Request.Builder.applyAuthHeaders(provider: AiProvider, apiKey: String): Request.Builder = apply {
+        when (provider) {
+            AiProvider.GROQ, AiProvider.OPENROUTER, AiProvider.CHATGPT, AiProvider.COHERE ->
+                addHeader("Authorization", "Bearer $apiKey")
+            AiProvider.CLAUDE -> {
+                addHeader("x-api-key", apiKey)
+                addHeader("anthropic-version", "2023-06-01")
+            }
+            else -> Unit
+        }
+    }
+
+    private fun JSONArray.toObjectList(): List<JSONObject> = List(length()) { getJSONObject(it) }
 }
