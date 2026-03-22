@@ -20,35 +20,142 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 
 data class ThemeSource(val url: String, val type: SourceType)
 
-enum class SuggestedTheme(val title: String, val sources: List<ThemeSource>) {
+enum class SuggestedTheme(val title: String, val sources: List<ThemeSource>, val anchors: List<String>) {
     SPORT(
-        "Спорт", listOf(
+        "Спорт",
+        listOf(
             ThemeSource("t.me/right_inside_ua", SourceType.TELEGRAM),
             ThemeSource("https://www.suspilne.media/sport/rss/latest.rss", SourceType.RSS),
             ThemeSource("https://www.rss.ua.tribuna.com/ru/feed.xml", SourceType.RSS)
+        ),
+        listOf(
+            "Збірна виграла матч у фіналі чемпіонату з футболу.",
+            "Спортсмен здобув золоту медаль на олімпійських іграх.",
+            "Баскетбольна команда перемогла у турнірі.",
+            "футбол баскетбол олімпіада турнір чемпіонат гравець тренер матч"
         )
     ),
     TECH(
-        "Технології та наука", listOf(
+        "Технології",
+        listOf(
             ThemeSource("https://www.ilenta.com/uk/news/news.rss", SourceType.RSS),
             ThemeSource("https://www.mezha.ua/feed/", SourceType.RSS),
             ThemeSource("https://www.holosameryky.com/api/zvoypl-vomx-tpeuktm", SourceType.RSS)
+        ),
+        listOf(
+            "Процесор із вбудованим відеоядром: представили значно потужнішу модель.",
+            "Компанія представила революційний смартфон з новим чипом із можливостями штучного інтелекту.",
+            "Інновація у сфері космосу: дослідники відкрили нову планету за допомогою телескопа.",
+            "технології наука штучний інтелект гаджети програмування дослідження"
         )
     ),
     POLITICS(
-        "Політика та суспільні події", listOf(
+        "Політика",
+        listOf(
             ThemeSource("https://www.rbc.ua/static/rss/ukrnet.politics.ukr.rss.xml", SourceType.RSS),
             ThemeSource("https://www.suspilne.media/rss/all.rss", SourceType.RSS),
             ThemeSource("https://www.holosameryky.com/api/zqoy_l-vomx-tpeikty", SourceType.RSS)
+        ),
+        listOf(
+            "Парламент прийняв новий закон після голосування.",
+            "Президент підписав указ і призначив нового міністра.",
+            "Опозиція вимагає проведення дострокових виборів.",
+            "вибори уряд парламент депутат міністр президент закон голосування партія"
         )
     ),
     WEATHER(
-        "Погода", listOf(
+        "Погода",
+        listOf(
             ThemeSource("t.me/uhmc2022", SourceType.TELEGRAM),
             ThemeSource("t.me/lviv_rchm", SourceType.TELEGRAM),
             ThemeSource("t.me/HMC_Odesa", SourceType.TELEGRAM)
+        ),
+        listOf(
+            "Синоптики прогнозують сильний дощ і похолодання.",
+            "Завтра очікується сніг та мороз до -15 градусів.",
+            "Циклон принесе штормовий вітер і грозу.",
+            "температура опади сніг дощ вітер хмарно сонячно прогноз погоди"
         )
-    )
+    ),
+    ECONOMY(
+        "Економіка і фінанси",
+        listOf(
+            ThemeSource("https://www.holosameryky.com/api/zpoytl-vomx-tpe_ktr", SourceType.RSS),
+            ThemeSource("t.me/fair_price_channel", SourceType.TELEGRAM),
+            ThemeSource("https://t.me/MSUa_official", SourceType.TELEGRAM)
+        ),
+        listOf(
+            "Національний банк підвищив облікову ставку до 15 відсотків.",
+            "Курс долара зріс на міжбанківському ринку.",
+            "ВВП країни скоротився на два відсотки у третьому кварталі.",
+            "гривня долар євро інфляція бюджет кредит банк ставка ринок економіка"
+        )
+    ),
+    HEALTH(
+        "Здоров'я та медицина",
+        listOf(
+            ThemeSource("https://t.me/PHC_Ukraine", SourceType.TELEGRAM),
+            ThemeSource("https://t.me/zemits_ukraine_official", SourceType.TELEGRAM),
+        ),
+        listOf(
+            "Лікарі розробили нову методику лікування онкологічних захворювань.",
+            "МОЗ рекомендує вакцинуватися від грипу перед зимовим сезоном.",
+            "Вчені провели клінічні випробування нового препарату.",
+            "лікар лікарня вакцина хвороба лікування медицина здоров'я препарат вірус"
+        )
+    ),
+    CRYPTO(
+        "Криптовалюта",
+        listOf(
+            ThemeSource("https://t.me/probitcoinua", SourceType.TELEGRAM),
+            ThemeSource("https://https://t.me/Kripta_Ukraina", SourceType.TELEGRAM),
+        ),
+        listOf(
+            "Біткоїн досяг нового історичного максимуму і перевищив сто тисяч доларів.",
+            "Ethereum оновив мережу і знизив комісії за транзакції.",
+            "SEC схвалила перший біткоїн ETF для роздрібних інвесторів.",
+            "біткоїн ethereum крипто блокчейн токен defi гаманець майнінг altcoin"
+        )
+    ),
+    SPACE(
+        "Космос",
+        listOf(
+            ThemeSource("https://www.nasa.gov/rss/dyn/breaking_news.rss", SourceType.RSS),
+            ThemeSource("https://www.space.com/feeds/all", SourceType.RSS)
+        ),
+        listOf(
+            "SpaceX успішно запустила ракету Starship на навколоземну орбіту.",
+            "Телескоп Джеймс Вебб сфотографував нову екзопланету.",
+            "Астронавти МКС провели вихід у відкритий космос для ремонту.",
+            "ракета орбіта NASA SpaceX астронавт супутник місяць марс телескоп запуск"
+        )
+    ),
+    CARS(
+        "Автомобілі",
+        listOf(
+            ThemeSource("https://t.me/w8shippingukraine", SourceType.TELEGRAM),
+            ThemeSource("https://https://t.me/AUTOSCOUTCOMUA", SourceType.TELEGRAM)
+        ),
+        listOf(
+            "Tesla представила нову модель електромобіля з запасом ходу 700 км.",
+            "BMW відкликає тисячі автомобілів через несправність гальм.",
+            "Продажі електромобілів в Україні зросли на тридцять відсотків.",
+            "автомобіль електромобіль tesla двигун салон тест-драйв колеса кузов пробіг"
+        )
+    ),
+    BOOKS(
+        "Книги та література",
+        listOf(
+            ThemeSource("https://t.me/ukrlib", SourceType.TELEGRAM),
+            ThemeSource("https://t.me/booksua11", SourceType.TELEGRAM)
+        ),
+        listOf(
+            "Новий роман відомого письменника став бестселером місяця.",
+            "Букерівську премію отримала книга про події Другої світової війни.",
+            "Видавництво випустило перший переклад класичного твору українською.",
+            "книга роман автор письменник видавництво читання бестселер премія літературa"
+        )
+    ),
 }
 
 data class ThemeSuggestion(
@@ -151,6 +258,17 @@ class GetSuggestedThemesUseCase @Inject constructor(
            it.title to normalize(emb)
         }
 
+        Log.d(tag, "Calculating static anchor embeddings for all themes...")
+        val staticAnchorEmbeddings: Map<SuggestedTheme, FloatArray> = SuggestedTheme.entries.associateWith { theme ->
+            val anchorEmbs = theme.anchors.map { normalize(embeddingService.getEmbedding(it)) }
+            val vectorSize = anchorEmbs.first().size
+            val sumVector = FloatArray(vectorSize)
+            for (emb in anchorEmbs) {
+                for (i in 0 until vectorSize) sumVector[i] += emb[i]
+            }
+            normalize(FloatArray(vectorSize) { sumVector[it] / anchorEmbs.size })
+        }
+
         val suggestions = mutableListOf<ThemeSuggestion>()
         for (theme in SuggestedTheme.entries) {
             Log.d(tag, "Processing theme: ${theme.title}")
@@ -196,25 +314,36 @@ class GetSuggestedThemesUseCase @Inject constructor(
                         Log.d(tag, "Weather processed title for embedding: '$titleForEmbedding' (original: '${it.title}')")
                     }
                     val emb = embeddingService.getEmbedding(titleForEmbedding)
-                    it.title to normalize(emb)
+                    normalize(emb)
                 }
+
+            if (themeEmbeddings.isEmpty()) {
+                Log.d(tag, "No valid theme embeddings for: ${theme.title}")
+                suggestions.add(ThemeSuggestion(theme, 0f, isSubscribed = theme.sources.all { allSourcesUrls.contains(it.url) }))
+                continue
+            }
+
+            // Combine static anchors + fetched article embeddings into one anchor vector
+            val staticEmb = staticAnchorEmbeddings[theme]!!
+            val vectorSize = staticEmb.size
+            val allEmbs = themeEmbeddings + listOf(staticEmb)
+            val sumVector = FloatArray(vectorSize)
+            for (emb in allEmbs) {
+                for (i in 0 until vectorSize) {
+                    sumVector[i] += emb[i]
+                }
+            }
+            val themeAnchorEmb = normalize(FloatArray(vectorSize) { sumVector[it] / allEmbs.size })
+            Log.d(tag, "Anchor for [${theme.title}]: combined ${themeEmbeddings.size} articles + ${theme.anchors.size} static anchors")
             
             var matchScore = 0f
             for ((uTitle, uEmb) in userEmbeddings) {
-                var bestSim = 0f
-                var bestMatchTitle = ""
-                for ((tTitle, tEmb) in themeEmbeddings) {
-                    val sim = dotProduct(uEmb, tEmb)
-                    if (sim > bestSim) {
-                        bestSim = sim
-                        bestMatchTitle = tTitle
-                    }
-                }
-                if (bestSim >= 0.4) {
-                    matchScore += bestSim
-                    Log.d(tag, "MATCH for theme [${theme.title}]! User article: '$uTitle' <-> Theme article: '$bestMatchTitle' == $bestSim")
+                val sim = dotProduct(uEmb, themeAnchorEmb)
+                if (sim >= 0.375f) {
+                    matchScore += sim
+                    Log.d(tag, "MATCH [${theme.title}] '$uTitle' sim=$sim")
                 } else {
-                    Log.d(tag, "No match for theme [${theme.title}] article: '$uTitle'. Best was '$bestMatchTitle' == $bestSim")
+                    Log.d(tag, "No match [${theme.title}] '$uTitle' sim=$sim")
                 }
             }
             Log.d(tag, "Theme: ${theme.title}, Final Match Score: $matchScore")
@@ -222,7 +351,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
         }
 
         val sorted = suggestions.sortedByDescending { it.score }
-        val resultList = sorted.map { it.copy(isRecommended = it.score >= 2f) }.sortedByDescending { if (it.isRecommended) 1 else 0 }
+        val resultList = sorted.map { it.copy(isRecommended = it.score >= 1.5f) }.sortedByDescending { if (it.isRecommended) 1 else 0 }
         Log.d(tag, "Final suggested themes: ${resultList.map { it.theme.title to it.score }}")
         
         prefs.edit()
