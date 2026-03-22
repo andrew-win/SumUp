@@ -6,11 +6,9 @@ import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.exception.NoActiveModelException
 import com.andrewwin.sumup.domain.ExtractiveSummarizer
 import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
 import com.andrewwin.sumup.domain.usecase.BuildExtractiveSummaryUseCase
-import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
@@ -31,7 +29,7 @@ class SummarizeContentUseCase @Inject constructor(
             val sourceType = source?.type ?: SourceType.RSS
             val formattedHeadline = formatArticleHeadlineUseCase(article, sourceType)
 
-            if (prefs.aiStrategy == AiStrategy.EXTRACTIVE) {
+            if (prefs.aiStrategy == AiStrategy.LOCAL) {
                 val sentences = ExtractiveSummarizer.summarize(fullContent, prefs.extractiveSentencesInFeed)
                 val formatted = formatExtractiveSummaryUseCase.formatItem(
                     title = formattedHeadline.displayTitle,
@@ -41,29 +39,18 @@ class SummarizeContentUseCase @Inject constructor(
                 return Result.success(formatted)
             }
 
-            try {
-                Result.success(aiRepository.summarize(fullContent))
-            } catch (e: NoActiveModelException) {
-                // Adaptive Fallback for single article
-                val sentences = ExtractiveSummarizer.summarize(fullContent, prefs.extractiveSentencesInFeed)
-                val formatted = formatExtractiveSummaryUseCase.formatItem(
-                    title = formattedHeadline.displayTitle,
-                    sentences = sentences,
-                    isScheduledReport = false
-                )
-                Result.success(formatted)
-            }
+            // Cloud/Adaptive strategies are handled inside aiRepository.summarize with fallback to local
+            Result.success(aiRepository.summarize(fullContent))
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // Для сумаризації списку новин (напр. вручну зі стрічки)
     suspend operator fun invoke(articles: List<Article>): Result<String> {
         return try {
             val prefs = userPreferencesRepository.preferences.first()
             
-            if (prefs.aiStrategy == AiStrategy.EXTRACTIVE) {
+            if (prefs.aiStrategy == AiStrategy.LOCAL) {
                 val fullContentMap = mutableMapOf<String, String>()
                 for (article in articles) {
                     val source = articleRepository.getSourceById(article.sourceId)
@@ -81,7 +68,6 @@ class SummarizeContentUseCase @Inject constructor(
                 return Result.success(summary)
             }
 
-            // Cloud/Adaptive strategy for multiple articles
             val contentBuilder = StringBuilder()
             val perArticleLimit = prefs.aiMaxCharsPerFeedArticle.coerceAtLeast(200)
             for (article in articles) {
@@ -89,54 +75,25 @@ class SummarizeContentUseCase @Inject constructor(
                 val sourceType = source?.type ?: SourceType.RSS
                 val formatted = formatArticleHeadlineUseCase(article, sourceType)
                 if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
+                
+                val fullContent = articleRepository.fetchFullContent(article)
                 val rawContent = if (prefs.aiStrategy == AiStrategy.ADAPTIVE && prefs.isAdaptiveExtractivePreprocessingEnabled) {
-                    val fullContent = articleRepository.fetchFullContent(article)
                     ExtractiveSummarizer.summarize(fullContent, prefs.extractiveSentencesInFeed).joinToString(" ")
                 } else {
-                    article.content
+                    fullContent
                 }
                 contentBuilder.append("${formatted.displayTitle}: ${rawContent.take(perArticleLimit)}")
             }
-            val content = contentBuilder.toString()
-
-            try {
-                Result.success(aiRepository.summarize(content))
-            } catch (e: NoActiveModelException) {
-                // Adaptive Fallback for multiple articles
-                val fullContentMap = mutableMapOf<String, String>()
-                for (article in articles) {
-                    val source = articleRepository.getSourceById(article.sourceId)
-                    val sourceType = source?.type ?: SourceType.RSS
-                    val formatted = formatArticleHeadlineUseCase(article, sourceType)
-                    fullContentMap[formatted.displayTitle] = articleRepository.fetchFullContent(article)
-                }
-                
-                val summary = buildExtractiveSummaryUseCase(
-                    headlines = fullContentMap.keys.toList(),
-                    contentMap = fullContentMap,
-                    topCount = prefs.extractiveNewsInScheduled,
-                    sentencesPerArticle = prefs.extractiveSentencesInScheduled
-                )
-                Result.success(summary)
-            }
+            
+            Result.success(aiRepository.summarize(contentBuilder.toString()))
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // Для сумаризації довільного тексту (залишаємо як базовий варіант)
     suspend operator fun invoke(content: String): Result<String> {
         return try {
-            try {
-                Result.success(aiRepository.summarize(content))
-            } catch (e: NoActiveModelException) {
-                // Adaptive Fallback for custom content (e.g. general text)
-                val sentences = ExtractiveSummarizer.summarize(content, 15)
-                if (sentences.isEmpty()) return Result.success("")
-                
-                val result = sentences.joinToString("\n") { "- $it" }
-                Result.success(result)
-            }
+            Result.success(aiRepository.summarize(content))
         } catch (e: Exception) {
             Result.failure(e)
         }

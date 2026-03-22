@@ -284,7 +284,7 @@ fun FeedScreen(
                         }
                     }
 
-                    if ((aiResult != null || !isAiLoading) && userPreferences.aiStrategy != AiStrategy.EXTRACTIVE) {
+                    if ((aiResult != null || !isAiLoading) && userPreferences.aiStrategy != AiStrategy.LOCAL) {
                         Spacer(Modifier.height(24.dp))
                         OutlinedTextField(
                             value = userQuestion,

@@ -41,6 +41,7 @@ fun SummaryScreen(
     val userPreferences by viewModel.userPreferences.collectAsState()
     val chartData by viewModel.chartData.collectAsState()
     val chartType by viewModel.chartType.collectAsState()
+    val isVectorizationEnabled by viewModel.isVectorizationEnabled.collectAsState()
     
     val todaySummary = remember(summaries) {
         summaries.firstOrNull { isSameDay(it.createdAt, System.currentTimeMillis()) }
@@ -48,8 +49,6 @@ fun SummaryScreen(
     val olderSummaries = remember(summaries, todaySummary) {
         summaries.filter { it.id != todaySummary?.id }
     }
-
-    val isModelEnabled = userPreferences.modelPath != null
 
     Scaffold(
         topBar = {
@@ -87,7 +86,7 @@ fun SummaryScreen(
                     items = chartData,
                     currentType = chartType,
                     onTypeChange = viewModel::setChartType,
-                    isModelEnabled = isModelEnabled
+                    isModelEnabled = isVectorizationEnabled
                 )
             }
 
@@ -336,7 +335,7 @@ fun SummaryCard(summary: Summary) {
                 ) {
                     val strategyLabel = when (summary.strategy) {
                         AiStrategy.CLOUD -> stringResource(R.string.ai_strategy_cloud)
-                        AiStrategy.EXTRACTIVE -> stringResource(R.string.ai_strategy_extractive)
+                        AiStrategy.LOCAL -> stringResource(R.string.ai_strategy_local)
                         AiStrategy.ADAPTIVE -> stringResource(R.string.ai_strategy_adaptive)
                     }
                     Text(

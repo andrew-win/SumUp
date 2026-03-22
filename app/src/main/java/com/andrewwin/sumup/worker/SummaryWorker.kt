@@ -19,7 +19,6 @@ import com.andrewwin.sumup.domain.DeduplicationService
 import com.andrewwin.sumup.domain.usecase.NoArticlesException
 import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
 import com.andrewwin.sumup.domain.usecase.BuildExtractiveSummaryUseCase
-import com.andrewwin.sumup.domain.exception.NoActiveModelException
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
@@ -57,17 +56,22 @@ class SummaryWorker @AssistedInject constructor(
             val recentArticles = articleRepository.getEnabledArticlesSince(dayTimestamp)
             Log.d(TAG, "Fetched ${recentArticles.size} recent articles (last 24h)")
 
-            val useSimilarityBoost =
-                prefs.aiStrategy == AiStrategy.EXTRACTIVE ||
-                (prefs.aiStrategy == AiStrategy.ADAPTIVE && aiModelDao.getEnabledConfigs().isEmpty())
-
-            val similarityCounts = if (useSimilarityBoost && prefs.modelPath != null &&
-                deduplicationService.initialize(prefs.modelPath) && recentArticles.size >= 2
-            ) {
-                val clusters = deduplicationService.clusterArticles(
+            val hasCloudEmbedding = aiRepository.hasEnabledEmbeddingConfig()
+            val dedupThreshold = if (hasCloudEmbedding) {
+                prefs.cloudDeduplicationThreshold
+            } else {
+                prefs.localDeduplicationThreshold
+            }
+            if (!hasCloudEmbedding) {
+                prefs.modelPath?.let { deduplicationService.initialize(it) }
+            }
+            
+            val similarityCounts = if (recentArticles.size >= 2) {
+                val clusters = deduplicationService.clusterArticlesIncremental(
                     recentArticles,
-                    prefs.deduplicationThreshold
-                )
+                    dedupThreshold
+                ).first()
+                
                 val map = mutableMapOf<Long, Int>()
                 for (cluster in clusters) {
                     val count = cluster.duplicates.size
@@ -103,8 +107,8 @@ class SummaryWorker @AssistedInject constructor(
             Log.d(TAG, "Strategy: ${prefs.aiStrategy}. Articles for summary: ${articles.size}")
             
             val summaryText = when (prefs.aiStrategy) {
-                AiStrategy.EXTRACTIVE -> {
-                    Log.d(TAG, "Building Extractive summary")
+                AiStrategy.LOCAL -> {
+                    Log.d(TAG, "Building Local summary")
                     val fullContentMap = articles.map { article ->
                         val source = articleRepository.getSourceById(article.sourceId)
                         val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
@@ -117,48 +121,36 @@ class SummaryWorker @AssistedInject constructor(
                         sentencesPerArticle = prefs.extractiveSentencesInScheduled
                     )
                 }
-                AiStrategy.CLOUD -> {
-                    Log.d(TAG, "Building Cloud summary")
+                AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> {
+                    Log.d(TAG, "Building Cloud/Adaptive summary")
                     val perArticleLimit = prefs.aiMaxCharsPerArticle.coerceAtLeast(200)
-                    val cloudArticles = articles.take(MAX_ARTICLES_FOR_SUMMARIZATION).map { 
-                        it.copy(content = articleRepository.fetchFullContent(it))
-                    }
-                    buildCloudSummary(cloudArticles, aiRepository, perArticleLimit)
-                }
-                AiStrategy.ADAPTIVE -> {
-                    Log.d(TAG, "Building Adaptive summary")
-                    try {
-                        val perArticleLimit = prefs.aiMaxCharsPerArticle.coerceAtLeast(200)
-                        val cloudArticles = articles.take(MAX_ARTICLES_FOR_SUMMARIZATION).map { article -> 
-                            if (prefs.isAdaptiveExtractivePreprocessingEnabled) {
-                                val fullContent = articleRepository.fetchFullContent(article)
-                                val extractive = ExtractiveSummarizer
-                                    .summarize(fullContent, prefs.extractiveSentencesInScheduled)
-                                    .joinToString(" ")
-                                article.copy(content = extractive)
-                            } else {
-                                article.copy(content = articleRepository.fetchFullContent(article))
-                            }
-                        }
-                        buildCloudSummary(cloudArticles, aiRepository, perArticleLimit)
-                    } catch (e: Exception) {
-                        if (e is com.andrewwin.sumup.domain.exception.NoActiveModelException || 
-                            e is com.andrewwin.sumup.domain.exception.AllAiModelsFailedException) {
-                            Log.i(TAG, "Adaptive Strategy: Cloud failed or unavailable, falling back to extractive template")
-                            val fullContentMap = articles.map { article ->
-                                val source = articleRepository.getSourceById(article.sourceId)
-                                val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
-                                formatted.displayTitle to articleRepository.fetchFullContent(article)
-                            }.toMap()
-                            buildExtractiveSummary(
-                                headlines = fullContentMap.keys.toList(),
-                                contentMap = fullContentMap,
-                                topCount = prefs.extractiveNewsInScheduled,
-                                sentencesPerArticle = prefs.extractiveSentencesInScheduled
-                            )
+                    val processedArticles = articles.take(MAX_ARTICLES_FOR_SUMMARIZATION).map { article -> 
+                        val fullContent = articleRepository.fetchFullContent(article)
+                        val contentToSummarize = if (prefs.aiStrategy == AiStrategy.ADAPTIVE && prefs.isAdaptiveExtractivePreprocessingEnabled) {
+                             ExtractiveSummarizer
+                                .summarize(fullContent, prefs.extractiveSentencesInScheduled)
+                                .joinToString(" ")
                         } else {
-                            throw e
+                            fullContent
                         }
+                        article.copy(content = contentToSummarize)
+                    }
+                    
+                    try {
+                        buildCloudSummary(processedArticles, aiRepository, perArticleLimit)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Cloud summary failed, falling back to local", e)
+                        val fullContentMap = articles.map { article ->
+                            val source = articleRepository.getSourceById(article.sourceId)
+                            val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
+                            formatted.displayTitle to articleRepository.fetchFullContent(article)
+                        }.toMap()
+                        buildExtractiveSummary(
+                            headlines = fullContentMap.keys.toList(),
+                            contentMap = fullContentMap,
+                            topCount = prefs.extractiveNewsInScheduled,
+                            sentencesPerArticle = prefs.extractiveSentencesInScheduled
+                        )
                     }
                 }
             }
@@ -212,8 +204,6 @@ class SummaryWorker @AssistedInject constructor(
     companion object {
         private const val TAG = "SummaryWorker"
         private const val MAX_ARTICLES_FOR_SUMMARIZATION = 15
-        private const val EXTRACTIVE_TOP_COUNT = 5
-        private const val EXTRACTIVE_SENTENCES_PER_ARTICLE = 5
         private const val MAX_RETRY_ATTEMPTS = 2
         private const val SIMILARITY_BOOST_PER_ARTICLE = 0.15f
     }

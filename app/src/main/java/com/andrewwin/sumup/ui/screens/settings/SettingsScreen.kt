@@ -14,7 +14,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -24,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
+import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import java.util.Locale
@@ -33,12 +33,12 @@ import java.util.Locale
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val aiConfigs by viewModel.aiConfigs.collectAsState()
+    val summaryConfigs by viewModel.summaryConfigs.collectAsState()
+    val embeddingConfigs by viewModel.embeddingConfigs.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
     val downloadState by viewModel.downloadState.collectAsState()
     
-    var showConfigDialog by remember { mutableStateOf<AiModelConfig?>(null) }
-    var isAddingNew by remember { mutableStateOf(false) }
+    var showConfigDialog by remember { mutableStateOf<Pair<AiModelConfig?, AiModelType>?>(null) }
     var showTimePicker by remember { mutableStateOf(false) }
     var summaryPrompt by remember(userPreferences.summaryPrompt) { mutableStateOf(userPreferences.summaryPrompt) }
     var showClearArticlesDialog by remember { mutableStateOf(false) }
@@ -49,7 +49,8 @@ fun SettingsScreen(
     var extractiveSentencesInFeed by rememberSaveable(userPreferences.extractiveSentencesInFeed) { mutableStateOf(userPreferences.extractiveSentencesInFeed.toFloat()) }
     var extractiveSentencesInScheduled by rememberSaveable(userPreferences.extractiveSentencesInScheduled) { mutableStateOf(userPreferences.extractiveSentencesInScheduled.toFloat()) }
     var extractiveNewsInScheduled by rememberSaveable(userPreferences.extractiveNewsInScheduled) { mutableStateOf(userPreferences.extractiveNewsInScheduled.toFloat()) }
-    var deduplicationThreshold by rememberSaveable(userPreferences.deduplicationThreshold) { mutableStateOf(userPreferences.deduplicationThreshold) }
+    var localDeduplicationThreshold by rememberSaveable(userPreferences.localDeduplicationThreshold) { mutableStateOf(userPreferences.localDeduplicationThreshold) }
+    var cloudDeduplicationThreshold by rememberSaveable(userPreferences.cloudDeduplicationThreshold) { mutableStateOf(userPreferences.cloudDeduplicationThreshold) }
     var minMentions by rememberSaveable(userPreferences.minMentions) { mutableStateOf(userPreferences.minMentions.toFloat()) }
 
     Scaffold(
@@ -82,8 +83,8 @@ fun SettingsScreen(
             item {
                 SettingsSection(title = stringResource(R.string.settings_ai_strategy)) {
                     val strategies = listOf(
+                        AiStrategy.LOCAL to R.string.ai_strategy_local,
                         AiStrategy.CLOUD to R.string.ai_strategy_cloud,
-                        AiStrategy.EXTRACTIVE to R.string.ai_strategy_extractive,
                         AiStrategy.ADAPTIVE to R.string.ai_strategy_adaptive
                     )
                     
@@ -113,7 +114,7 @@ fun SettingsScreen(
                     title = stringResource(R.string.settings_cloud_summary),
                     trailing = {
                         IconButton(
-                            onClick = { isAddingNew = true },
+                            onClick = { showConfigDialog = null to AiModelType.SUMMARY },
                             modifier = Modifier.size(32.dp),
                             colors = IconButtonDefaults.iconButtonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
@@ -125,17 +126,17 @@ fun SettingsScreen(
                     }
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        if (aiConfigs.isEmpty()) {
+                        if (summaryConfigs.isEmpty()) {
                             Text(
                                 stringResource(R.string.settings_api_keys_empty),
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else {
-                            aiConfigs.forEach { config ->
+                            summaryConfigs.forEach { config ->
                                 AiKeyItem(
                                     config = config,
-                                    onEdit = { showConfigDialog = config },
+                                    onEdit = { showConfigDialog = config to AiModelType.SUMMARY },
                                     onDelete = { viewModel.deleteAiConfig(config) },
                                     onToggle = { viewModel.toggleAiConfig(config, it) }
                                 )
@@ -167,6 +168,43 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = MaterialTheme.shapes.large
                             )
+                        }
+                    }
+                }
+            }
+
+            item {
+                SettingsSection(
+                    title = stringResource(R.string.settings_cloud_vectorization),
+                    trailing = {
+                        IconButton(
+                            onClick = { showConfigDialog = null to AiModelType.EMBEDDING },
+                            modifier = Modifier.size(32.dp),
+                            colors = IconButtonDefaults.iconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        if (embeddingConfigs.isEmpty()) {
+                            Text(
+                                stringResource(R.string.settings_api_keys_empty),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            embeddingConfigs.forEach { config ->
+                                AiKeyItem(
+                                    config = config,
+                                    onEdit = { showConfigDialog = config to AiModelType.EMBEDDING },
+                                    onDelete = { viewModel.deleteAiConfig(config) },
+                                    onToggle = { viewModel.toggleAiConfig(config, it) }
+                                )
+                            }
                         }
                     }
                 }
@@ -225,7 +263,7 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = stringResource(R.string.ai_strategy_extractive)) {
+                SettingsSection(title = stringResource(R.string.ai_strategy_local)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Column {
                             Text(
@@ -335,14 +373,37 @@ fun SettingsScreen(
                         
                         Column {
                             Text(
-                                stringResource(R.string.settings_deduplication_threshold, String.format(Locale.US, "%.2f", deduplicationThreshold)),
+                                stringResource(R.string.settings_local_deduplication_threshold, String.format(Locale.US, "%.2f", localDeduplicationThreshold)),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Slider(
-                                value = deduplicationThreshold,
-                                onValueChange = { deduplicationThreshold = it },
+                                value = localDeduplicationThreshold,
+                                onValueChange = { localDeduplicationThreshold = it },
                                 onValueChangeFinished = {
-                                    viewModel.updateDeduplicationThreshold(deduplicationThreshold)
+                                    viewModel.updateLocalDeduplicationThreshold(localDeduplicationThreshold)
+                                },
+                                valueRange = 0.3f..0.99f,
+                                steps = 69,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = MaterialTheme.colorScheme.primary,
+                                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    activeTickColor = MaterialTheme.colorScheme.primaryContainer,
+                                    inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
+                                )
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                stringResource(R.string.settings_cloud_deduplication_threshold, String.format(Locale.US, "%.2f", cloudDeduplicationThreshold)),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = cloudDeduplicationThreshold,
+                                onValueChange = { cloudDeduplicationThreshold = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateCloudDeduplicationThreshold(cloudDeduplicationThreshold)
                                 },
                                 valueRange = 0.3f..0.99f,
                                 steps = 69,
@@ -500,20 +561,13 @@ fun SettingsScreen(
             }
         }
 
-        if (isAddingNew) {
-            AiConfigDialog(
-                viewModel = viewModel,
-                onDismiss = { isAddingNew = false },
-                onConfirm = { viewModel.addAiConfig(it); isAddingNew = false }
-            )
-        }
-
-        showConfigDialog?.let { config ->
+        showConfigDialog?.let { (config, type) ->
             AiConfigDialog(
                 viewModel = viewModel,
                 config = config,
+                type = type,
                 onDismiss = { showConfigDialog = null },
-                onConfirm = { viewModel.updateAiConfig(it); showConfigDialog = null }
+                onConfirm = { viewModel.addAiConfig(it); showConfigDialog = null }
             )
         }
 
@@ -668,6 +722,7 @@ fun AiKeyItem(
 fun AiConfigDialog(
     viewModel: SettingsViewModel,
     config: AiModelConfig? = null,
+    type: AiModelType,
     onDismiss: () -> Unit,
     onConfirm: (AiModelConfig) -> Unit
 ) {
@@ -729,12 +784,12 @@ fun AiConfigDialog(
                     }
                     Spacer(Modifier.width(8.dp))
                     if (isLoadingModels) CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                    else TextButton(onClick = { viewModel.loadModels(provider, apiKey) }) { Text(stringResource(R.string.dialog_load)) }
+                    else TextButton(onClick = { viewModel.loadModels(provider, apiKey, type) }) { Text(stringResource(R.string.dialog_load)) }
                 }
             }
         },
         confirmButton = {
-            Button(onClick = { if (name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()) onConfirm(config?.copy(name = name, provider = provider, apiKey = apiKey, modelName = modelName) ?: AiModelConfig(name = name, provider = provider, apiKey = apiKey, modelName = modelName)) }, enabled = name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank() && !isLoadingModels, shape = MaterialTheme.shapes.large) { Text(stringResource(if (config == null) R.string.add else R.string.save)) }
+            Button(onClick = { if (name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()) onConfirm(config?.copy(name = name, provider = provider, apiKey = apiKey, modelName = modelName) ?: AiModelConfig(name = name, provider = provider, apiKey = apiKey, modelName = modelName, type = type)) }, enabled = name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank() && !isLoadingModels, shape = MaterialTheme.shapes.large) { Text(stringResource(if (config == null) R.string.add else R.string.save)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )

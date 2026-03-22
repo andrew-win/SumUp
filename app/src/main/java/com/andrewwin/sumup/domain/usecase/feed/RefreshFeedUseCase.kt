@@ -34,9 +34,7 @@ class RefreshFeedUseCaseImpl @Inject constructor(
             if (result.isSuccess) {
                 lastRefreshAt = now
                 // Also refresh recommendations since we have new articles
-                runCatching {
-                    getSuggestedThemesUseCase(forceRefresh = true).collect()
-                }
+                runCatching { getSuggestedThemesUseCase(forceRefresh = false).collect() }
             }
 
             val durationMs = (System.nanoTime() - start) / 1_000_000

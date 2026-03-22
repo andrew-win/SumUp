@@ -4,8 +4,10 @@ import com.andrewwin.sumup.domain.coroutines.DispatcherProvider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import javax.inject.Inject
+import javax.inject.Singleton
 
-class DefaultDispatcherProvider @Inject constructor() : DispatcherProvider {
+@Singleton
+class AppDispatcherProvider @Inject constructor() : DispatcherProvider {
     override val io: CoroutineDispatcher = Dispatchers.IO
     override val default: CoroutineDispatcher = Dispatchers.Default
 }

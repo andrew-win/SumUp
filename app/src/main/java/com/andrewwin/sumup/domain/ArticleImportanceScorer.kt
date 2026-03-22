@@ -100,7 +100,7 @@ class ArticleImportanceScorer {
     }
 
     companion object {
-        private const val MIN_CONTENT_LENGTH = 50
+        private const val MIN_CONTENT_LENGTH = 75
         private const val STATIC_RSS_VIEW_SCORE = 0.25f
         const val IMPORTANCE_THRESHOLD = 0.5f
 

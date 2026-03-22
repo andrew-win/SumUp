@@ -8,9 +8,11 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.andrewwin.sumup.data.local.entities.Summary
+import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.domain.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
@@ -43,7 +45,8 @@ class SummaryViewModel @Inject constructor(
     private val generateSummaryUseCase: GenerateSummaryUseCase,
     private val getFeedArticlesUseCase: GetFeedArticlesUseCase,
     private val importanceScorer: ArticleImportanceScorer,
-    private val sourceRepository: SourceRepository
+    private val sourceRepository: SourceRepository,
+    private val aiRepository: AiRepository
 ) : ViewModel() {
 
     val summaries: StateFlow<List<Summary>> = summaryRepository.allSummaries
@@ -61,6 +64,13 @@ class SummaryViewModel @Inject constructor(
 
     private val _chartType = MutableStateFlow(SummaryChartType.VIEWS)
     val chartType: StateFlow<SummaryChartType> = _chartType.asStateFlow()
+
+    val isVectorizationEnabled: StateFlow<Boolean> = combine(
+        userPreferences,
+        aiRepository.getConfigsByType(AiModelType.EMBEDDING)
+    ) { prefs, embeddingConfigs ->
+        prefs.modelPath != null || embeddingConfigs.any { it.isEnabled }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val chartData: StateFlow<List<SummaryChartItem>> = combine(
         getFeedArticlesUseCase(

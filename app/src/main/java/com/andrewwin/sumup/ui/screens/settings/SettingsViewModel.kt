@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.domain.usecase.settings.ScheduleSummaryUseCase
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
+import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.UserPreferences
@@ -14,7 +15,6 @@ import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.settings.UpdateCustomSummaryPromptEnabledUseCase
 import com.andrewwin.sumup.domain.usecase.settings.UpdateSummaryPromptUseCase
-import com.andrewwin.sumup.worker.SummaryWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,7 +45,10 @@ class SettingsViewModel @Inject constructor(
     private val updateCustomSummaryPromptEnabledUseCase: UpdateCustomSummaryPromptEnabledUseCase
 ) : AndroidViewModel(application) {
 
-    val aiConfigs: StateFlow<List<AiModelConfig>> = aiRepository.allConfigs
+    val summaryConfigs: StateFlow<List<AiModelConfig>> = aiRepository.getConfigsByType(AiModelType.SUMMARY)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val embeddingConfigs: StateFlow<List<AiModelConfig>> = aiRepository.getConfigsByType(AiModelType.EMBEDDING)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.preferences
@@ -102,10 +105,17 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(isDeduplicationEnabled = enabled) } }
     }
 
-    fun updateDeduplicationThreshold(threshold: Float) {
+    fun updateLocalDeduplicationThreshold(threshold: Float) {
         viewModelScope.launch(Dispatchers.IO) {
             articleRepository.clearSimilarities()
-            updatePreferences { it.copy(deduplicationThreshold = threshold) }
+            updatePreferences { it.copy(localDeduplicationThreshold = threshold) }
+        }
+    }
+
+    fun updateCloudDeduplicationThreshold(threshold: Float) {
+        viewModelScope.launch(Dispatchers.IO) {
+            articleRepository.clearSimilarities()
+            updatePreferences { it.copy(cloudDeduplicationThreshold = threshold) }
         }
     }
 
@@ -117,10 +127,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(isHideSingleNewsEnabled = enabled) } }
     }
 
-    fun loadModels(provider: AiProvider, apiKey: String) {
+    fun loadModels(provider: AiProvider, apiKey: String, type: AiModelType) {
         viewModelScope.launch {
             _isLoadingModels.value = true
-            runCatching { _availableModels.value = aiRepository.fetchAvailableModels(provider, apiKey) }
+            runCatching { _availableModels.value = aiRepository.fetchAvailableModels(provider, apiKey, type) }
                 .onFailure { _availableModels.value = emptyList() }
             _isLoadingModels.value = false
         }

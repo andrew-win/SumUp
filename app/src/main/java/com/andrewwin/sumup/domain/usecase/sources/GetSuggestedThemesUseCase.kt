@@ -3,8 +3,10 @@ package com.andrewwin.sumup.domain.usecase.sources
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.EmbeddingService
 import com.andrewwin.sumup.domain.repository.SourceRepository
+import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -169,6 +171,8 @@ data class ThemeSuggestion(
 class GetSuggestedThemesUseCase @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
+    private val aiRepository: AiRepository,
+    private val userPreferencesRepository: UserPreferencesRepository,
     private val embeddingService: EmbeddingService,
     private val manageModelUseCase: ManageModelUseCase,
     private val remoteArticleDataSource: RemoteArticleDataSource,
@@ -189,9 +193,29 @@ class GetSuggestedThemesUseCase @Inject constructor(
 
         val lastSavedHash = prefs.getInt("sourcesHash", -1)
         val savedThemeUrls = prefs.getStringSet("savedThemes", null)
+        val lastRecommendationAt = prefs.getLong(KEY_LAST_RECOMMENDATION_AT, 0L)
+        val now = System.currentTimeMillis()
+        val shouldRecalculate = forceRefresh ||
+            savedThemeUrls == null ||
+            currentSourcesHash != lastSavedHash ||
+            (now - lastRecommendationAt) >= ONE_DAY_MS
 
-        val isModelLoaded = manageModelUseCase.isModelExists()
-        Log.d(tag, "isModelLoaded: $isModelLoaded")
+        if (!shouldRecalculate) {
+            val cached = SuggestedTheme.entries.map {
+                ThemeSuggestion(
+                    it,
+                    score = 10f,
+                    isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) },
+                    isRecommended = savedThemeUrls?.contains(it.title) == true
+                )
+            }.sortedByDescending { if (it.isRecommended) 1 else 0 }
+            emit(cached)
+            return@flow
+        }
+
+        val hasCloudEmbedding = aiRepository.hasEnabledEmbeddingConfig()
+        val isModelLoaded = hasCloudEmbedding || manageModelUseCase.isModelExists()
+        Log.d(tag, "vectorization available: $isModelLoaded, cloud=$hasCloudEmbedding")
 
         if (!isModelLoaded) {
             emit(SuggestedTheme.entries.map { 
@@ -242,25 +266,38 @@ class GetSuggestedThemesUseCase @Inject constructor(
             return@flow
         }
 
-        val modelPath = manageModelUseCase.getModelPath()
-        val initialized = embeddingService.initialize(modelPath)
-        Log.d(tag, "Embedding service initialized: $initialized")
-        if (!initialized) {
+        val localEmbeddingReady = if (hasCloudEmbedding) {
+            true
+        } else {
+            val modelPath = manageModelUseCase.getModelPath()
+            embeddingService.initialize(modelPath)
+        }
+        Log.d(tag, "Embedding service initialized: $localEmbeddingReady")
+        if (!localEmbeddingReady) {
             emit(SuggestedTheme.entries.map { 
                 ThemeSuggestion(it, 0f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) })
             })
             return@flow
         }
 
+        val prefsData = userPreferencesRepository.preferences.first()
+        val simThreshold = (
+            if (hasCloudEmbedding) {
+                prefsData.cloudDeduplicationThreshold - 0.01f
+            } else {
+                prefsData.localDeduplicationThreshold - 0.2f
+            }
+        ).coerceIn(0f, 0.99f)
+
         Log.d(tag, "Calculating embeddings for user articles...")
         val userEmbeddings = userArticles.mapNotNull { 
-           val emb = embeddingService.getEmbedding(it.title)
+           val emb = getEmbedding(it.title, hasCloudEmbedding)
            it.title to normalize(emb)
         }
 
         Log.d(tag, "Calculating static anchor embeddings for all themes...")
         val staticAnchorEmbeddings: Map<SuggestedTheme, FloatArray> = SuggestedTheme.entries.associateWith { theme ->
-            val anchorEmbs = theme.anchors.map { normalize(embeddingService.getEmbedding(it)) }
+            val anchorEmbs = theme.anchors.map { normalize(getEmbedding(it, hasCloudEmbedding)) }
             val vectorSize = anchorEmbs.first().size
             val sumVector = FloatArray(vectorSize)
             for (emb in anchorEmbs) {
@@ -313,7 +350,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
                         if (titleForEmbedding.isBlank()) titleForEmbedding = "погода"
                         Log.d(tag, "Weather processed title for embedding: '$titleForEmbedding' (original: '${it.title}')")
                     }
-                    val emb = embeddingService.getEmbedding(titleForEmbedding)
+                    val emb = getEmbedding(titleForEmbedding, hasCloudEmbedding)
                     normalize(emb)
                 }
 
@@ -339,7 +376,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
             var matchScore = 0f
             for ((uTitle, uEmb) in userEmbeddings) {
                 val sim = dotProduct(uEmb, themeAnchorEmb)
-                if (sim >= 0.375f) {
+                if (sim >= simThreshold) {
                     matchScore += sim
                     Log.d(tag, "MATCH [${theme.title}] '$uTitle' sim=$sim")
                 } else {
@@ -357,6 +394,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
         prefs.edit()
              .putInt("sourcesHash", currentSourcesHash)
              .putStringSet("savedThemes", resultList.filter { it.isRecommended }.map { it.theme.title }.toSet())
+             .putLong(KEY_LAST_RECOMMENDATION_AT, now)
              .apply()
 
         emit(resultList)
@@ -371,5 +409,17 @@ class GetSuggestedThemesUseCase @Inject constructor(
         var sum = 0f
         for (i in a.indices) sum += a[i] * b[i]
         return sum
+    }
+
+    private suspend fun getEmbedding(text: String, hasCloudEmbedding: Boolean): FloatArray {
+        if (hasCloudEmbedding) {
+            aiRepository.embed(text)?.let { return it }
+        }
+        return embeddingService.getEmbedding(text)
+    }
+
+    companion object {
+        private const val KEY_LAST_RECOMMENDATION_AT = "lastRecommendationAt"
+        private const val ONE_DAY_MS = 24L * 60 * 60 * 1000
     }
 }

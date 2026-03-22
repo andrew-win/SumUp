@@ -1,23 +1,17 @@
 package com.andrewwin.sumup.domain.usecase.feed
 
+import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.ArticleCluster
 import com.andrewwin.sumup.domain.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.DeduplicationService
+import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import android.util.Log
@@ -27,9 +21,11 @@ class GetFeedArticlesUseCase @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
     private val deduplicationService: DeduplicationService,
-    private val importanceScorer: ArticleImportanceScorer
+    private val importanceScorer: ArticleImportanceScorer,
+    private val aiRepository: AiRepository
 ) {
     private val tag = "GetFeedArticles"
+
     operator fun invoke(
         searchQueryFlow: Flow<String>,
         selectedGroupIdFlow: Flow<Long?>,
@@ -51,8 +47,7 @@ class GetFeedArticlesUseCase @Inject constructor(
         return combine(flow1, flow2) { triple1, triple2 ->
             val (articles, groupsWithSources, query) = triple1
             val (groupId, dateFilterHours, prefs) = triple2
-            Log.d(tag, "pipeline input articles=${articles.size} groupId=$groupId dateFilterHours=$dateFilterHours query='${query}' prefs=dedup=${prefs.isDeduplicationEnabled} modelPath=${prefs.modelPath.orEmpty()} minMentions=${prefs.minMentions} importance=${prefs.isImportanceFilterEnabled}")
-
+            
             val sourceTypeMap = groupsWithSources
                 .flatMap { it.sources }
                 .associate { it.id to it.type }
@@ -80,7 +75,6 @@ class GetFeedArticlesUseCase @Inject constructor(
                 }
             }
 
-            // 1. Filter by importance if enabled
             if (prefs.isImportanceFilterEnabled) {
                 processedArticles = processedArticles.filter { article ->
                     val sourceType = sourceTypeMap[article.sourceId] ?: SourceType.RSS
@@ -88,16 +82,13 @@ class GetFeedArticlesUseCase @Inject constructor(
                 }
             }
 
-            Log.d(tag, "after filters articles=${processedArticles.size}")
-
             FeedPipelineState(processedArticles, prefs)
         }.flowOn(Dispatchers.Default)
-            .debounce(DEDUP_START_DEBOUNCE_MS)
             .flatMapLatest { state ->
                 flow {
                     coroutineScope {
                         val baseClusters = if (state.articles.isNotEmpty()) {
-                            if (!state.prefs.isDeduplicationEnabled || state.prefs.modelPath == null) {
+                            if (!state.prefs.isDeduplicationEnabled) {
                                 state.articles.map { ArticleCluster(it, emptyList()) }
                             } else {
                                 withContext(Dispatchers.IO) {
@@ -108,63 +99,44 @@ class GetFeedArticlesUseCase @Inject constructor(
                             emptyList()
                         }
 
-                        val initialClusters = when {
-                            // If dedup is enabled and we don't have any clusters yet,
-                            // avoid showing non-deduped singletons to prevent flicker.
-                            state.shouldDedup && baseClusters.isEmpty() -> emptyList()
-                            baseClusters.isEmpty() && state.articles.isNotEmpty() ->
-                                state.articles.map { ArticleCluster(it, emptyList()) }
-                            else -> baseClusters
+                        val initialClusters = if (baseClusters.isEmpty() && state.articles.isNotEmpty() && !state.shouldDedup) {
+                            state.articles.map { ArticleCluster(it, emptyList()) }
+                        } else {
+                            baseClusters
                         }
 
                         val initial = applyMinMentionsFilter(initialClusters, state.prefs)
-                        Log.d(tag, "baseClusters=${baseClusters.size} initial=${initial.size} shouldDedup=${state.shouldDedup}")
-                        val usedIds = baseClusters
-                            .flatMap { cluster -> listOf(cluster.representative.id) + cluster.duplicates.map { it.first.id } }
-                            .toSet()
-                        val newArticles = state.articles.filterNot { usedIds.contains(it.id) }
-                        val shouldRunDedup = state.shouldDedup && newArticles.isNotEmpty()
-                        Log.d(tag, "newArticles=${newArticles.size} shouldRunDedup=$shouldRunDedup")
+                        val shouldRunDedup = state.shouldDedup && state.articles.size >= 2
 
                         emit(FeedResult(initial, shouldRunDedup))
-                        var lastEmitted = initial
-
-                        val warmupJob = launch {
-                            val modelPath = state.prefs.modelPath ?: return@launch
-                            if (state.articles.isEmpty()) return@launch
-                            delay(EMBED_WARMUP_DELAY_MS)
-                            if (deduplicationService.initialize(modelPath)) {
-                                deduplicationService.warmUpEmbeddings(
-                                    articles = state.articles,
-                                    throttleMs = EMBED_WARMUP_THROTTLE_MS
-                                )
-                            }
-                        }
 
                         if (!shouldRunDedup) return@coroutineScope
 
                         delay(DEDUP_DELAY_MS)
-                        warmupJob.cancel()
-                        val initialized = deduplicationService.initialize(state.prefs.modelPath!!)
-                        if (!initialized) {
-                            val fallback = state.articles.map { ArticleCluster(it, emptyList()) }
-                            emit(FeedResult(fallback, false))
-                            return@coroutineScope
+                        
+                        state.prefs.modelPath?.let { path ->
+                            deduplicationService.initialize(path)
                         }
 
                         var lastClusters: List<ArticleCluster>? = null
+                        val deduplicationThreshold = withContext(Dispatchers.IO) {
+                            if (aiRepository.hasEnabledEmbeddingConfig()) {
+                                state.prefs.cloudDeduplicationThreshold
+                            } else {
+                                state.prefs.localDeduplicationThreshold
+                            }
+                        }
+
                         deduplicationService
-                            .attachNewArticlesIncremental(
-                                existingClusters = baseClusters,
-                                newArticles = newArticles,
-                                threshold = state.prefs.deduplicationThreshold,
+                            .clusterArticlesIncremental(
+                                articles = state.articles,
+                                threshold = deduplicationThreshold,
                                 emitEvery = DEDUP_EMIT_EVERY,
                                 throttleMs = DEDUP_THROTTLE_MS
                             )
                             .collect { clusters ->
                                 val filtered = applyMinMentionsFilter(clusters, state.prefs)
                                 lastClusters = filtered
-                                lastEmitted = filtered
                                 emit(FeedResult(filtered, true))
                             }
 
@@ -181,49 +153,14 @@ class GetFeedArticlesUseCase @Inject constructor(
         clusters: List<ArticleCluster>,
         prefs: UserPreferences
     ): List<ArticleCluster> {
-        if (!prefs.isDeduplicationEnabled || prefs.modelPath == null) return clusters
+        if (!prefs.isDeduplicationEnabled) return clusters
         if (clusters.isEmpty()) return clusters
-        // If dedup hasn't produced any matches yet, don't hide singletons.
         if (clusters.all { it.duplicates.isEmpty() }) return clusters
         return clusters.filter { it.duplicates.size + 1 >= prefs.minMentions }
     }
 
-    private fun mergeCachedWithCurrent(
-        cached: List<ArticleCluster>,
-        currentArticles: List<com.andrewwin.sumup.data.local.entities.Article>
-    ): List<ArticleCluster> {
-        val currentById = currentArticles.associateBy { it.id }
-        val usedIds = mutableSetOf<Long>()
-        val merged = mutableListOf<ArticleCluster>()
-
-        for (cluster in cached) {
-            val rep = currentById[cluster.representative.id]
-            val keptDuplicates = cluster.duplicates
-                .mapNotNull { (article, score) ->
-                    val current = currentById[article.id] ?: return@mapNotNull null
-                    current to score
-                }
-
-            val finalRep = rep ?: keptDuplicates.firstOrNull()?.first
-            if (finalRep != null) {
-                usedIds.add(finalRep.id)
-                keptDuplicates.forEach { usedIds.add(it.first.id) }
-
-                val finalDuplicates = keptDuplicates
-                    .filterNot { it.first.id == finalRep.id }
-
-                merged.add(ArticleCluster(finalRep, finalDuplicates))
-            }
-        }
-
-        val missing = currentArticles.filterNot { usedIds.contains(it.id) }
-        missing.forEach { merged.add(ArticleCluster(it, emptyList())) }
-
-        return merged
-    }
-
     private suspend fun buildClustersFromDb(
-        currentArticles: List<com.andrewwin.sumup.data.local.entities.Article>
+        currentArticles: List<Article>
     ): List<ArticleCluster> {
         val currentById = currentArticles.associateBy { it.id }
         val ids = currentArticles.map { it.id }
@@ -260,12 +197,12 @@ class GetFeedArticlesUseCase @Inject constructor(
                 }
             }
 
-            val articles = component.mapNotNull { currentById[it] }
-            if (articles.size < 2) continue
+            val articlesInCluster = component.mapNotNull { currentById[it] }
+            if (articlesInCluster.size < 2) continue
 
-            val representative = articles.maxBy { it.publishedAt }
+            val representative = articlesInCluster.maxBy { it.publishedAt }
             val componentIds = component.toSet()
-            val duplicates = articles
+            val duplicates = articlesInCluster
                 .filterNot { it.id == representative.id }
                 .map { article ->
                     val score = componentIds
@@ -278,15 +215,18 @@ class GetFeedArticlesUseCase @Inject constructor(
             clusters.add(ArticleCluster(representative, duplicates))
         }
 
-        return clusters
+        val clusteredIds = clusters.flatMap { c -> listOf(c.representative.id) + c.duplicates.map { it.first.id } }.toSet()
+        val remaining = currentArticles.filterNot { clusteredIds.contains(it.id) }
+        remaining.forEach { clusters.add(ArticleCluster(it, emptyList())) }
+
+        return clusters.sortedByDescending { it.representative.publishedAt }
     }
 
-    private data class FeedPipelineState(
-        val articles: List<com.andrewwin.sumup.data.local.entities.Article>,
+    data class FeedPipelineState(
+        val articles: List<Article>,
         val prefs: UserPreferences
     ) {
-        val shouldDedup: Boolean =
-            prefs.isDeduplicationEnabled && prefs.modelPath != null && articles.isNotEmpty()
+        val shouldDedup = prefs.isDeduplicationEnabled
     }
 
     data class FeedResult(
@@ -294,12 +234,9 @@ class GetFeedArticlesUseCase @Inject constructor(
         val isDedupInProgress: Boolean
     )
 
-    private companion object {
-        private const val DEDUP_DELAY_MS = 1_000L
-        private const val DEDUP_EMIT_EVERY = 1
+    companion object {
+        private const val DEDUP_DELAY_MS = 200L
         private const val DEDUP_THROTTLE_MS = 25L
-        private const val EMBED_WARMUP_DELAY_MS = 500L
-        private const val EMBED_WARMUP_THROTTLE_MS = 20L
-        private const val DEDUP_START_DEBOUNCE_MS = 1_200L
+        private const val DEDUP_EMIT_EVERY = 12
     }
 }

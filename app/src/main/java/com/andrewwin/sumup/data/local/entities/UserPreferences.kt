@@ -4,7 +4,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 enum class AiStrategy {
-    CLOUD, EXTRACTIVE, ADAPTIVE
+    CLOUD, LOCAL, ADAPTIVE
 }
 
 @Entity(tableName = "user_preferences")
@@ -16,7 +16,8 @@ data class UserPreferences(
     val scheduledMinute: Int = 0,
     val lastWorkRunTimestamp: Long = 0,
     val isDeduplicationEnabled: Boolean = false,
-    val deduplicationThreshold: Float = 0.45f,
+    val localDeduplicationThreshold: Float = 0.55f,
+    val cloudDeduplicationThreshold: Float = 0.75f,
     val minMentions: Int = 2,
     val isHideSingleNewsEnabled: Boolean = false,
     val modelPath: String? = null,

@@ -44,7 +44,7 @@
     <string name="summary_system_notice">Системне сповіщення</string>
     <string name="settings_ai_strategy">Стратегія використання ШІ</string>
     <string name="ai_strategy_cloud">Хмарна</string>
-    <string name="ai_strategy_extractive">Екстрактивна</string>
+    <string name="ai_strategy_local">Локальна</string>
     <string name="ai_strategy_adaptive">Адаптивна</string>
     <string name="settings_api_keys">API Ключі</string>
     <string name="settings_api_keys_empty">API ключі ще не додано</string>
@@ -77,7 +77,8 @@
     <string name="ai_generic_error">Помилка при генерації</string>
     <string name="settings_deduplication">Дедуплікація</string>
     <string name="settings_enable_deduplication">Приховувати схожі</string>
-    <string name="settings_deduplication_threshold">Поріг схожості: %s</string>
+    <string name="settings_local_deduplication_threshold">Поріг схожості (локальна): %s</string>
+    <string name="settings_cloud_deduplication_threshold">Поріг схожості (хмарна): %s</string>
     <string name="settings_hide_single_news">Приховувати поодинокі</string>
     <string name="settings_min_mentions">Мінімально згадок: %d</string>
     <string name="settings_model_status">Статус моделі: %s</string>
@@ -99,7 +100,7 @@
     <string name="summary_worker_error_prefix">Помилка воркера</string>
     <string name="error_no_active_model">Немає активної ШІ моделі</string>
     <string name="error_all_ai_models_failed">Всі доступні ШІ моделі не відповіли. Спробуйте пізніше.</string>
-    <string name="error_unsupported_strategy">Екстрактивна сумаризація не підтримує запитання</string>
+    <string name="error_unsupported_strategy">Локальна сумаризація не підтримує запитання</string>
     <string name="error_no_articles">Немає нових статей для сумаризації.</string>
     <string name="settings_importance_filter">Важливість</string>
     <string name="settings_enable_importance_filter">Приховувати малоінформативні</string>
@@ -142,6 +143,7 @@
     <string name="summary_article_format">%1$s: %2$s</string>
     <string name="feed_empty_message">Новин не знайдено. Спробуйте оновити стрічку потянувши вниз</string>
     <string name="settings_cloud_summary">Хмарна сумаризація</string>
+    <string name="settings_cloud_vectorization">Хмарна векторизація</string>
     <string name="settings_summary_prompt">Промпт для сумаризації</string>
     <string name="settings_summary_prompt_hint">Напишіть інструкцію для моделі</string>
     <string name="settings_custom_summary_prompt">Кастомний промпт</string>

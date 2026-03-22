@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.di
 
 import android.content.Context
+import android.util.Log
 import androidx.work.WorkManager
 import com.andrewwin.sumup.data.local.AppDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
@@ -9,6 +10,8 @@ import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
+import com.andrewwin.sumup.data.local.scheduler.SummarySchedulerImpl
+import com.andrewwin.sumup.data.provider.AiPromptProviderImpl
 import com.andrewwin.sumup.data.remote.AiService
 import com.andrewwin.sumup.data.remote.RssParser
 import com.andrewwin.sumup.data.remote.TelegramParser
@@ -20,36 +23,31 @@ import com.andrewwin.sumup.data.repository.ModelRepositoryImpl
 import com.andrewwin.sumup.data.repository.SourceRepositoryImpl
 import com.andrewwin.sumup.data.repository.SummaryRepositoryImpl
 import com.andrewwin.sumup.data.repository.UserPreferencesRepositoryImpl
-import com.andrewwin.sumup.data.provider.AiPromptProviderImpl
 import com.andrewwin.sumup.domain.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.DeduplicationService
+import com.andrewwin.sumup.domain.provider.AiPromptProvider
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.ModelRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
+import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.provider.AiPromptProvider
+import com.andrewwin.sumup.domain.usecase.BuildExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.CleanArticleTextUseCase
+import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
 import com.andrewwin.sumup.domain.usecase.GenerateSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.GenerateSummaryUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCaseImpl
+import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCaseImpl
-import com.andrewwin.sumup.domain.repository.SummaryScheduler
-import com.andrewwin.sumup.data.local.scheduler.SummarySchedulerImpl
-import com.andrewwin.sumup.data.logger.AndroidPerformanceLogger
-import com.andrewwin.sumup.domain.usecase.CleanArticleTextUseCase
-import com.andrewwin.sumup.domain.usecase.BuildExtractiveSummaryUseCase
-import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
-import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
-import com.andrewwin.sumup.domain.logger.PerformanceLogger
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import android.util.Log
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import javax.inject.Singleton
@@ -202,8 +200,11 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideDeduplicationService(articleRepository: ArticleRepository): DeduplicationService =
-        DeduplicationService(articleRepository)
+    fun provideDeduplicationService(
+        articleRepository: ArticleRepository,
+        aiRepository: AiRepository
+    ): DeduplicationService =
+        DeduplicationService(articleRepository, aiRepository)
 
     @Provides
     @Singleton
@@ -216,13 +217,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideFormatExtractiveSummaryUseCase(@dagger.hilt.android.qualifiers.ApplicationContext context: Context): FormatExtractiveSummaryUseCase = 
+    fun provideFormatExtractiveSummaryUseCase(@ApplicationContext context: Context): FormatExtractiveSummaryUseCase = 
         FormatExtractiveSummaryUseCase(context)
 
     @Provides
     @Singleton
     fun provideBuildExtractiveSummaryUseCase(
-        @dagger.hilt.android.qualifiers.ApplicationContext context: Context,
+        @ApplicationContext context: Context,
         formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase
     ): BuildExtractiveSummaryUseCase = BuildExtractiveSummaryUseCase(context, formatExtractiveSummaryUseCase)
 
@@ -255,12 +256,16 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun providePerformanceLogger(
-        androidPerformanceLogger: AndroidPerformanceLogger
-    ): PerformanceLogger = androidPerformanceLogger
+    fun provideEmbeddingService(): com.andrewwin.sumup.domain.repository.EmbeddingService =
+        com.andrewwin.sumup.data.repository.EmbeddingServiceImpl()
 
     @Provides
     @Singleton
-    fun provideEmbeddingService(): com.andrewwin.sumup.domain.repository.EmbeddingService =
-        com.andrewwin.sumup.data.repository.EmbeddingServiceImpl()
+    fun providePerformanceLogger(): com.andrewwin.sumup.domain.logger.PerformanceLogger =
+        com.andrewwin.sumup.data.logger.AndroidPerformanceLogger()
+
+    @Provides
+    @Singleton
+    fun provideDispatcherProvider(): com.andrewwin.sumup.domain.coroutines.DispatcherProvider =
+        com.andrewwin.sumup.data.coroutines.AppDispatcherProvider()
 }
