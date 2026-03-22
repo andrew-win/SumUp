@@ -1,10 +1,14 @@
 package com.andrewwin.sumup.ui.screens.summary
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -14,6 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,6 +39,8 @@ fun SummaryScreen(
 ) {
     val summaries by viewModel.summaries.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
+    val chartData by viewModel.chartData.collectAsState()
+    val chartType by viewModel.chartType.collectAsState()
     
     val todaySummary = remember(summaries) {
         summaries.firstOrNull { isSameDay(it.createdAt, System.currentTimeMillis()) }
@@ -40,6 +48,8 @@ fun SummaryScreen(
     val olderSummaries = remember(summaries, todaySummary) {
         summaries.filter { it.id != todaySummary?.id }
     }
+
+    val isModelEnabled = userPreferences.modelPath != null
 
     Scaffold(
         topBar = {
@@ -72,6 +82,15 @@ fun SummaryScreen(
             contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item {
+                SummaryChart(
+                    items = chartData,
+                    currentType = chartType,
+                    onTypeChange = viewModel::setChartType,
+                    isModelEnabled = isModelEnabled
+                )
+            }
+
             item {
                 val statusText = if (userPreferences.isScheduledSummaryEnabled) {
                     val nextMillis = getNextScheduledTimeMillis(
@@ -116,6 +135,131 @@ fun SummaryScreen(
                     SummaryCard(summary = summary)
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun SummaryChart(
+    items: List<SummaryChartItem>,
+    currentType: SummaryChartType,
+    onTypeChange: (SummaryChartType) -> Unit,
+    isModelEnabled: Boolean
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ChartTypeChip(
+                selected = currentType == SummaryChartType.VIEWS,
+                onClick = { onTypeChange(SummaryChartType.VIEWS) },
+                label = stringResource(R.string.chart_views)
+            )
+            if (isModelEnabled) {
+                ChartTypeChip(
+                    selected = currentType == SummaryChartType.MENTIONS,
+                    onClick = { onTypeChange(SummaryChartType.MENTIONS) },
+                    label = stringResource(R.string.chart_mentions)
+                )
+            }
+            ChartTypeChip(
+                selected = currentType == SummaryChartType.FACTUALITY,
+                onClick = { onTypeChange(SummaryChartType.FACTUALITY) },
+                label = stringResource(R.string.chart_factuality)
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        if (items.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    stringResource(R.string.no_articles_prefix),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            val maxValue = items.maxOfOrNull { it.value }?.takeIf { it > 0 } ?: 1f
+            items.forEach { item ->
+                ChartBar(item, maxValue)
+                Spacer(Modifier.height(12.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun ChartTypeChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, style = MaterialTheme.typography.labelMedium) },
+        shape = CircleShape,
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primary,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+        ),
+        border = null
+    )
+}
+
+@Composable
+fun ChartBar(item: SummaryChartItem, maxValue: Float) {
+    val fraction = (item.value / maxValue).coerceIn(0.05f, 1f)
+    val animatedWidth by animateFloatAsState(targetValue = fraction, label = "width")
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = item.headline,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(end = 8.dp)
+            )
+            Text(
+                text = item.displayValue,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(animatedWidth)
+                    .fillMaxHeight()
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+            )
         }
     }
 }
@@ -170,7 +314,7 @@ fun SummaryCard(summary: Summary) {
                     FilledIconButton(
                         onClick = { isExpanded = !isExpanded },
                         modifier = Modifier.size(32.dp).offset(x = 8.dp, y = (-8).dp),
-                        shape = androidx.compose.foundation.shape.CircleShape,
+                        shape = CircleShape,
                         colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant,
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant

@@ -163,4 +163,9 @@
     <string name="provider_chatgpt">ChatGPT</string>
     <string name="provider_claude">Claude</string>
     <string name="feed_refreshing">Оновлення...</string>
+
+    <string name="chart_views">Перегляди</string>
+    <string name="chart_mentions">Згадки</string>
+    <string name="chart_factuality">Важливість</string>
+    <string name="chart_top_news">Топ новин</string>
 </resources>
