@@ -95,7 +95,7 @@ class SummaryViewModel @Inject constructor(
                         value = totalViews.toFloat(),
                         displayValue = formatViews(totalViews)
                     )
-                }.sortedByDescending { it.value }.take(7)
+                }.sortedByDescending { it.value }.take(4)
             }
             SummaryChartType.MENTIONS -> {
                 clusters.map { cluster ->
@@ -105,7 +105,7 @@ class SummaryViewModel @Inject constructor(
                         value = count.toFloat(),
                         displayValue = count.toString()
                     )
-                }.sortedByDescending { it.value }.take(7)
+                }.sortedByDescending { it.value }.take(4)
             }
             SummaryChartType.FACTUALITY -> {
                 clusters.map { cluster ->
@@ -116,7 +116,7 @@ class SummaryViewModel @Inject constructor(
                         value = score,
                         displayValue = "%.2f".format(score)
                     )
-                }.sortedByDescending { it.value }.take(7)
+                }.sortedByDescending { it.value }.take(4)
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

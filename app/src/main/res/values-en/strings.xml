@@ -43,6 +43,9 @@
     <string name="summary_status_ready">Today’s issue is ready</string>
     <string name="summary_status_waiting">Waiting for today’s issue</string>
     <string name="summary_generate_now">Generate now</string>
+    <string name="summary_scheduled_block_title">Scheduled summaries:</string>
+    <string name="summary_previous_short">Previous</string>
+    <string name="summary_next_short">Next</string>
     <string name="summary_cloud_type">Cloud summarization</string>
     <string name="summary_system_notice">System notice</string>
     <string name="settings_ai_strategy">AI usage strategy</string>
@@ -189,4 +192,5 @@
     <string name="sources_suggested_themes_title">Subscribe to themes:</string>
     <string name="sources_suggested_themes_hint">Subscribe to themes (download AI model for personalization):</string>
     <string name="sources_recommended_badge">⭐️ Recommended</string>
+    <string name="sources_subscribed">Subscribed</string>
 </resources>

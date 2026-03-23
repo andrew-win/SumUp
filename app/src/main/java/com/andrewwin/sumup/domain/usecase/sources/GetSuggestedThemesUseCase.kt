@@ -108,7 +108,7 @@ enum class SuggestedTheme(val title: String, val sources: List<ThemeSource>, val
         )
     ),
     CRYPTO(
-        "Криптовалюта",
+        "Крипта",
         listOf(
             ThemeSource("https://t.me/probitcoinua", SourceType.TELEGRAM),
             ThemeSource("https://https://t.me/Kripta_Ukraina", SourceType.TELEGRAM),

@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Done
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -112,13 +114,26 @@ fun SourcesScreen(
                     modifier = Modifier.padding(horizontal = 8.dp).padding(bottom = 12.dp)
                 )
 
-                suggestedThemes.forEach { suggestion ->
-                    SuggestedThemeItem(
-                        suggestion = suggestion,
-                        onToggle = { isSubscribed ->
-                            viewModel.toggleThemeSubscription(suggestion, isSubscribed)
+                suggestedThemes.chunked(2).forEach { rowItems ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        rowItems.forEach { suggestion ->
+                            SuggestedThemeItem(
+                                suggestion = suggestion,
+                                modifier = Modifier.weight(1f),
+                                onToggle = { isSubscribed ->
+                                    viewModel.toggleThemeSubscription(suggestion, isSubscribed)
+                                }
+                            )
                         }
-                    )
+                        if (rowItems.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
                 }
             }
         }
@@ -397,7 +412,7 @@ fun SourceItem(
             )
             Text(
                 text = displayUrl,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
             )
@@ -644,33 +659,67 @@ fun SourceDialog(
 @Composable
 fun SuggestedThemeItem(
     suggestion: com.andrewwin.sumup.domain.usecase.sources.ThemeSuggestion,
+    modifier: Modifier = Modifier,
     onToggle: (Boolean) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp, horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
+    val targetSubscribedState = !suggestion.isSubscribed
+    Surface(
+        onClick = { onToggle(targetSubscribedState) },
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = modifier
+            .padding(vertical = 6.dp)
+            .heightIn(min = 72.dp)
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = suggestion.theme.title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Normal
-            )
-            if (suggestion.isRecommended) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggle(targetSubscribedState) },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 Text(
-                    text = stringResource(R.string.sources_recommended_badge),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                    text = suggestion.theme.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Normal,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 2
+                )
+                Icon(
+                    imageVector = if (suggestion.isSubscribed) Icons.Outlined.Done else Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = if (suggestion.isSubscribed) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
                 )
             }
+
+            if (suggestion.isSubscribed) {
+                Text(
+                    text = stringResource(R.string.sources_subscribed),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            if (suggestion.isRecommended) {
+                    Text(
+                        text = stringResource(R.string.sources_recommended_badge),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                    )
+                }
         }
-        Checkbox(
-            checked = suggestion.isSubscribed,
-            onCheckedChange = { onToggle(it) }
-        )
     }
 }
 

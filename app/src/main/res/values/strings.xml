@@ -43,6 +43,9 @@
     <string name="summary_status_ready">Сьогоднішній випуск готовий</string>
     <string name="summary_status_waiting">Очікуємо на випуск за сьогодні</string>
     <string name="summary_generate_now">Згенерувати зараз</string>
+    <string name="summary_scheduled_block_title">Заплановані сумаризації:</string>
+    <string name="summary_previous_short">Попереднє</string>
+    <string name="summary_next_short">Наступне</string>
     <string name="summary_cloud_type">Хмарна сумаризація</string>
     <string name="summary_system_notice">Системне сповіщення</string>
     <string name="settings_ai_strategy">Стратегія використання ШІ</string>
@@ -193,4 +196,5 @@
     <string name="sources_suggested_themes_title">Підписуйтесь на теми:</string>
     <string name="sources_suggested_themes_hint">Підписуйтесь на теми (для персоналізації треба embedding ШІ-модель):</string>
     <string name="sources_recommended_badge">⭐️ Рекомендовано</string>
+    <string name="sources_subscribed">Підписано</string>
 </resources>

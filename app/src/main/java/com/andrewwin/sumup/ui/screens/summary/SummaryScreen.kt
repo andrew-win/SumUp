@@ -1,7 +1,6 @@
 package com.andrewwin.sumup.ui.screens.summary
 
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,7 +18,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,22 +41,19 @@ fun SummaryScreen(
     val chartData by viewModel.chartData.collectAsState()
     val chartType by viewModel.chartType.collectAsState()
     val isVectorizationEnabled by viewModel.isVectorizationEnabled.collectAsState()
-    
+
     val todaySummary = remember(summaries) {
         summaries.firstOrNull { isSameDay(it.createdAt, System.currentTimeMillis()) }
     }
     val olderSummaries = remember(summaries, todaySummary) {
         summaries.filter { it.id != todaySummary?.id }
     }
+    val lastSummary = remember(summaries) { summaries.firstOrNull() }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
-                    Text(
-                        stringResource(R.string.nav_summary)
-                    ) 
-                },
+                title = { Text(stringResource(R.string.nav_summary)) },
                 actions = {
                     FilledIconButton(
                         onClick = {},
@@ -81,6 +77,7 @@ fun SummaryScreen(
             contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Блок 1: Список новин (графік)
             item {
                 SummaryChart(
                     items = chartData,
@@ -90,44 +87,35 @@ fun SummaryScreen(
                 )
             }
 
+            // Блок 2: Статус-рядок "Попереднє / Наступне" — місток між списком і зведенням
             item {
-                val statusText = if (userPreferences.isScheduledSummaryEnabled) {
-                    val nextMillis = getNextScheduledTimeMillis(
-                        userPreferences.scheduledHour,
-                        userPreferences.scheduledMinute
-                    )
-                    val format = SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA"))
-                    stringResource(R.string.summary_next_at, format.format(Date(nextMillis)))
-                } else {
-                    stringResource(R.string.summary_scheduling_disabled)
-                }
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                    )
-                ) {
-                    Text(
-                        text = statusText,
-                        modifier = Modifier.padding(24.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                PrevNextStatusRow(
+                    previousSummaryAt = lastSummary?.createdAt,
+                    isScheduledEnabled = userPreferences.isScheduledSummaryEnabled,
+                    nextScheduledAt = if (userPreferences.isScheduledSummaryEnabled) {
+                        getNextScheduledTimeMillis(
+                            userPreferences.scheduledHour,
+                            userPreferences.scheduledMinute
+                        )
+                    } else null
+                )
             }
 
+            // Блок 3: Поточне зведення (якщо є)
             if (todaySummary != null) {
                 item {
                     SummaryCard(summary = todaySummary)
                 }
             }
 
+            // Блок 4: Історія
             if (olderSummaries.isNotEmpty()) {
                 item {
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(8.dp))
                     Text(
                         text = stringResource(R.string.summary_history_title),
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(start = 4.dp)
                     )
                 }
                 items(olderSummaries, key = { it.id }) { summary ->
@@ -137,6 +125,10 @@ fun SummaryScreen(
         }
     }
 }
+
+// ─────────────────────────────────────────────
+// Графік — суцільна картка з роздільниками
+// ─────────────────────────────────────────────
 
 @Composable
 fun SummaryChart(
@@ -148,7 +140,7 @@ fun SummaryChart(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 4.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -173,26 +165,40 @@ fun SummaryChart(
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
 
-        if (items.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    stringResource(R.string.no_articles_prefix),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            val maxValue = items.maxOfOrNull { it.value }?.takeIf { it > 0 } ?: 1f
-            items.forEach { item ->
-                ChartBar(item, maxValue)
-                Spacer(Modifier.height(12.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            if (items.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        stringResource(R.string.no_articles_prefix),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                val maxValue = items.maxOfOrNull { it.value }?.takeIf { it > 0 } ?: 1f
+                Column {
+                    items.forEachIndexed { index, item ->
+                        ChartBar(
+                            item = item,
+                            maxValue = maxValue,
+                            isLast = index == items.lastIndex
+                        )
+                    }
+                }
             }
         }
     }
@@ -220,78 +226,178 @@ fun ChartTypeChip(
 }
 
 @Composable
-fun ChartBar(item: SummaryChartItem, maxValue: Float) {
+fun ChartBar(
+    item: SummaryChartItem,
+    maxValue: Float,
+    isLast: Boolean
+) {
     val fraction = (item.value / maxValue).coerceIn(0.05f, 1f)
-    val animatedWidth by animateFloatAsState(targetValue = fraction, label = "width")
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = item.headline,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(end = 8.dp)
-            )
-            Text(
-                text = item.displayValue,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-        Spacer(Modifier.height(4.dp))
+    // Вертикальна смуга: інтенсивність кольору залежить від відносного значення
+    val accentColor = lerp(
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+        MaterialTheme.colorScheme.primary,
+        fraction
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                .width(3.dp)
+                .height(36.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(accentColor)
+        )
+
+        Spacer(Modifier.width(14.dp))
+
+        Text(
+            text = item.headline,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(end = 8.dp)
+        )
+
+        Text(
+            text = item.displayValue,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+
+    if (!isLast) {
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            thickness = 0.5.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+        )
+    }
+}
+
+// ─────────────────────────────────────────────
+// Статус-рядок: Попереднє | Наступне
+// Місток між списком новин і картою зведення
+// ─────────────────────────────────────────────
+
+@Composable
+fun PrevNextStatusRow(
+    previousSummaryAt: Long?,
+    isScheduledEnabled: Boolean,
+    nextScheduledAt: Long?
+) {
+    val previousText = previousSummaryAt?.let { formatShortStatusDate(it) }
+        ?: stringResource(R.string.summary_not_ready)
+    val nextText = if (!isScheduledEnabled || nextScheduledAt == null) {
+        stringResource(R.string.summary_scheduling_disabled)
+    } else {
+        formatShortStatusDate(nextScheduledAt)
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Card(
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            Box(
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth(animatedWidth)
-                    .fillMaxHeight()
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
-            )
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = stringResource(R.string.summary_previous_short),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = previousText,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        Card(
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = stringResource(R.string.summary_next_short),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = nextText,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }
 
+// ─────────────────────────────────────────────
+// Карта зведення
+// ─────────────────────────────────────────────
+
 @Composable
 fun SummaryCard(summary: Summary) {
     val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
-    val isError = summary.content.startsWith(stringResource(R.string.error_prefix)) || 
-                  summary.content.startsWith(stringResource(R.string.no_articles_prefix))
-    
+    val isError = summary.content.startsWith(stringResource(R.string.error_prefix)) ||
+            summary.content.startsWith(stringResource(R.string.no_articles_prefix))
+
     var isExpanded by rememberSaveable(summary.id) { mutableStateOf(false) }
-    
+
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = dateFormat.format(Date(summary.createdAt)),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
+            modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
         )
-        
+
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { isExpanded = !isExpanded },
             shape = MaterialTheme.shapes.extraLarge,
             colors = CardDefaults.cardColors(
-                containerColor = if (isError) 
-                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f) 
-                else 
+                containerColor = if (isError)
+                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                else
                     MaterialTheme.colorScheme.surfaceContainer
-            )
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -300,19 +406,22 @@ fun SummaryCard(summary: Summary) {
                     Text(
                         text = summary.content,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                        color = if (isError) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier
                             .weight(1f)
                             .padding(end = 8.dp)
                             .animateContentSize(),
                         maxLines = if (isExpanded) Int.MAX_VALUE else 3,
                         overflow = TextOverflow.Ellipsis,
-                        lineHeight = 26.sp
+                        lineHeight = 24.sp
                     )
-                    
+
                     FilledIconButton(
                         onClick = { isExpanded = !isExpanded },
-                        modifier = Modifier.size(32.dp).offset(x = 8.dp, y = (-8).dp),
+                        modifier = Modifier
+                            .size(30.dp)
+                            .offset(x = 6.dp, y = (-6).dp),
                         shape = CircleShape,
                         colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -320,14 +429,16 @@ fun SummaryCard(summary: Summary) {
                         )
                     ) {
                         Icon(
-                            if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = null
+                            if (isExpanded) Icons.Default.KeyboardArrowUp
+                            else Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
-                
-                Spacer(Modifier.height(16.dp))
-                
+
+                Spacer(Modifier.height(12.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -339,9 +450,11 @@ fun SummaryCard(summary: Summary) {
                         AiStrategy.ADAPTIVE -> stringResource(R.string.ai_strategy_adaptive)
                     }
                     Text(
-                        text = if (isError) stringResource(R.string.summary_system_notice) else strategyLabel,
+                        text = if (isError) stringResource(R.string.summary_system_notice)
+                        else strategyLabel,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (isError) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Normal
                     )
                 }
@@ -350,11 +463,15 @@ fun SummaryCard(summary: Summary) {
     }
 }
 
+// ─────────────────────────────────────────────
+// Утиліти
+// ─────────────────────────────────────────────
+
 private fun isSameDay(t1: Long, t2: Long): Boolean {
     val cal1 = Calendar.getInstance().apply { timeInMillis = t1 }
     val cal2 = Calendar.getInstance().apply { timeInMillis = t2 }
     return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
-           cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+            cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
 }
 
 private fun getNextScheduledTimeMillis(hour: Int, minute: Int): Long {
@@ -369,4 +486,9 @@ private fun getNextScheduledTimeMillis(hour: Int, minute: Int): Long {
         next.add(Calendar.DAY_OF_YEAR, 1)
     }
     return next.timeInMillis
+}
+
+private fun formatShortStatusDate(timestamp: Long): String {
+    val format = SimpleDateFormat("HH:mm, dd MMM", Locale("uk", "UA"))
+    return format.format(Date(timestamp))
 }
