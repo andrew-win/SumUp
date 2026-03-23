@@ -49,10 +49,37 @@ class SourceRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun addSource(groupId: Long, name: String, url: String, type: SourceType) {
+    override suspend fun addSource(
+        groupId: Long,
+        name: String,
+        url: String,
+        type: SourceType,
+        titleSelector: String?,
+        postLinkSelector: String?,
+        descriptionSelector: String?,
+        dateSelector: String?,
+        useHeadlessBrowser: Boolean
+    ) {
         val normalizedUrl = normalizeUrl(url, type)
+        val normalizedTitleSelector = normalizeSelector(titleSelector)
+        val normalizedPostLinkSelector = normalizeSelector(postLinkSelector)
+        val normalizedDescriptionSelector = normalizeSelector(descriptionSelector)
+        val normalizedDateSelector = normalizeSelector(dateSelector)
         val footerPattern = try {
-            val sampleArticles = remoteArticleDataSource.fetchArticles(0L, normalizedUrl, type).take(10)
+            val sampleArticles = remoteArticleDataSource.fetchArticles(
+                Source(
+                    id = 0L,
+                    groupId = groupId,
+                    name = name,
+                    url = normalizedUrl,
+                    type = type,
+                    titleSelector = normalizedTitleSelector,
+                    postLinkSelector = normalizedPostLinkSelector,
+                    descriptionSelector = normalizedDescriptionSelector,
+                    dateSelector = normalizedDateSelector,
+                    useHeadlessBrowser = useHeadlessBrowser
+                )
+            ).take(10)
             if (sampleArticles.size >= 2) {
                 cleanArticleTextUseCase(sampleArticles.map { it.content })
             } else null
@@ -66,13 +93,26 @@ class SourceRepositoryImpl @Inject constructor(
                 name = name,
                 url = normalizedUrl,
                 type = type,
-                footerPattern = footerPattern
+                footerPattern = footerPattern,
+                titleSelector = normalizedTitleSelector,
+                postLinkSelector = normalizedPostLinkSelector,
+                descriptionSelector = normalizedDescriptionSelector,
+                dateSelector = normalizedDateSelector,
+                useHeadlessBrowser = useHeadlessBrowser
             )
         )
     }
 
     override suspend fun updateSource(source: Source) {
-        sourceDao.updateSource(source.copy(url = normalizeUrl(source.url, source.type)))
+        sourceDao.updateSource(
+            source.copy(
+                url = normalizeUrl(source.url, source.type),
+                titleSelector = normalizeSelector(source.titleSelector),
+                postLinkSelector = normalizeSelector(source.postLinkSelector),
+                descriptionSelector = normalizeSelector(source.descriptionSelector),
+                dateSelector = normalizeSelector(source.dateSelector)
+            )
+        )
     }
 
     override suspend fun deleteSource(source: Source) {
@@ -82,7 +122,7 @@ class SourceRepositoryImpl @Inject constructor(
     private fun normalizeUrl(url: String, type: SourceType): String {
         val trimmed = url.trim()
         if (trimmed.isBlank()) return trimmed
-        if (type != SourceType.RSS) return trimmed
+        if (type != SourceType.RSS && type != SourceType.WEBSITE) return trimmed
 
         return when {
             trimmed.startsWith("https://", ignoreCase = true) -> trimmed
@@ -91,4 +131,7 @@ class SourceRepositoryImpl @Inject constructor(
             else -> "https://$trimmed"
         }
     }
+
+    private fun normalizeSelector(selector: String?): String? =
+        selector?.trim()?.takeIf { it.isNotEmpty() }
 }

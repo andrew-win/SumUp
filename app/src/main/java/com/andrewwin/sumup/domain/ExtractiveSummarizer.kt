@@ -1,7 +1,5 @@
 package com.andrewwin.sumup.domain
 
-import kotlin.math.sqrt
-
 private const val MMR_LAMBDA = 0.7
 
 object ExtractiveSummarizer {

@@ -30,6 +30,18 @@ import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.AppThemeMode
 import java.util.Locale
 
+private const val SETTINGS_SWITCH_SCALE = 0.85f
+
+val AiProvider.iconRes: Int
+    get() = when (this) {
+        AiProvider.GEMINI -> R.drawable.ic_gemini_ai_provider
+        AiProvider.GROQ -> R.drawable.ic_groq_ai_provider
+        AiProvider.OPENROUTER -> R.drawable.ic_openrouter_ai_provider
+        AiProvider.COHERE -> R.drawable.ic_cohere_ai_provider
+        AiProvider.CHATGPT -> R.drawable.ic_chatgpt_ai_provider
+        AiProvider.CLAUDE -> R.drawable.ic_claude_ai_provider
+    }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -43,8 +55,11 @@ fun SettingsScreen(
     var showConfigDialog by remember { mutableStateOf<Pair<AiModelConfig?, AiModelType>?>(null) }
     var showTimePicker by remember { mutableStateOf(false) }
     var summaryPrompt by remember(userPreferences.summaryPrompt) { mutableStateOf(userPreferences.summaryPrompt) }
+    
     var showClearArticlesDialog by remember { mutableStateOf(false) }
     var showClearEmbeddingsDialog by remember { mutableStateOf(false) }
+
+    // Local state for sliders to avoid lag
     var aiMaxCharsPerArticle by rememberSaveable(userPreferences.aiMaxCharsPerArticle) { mutableStateOf(userPreferences.aiMaxCharsPerArticle.toFloat()) }
     var aiMaxCharsPerFeedArticle by rememberSaveable(userPreferences.aiMaxCharsPerFeedArticle) { mutableStateOf(userPreferences.aiMaxCharsPerFeedArticle.toFloat()) }
     var aiMaxCharsTotal by rememberSaveable(userPreferences.aiMaxCharsTotal) { mutableStateOf(userPreferences.aiMaxCharsTotal.toFloat()) }
@@ -200,7 +215,7 @@ fun SettingsScreen(
                             Switch(
                                 checked = userPreferences.isCustomSummaryPromptEnabled,
                                 onCheckedChange = { viewModel.updateCustomSummaryPromptEnabled(it) },
-                                modifier = Modifier.scale(0.85f)
+                                modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
                             )
                         }
 
@@ -376,7 +391,7 @@ fun SettingsScreen(
                             Switch(
                                 checked = userPreferences.isFeedMediaEnabled,
                                 onCheckedChange = { viewModel.updateFeedMediaEnabled(it) },
-                                modifier = Modifier.scale(0.85f)
+                                modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
                             )
                         }
 
@@ -389,7 +404,7 @@ fun SettingsScreen(
                             Switch(
                                 checked = userPreferences.isImportanceFilterEnabled,
                                 onCheckedChange = { viewModel.updateImportanceFilterEnabled(it) },
-                                modifier = Modifier.scale(0.85f)
+                                modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
                             )
                         }
 
@@ -402,7 +417,7 @@ fun SettingsScreen(
                             Switch(
                                 checked = userPreferences.isDeduplicationEnabled,
                                 onCheckedChange = { viewModel.updateDeduplicationEnabled(it) },
-                                modifier = Modifier.scale(0.85f)
+                                modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
                             )
                         }
 
@@ -415,7 +430,7 @@ fun SettingsScreen(
                             Switch(
                                 checked = userPreferences.isHideSingleNewsEnabled,
                                 onCheckedChange = { viewModel.updateHideSingleNewsEnabled(it) },
-                                modifier = Modifier.scale(0.85f)
+                                modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
                             )
                         }
                         
@@ -489,6 +504,7 @@ fun SettingsScreen(
                         }
 
                         Spacer(Modifier.height(4.dp))
+                        val isModelReady = downloadState is ModelDownloadState.Ready
                         val statusText = when (val s = downloadState) {
                             is ModelDownloadState.Idle -> stringResource(R.string.model_status_idle)
                             is ModelDownloadState.Downloading -> stringResource(R.string.model_status_downloading, s.progress)
@@ -503,15 +519,15 @@ fun SettingsScreen(
                         )
                         
                         Button(
-                            onClick = { if (downloadState is ModelDownloadState.Ready) viewModel.deleteModel() else viewModel.downloadModel() },
+                            onClick = { if (isModelReady) viewModel.deleteModel() else viewModel.downloadModel() },
                             modifier = Modifier.fillMaxWidth().height(52.dp),
                             shape = MaterialTheme.shapes.extraLarge,
-                            colors = if (downloadState is ModelDownloadState.Ready) 
+                            colors = if (isModelReady) 
                                 ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
                             else ButtonDefaults.buttonColors()
                         ) {
                             Text(
-                                text = stringResource(if (downloadState is ModelDownloadState.Ready) R.string.settings_delete_model else R.string.settings_download_model),
+                                text = stringResource(if (isModelReady) R.string.settings_delete_model else R.string.settings_download_model),
                                 style = MaterialTheme.typography.labelLarge
                             )
                         }
@@ -531,7 +547,7 @@ fun SettingsScreen(
                             Switch(
                                 checked = userPreferences.isScheduledSummaryEnabled,
                                 onCheckedChange = { viewModel.updateScheduledSummary(it, userPreferences.scheduledHour, userPreferences.scheduledMinute) },
-                                modifier = Modifier.scale(0.85f)
+                                modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
                             )
                         }
                         
@@ -544,8 +560,9 @@ fun SettingsScreen(
                         ) {
                             Icon(Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(8.dp))
+                            val timeText = String.format(Locale.getDefault(), "%02d:%02d", userPreferences.scheduledHour, userPreferences.scheduledMinute)
                             Text(
-                                text = stringResource(R.string.settings_time_label, String.format(Locale.getDefault(), "%02d:%02d", userPreferences.scheduledHour, userPreferences.scheduledMinute)),
+                                text = stringResource(R.string.settings_time_label, timeText),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                         }
@@ -565,7 +582,7 @@ fun SettingsScreen(
                             Switch(
                                 checked = userPreferences.isAdaptiveExtractivePreprocessingEnabled,
                                 onCheckedChange = { viewModel.updateAdaptiveExtractivePreprocessingEnabled(it) },
-                                modifier = Modifier.scale(0.85f)
+                                modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
                             )
                         }
                     }
@@ -629,39 +646,46 @@ fun SettingsScreen(
         }
 
         if (showClearArticlesDialog) {
-            AlertDialog(
-                onDismissRequest = { showClearArticlesDialog = false },
-                title = { Text(stringResource(R.string.settings_clear_articles)) },
-                text = { Text(stringResource(R.string.settings_clear_articles_confirm)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        viewModel.clearAllArticles()
-                        showClearArticlesDialog = false
-                    }) { Text(stringResource(R.string.delete)) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showClearArticlesDialog = false }) { Text(stringResource(R.string.cancel)) }
-                }
+            ConfirmDeleteDialog(
+                title = stringResource(R.string.settings_clear_articles),
+                text = stringResource(R.string.settings_clear_articles_confirm),
+                onConfirm = { viewModel.clearAllArticles() },
+                onDismiss = { showClearArticlesDialog = false }
             )
         }
 
         if (showClearEmbeddingsDialog) {
-            AlertDialog(
-                onDismissRequest = { showClearEmbeddingsDialog = false },
-                title = { Text(stringResource(R.string.settings_clear_embeddings)) },
-                text = { Text(stringResource(R.string.settings_clear_embeddings_confirm)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        viewModel.clearEmbeddings()
-                        showClearEmbeddingsDialog = false
-                    }) { Text(stringResource(R.string.delete)) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showClearEmbeddingsDialog = false }) { Text(stringResource(R.string.cancel)) }
-                }
+            ConfirmDeleteDialog(
+                title = stringResource(R.string.settings_clear_embeddings),
+                text = stringResource(R.string.settings_clear_embeddings_confirm),
+                onConfirm = { viewModel.clearEmbeddings() },
+                onDismiss = { showClearEmbeddingsDialog = false }
             )
         }
     }
+}
+
+@Composable
+fun ConfirmDeleteDialog(
+    title: String,
+    text: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(text) },
+        confirmButton = {
+            TextButton(onClick = {
+                onConfirm()
+                onDismiss()
+            }) { Text(stringResource(R.string.delete)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
 }
 
 @Composable
@@ -710,15 +734,6 @@ fun AiKeyItem(
     onDelete: () -> Unit,
     onToggle: (Boolean) -> Unit
 ) {
-    val providerIconRes = when (config.provider) {
-        AiProvider.GEMINI -> R.drawable.ic_gemini_ai_provider
-        AiProvider.GROQ -> R.drawable.ic_groq_ai_provider
-        AiProvider.OPENROUTER -> R.drawable.ic_openrouter_ai_provider
-        AiProvider.COHERE -> R.drawable.ic_cohere_ai_provider
-        AiProvider.CHATGPT -> R.drawable.ic_chatgpt_ai_provider
-        AiProvider.CLAUDE -> R.drawable.ic_claude_ai_provider
-    }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -726,7 +741,7 @@ fun AiKeyItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            painter = painterResource(providerIconRes),
+            painter = painterResource(config.provider.iconRes),
             contentDescription = null,
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.secondary
@@ -754,13 +769,13 @@ fun AiKeyItem(
             onClick = onEdit, 
             modifier = Modifier.size(32.dp)
         ) {
-            Icon(androidx.compose.material.icons.Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+            Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
         }
         IconButton(
             onClick = onDelete, 
             modifier = Modifier.size(32.dp)
         ) {
-            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+            Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
         }
     }
 }
@@ -790,62 +805,163 @@ fun AiConfigDialog(
         title = { Text(stringResource(if (config == null) R.string.settings_add_api_key else R.string.settings_edit_api_key)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.dialog_config_name)) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = MaterialTheme.shapes.large)
-                ExposedDropdownMenuBox(expanded = expandedProvider, onExpandedChange = { expandedProvider = !expandedProvider }) {
-                OutlinedTextField(value = stringResource(provider.labelRes), onValueChange = {}, readOnly = true, label = { Text(stringResource(R.string.dialog_provider)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedProvider) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable, true).fillMaxWidth(), shape = MaterialTheme.shapes.large)
-                ExposedDropdownMenu(expanded = expandedProvider, onDismissRequest = { expandedProvider = false }) {
-                    AiProvider.entries.forEach { entry ->
-                        val iconRes = when (entry) {
-                            AiProvider.GEMINI -> R.drawable.ic_gemini_ai_provider
-                            AiProvider.GROQ -> R.drawable.ic_groq_ai_provider
-                            AiProvider.OPENROUTER -> R.drawable.ic_openrouter_ai_provider
-                            AiProvider.COHERE -> R.drawable.ic_cohere_ai_provider
-                            AiProvider.CHATGPT -> R.drawable.ic_chatgpt_ai_provider
-                            AiProvider.CLAUDE -> R.drawable.ic_claude_ai_provider
+                OutlinedTextField(
+                    value = name, 
+                    onValueChange = { name = it }, 
+                    label = { Text(stringResource(R.string.dialog_config_name)) }, 
+                    modifier = Modifier.fillMaxWidth(), 
+                    singleLine = true, 
+                    shape = MaterialTheme.shapes.large
+                )
+                
+                ExposedDropdownMenuBox(
+                    expanded = expandedProvider, 
+                    onExpandedChange = { expandedProvider = !expandedProvider }
+                ) {
+                    OutlinedTextField(
+                        value = stringResource(provider.labelRes), 
+                        onValueChange = {}, 
+                        readOnly = true, 
+                        label = { Text(stringResource(R.string.dialog_provider)) }, 
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedProvider) }, 
+                        modifier = Modifier
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                            .fillMaxWidth(), 
+                        shape = MaterialTheme.shapes.large
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedProvider, 
+                        onDismissRequest = { expandedProvider = false }
+                    ) {
+                        AiProvider.entries.forEach { entry ->
+                            DropdownMenuItem(
+                                text = { Text(stringResource(entry.labelRes)) },
+                                onClick = { 
+                                    provider = entry
+                                    modelName = ""
+                                    expandedProvider = false 
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        painter = painterResource(entry.iconRes),
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            )
                         }
-                        DropdownMenuItem(
-                            text = { Text(stringResource(entry.labelRes)) },
-                            onClick = { provider = entry; modelName = ""; expandedProvider = false },
-                            leadingIcon = {
-                                Icon(
-                                    painter = painterResource(iconRes),
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        )
                     }
                 }
-                }
-                OutlinedTextField(value = apiKey, onValueChange = { apiKey = it }, label = { Text(stringResource(R.string.dialog_api_key)) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = MaterialTheme.shapes.large)
+                
+                OutlinedTextField(
+                    value = apiKey, 
+                    onValueChange = { apiKey = it }, 
+                    label = { Text(stringResource(R.string.dialog_api_key)) }, 
+                    modifier = Modifier.fillMaxWidth(), 
+                    singleLine = true, 
+                    shape = MaterialTheme.shapes.large
+                )
+                
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    ExposedDropdownMenuBox(expanded = expandedModel, onExpandedChange = { if (availableModels.isNotEmpty()) expandedModel = !expandedModel }, modifier = Modifier.weight(1f)) {
-                        OutlinedTextField(value = modelName, onValueChange = { modelName = it }, label = { Text(stringResource(R.string.dialog_model)) }, placeholder = { Text(if (isLoadingModels) stringResource(R.string.dialog_model_loading) else stringResource(R.string.dialog_model_select)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedModel) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable, true).fillMaxWidth(), shape = MaterialTheme.shapes.large)
+                    ExposedDropdownMenuBox(
+                        expanded = expandedModel, 
+                        onExpandedChange = { if (availableModels.isNotEmpty()) expandedModel = !expandedModel }, 
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        OutlinedTextField(
+                            value = modelName, 
+                            onValueChange = { modelName = it }, 
+                            label = { Text(stringResource(R.string.dialog_model)) }, 
+                            placeholder = { 
+                                Text(
+                                    if (isLoadingModels) stringResource(R.string.dialog_model_loading) 
+                                    else stringResource(R.string.dialog_model_select)
+                                ) 
+                            }, 
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedModel) }, 
+                            modifier = Modifier
+                                .menuAnchor(MenuAnchorType.PrimaryEditable, true)
+                                .fillMaxWidth(), 
+                            shape = MaterialTheme.shapes.large
+                        )
                         if (availableModels.isNotEmpty()) {
-                            ExposedDropdownMenu(expanded = expandedModel, onDismissRequest = { expandedModel = false }) {
+                            ExposedDropdownMenu(
+                                expanded = expandedModel, 
+                                onDismissRequest = { expandedModel = false }
+                            ) {
                                 availableModels.forEach { model ->
-                                    DropdownMenuItem(text = { Text(model) }, onClick = { modelName = model; expandedModel = false })
+                                    DropdownMenuItem(
+                                        text = { Text(model) }, 
+                                        onClick = { 
+                                            modelName = model
+                                            expandedModel = false 
+                                        }
+                                    )
                                 }
                             }
                         }
                     }
                     Spacer(Modifier.width(8.dp))
-                    if (isLoadingModels) CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                    else TextButton(onClick = { viewModel.loadModels(provider, apiKey, type) }) { Text(stringResource(R.string.dialog_load)) }
+                    if (isLoadingModels) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    } else {
+                        TextButton(onClick = { viewModel.loadModels(provider, apiKey, type) }) { 
+                            Text(stringResource(R.string.dialog_load)) 
+                        }
+                    }
                 }
             }
         },
         confirmButton = {
-            Button(onClick = { if (name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()) onConfirm(config?.copy(name = name, provider = provider, apiKey = apiKey, modelName = modelName) ?: AiModelConfig(name = name, provider = provider, apiKey = apiKey, modelName = modelName, type = type)) }, enabled = name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank() && !isLoadingModels, shape = MaterialTheme.shapes.large) { Text(stringResource(if (config == null) R.string.add else R.string.save)) }
+            Button(
+                onClick = { 
+                    if (name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()) {
+                        onConfirm(config?.copy(name = name, provider = provider, apiKey = apiKey, modelName = modelName) 
+                            ?: AiModelConfig(name = name, provider = provider, apiKey = apiKey, modelName = modelName, type = type))
+                    }
+                }, 
+                enabled = name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank() && !isLoadingModels, 
+                shape = MaterialTheme.shapes.large
+            ) { 
+                Text(stringResource(if (config == null) R.string.add else R.string.save)) 
+            }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
+        dismissButton = { 
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } 
+        }
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScheduledTimePickerDialog(hour: Int, minute: Int, onDismiss: () -> Unit, onConfirm: (Int, Int) -> Unit) {
+fun ScheduledTimePickerDialog(
+    hour: Int, 
+    minute: Int, 
+    onDismiss: () -> Unit, 
+    onConfirm: (Int, Int) -> Unit
+) {
     val timeState = rememberTimePickerState(initialHour = hour, initialMinute = minute)
-    AlertDialog(onDismissRequest = onDismiss, confirmButton = { TextButton(onClick = { onConfirm(timeState.hour, timeState.minute) }) { Text(stringResource(R.string.ok)) } }, dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }, text = { TimePicker(state = timeState) })
+    
+    AlertDialog(
+        onDismissRequest = onDismiss, 
+        confirmButton = { 
+            TextButton(onClick = { onConfirm(timeState.hour, timeState.minute) }) { 
+                Text(stringResource(R.string.ok)) 
+            } 
+        }, 
+        dismissButton = { 
+            TextButton(onClick = onDismiss) { 
+                Text(stringResource(R.string.cancel)) 
+            } 
+        }, 
+        text = { 
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                TimePicker(state = timeState)
+            }
+        }
+    )
 }

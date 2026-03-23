@@ -11,6 +11,7 @@
     <string name="group_name">Group name</string>
     <string name="source_name">Source name</string>
     <string name="source_url">Link / YouTube id</string>
+    <string name="source_url_website">Link to page with post list</string>
     <string name="source_type">Source type</string>
     <string name="cancel">Cancel</string>
     <string name="add">Add</string>
@@ -141,6 +142,12 @@
     <string name="source_type_rss">RSS feed</string>
     <string name="source_type_telegram">Telegram channel</string>
     <string name="source_type_youtube">YouTube channel</string>
+    <string name="source_type_website">Regular website</string>
+    <string name="website_title_selector">CSS title selector</string>
+    <string name="website_post_link_selector_optional">CSS post link selector (optional)</string>
+    <string name="website_description_selector_optional">CSS description selector (optional)</string>
+    <string name="website_date_selector_optional">CSS date selector (optional)</string>
+    <string name="website_use_headless_browser">Use headless browser</string>
     <string name="ellipsis">…</string>
     <string name="summary_extractive_intro">Here are the top news for this period:</string>
     <string name="summary_extractive_item_header">%d. %s:</string>
@@ -173,4 +180,8 @@
     <string name="chart_mentions">Mentions</string>
     <string name="chart_factuality">Importance</string>
     <string name="chart_top_news">Top news</string>
+
+    <string name="sources_suggested_themes_title">Subscribe to themes:</string>
+    <string name="sources_suggested_themes_hint">Subscribe to themes (download AI model for personalization):</string>
+    <string name="sources_recommended_badge">⭐️ Recommended</string>
 </resources>

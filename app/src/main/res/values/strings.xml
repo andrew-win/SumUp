@@ -11,6 +11,7 @@
     <string name="group_name">Назва групи</string>
     <string name="source_name">Назва джерела</string>
     <string name="source_url">Посилання / id для YouTube</string>
+    <string name="source_url_website">Посилання на сторінку зі списком постів</string>
     <string name="source_type">Тип джерела</string>
     <string name="cancel">Скасувати</string>
     <string name="add">Додати</string>
@@ -143,6 +144,12 @@
     <string name="source_type_rss">RSS Стрічка</string>
     <string name="source_type_telegram">Telegram Канал</string>
     <string name="source_type_youtube">YouTube Канал</string>
+    <string name="source_type_website">Звичайний сайт</string>
+    <string name="website_title_selector">CSS селектор заголовку</string>
+    <string name="website_post_link_selector_optional">CSS селектор посилання на пост (опціонально)</string>
+    <string name="website_description_selector_optional">CSS селектор опису (опціонально)</string>
+    <string name="website_date_selector_optional">CSS селектор дати (опціонально)</string>
+    <string name="website_use_headless_browser">Використовувати headless браузер</string>
     <string name="ellipsis">…</string>
 
     <string name="summary_extractive_intro">Ось головні новини на даний період часу:</string>
@@ -177,4 +184,8 @@
     <string name="chart_mentions">Згадки</string>
     <string name="chart_factuality">Важливість</string>
     <string name="chart_top_news">Топ новин</string>
+
+    <string name="sources_suggested_themes_title">Підписуйтесь на теми:</string>
+    <string name="sources_suggested_themes_hint">Підписуйтесь на теми (для персоналізації треба embedding ШІ-модель):</string>
+    <string name="sources_recommended_badge">⭐️ Рекомендовано</string>
 </resources>

@@ -8,5 +8,6 @@ data class Summary(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val content: String,
     val strategy: AiStrategy = AiStrategy.ADAPTIVE,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val isError: Boolean = false
 )

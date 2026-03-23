@@ -8,11 +8,11 @@ import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.dao.GroupWithSources
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.UserPreferences
+import com.andrewwin.sumup.domain.exception.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.exception.NoActiveModelException
 import com.andrewwin.sumup.domain.exception.UnsupportedStrategyException
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.ai.AskQuestionUseCase
 import com.andrewwin.sumup.domain.usecase.ai.SummarizeContentUseCase
@@ -25,7 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -50,7 +50,6 @@ class FeedViewModel @Inject constructor(
     private val askQuestionUseCase: AskQuestionUseCase,
     private val sourceRepository: SourceRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase,
     private val feedUiModelMapper: FeedUiModelMapper
 ) : AndroidViewModel(application) {
 
@@ -80,6 +79,7 @@ class FeedViewModel @Inject constructor(
 
     val groups = groupsWithSources
         .map { list -> list.map { it.group }.filter { it.isEnabled } }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val feedResultFlow = getFeedArticlesUseCase(
@@ -88,12 +88,11 @@ class FeedViewModel @Inject constructor(
         _dateFilter.map { it.hours },
         userPreferences
     )
-        .distinctUntilChangedBy { it.signature() }
-        .stateIn(viewModelScope, SharingStarted.Lazily, GetFeedArticlesUseCase.FeedResult(emptyList(), false))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GetFeedArticlesUseCase.FeedResult(emptyList(), false))
 
-    private val feedUiFlow = combine(
+    private val feedUiState: StateFlow<FeedUiState> = combine(
         feedResultFlow,
-        groupsWithSources.distinctUntilChangedBy { it.signature() }
+        groupsWithSources
     ) { feed, groupsList ->
         val clusters = feedUiModelMapper.map(
             clusters = feed.clusters,
@@ -107,21 +106,17 @@ class FeedViewModel @Inject constructor(
         )
     }
         .flowOn(Dispatchers.Default)
-
-    private val feedUiState: StateFlow<FeedUiState> = feedUiFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, FeedUiState(emptyList(), false))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FeedUiState(emptyList(), false))
 
     val isDedupInProgress: StateFlow<Boolean> = feedUiState
         .map { it.isDedupInProgress }
-        .stateIn(viewModelScope, SharingStarted.Lazily, false)
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val articleClusters: StateFlow<List<ArticleClusterUiModel>> = feedUiState
         .map { it.clusters }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Lazily,
-            initialValue = emptyList()
-        )
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
         refresh()
@@ -140,54 +135,26 @@ class FeedViewModel @Inject constructor(
     fun setDateFilter(filter: DateFilter) { _dateFilter.value = filter }
     fun clearAiResult() { _aiResult.value = null }
 
-    fun summarizeArticle(article: Article) {
+    private fun launchAi(block: suspend () -> Result<String>) {
         viewModelScope.launch {
             _isAiLoading.value = true
             _aiResult.value = null
-            _aiResult.value = summarizeContentUseCase(article).getOrElse { e -> localizeError(e) }
+            _aiResult.value = block().getOrElse { localizeError(it) }
             _isAiLoading.value = false
         }
     }
 
-    fun askQuestion(article: Article, question: String) {
-        viewModelScope.launch {
-            _isAiLoading.value = true
-            _aiResult.value = null
-            _aiResult.value = askQuestionUseCase(article, question).getOrElse { e -> localizeError(e) }
-            _isAiLoading.value = false
-        }
-    }
+    fun summarizeArticle(article: Article) = launchAi { summarizeContentUseCase(article) }
 
-    fun summarizeContent(articles: List<Article>) {
-        viewModelScope.launch {
-            _isAiLoading.value = true
-            _aiResult.value = null
-            _aiResult.value = summarizeContentUseCase(articles).getOrElse { e -> localizeError(e) }
-            _isAiLoading.value = false
-        }
-    }
+    fun summarizeContent(content: String) = launchAi { summarizeContentUseCase(content) }
 
-    fun summarizeContent(content: String) {
-        viewModelScope.launch {
-            _isAiLoading.value = true
-            _aiResult.value = null
-            _aiResult.value = summarizeContentUseCase(content).getOrElse { e -> localizeError(e) }
-            _isAiLoading.value = false
-        }
-    }
+    fun askQuestion(article: Article, question: String) = launchAi { askQuestionUseCase(article, question) }
 
-    fun askQuestion(content: String, question: String) {
-        viewModelScope.launch {
-            _isAiLoading.value = true
-            _aiResult.value = null
-            _aiResult.value = askQuestionUseCase(content, question).getOrElse { e -> localizeError(e) }
-            _isAiLoading.value = false
-        }
-    }
+    fun askQuestion(content: String, question: String) = launchAi { askQuestionUseCase(content, question) }
 
     fun summarizeFeed() {
         val articles = articleClusters.value.map { it.representative.article }
-        if (articles.isNotEmpty()) summarizeContent(articles)
+        if (articles.isNotEmpty()) launchAi { summarizeContentUseCase(articles) }
     }
 
     fun askFeed(question: String) {
@@ -202,48 +169,14 @@ class FeedViewModel @Inject constructor(
         val context = getApplication<Application>()
         return when (e) {
             is NoActiveModelException -> context.getString(R.string.error_no_active_model)
-            is com.andrewwin.sumup.domain.exception.AllAiModelsFailedException -> context.getString(R.string.error_all_ai_models_failed)
+            is AllAiModelsFailedException -> context.getString(R.string.error_all_ai_models_failed)
             is UnsupportedStrategyException -> context.getString(R.string.error_unsupported_strategy)
             else -> "${context.getString(R.string.ai_error_prefix)} ${e.localizedMessage.orEmpty()}"
         }
-    }
-
-    companion object {
-        private const val TAG = "FeedViewModel"
     }
 
     private data class FeedUiState(
         val clusters: List<ArticleClusterUiModel>,
         val isDedupInProgress: Boolean
     )
-}
-
-private fun GetFeedArticlesUseCase.FeedResult.signature(): Long {
-    var hash = if (isDedupInProgress) 1L else 0L
-    for (cluster in clusters) {
-        hash = hash xor cluster.representative.id
-        hash *= 1099511628211L
-        for ((article, _) in cluster.duplicates) {
-            hash = hash xor article.id
-            hash *= 1099511628211L
-        }
-    }
-    return hash
-}
-
-private fun List<GroupWithSources>.signature(): Long {
-    var hash = size.toLong()
-    for (groupWithSources in this) {
-        hash = hash xor groupWithSources.group.id
-        hash *= 1099511628211L
-        hash = hash xor if (groupWithSources.group.isEnabled) 1L else 0L
-        hash *= 1099511628211L
-        for (source in groupWithSources.sources) {
-            hash = hash xor source.id
-            hash *= 1099511628211L
-            hash = hash xor if (source.isEnabled) 1L else 0L
-            hash *= 1099511628211L
-        }
-    }
-    return hash
 }

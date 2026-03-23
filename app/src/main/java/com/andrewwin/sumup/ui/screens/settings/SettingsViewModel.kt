@@ -20,21 +20,21 @@ import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.settings.UpdateCustomSummaryPromptEnabledUseCase
 import com.andrewwin.sumup.domain.usecase.settings.UpdateSummaryPromptUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-sealed class ModelDownloadState {
-    object Idle : ModelDownloadState()
-    data class Downloading(val progress: Int) : ModelDownloadState()
-    object Loading : ModelDownloadState()
-    data class Error(val message: String) : ModelDownloadState()
-    object Ready : ModelDownloadState()
+sealed interface ModelDownloadState {
+    data object Idle : ModelDownloadState
+    data class Downloading(val progress: Int) : ModelDownloadState
+    data object Loading : ModelDownloadState
+    data class Error(val message: String) : ModelDownloadState
+    data object Ready : ModelDownloadState
 }
 
 @HiltViewModel
@@ -78,7 +78,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun downloadModel() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             _downloadState.value = ModelDownloadState.Downloading(0)
             runCatching {
                 manageModelUseCase.downloadModel().collect { progress ->
@@ -94,7 +94,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun deleteModel() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             manageModelUseCase.deleteModel()
             _downloadState.value = ModelDownloadState.Idle
             updatePreferences { it.copy(modelPath = null, isDeduplicationEnabled = false) }
@@ -109,19 +109,18 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(isDeduplicationEnabled = enabled) } }
     }
 
-    fun updateLocalDeduplicationThreshold(threshold: Float) {
-        viewModelScope.launch(Dispatchers.IO) {
+    private fun updateThreshold(transform: (UserPreferences) -> UserPreferences) {
+        viewModelScope.launch {
             articleRepository.clearSimilarities()
-            updatePreferences { it.copy(localDeduplicationThreshold = threshold) }
+            updatePreferences(transform)
         }
     }
 
-    fun updateCloudDeduplicationThreshold(threshold: Float) {
-        viewModelScope.launch(Dispatchers.IO) {
-            articleRepository.clearSimilarities()
-            updatePreferences { it.copy(cloudDeduplicationThreshold = threshold) }
-        }
-    }
+    fun updateLocalDeduplicationThreshold(threshold: Float) =
+        updateThreshold { it.copy(localDeduplicationThreshold = threshold) }
+
+    fun updateCloudDeduplicationThreshold(threshold: Float) =
+        updateThreshold { it.copy(cloudDeduplicationThreshold = threshold) }
 
     fun updateMinMentions(min: Int) {
         viewModelScope.launch { updatePreferences { it.copy(minMentions = min) } }
@@ -142,10 +141,6 @@ class SettingsViewModel @Inject constructor(
 
     fun addAiConfig(config: AiModelConfig) {
         viewModelScope.launch { aiRepository.addConfig(config) }
-    }
-
-    fun updateAiConfig(config: AiModelConfig) {
-        viewModelScope.launch { aiRepository.updateConfig(config) }
     }
 
     fun deleteAiConfig(config: AiModelConfig) {
@@ -222,18 +217,19 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun clearAllArticles() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             articleRepository.clearAllArticles()
         }
     }
 
     fun clearEmbeddings() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             articleRepository.clearEmbeddings()
         }
     }
 
     private suspend fun updatePreferences(transform: (UserPreferences) -> UserPreferences) {
-        userPreferencesRepository.updatePreferences(transform(userPreferences.value))
+        val current = userPreferencesRepository.preferences.first()
+        userPreferencesRepository.updatePreferences(transform(current))
     }
 }

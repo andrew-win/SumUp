@@ -24,5 +24,10 @@ data class Source(
     val url: String,
     val type: SourceType,
     val isEnabled: Boolean = true,
-    val footerPattern: String? = null
+    val footerPattern: String? = null,
+    val titleSelector: String? = null,
+    val postLinkSelector: String? = null,
+    val descriptionSelector: String? = null,
+    val dateSelector: String? = null,
+    val useHeadlessBrowser: Boolean = false
 )

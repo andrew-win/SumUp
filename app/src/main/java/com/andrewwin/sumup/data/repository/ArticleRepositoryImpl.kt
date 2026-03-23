@@ -31,7 +31,7 @@ class ArticleRepositoryImpl @Inject constructor(
             if (groupWithSources.group.isEnabled) {
                 groupWithSources.sources.forEach { source ->
                     if (source.isEnabled) {
-                        val fetchedArticles = remoteArticleDataSource.fetchArticles(source.id, source.url, source.type)
+                        val fetchedArticles = remoteArticleDataSource.fetchArticles(source)
 
                         if (fetchedArticles.isNotEmpty()) {
                             val cleanedContents = fetchedArticles

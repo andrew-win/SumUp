@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.domain.usecase
 
+import android.util.Log
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.SourceType
 import javax.inject.Inject
@@ -59,7 +60,6 @@ class FormatArticleHeadlineUseCase @Inject constructor() {
                 content
             }
         }
-
         return FormattedArticle(
             displayTitle = displayTitle,
             displayContent = rawDescription

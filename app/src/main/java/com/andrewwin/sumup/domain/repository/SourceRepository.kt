@@ -14,7 +14,17 @@ interface SourceRepository {
     suspend fun updateGroup(group: SourceGroup)
     suspend fun toggleGroup(group: SourceGroup, isEnabled: Boolean)
     suspend fun deleteGroup(group: SourceGroup)
-    suspend fun addSource(groupId: Long, name: String, url: String, type: SourceType)
+    suspend fun addSource(
+        groupId: Long,
+        name: String,
+        url: String,
+        type: SourceType,
+        titleSelector: String? = null,
+        postLinkSelector: String? = null,
+        descriptionSelector: String? = null,
+        dateSelector: String? = null,
+        useHeadlessBrowser: Boolean = false
+    )
     suspend fun updateSource(source: Source)
     suspend fun deleteSource(source: Source)
 }

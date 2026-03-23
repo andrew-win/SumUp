@@ -47,6 +47,8 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
+private val ClusterDateFormat = SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA"))
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedScreen(
@@ -297,7 +299,7 @@ fun FeedScreen(
                                     if (isFeedAiActive) {
                                         viewModel.askFeed(userQuestion)
                                     } else {
-                                        articleForAi?.let { viewModel.askQuestion(it.article.content, userQuestion) }
+                                        articleForAi?.let { viewModel.askQuestion(it.article, userQuestion) }
                                     }
                                 }) {
                                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
@@ -466,11 +468,14 @@ fun FeedFilters(
                 }
 
                 Box {
+                    val groupName = remember(selectedGroupId, groups) {
+                        groups.find { it.id == selectedGroupId }?.name
+                    } ?: stringResource(R.string.filter_group)
                     Row(
                         modifier = Modifier.clickable { showGroupMenu = true },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(groups.find { it.id == selectedGroupId }?.name ?: stringResource(R.string.filter_group), color = MaterialTheme.colorScheme.onSurface)
+                        Text(groupName, color = MaterialTheme.colorScheme.onSurface)
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     DropdownMenu(
@@ -510,13 +515,11 @@ fun ArticleClusterCard(
     isDedupInProgress: Boolean,
     minMentions: Int
 ) {
-    val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
     val publishedAt = cluster.representative.article.publishedAt
-    val url = cluster.representative.article.url
 
     Column {
         Text(
-            text = dateFormat.format(Date(publishedAt)),
+            text = ClusterDateFormat.format(Date(publishedAt)),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
@@ -553,14 +556,14 @@ fun ArticleClusterCard(
                         )
                         Spacer(Modifier.height(16.dp))
                         
-                        cluster.duplicates.forEach { (uiModel, score) ->
+                        cluster.duplicates.forEachIndexed { index, (uiModel, score) ->
                             DuplicateItem(
                                 uiModel = uiModel,
                                 score = score,
                                 onOpenSource = { onOpenSource(uiModel) },
                                 onAiClick = { onAiClick(uiModel) }
                             )
-                            if (uiModel != cluster.duplicates.last().first) {
+                            if (index < cluster.duplicates.lastIndex) {
                                 Spacer(Modifier.height(12.dp))
                             }
                         }
@@ -598,11 +601,15 @@ fun ArticleItem(
     onOpenSource: () -> Unit,
     onAiClick: () -> Unit
 ) {
-    val context = LocalContext.current
     val mediaUrl = uiModel.article.mediaUrl
-    val shouldShowMedia = isMediaEnabled &&
-        !mediaUrl.isNullOrBlank() &&
-        (uiModel.sourceType == SourceType.RSS || uiModel.sourceType == SourceType.TELEGRAM || uiModel.sourceType == SourceType.YOUTUBE)
+    val shouldShowMedia = remember(isMediaEnabled, mediaUrl, uiModel.sourceType) {
+        isMediaEnabled &&
+            !mediaUrl.isNullOrBlank() &&
+            (uiModel.sourceType == SourceType.RSS ||
+                uiModel.sourceType == SourceType.TELEGRAM ||
+                uiModel.sourceType == SourceType.YOUTUBE ||
+                uiModel.sourceType == SourceType.WEBSITE)
+    }
     Column(modifier = Modifier.padding(24.dp)) {
         if (shouldShowMedia) {
             Box(

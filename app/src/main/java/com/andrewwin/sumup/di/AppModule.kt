@@ -13,8 +13,10 @@ import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.scheduler.SummarySchedulerImpl
 import com.andrewwin.sumup.data.provider.AiPromptProviderImpl
 import com.andrewwin.sumup.data.remote.AiService
+import com.andrewwin.sumup.data.remote.HeadlessBrowserHtmlFetcher
 import com.andrewwin.sumup.data.remote.RssParser
 import com.andrewwin.sumup.data.remote.TelegramParser
+import com.andrewwin.sumup.data.remote.WebsiteParser
 import com.andrewwin.sumup.data.remote.YouTubeParser
 import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
 import com.andrewwin.sumup.data.repository.AiRepositoryImpl
@@ -120,13 +122,31 @@ object AppModule {
     fun provideYouTubeParser(): YouTubeParser = YouTubeParser()
 
     @Provides
+    fun provideWebsiteParser(): WebsiteParser = WebsiteParser()
+
+    @Provides
+    @Singleton
+    fun provideHeadlessBrowserHtmlFetcher(
+        @ApplicationContext context: Context
+    ): HeadlessBrowserHtmlFetcher = HeadlessBrowserHtmlFetcher(context)
+
+    @Provides
     @Singleton
     fun provideRemoteArticleDataSource(
         okHttpClient: OkHttpClient,
         rssParser: RssParser,
         telegramParser: TelegramParser,
-        youtubeParser: YouTubeParser
-    ): RemoteArticleDataSource = RemoteArticleDataSource(okHttpClient, rssParser, telegramParser, youtubeParser)
+        youtubeParser: YouTubeParser,
+        websiteParser: WebsiteParser,
+        headlessBrowserHtmlFetcher: HeadlessBrowserHtmlFetcher
+    ): RemoteArticleDataSource = RemoteArticleDataSource(
+        okHttpClient,
+        rssParser,
+        telegramParser,
+        youtubeParser,
+        websiteParser,
+        headlessBrowserHtmlFetcher
+    )
 
     @Provides
     @Singleton

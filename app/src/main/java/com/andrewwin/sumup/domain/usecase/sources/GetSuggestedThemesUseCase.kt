@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.domain.usecase.sources
 
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.AiRepository
@@ -317,7 +318,15 @@ class GetSuggestedThemesUseCase @Inject constructor(
                 allEnabledArticles.filter { it.sourceId == sId }
             } else {
                 try {
-                    remoteArticleDataSource.fetchArticles(-1L, firstSource.url, firstSource.type)
+                    remoteArticleDataSource.fetchArticles(
+                        Source(
+                            id = -1L,
+                            groupId = -1L,
+                            name = firstSource.url,
+                            url = firstSource.url,
+                            type = firstSource.type
+                        )
+                    )
                 } catch (e: Exception) {
                     Log.e(tag, "Failed to fetch articles for theme ${theme.title}", e)
                     emptyList()

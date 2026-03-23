@@ -99,14 +99,14 @@ fun SourcesScreen(
                 Spacer(modifier = Modifier.height(32.dp))
                 val isModelLoaded by viewModel.isModelLoaded.collectAsState()
                 val suggestedThemes by viewModel.suggestedThemes.collectAsState()
-                val titleText = if (isModelLoaded) {
-                    "Підписуйтесь на теми:"
+                val titleTextRes = if (isModelLoaded) {
+                    R.string.sources_suggested_themes_title
                 } else {
-                    "Підписуйтесь на теми (для персоналізації завантажте ШІ-модель):"
+                    R.string.sources_suggested_themes_hint
                 }
 
                 Text(
-                    text = titleText,
+                    text = stringResource(titleTextRes),
                     style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Normal),
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(horizontal = 8.dp).padding(bottom = 12.dp)
@@ -141,8 +141,18 @@ fun SourcesScreen(
         selectedGroupIdForSource?.let { groupId ->
             SourceDialog(
                 onDismiss = { selectedGroupIdForSource = null },
-                onConfirm = { name, url, type ->
-                    viewModel.addSource(groupId, name, url, type)
+                onConfirm = { name, url, type, titleSelector, postLinkSelector, descriptionSelector, dateSelector, useHeadlessBrowser ->
+                    viewModel.addSource(
+                        groupId = groupId,
+                        name = name,
+                        url = url,
+                        type = type,
+                        titleSelector = titleSelector,
+                        postLinkSelector = postLinkSelector,
+                        descriptionSelector = descriptionSelector,
+                        dateSelector = dateSelector,
+                        useHeadlessBrowser = useHeadlessBrowser
+                    )
                 }
             )
         }
@@ -151,8 +161,19 @@ fun SourcesScreen(
             SourceDialog(
                 source = source,
                 onDismiss = { editSource = null },
-                onConfirm = { name, url, type ->
-                    viewModel.updateSource(source.copy(name = name, url = url, type = type))
+                onConfirm = { name, url, type, titleSelector, postLinkSelector, descriptionSelector, dateSelector, useHeadlessBrowser ->
+                    viewModel.updateSource(
+                        source.copy(
+                            name = name,
+                            url = url,
+                            type = type,
+                            titleSelector = titleSelector,
+                            postLinkSelector = postLinkSelector,
+                            descriptionSelector = descriptionSelector,
+                            dateSelector = dateSelector,
+                            useHeadlessBrowser = useHeadlessBrowser
+                        )
+                    )
                 }
             )
         }
@@ -327,6 +348,7 @@ fun SourceItem(
         SourceType.TELEGRAM -> painterResource(R.drawable.ic_telegram_source)
         SourceType.RSS -> painterResource(R.drawable.ic_rss_source)
         SourceType.YOUTUBE -> painterResource(R.drawable.ic_youtube_source)
+        SourceType.WEBSITE -> painterResource(R.drawable.ic_usual_website_source)
     }
 
     val displayUrl = remember(source.url, source.type) {
@@ -344,6 +366,12 @@ fun SourceItem(
             SourceType.YOUTUBE -> {
                 val id = source.url.substringAfterLast("/")
                 if (id.isNotEmpty()) "id=${id.take(7)}…" else source.url
+            }
+            SourceType.WEBSITE -> {
+                source.url.removePrefix("https://")
+                    .removePrefix("http://")
+                    .removePrefix("www.")
+                    .substringBefore("/")
             }
         }
     }
@@ -443,11 +471,16 @@ fun GroupDialog(
 fun SourceDialog(
     source: Source? = null,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, SourceType) -> Unit
+    onConfirm: (String, String, SourceType, String?, String?, String?, String?, Boolean) -> Unit
 ) {
     var name by remember(source?.id) { mutableStateOf(source?.name ?: "") }
     var url by remember(source?.id) { mutableStateOf(source?.url ?: "") }
     var type by remember(source?.id) { mutableStateOf(source?.type ?: SourceType.RSS) }
+    var titleSelector by remember(source?.id) { mutableStateOf(source?.titleSelector ?: "") }
+    var postLinkSelector by remember(source?.id) { mutableStateOf(source?.postLinkSelector ?: "") }
+    var descriptionSelector by remember(source?.id) { mutableStateOf(source?.descriptionSelector ?: "") }
+    var dateSelector by remember(source?.id) { mutableStateOf(source?.dateSelector ?: "") }
+    var useHeadlessBrowser by remember(source?.id) { mutableStateOf(source?.useHeadlessBrowser ?: false) }
     var expanded by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -466,7 +499,14 @@ fun SourceDialog(
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
-                    label = { Text(stringResource(R.string.source_url)) },
+                    label = {
+                        val labelRes = if (type == SourceType.WEBSITE) {
+                            R.string.source_url_website
+                        } else {
+                            R.string.source_url
+                        }
+                        Text(stringResource(labelRes))
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.large
@@ -480,6 +520,7 @@ fun SourceDialog(
                             SourceType.RSS -> R.string.source_type_rss
                             SourceType.TELEGRAM -> R.string.source_type_telegram
                             SourceType.YOUTUBE -> R.string.source_type_youtube
+                            SourceType.WEBSITE -> R.string.source_type_website
                         }),
                         onValueChange = {},
                         readOnly = true,
@@ -501,14 +542,70 @@ fun SourceDialog(
                                         SourceType.RSS -> R.string.source_type_rss
                                         SourceType.TELEGRAM -> R.string.source_type_telegram
                                         SourceType.YOUTUBE -> R.string.source_type_youtube
+                                        SourceType.WEBSITE -> R.string.source_type_website
                                     })) 
                                 },
                                 onClick = {
                                     type = entry
+                                    if (entry != SourceType.WEBSITE) {
+                                        titleSelector = ""
+                                        postLinkSelector = ""
+                                        descriptionSelector = ""
+                                        dateSelector = ""
+                                        useHeadlessBrowser = false
+                                    }
                                     expanded = false
                                 }
                             )
                         }
+                    }
+                }
+                if (type == SourceType.WEBSITE) {
+                    OutlinedTextField(
+                        value = titleSelector,
+                        onValueChange = { titleSelector = it },
+                        label = { Text(stringResource(R.string.website_title_selector)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large
+                    )
+                    OutlinedTextField(
+                        value = postLinkSelector,
+                        onValueChange = { postLinkSelector = it },
+                        label = { Text(stringResource(R.string.website_post_link_selector_optional)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large
+                    )
+                    OutlinedTextField(
+                        value = descriptionSelector,
+                        onValueChange = { descriptionSelector = it },
+                        label = { Text(stringResource(R.string.website_description_selector_optional)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large
+                    )
+                    OutlinedTextField(
+                        value = dateSelector,
+                        onValueChange = { dateSelector = it },
+                        label = { Text(stringResource(R.string.website_date_selector_optional)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.website_use_headless_browser),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Switch(
+                            checked = useHeadlessBrowser,
+                            onCheckedChange = { useHeadlessBrowser = it }
+                        )
                     }
                 }
             }
@@ -516,8 +613,18 @@ fun SourceDialog(
         confirmButton = {
             Button(
                 onClick = { 
-                    if (name.isNotBlank() && url.isNotBlank()) {
-                        onConfirm(name, url, type)
+                    val hasRequiredWebsiteSelector = type != SourceType.WEBSITE || titleSelector.isNotBlank()
+                    if (name.isNotBlank() && url.isNotBlank() && hasRequiredWebsiteSelector) {
+                        onConfirm(
+                            name,
+                            url,
+                            type,
+                            titleSelector.takeIf { it.isNotBlank() },
+                            postLinkSelector.takeIf { it.isNotBlank() },
+                            descriptionSelector.takeIf { it.isNotBlank() },
+                            dateSelector.takeIf { it.isNotBlank() },
+                            useHeadlessBrowser
+                        )
                         onDismiss()
                     }
                 },
@@ -553,7 +660,7 @@ fun SuggestedThemeItem(
             )
             if (suggestion.isRecommended) {
                 Text(
-                    text = "⭐️ Рекомендовано",
+                    text = stringResource(R.string.sources_recommended_badge),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
