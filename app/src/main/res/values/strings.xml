@@ -26,6 +26,8 @@
     <string name="filter_label">Фільтр:</string>
     <string name="filter_date">Дата</string>
     <string name="filter_group">Група</string>
+    <string name="filter_saved_all">Усі</string>
+    <string name="filter_saved_only">Збережені</string>
     <string name="all_groups">Всі групи</string>
     <string name="back_to_top">Вгору</string>
     <string name="ai_ask_placeholder">Запитайте щось…</string>
@@ -107,7 +109,8 @@
     <string name="settings_enable_importance_filter">Приховувати малоінформативні</string>
     <string name="settings_adaptive_summary">Адаптивна сумаризація</string>
     <string name="settings_adaptive_extractive_preprocess">Використовувати екстрактивну сумаризацію перед відправкою хмарним моделем</string>
-    <string name="settings_filtering">Фільтрація</string>
+    <string name="settings_filtering">Стрічка</string>
+    <string name="settings_feed">Стрічка</string>
     <string name="settings_language">Мова</string>
     <string name="settings_language_uk">Українська</string>
     <string name="settings_language_en">English</string>
@@ -134,7 +137,7 @@
     <string name="settings_clear_articles_confirm">Видалити всі статті зі стрічки? Це не видалить джерела.</string>
     <string name="settings_clear_embeddings_confirm">Видалити всі ембедінги? Це також очистить кеш схожостей.</string>
 
-    <string name="filter_date_all">Всі</string>
+    <string name="filter_date_all">Увесь час</string>
     <string name="filter_date_1h">1 год</string>
     <string name="filter_date_3h">3 год</string>
     <string name="filter_date_6h">6 год</string>
@@ -162,6 +165,7 @@
     <string name="settings_summary_prompt_hint">Напишіть інструкцію для моделі</string>
     <string name="settings_custom_summary_prompt">Кастомний промпт</string>
     <string name="settings_feed_media">Показувати медіа у стрічці</string>
+    <string name="settings_feed_description">Показувати опис</string>
     <string name="export_feed_pdf">Експорт стрічки у PDF</string>
     <string name="export_pdf_error">Не вдалося експортувати PDF</string>
     <string name="feed_pdf_file_name">feed-%s.pdf</string>
@@ -179,6 +183,7 @@
     <string name="provider_chatgpt">ChatGPT</string>
     <string name="provider_claude">Claude</string>
     <string name="feed_refreshing">Оновлення...</string>
+    <string name="feed_share_chooser_title">Поділитися новиною</string>
 
     <string name="chart_views">Перегляди</string>
     <string name="chart_mentions">Згадки</string>

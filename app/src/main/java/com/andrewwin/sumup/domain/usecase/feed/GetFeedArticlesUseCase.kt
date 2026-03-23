@@ -30,6 +30,7 @@ class GetFeedArticlesUseCase @Inject constructor(
         searchQueryFlow: Flow<String>,
         selectedGroupIdFlow: Flow<Long?>,
         dateFilterHoursFlow: Flow<Int?>,
+        savedOnlyFlow: Flow<Boolean>,
         userPreferencesFlow: Flow<UserPreferences>
     ): Flow<FeedResult> {
         val flow1 = combine(
@@ -41,12 +42,18 @@ class GetFeedArticlesUseCase @Inject constructor(
         val flow2 = combine(
             selectedGroupIdFlow,
             dateFilterHoursFlow,
+            savedOnlyFlow,
             userPreferencesFlow
-        ) { groupId, dateFilterHours, prefs -> Triple(groupId, dateFilterHours, prefs) }
+        ) { groupId, dateFilterHours, savedOnly, prefs ->
+            FeedFilterParams(groupId, dateFilterHours, savedOnly, prefs)
+        }
 
         return combine(flow1, flow2) { triple1, triple2 ->
             val (articles, groupsWithSources, query) = triple1
-            val (groupId, dateFilterHours, prefs) = triple2
+            val groupId = triple2.groupId
+            val dateFilterHours = triple2.dateFilterHours
+            val savedOnly = triple2.savedOnly
+            val prefs = triple2.prefs
             
             val sourceTypeMap = groupsWithSources
                 .flatMap { it.sources }
@@ -66,6 +73,10 @@ class GetFeedArticlesUseCase @Inject constructor(
             dateFilterHours?.let { hours ->
                 val threshold = System.currentTimeMillis() - (hours * 60 * 60 * 1000L)
                 processedArticles = processedArticles.filter { it.publishedAt >= threshold }
+            }
+
+            if (savedOnly) {
+                processedArticles = processedArticles.filter { it.isFavorite }
             }
 
             if (query.isNotBlank()) {
@@ -228,6 +239,13 @@ class GetFeedArticlesUseCase @Inject constructor(
     ) {
         val shouldDedup = prefs.isDeduplicationEnabled
     }
+
+    data class FeedFilterParams(
+        val groupId: Long?,
+        val dateFilterHours: Int?,
+        val savedOnly: Boolean,
+        val prefs: UserPreferences
+    )
 
     data class FeedResult(
         val clusters: List<ArticleCluster>,

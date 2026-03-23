@@ -1,40 +1,46 @@
 package com.andrewwin.sumup.ui.screens.feed
 
+import android.content.Context
+import android.content.Intent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.PictureAsPdf
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.animation.*
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material.icons.outlined.PictureAsPdf
+import androidx.compose.ui.Alignment
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
@@ -59,6 +65,7 @@ fun FeedScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedGroupId by viewModel.selectedGroupId.collectAsState()
     val dateFilter by viewModel.dateFilter.collectAsState()
+    val savedFilter by viewModel.savedFilter.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val aiResult by viewModel.aiResult.collectAsState()
     val isAiLoading by viewModel.isAiLoading.collectAsState()
@@ -74,6 +81,7 @@ fun FeedScreen(
 
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri ->
@@ -93,6 +101,7 @@ fun FeedScreen(
             }
         }
     }
+
     val showBackToTop by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 100
@@ -102,7 +111,12 @@ fun FeedScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.nav_feed)) },
+                title = {
+                    Text(
+                        text = stringResource(R.string.nav_feed),
+                        style = MaterialTheme.typography.titleLarge.copy(fontFamily = Rubik)
+                    )
+                },
                 actions = {
                     FilledIconButton(
                         onClick = {},
@@ -129,19 +143,14 @@ fun FeedScreen(
                     exit = fadeOut() + scaleOut()
                 ) {
                     SmallFloatingActionButton(
-                        onClick = {
-                            scope.launch {
-                                listState.animateScrollToItem(0)
-                            }
-                        },
+                        onClick = { scope.launch { listState.animateScrollToItem(0) } },
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        shape = androidx.compose.foundation.shape.CircleShape
+                        shape = CircleShape
                     ) {
                         Icon(Icons.Default.ArrowUpward, contentDescription = stringResource(R.string.back_to_top))
                     }
                 }
-
                 FloatingActionButton(
                     onClick = { isFeedAiActive = true },
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -173,6 +182,8 @@ fun FeedScreen(
                         onSearchQueryChange = viewModel::onSearchQueryChange,
                         dateFilter = dateFilter,
                         onDateFilterChange = viewModel::setDateFilter,
+                        savedFilter = savedFilter,
+                        onSavedFilterChange = viewModel::setSavedFilter,
                         selectedGroupId = selectedGroupId,
                         onGroupSelect = viewModel::selectGroup,
                         groups = groups,
@@ -186,8 +197,9 @@ fun FeedScreen(
                 }
 
                 val showLoading = userPreferences.isDeduplicationEnabled &&
-                    articleClusters.isEmpty() &&
-                    isDedupInProgress
+                        articleClusters.isEmpty() &&
+                        isDedupInProgress
+
                 if (showLoading) {
                     item {
                         Box(
@@ -198,10 +210,7 @@ fun FeedScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.dp
-                                )
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                                 Spacer(Modifier.height(12.dp))
                                 Text(
                                     text = stringResource(R.string.feed_searching_similar),
@@ -236,13 +245,15 @@ fun FeedScreen(
                         ArticleClusterCard(
                             cluster = cluster,
                             isMediaEnabled = userPreferences.isFeedMediaEnabled,
+                            isDescriptionEnabled = userPreferences.isFeedDescriptionEnabled,
                             onMediaClick = { expandedImageUrl = it },
                             onOpenSource = { onOpenWebView(it.article.url) },
-                            onAiClick = { 
+                            onAiClick = {
                                 articleForAi = it
                                 isFeedAiActive = false
                                 viewModel.clearAiResult()
                             },
+                            onToggleSaved = { viewModel.toggleSaved(it.article) },
                             isDedupInProgress = isDedupInProgress,
                             minMentions = userPreferences.minMentions
                         )
@@ -251,9 +262,10 @@ fun FeedScreen(
             }
         }
 
+        // AI Bottom Sheet
         if (articleForAi != null || isFeedAiActive) {
             ModalBottomSheet(
-                onDismissRequest = { 
+                onDismissRequest = {
                     articleForAi = null
                     isFeedAiActive = false
                     viewModel.clearAiResult()
@@ -274,7 +286,10 @@ fun FeedScreen(
                             .verticalScroll(rememberScrollState())
                     ) {
                         if (isAiLoading) {
-                            Box(Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) {
+                            Box(
+                                Modifier.fillMaxWidth().height(150.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 CircularProgressIndicator(strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
                             }
                         } else if (aiResult != null) {
@@ -291,32 +306,26 @@ fun FeedScreen(
                         OutlinedTextField(
                             value = userQuestion,
                             onValueChange = { userQuestion = it },
-                            label = { Text(stringResource(R.string.ai_ask_placeholder)) },
+                            label = null,
                             modifier = Modifier.fillMaxWidth(),
                             shape = MaterialTheme.shapes.large,
                             trailingIcon = {
-                                IconButton(onClick = { 
-                                    if (isFeedAiActive) {
-                                        viewModel.askFeed(userQuestion)
-                                    } else {
-                                        articleForAi?.let { viewModel.askQuestion(it.article, userQuestion) }
-                                    }
+                                IconButton(onClick = {
+                                    if (isFeedAiActive) viewModel.askFeed(userQuestion)
+                                    else articleForAi?.let { viewModel.askQuestion(it.article, userQuestion) }
                                 }) {
                                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
                                 }
                             }
                         )
                     }
-                    
+
                     if (aiResult != null || !isAiLoading) {
                         Spacer(Modifier.height(16.dp))
                         Button(
-                            onClick = { 
-                                if (isFeedAiActive) {
-                                    viewModel.summarizeFeed()
-                                } else {
-                                    articleForAi?.let { viewModel.summarizeArticle(it.article) }
-                                }
+                            onClick = {
+                                if (isFeedAiActive) viewModel.summarizeFeed()
+                                else articleForAi?.let { viewModel.summarizeArticle(it.article) }
                             },
                             modifier = Modifier.fillMaxWidth(),
                             shape = MaterialTheme.shapes.large,
@@ -325,7 +334,7 @@ fun FeedScreen(
                             Icon(Icons.Default.AutoAwesome, contentDescription = null)
                             Spacer(Modifier.width(12.dp))
                             Text(
-                                if (isFeedAiActive) stringResource(R.string.ai_summarize_feed) 
+                                text = if (isFeedAiActive) stringResource(R.string.ai_summarize_feed)
                                 else stringResource(R.string.ai_summarize_article),
                                 style = MaterialTheme.typography.labelLarge
                             )
@@ -336,6 +345,7 @@ fun FeedScreen(
             }
         }
 
+        // Expanded image dialog
         if (expandedImageUrl != null) {
             Dialog(onDismissRequest = { expandedImageUrl = null }) {
                 Box(
@@ -347,16 +357,12 @@ fun FeedScreen(
                     AsyncImage(
                         model = expandedImageUrl,
                         contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp),
+                        modifier = Modifier.fillMaxSize().padding(8.dp),
                         contentScale = ContentScale.Fit
                     )
                     IconButton(
                         onClick = { expandedImageUrl = null },
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(16.dp)
+                        modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
                     ) {
                         Icon(Icons.Default.Close, contentDescription = null)
                     }
@@ -366,6 +372,10 @@ fun FeedScreen(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Feed Filters
+// ─────────────────────────────────────────────────────────────────────────────
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedFilters(
@@ -373,6 +383,8 @@ fun FeedFilters(
     onSearchQueryChange: (String) -> Unit,
     dateFilter: DateFilter,
     onDateFilterChange: (DateFilter) -> Unit,
+    savedFilter: SavedFilter,
+    onSavedFilterChange: (SavedFilter) -> Unit,
     selectedGroupId: Long?,
     onGroupSelect: (Long?) -> Unit,
     groups: List<com.andrewwin.sumup.data.local.entities.SourceGroup>,
@@ -380,6 +392,7 @@ fun FeedFilters(
     isExportEnabled: Boolean
 ) {
     var showDateMenu by remember { mutableStateOf(false) }
+    var showSavedMenu by remember { mutableStateOf(false) }
     var showGroupMenu by remember { mutableStateOf(false) }
 
     Column(
@@ -397,10 +410,8 @@ fun FeedFilters(
             TextField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp),
-                shape = androidx.compose.foundation.shape.CircleShape,
+                modifier = Modifier.weight(1f).height(56.dp),
+                shape = CircleShape,
                 placeholder = { Text(stringResource(R.string.search_placeholder)) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true,
@@ -408,12 +419,11 @@ fun FeedFilters(
                     focusedContainerColor = MaterialTheme.colorScheme.surface,
                     unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                     disabledContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                    disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
                 )
             )
-
             IconButton(
                 onClick = onExportPdf,
                 enabled = isExportEnabled,
@@ -426,76 +436,98 @@ fun FeedFilters(
                 )
             }
         }
+
         Spacer(Modifier.height(12.dp))
 
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                stringResource(R.string.filter_label),
+                text = stringResource(R.string.filter_label),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            Spacer(Modifier.weight(1f))
-
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Spacer(Modifier.width(12.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
                 Box {
                     Row(
                         modifier = Modifier.clickable { showDateMenu = true },
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
+                        Icon(
+                            imageVector = Icons.Filled.Today,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
                         Text(stringResource(dateFilter.labelRes), color = MaterialTheme.colorScheme.onSurface)
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    DropdownMenu(
-                        expanded = showDateMenu,
-                        onDismissRequest = { showDateMenu = false }
-                    ) {
+                    DropdownMenu(expanded = showDateMenu, onDismissRequest = { showDateMenu = false }) {
                         DateFilter.entries.forEach { filter ->
                             DropdownMenuItem(
                                 text = { Text(stringResource(filter.labelRes)) },
-                                onClick = {
-                                    onDateFilterChange(filter)
-                                    showDateMenu = false
-                                }
+                                onClick = { onDateFilterChange(filter); showDateMenu = false }
                             )
                         }
                     }
                 }
-
+                Box {
+                    Row(
+                        modifier = Modifier.clickable { showSavedMenu = true },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Bookmark,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(stringResource(savedFilter.labelRes), color = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    DropdownMenu(expanded = showSavedMenu, onDismissRequest = { showSavedMenu = false }) {
+                        SavedFilter.entries.forEach { filter ->
+                            DropdownMenuItem(
+                                text = { Text(stringResource(filter.labelRes)) },
+                                onClick = { onSavedFilterChange(filter); showSavedMenu = false }
+                            )
+                        }
+                    }
+                }
                 Box {
                     val groupName = remember(selectedGroupId, groups) {
                         groups.find { it.id == selectedGroupId }?.name
                     } ?: stringResource(R.string.filter_group)
                     Row(
                         modifier = Modifier.clickable { showGroupMenu = true },
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        Icon(
+                            imageVector = Icons.Filled.Folder,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
                         Text(groupName, color = MaterialTheme.colorScheme.onSurface)
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    DropdownMenu(
-                        expanded = showGroupMenu,
-                        onDismissRequest = { showGroupMenu = false }
-                    ) {
+                    DropdownMenu(expanded = showGroupMenu, onDismissRequest = { showGroupMenu = false }) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.all_groups)) },
-                            onClick = {
-                                onGroupSelect(null)
-                                showGroupMenu = false
-                            }
+                            onClick = { onGroupSelect(null); showGroupMenu = false }
                         )
                         groups.forEach { group ->
                             DropdownMenuItem(
                                 text = { Text(group.name) },
-                                onClick = {
-                                    onGroupSelect(group.id)
-                                    showGroupMenu = false
-                                }
+                                onClick = { onGroupSelect(group.id); showGroupMenu = false }
                             )
                         }
                     }
@@ -505,13 +537,19 @@ fun FeedFilters(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster card
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
 fun ArticleClusterCard(
     cluster: ArticleClusterUiModel,
     isMediaEnabled: Boolean,
+    isDescriptionEnabled: Boolean,
     onMediaClick: (String) -> Unit,
     onOpenSource: (ArticleUiModel) -> Unit,
     onAiClick: (ArticleUiModel) -> Unit,
+    onToggleSaved: (ArticleUiModel) -> Unit,
     isDedupInProgress: Boolean,
     minMentions: Int
 ) {
@@ -526,8 +564,10 @@ fun ArticleClusterCard(
         )
 
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onOpenSource(cluster.representative) },
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer
             ),
@@ -537,51 +577,53 @@ fun ArticleClusterCard(
                 ArticleItem(
                     uiModel = cluster.representative,
                     isMediaEnabled = isMediaEnabled,
+                    isDescriptionEnabled = isDescriptionEnabled,
                     onMediaClick = onMediaClick,
                     onOpenSource = { onOpenSource(cluster.representative) },
-                    onAiClick = { onAiClick(cluster.representative) }
+                    onAiClick = { onAiClick(cluster.representative) },
+                    onToggleSaved = { onToggleSaved(cluster.representative) }
                 )
 
                 if (cluster.duplicates.isNotEmpty()) {
                     HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 24.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
-                    
-                    Column(modifier = Modifier.padding(24.dp)) {
-                        Text(
-                            text = stringResource(R.string.feed_similar_news, cluster.duplicates.size),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        
-                        cluster.duplicates.forEachIndexed { index, (uiModel, score) ->
+
+                    Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 14.dp)) {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.feed_similar_news, cluster.duplicates.size),
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        cluster.duplicates.forEach { (uiModel, score) ->
                             DuplicateItem(
                                 uiModel = uiModel,
                                 score = score,
                                 onOpenSource = { onOpenSource(uiModel) },
                                 onAiClick = { onAiClick(uiModel) }
                             )
-                            if (index < cluster.duplicates.lastIndex) {
-                                Spacer(Modifier.height(12.dp))
-                            }
                         }
 
                         if (isDedupInProgress) {
-                            Spacer(Modifier.height(16.dp))
+                            Spacer(Modifier.height(12.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(Modifier.width(12.dp))
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(10.dp))
                                 Text(
                                     text = stringResource(R.string.feed_searching_similar),
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -593,108 +635,152 @@ fun ArticleClusterCard(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Main article item (representative)
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
 fun ArticleItem(
     uiModel: ArticleUiModel,
     isMediaEnabled: Boolean,
+    isDescriptionEnabled: Boolean,
     onMediaClick: (String) -> Unit,
     onOpenSource: () -> Unit,
-    onAiClick: () -> Unit
+    onAiClick: () -> Unit,
+    onToggleSaved: () -> Unit
 ) {
+    val context = LocalContext.current
     val mediaUrl = uiModel.article.mediaUrl
     val shouldShowMedia = remember(isMediaEnabled, mediaUrl, uiModel.sourceType) {
         isMediaEnabled &&
-            !mediaUrl.isNullOrBlank() &&
-            (uiModel.sourceType == SourceType.RSS ||
-                uiModel.sourceType == SourceType.TELEGRAM ||
-                uiModel.sourceType == SourceType.YOUTUBE ||
-                uiModel.sourceType == SourceType.WEBSITE)
+                !mediaUrl.isNullOrBlank() &&
+                (uiModel.sourceType == SourceType.RSS ||
+                        uiModel.sourceType == SourceType.TELEGRAM ||
+                        uiModel.sourceType == SourceType.YOUTUBE ||
+                        uiModel.sourceType == SourceType.WEBSITE)
     }
-    Column(modifier = Modifier.padding(24.dp)) {
-        if (shouldShowMedia) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .clickable { mediaUrl?.let(onMediaClick) }
-            ) {
-                AsyncImage(
-                    model = mediaUrl,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+
+    Column(modifier = Modifier.padding(16.dp)) {
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (shouldShowMedia && mediaUrl != null) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 72.dp, height = 56.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onMediaClick(mediaUrl) }
+                ) {
+                    AsyncImage(
+                        model = mediaUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                // Group + source chips
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    uiModel.groupName?.let { SourceChip(label = it) }
+                    uiModel.sourceName?.let { SourceChip(label = it) }
+                }
+                // Increased gap between chips row and title
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = uiModel.displayTitle,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontFamily = Rubik,
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 20.sp
+                    ),
+                    maxLines = 6,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
+        }
+
+        val hasDescription = isDescriptionEnabled && uiModel.displayContent.isNotBlank()
+        if (hasDescription) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = uiModel.displayContent,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 19.sp,
+                maxLines = 5,
+                overflow = TextOverflow.Ellipsis
+            )
             Spacer(Modifier.height(16.dp))
+        } else {
+            Spacer(Modifier.height(10.dp))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp)) {
-            uiModel.groupName?.let { name ->
-                Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = androidx.compose.foundation.shape.CircleShape) {
-                    Text(name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                }
-            }
-            uiModel.sourceName?.let { name ->
-                Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = androidx.compose.foundation.shape.CircleShape) {
-                    Text(name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                }
-            }
-        }
-        Text(
-            text = uiModel.displayTitle,
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontFamily = Rubik,
-                fontWeight = FontWeight.SemiBold
-            ),
-            lineHeight = 22.sp
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = uiModel.displayContent,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            lineHeight = 22.sp,
-            fontWeight = FontWeight.Normal
-        )
-        Spacer(Modifier.height(24.dp))
+
+        // Three equal-width action buttons — same color
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FilledIconButton(
-                    onClick = onOpenSource,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50.dp))
-                        .width(56.dp)
-                        .height(34.dp),
-                    shape = RoundedCornerShape(50.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
+            ActionChip(
+                onClick = onAiClick,
+                icon = { Icon(painterResource(R.drawable.ic_ask_ai), contentDescription = null, modifier = Modifier.size(18.dp)) },
+                modifier = Modifier.weight(1f),
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            ActionChip(
+                onClick = onToggleSaved,
+                icon = {
+                    val bookmarkIcon = if (uiModel.article.isFavorite) {
+                        Icons.Default.Bookmark
+                    } else {
+                        Icons.Outlined.BookmarkBorder
+                    }
+                    Icon(bookmarkIcon, contentDescription = null, modifier = Modifier.size(18.dp))
+                },
+                modifier = Modifier.weight(1f),
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            ActionChip(
+                onClick = {
+                    shareArticleLink(
+                        context = context,
+                        articleUrl = uiModel.article.url
                     )
-                ) {
-                    Icon(Icons.Default.MoreHoriz, contentDescription = null)
-                }
-                FilledIconButton(
-                    onClick = onAiClick,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50.dp))
-                        .width(56.dp)
-                        .height(34.dp),
-                    shape = RoundedCornerShape(50.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Icon(painterResource(R.drawable.ic_ask_ai), contentDescription = null)
-                }
-            }
+                },
+                icon = { Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                modifier = Modifier.weight(1f),
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
+
+private fun shareArticleLink(
+    context: Context,
+    articleUrl: String
+) {
+    if (articleUrl.isBlank()) return
+    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, articleUrl)
+    }
+    val chooser = Intent.createChooser(
+        shareIntent,
+        context.getString(R.string.feed_share_chooser_title)
+    )
+    context.startActivity(chooser)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Duplicate / similar item
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 fun DuplicateItem(
@@ -703,56 +789,123 @@ fun DuplicateItem(
     onOpenSource: () -> Unit,
     onAiClick: () -> Unit
 ) {
+    val scoreInt = (score * 100).toInt()
+
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onOpenSource() }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // Score pill — uniform colour for all values
         Surface(
+            shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surfaceVariant,
-            shape = androidx.compose.foundation.shape.CircleShape,
-            modifier = Modifier.width(44.dp).height(30.dp)
+            modifier = Modifier.width(44.dp).height(28.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = stringResource(R.string.feed_similarity_score, (score * 100).toInt()),
-                    style = MaterialTheme.typography.labelSmall,
+                    text = stringResource(R.string.feed_similarity_score, scoreInt),
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
-        Spacer(Modifier.width(12.dp))
+
+        // Title + source name only (no group chip)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = uiModel.displayTitle,
-                style = MaterialTheme.typography.titleSmall.copy(
+                style = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = Rubik,
-                    fontWeight = FontWeight.SemiBold
-                )
+                    fontWeight = FontWeight.Medium,
+                    lineHeight = 17.sp
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
-        }
-        Spacer(Modifier.width(16.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            IconButton(
-                onClick = onOpenSource,
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    Icons.Default.MoreHoriz,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            uiModel.sourceName?.let { src ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(top = 3.dp)
+                ) {
+                    Text(
+                        text = src,
+                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 10.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
-            IconButton(
-                onClick = onAiClick,
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    painterResource(R.drawable.ic_ask_ai),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        }
+
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Small reusable composables
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun SourceChip(label: String) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun ActionChip(
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    label: String? = null,
+    containerColor: Color,
+    contentColor: Color
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = containerColor,
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CompositionLocalProvider(LocalContentColor provides contentColor) {
+                icon()
+                if (label != null) {
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                        color = contentColor
+                    )
+                }
             }
         }
     }

@@ -40,6 +40,7 @@ data class UserPreferences(
     val summaryPrompt: String = "",
     val isCustomSummaryPromptEnabled: Boolean = false,
     val isFeedMediaEnabled: Boolean = false,
+    val isFeedDescriptionEnabled: Boolean = true,
     val appThemeMode: AppThemeMode = AppThemeMode.SYSTEM,
     val appLanguage: AppLanguage = AppLanguage.UK
 )

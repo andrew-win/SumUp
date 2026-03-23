@@ -24,9 +24,21 @@ class FeedUiModelMapper @Inject constructor(
 
         return clusters.map { cluster ->
             ArticleClusterUiModel(
-                representative = mapToUiModel(cluster.representative, sourcesMap, groupMap, ellipsis),
+                representative = mapToUiModel(
+                    article = cluster.representative,
+                    sources = sourcesMap,
+                    groups = groupMap,
+                    ellipsis = ellipsis,
+                    includeGroup = true
+                ),
                 duplicates = cluster.duplicates.map { (article, score) ->
-                    mapToUiModel(article, sourcesMap, groupMap, ellipsis) to score
+                    mapToUiModel(
+                        article = article,
+                        sources = sourcesMap,
+                        groups = groupMap,
+                        ellipsis = ellipsis,
+                        includeGroup = false
+                    ) to score
                 }
             )
         }
@@ -36,7 +48,8 @@ class FeedUiModelMapper @Inject constructor(
         article: Article,
         sources: Map<Long, Source>,
         groups: Map<Long, SourceGroup>,
-        ellipsis: String
+        ellipsis: String,
+        includeGroup: Boolean
     ): ArticleUiModel {
         val source = sources[article.sourceId]
         val group = source?.groupId?.let { groups[it] }
@@ -50,7 +63,7 @@ class FeedUiModelMapper @Inject constructor(
             displayTitle = formatted.displayTitle,
             displayContent = if (sourceType == SourceType.WEBSITE) "" else formatDescription(formatted.displayContent, ellipsis),
             sourceName = source?.name,
-            groupName = group?.name
+            groupName = if (includeGroup) group?.name else null
         )
     }
 

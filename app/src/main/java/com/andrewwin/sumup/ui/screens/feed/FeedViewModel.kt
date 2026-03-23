@@ -11,6 +11,7 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.exception.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.exception.NoActiveModelException
 import com.andrewwin.sumup.domain.exception.UnsupportedStrategyException
+import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
@@ -41,9 +42,15 @@ enum class DateFilter(@StringRes val labelRes: Int, val hours: Int?) {
     HOUR_24(R.string.filter_date_24h, 24)
 }
 
+enum class SavedFilter(@StringRes val labelRes: Int, val savedOnly: Boolean) {
+    ALL(R.string.filter_saved_all, false),
+    SAVED(R.string.filter_saved_only, true)
+}
+
 @HiltViewModel
 class FeedViewModel @Inject constructor(
     application: Application,
+    private val articleRepository: ArticleRepository,
     private val refreshArticlesUseCase: RefreshArticlesUseCase,
     private val getFeedArticlesUseCase: GetFeedArticlesUseCase,
     private val summarizeContentUseCase: SummarizeContentUseCase,
@@ -61,6 +68,9 @@ class FeedViewModel @Inject constructor(
 
     private val _dateFilter = MutableStateFlow(DateFilter.ALL)
     val dateFilter: StateFlow<DateFilter> = _dateFilter.asStateFlow()
+
+    private val _savedFilter = MutableStateFlow(SavedFilter.ALL)
+    val savedFilter: StateFlow<SavedFilter> = _savedFilter.asStateFlow()
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
@@ -86,6 +96,7 @@ class FeedViewModel @Inject constructor(
         _searchQuery,
         _selectedGroupId,
         _dateFilter.map { it.hours },
+        _savedFilter.map { it.savedOnly },
         userPreferences
     )
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GetFeedArticlesUseCase.FeedResult(emptyList(), false))
@@ -133,7 +144,14 @@ class FeedViewModel @Inject constructor(
     fun onSearchQueryChange(query: String) { _searchQuery.value = query }
     fun selectGroup(groupId: Long?) { _selectedGroupId.value = groupId }
     fun setDateFilter(filter: DateFilter) { _dateFilter.value = filter }
+    fun setSavedFilter(filter: SavedFilter) { _savedFilter.value = filter }
     fun clearAiResult() { _aiResult.value = null }
+
+    fun toggleSaved(article: Article) {
+        viewModelScope.launch {
+            articleRepository.updateArticle(article.copy(isFavorite = !article.isFavorite))
+        }
+    }
 
     private fun launchAi(block: suspend () -> Result<String>) {
         viewModelScope.launch {

@@ -26,6 +26,8 @@
     <string name="filter_label">Filter:</string>
     <string name="filter_date">Date</string>
     <string name="filter_group">Group</string>
+    <string name="filter_saved_all">All news</string>
+    <string name="filter_saved_only">Saved</string>
     <string name="all_groups">All groups</string>
     <string name="back_to_top">To top</string>
     <string name="ai_ask_placeholder">Ask something…</string>
@@ -107,7 +109,8 @@
     <string name="settings_enable_importance_filter">Hide low-information items</string>
     <string name="settings_adaptive_summary">Adaptive summarization</string>
     <string name="settings_adaptive_extractive_preprocess">Use extractive summarization before sending to cloud models</string>
-    <string name="settings_filtering">Filtering</string>
+    <string name="settings_filtering">Feed</string>
+    <string name="settings_feed">Feed</string>
     <string name="settings_language">Language</string>
     <string name="settings_language_uk">Ukrainian</string>
     <string name="settings_language_en">English</string>
@@ -159,6 +162,7 @@
     <string name="settings_summary_prompt_hint">Write instructions for the model</string>
     <string name="settings_custom_summary_prompt">Custom prompt</string>
     <string name="settings_feed_media">Show media in feed</string>
+    <string name="settings_feed_description">Show description</string>
     <string name="export_feed_pdf">Export feed to PDF</string>
     <string name="export_pdf_error">Failed to export PDF</string>
     <string name="feed_pdf_file_name">feed-%s.pdf</string>
@@ -176,6 +180,7 @@
     <string name="provider_chatgpt">ChatGPT</string>
     <string name="provider_claude">Claude</string>
     <string name="feed_refreshing">Refreshing...</string>
+    <string name="feed_share_chooser_title">Share article</string>
     <string name="chart_views">Views</string>
     <string name="chart_mentions">Mentions</string>
     <string name="chart_factuality">Importance</string>

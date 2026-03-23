@@ -77,6 +77,7 @@ class SummaryViewModel @Inject constructor(
             searchQueryFlow = flowOf(""),
             selectedGroupIdFlow = flowOf(null),
             dateFilterHoursFlow = flowOf(24), // Last 24h for chart
+            savedOnlyFlow = flowOf(false),
             userPreferencesFlow = userPreferences
         ),
         _chartType,

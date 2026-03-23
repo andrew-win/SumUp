@@ -177,6 +177,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(isFeedMediaEnabled = enabled) } }
     }
 
+    fun updateFeedDescriptionEnabled(enabled: Boolean) {
+        viewModelScope.launch { updatePreferences { it.copy(isFeedDescriptionEnabled = enabled) } }
+    }
+
     fun updateAppThemeMode(themeMode: AppThemeMode) {
         viewModelScope.launch { updatePreferences { it.copy(appThemeMode = themeMode) } }
     }

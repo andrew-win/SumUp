@@ -380,7 +380,7 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = stringResource(R.string.settings_filtering)) {
+                SettingsSection(title = stringResource(R.string.settings_feed)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
@@ -391,6 +391,19 @@ fun SettingsScreen(
                             Switch(
                                 checked = userPreferences.isFeedMediaEnabled,
                                 onCheckedChange = { viewModel.updateFeedMediaEnabled(it) },
+                                modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stringResource(R.string.settings_feed_description),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Switch(
+                                checked = userPreferences.isFeedDescriptionEnabled,
+                                onCheckedChange = { viewModel.updateFeedDescriptionEnabled(it) },
                                 modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
                             )
                         }
