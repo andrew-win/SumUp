@@ -31,6 +31,12 @@ android {
                 abiFilters += "arm64-v8a"
             }
         }
+        create("phoneArmV7") {
+            dimension = "abi"
+            ndk {
+                abiFilters += "armeabi-v7a"
+            }
+        }
     }
 
     buildTypes {

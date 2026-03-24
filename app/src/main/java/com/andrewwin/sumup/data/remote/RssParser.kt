@@ -15,11 +15,13 @@ class RssParser @Inject constructor(
 ) {
     private val tag = "RssParser"
     private val parser: ProfRssParser = RssParserBuilder(callFactory = okHttpClient).build()
-    private val rssDateFormats = listOf(
-        SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.US).apply { isLenient = false },
-        SimpleDateFormat("EEE, dd MMM yy HH:mm:ss Z", Locale.US).apply { isLenient = false },
-        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).apply { isLenient = false }
-    )
+    private val formattersThreadLocal = ThreadLocal.withInitial {
+        listOf(
+            SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.US),
+            SimpleDateFormat("EEE, dd MMM yy HH:mm:ss Z", Locale.US),
+            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+        ).onEach { it.timeZone = java.util.TimeZone.getTimeZone("UTC") }
+    }
 
     suspend fun parseUrl(url: String, sourceId: Long): List<Article> {
         return runCatching {
@@ -40,13 +42,13 @@ class RssParser @Inject constructor(
         }
     }
 
-    private fun mapChannel(channel: RssChannel, sourceId: Long): List<Article> {
+    private fun mapChannel(channel: com.prof18.rssparser.model.RssChannel, sourceId: Long): List<Article> {
         return channel.items.orEmpty().mapNotNull { item ->
             mapItem(item, sourceId)
         }
     }
 
-    private fun mapItem(item: RssItem, sourceId: Long): Article? {
+    private fun mapItem(item: com.prof18.rssparser.model.RssItem, sourceId: Long): Article? {
         val title = item.title.orEmpty()
         val link = item.link.orEmpty()
         val guid = item.guid.orEmpty()
@@ -71,21 +73,13 @@ class RssParser @Inject constructor(
 
     private fun parseRssDate(dateString: String): Long {
         val trimmed = dateString.trim()
-        val formats = when {
-            Regex(",\\s\\d{2}\\s\\p{Alpha}{3}\\s\\d{2}\\s").containsMatchIn(trimmed) ->
-                listOf(rssDateFormats[1], rssDateFormats[0], rssDateFormats[2])
-            Regex(",\\s\\d{2}\\s\\p{Alpha}{3}\\s\\d{4}\\s").containsMatchIn(trimmed) ->
-                listOf(rssDateFormats[0], rssDateFormats[1], rssDateFormats[2])
-            else -> rssDateFormats
-        }
-        for (format in formats) {
-            try {
-                val parsed = format.parse(trimmed)
-                if (parsed != null) {
-                    val ts = parsed.time
-                    return if (ts >= MIN_REASONABLE_TIMESTAMP) ts else 0L
-                }
-            } catch (_: Exception) { }
+        val formatters = formattersThreadLocal.get()
+        for (f in formatters) {
+            val date = runCatching { f.parse(trimmed) }.getOrNull()
+            if (date != null) {
+                val time = date.time
+                if (time >= MIN_REASONABLE_TIMESTAMP) return time
+            }
         }
         return 0L
     }

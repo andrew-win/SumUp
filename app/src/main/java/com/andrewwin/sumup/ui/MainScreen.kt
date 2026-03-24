@@ -81,9 +81,13 @@ fun MainScreen() {
                 navController = navController,
                 startDestination = Screen.Summary.route,
             ) {
-                composable(Screen.Summary.route) {
-                    SummaryScreen()
+        composable(Screen.Summary.route) {
+            SummaryScreen(
+                onOpenWebView = { url ->
+                    navController.navigate(Screen.WebView.createRoute(url))
                 }
+            )
+        }
                 composable(Screen.Feed.route) {
                     FeedScreen(
                         onOpenWebView = { url ->

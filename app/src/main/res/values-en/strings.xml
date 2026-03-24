@@ -110,8 +110,17 @@
     <string name="error_no_articles">No new articles for summarization.</string>
     <string name="settings_importance_filter">Importance</string>
     <string name="settings_enable_importance_filter">Hide low-information items</string>
+    <string name="settings_summary">Summarization</string>
+    <string name="settings_summary_items_per_news_feed">Points per news in feed: %d</string>
+    <string name="settings_summary_items_per_news_scheduled">Points per news in scheduled: %d</string>
+    <string name="settings_summary_news_feed_extractive">Feed news for extractive summarization: %d</string>
+    <string name="settings_summary_news_feed_cloud">Feed news for cloud summarization: %d</string>
+    <string name="settings_summary_news_scheduled_extractive">Scheduled news for extractive summarization: %d</string>
+    <string name="settings_summary_news_scheduled_cloud">Scheduled news for cloud summarization: %d</string>
     <string name="settings_adaptive_summary">Adaptive summarization</string>
-    <string name="settings_adaptive_extractive_preprocess">Use extractive summarization before sending to cloud models</string>
+    <string name="settings_adaptive_extractive_only_below_chars">Only extractive if article is shorter than: %d</string>
+    <string name="settings_adaptive_extractive_compress_above_chars">Compress extractively before cloud if article is longer than: %d</string>
+    <string name="settings_adaptive_extractive_compression_percent">Compression percent: %d%%</string>
     <string name="settings_filtering">Feed</string>
     <string name="settings_feed">Feed</string>
     <string name="settings_language">Language</string>
@@ -128,6 +137,7 @@
     <string name="settings_importance_weight_views">Views weight: %s</string>
     <string name="settings_importance_weight_facts">Facts weight: %s</string>
     <string name="settings_extractive_sentences_feed">Sentences in feed: %d</string>
+    <string name="settings_extractive_news_feed">News in feed: %d</string>
     <string name="settings_extractive_sentences_scheduled">Sentences in scheduled: %d</string>
     <string name="settings_extractive_news_scheduled">News count in scheduled: %d</string>
     <string name="settings_show_last_summaries_count">Show latest summaries: %d</string>

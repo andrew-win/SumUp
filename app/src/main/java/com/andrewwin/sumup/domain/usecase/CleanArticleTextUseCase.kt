@@ -1,34 +1,38 @@
 package com.andrewwin.sumup.domain.usecase
 
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.domain.coroutines.DispatcherProvider
+import kotlinx.coroutines.withContext
 import net.dankito.readability4j.Readability4J
 import org.jsoup.Jsoup
 import org.jsoup.parser.Parser
 import javax.inject.Inject
 
-class CleanArticleTextUseCase @Inject constructor() {
-    operator fun invoke(texts: List<String>): String? {
-        if (texts.size < MIN_POSTS_FOR_ANALYSIS) return null
+class CleanArticleTextUseCase @Inject constructor(
+    private val dispatcherProvider: DispatcherProvider
+) {
+    suspend operator fun invoke(texts: List<String>): String? = withContext(dispatcherProvider.default) {
+        if (texts.size < MIN_POSTS_FOR_ANALYSIS) return@withContext null
         val prepared = texts.map(::cleanBase).filter { it.isNotBlank() }
-        if (prepared.size < MIN_POSTS_FOR_ANALYSIS) return null
-        return findCommonFooterPattern(prepared)
+        if (prepared.size < MIN_POSTS_FOR_ANALYSIS) return@withContext null
+        findCommonFooterPattern(prepared)
     }
 
-    fun extractMainContent(url: String, rawContent: String, type: SourceType): String {
-        if (rawContent.isBlank()) return ""
-        if (type != SourceType.RSS && type != SourceType.WEBSITE) return rawContent
-        return runCatching {
+    suspend fun extractMainContent(url: String, rawContent: String, type: SourceType): String = withContext(dispatcherProvider.default) {
+        if (rawContent.isBlank()) return@withContext ""
+        if (type != SourceType.RSS && type != SourceType.WEBSITE) return@withContext rawContent
+        runCatching {
             val article = Readability4J(url, rawContent).parse()
             (article.content ?: article.textContent).orEmpty()
         }.getOrDefault(rawContent)
     }
 
-    operator fun invoke(
+    suspend operator fun invoke(
         text: String,
         type: SourceType,
         footerPattern: String? = null
-    ): String {
-        if (text.isBlank()) return ""
+    ): String = withContext(dispatcherProvider.default) {
+        if (text.isBlank()) return@withContext ""
 
         var cleaned = cleanBase(text)
         cleaned = removeFooter(cleaned, footerPattern)
@@ -46,7 +50,9 @@ class CleanArticleTextUseCase @Inject constructor() {
             SourceType.RSS, SourceType.WEBSITE -> cleanRssSpecifics(cleaned)
         }
 
-        return cleaned.trim()
+        cleaned = removeGenericFooterLines(cleaned)
+
+        cleaned.trim()
     }
 
     private fun cleanBase(text: String): String {
@@ -149,6 +155,24 @@ class CleanArticleTextUseCase @Inject constructor() {
         return text.replace(Regex("Читати далі.*", RegexOption.IGNORE_CASE), "").trim()
     }
 
+    private fun removeGenericFooterLines(text: String): String {
+        if (text.isBlank()) return text
+        val lines = text.lines()
+        var cutIndex = lines.size
+        for (i in lines.lastIndex downTo 0) {
+            val line = lines[i].trim()
+            if (line.isBlank()) {
+                cutIndex = i
+                continue
+            }
+            val lower = line.lowercase()
+            val isFooterLike = GENERIC_FOOTER_PATTERNS.any { it.containsMatchIn(lower) }
+            if (!isFooterLike) break
+            cutIndex = i
+        }
+        return lines.subList(0, cutIndex).joinToString("\n").trim()
+    }
+
     private fun removeHashtags(text: String): CleanResult {
         val tagRegex = Regex("(?<!\\w)#[\\p{L}\\p{N}_]+")
         val tags = tagRegex.findAll(text).map { it.value.drop(1).lowercase() }.toList()
@@ -187,12 +211,23 @@ class CleanArticleTextUseCase @Inject constructor() {
         private val WHITESPACE_REGEX = Regex("[ \t]+")
         private val MULTIPLE_NEWLINES_REGEX = Regex("\n{3,}")
         private const val MIN_POSTS_FOR_ANALYSIS = 2
-        private const val MIN_FOOTER_OCCURRENCE_RATIO = 0.5
+        private const val MIN_FOOTER_OCCURRENCE_RATIO = 0.3
         private const val MAX_LINES_TO_SCAN = 14
         private const val MIN_PATTERN_LENGTH = 3
         private val URL_REGEX = Regex("https?://\\S+|t\\.me/\\S+")
         private val NUMBER_REGEX = Regex("\\d+")
         private const val SPAM_MARKER = "[ad]"
         private val SPAM_HASHTAGS = setOf("реклама", "промо", "промокод", "ads", "ad", "advertising")
+        private val GENERIC_FOOTER_PATTERNS = listOf(
+            Regex("підписатися\\s+на"),
+            Regex("подписат(ь|и)ся\\s+на"),
+            Regex("subscribe"),
+            Regex("надіслати\\s+новину"),
+            Regex("send\\s+news"),
+            Regex("t\\.me/"),
+            Regex("telegram"),
+            Regex("times\\s+of\\s+ukraine"),
+            Regex("^https?://\\S+$")
+        )
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.*
@@ -36,13 +37,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Summary
+import com.andrewwin.sumup.domain.summary.SummarySourceMeta
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SummaryScreen(
-    viewModel: SummaryViewModel = hiltViewModel()
+    viewModel: SummaryViewModel = hiltViewModel(),
+    onOpenWebView: (String) -> Unit = {}
 ) {
     val summaries by viewModel.summaries.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
@@ -114,7 +117,7 @@ fun SummaryScreen(
             // Блок 3: Поточне зведення (якщо є)
             if (todaySummary != null) {
                 item {
-                    SummaryCard(summary = todaySummary)
+                    SummaryCard(summary = todaySummary, onOpenWebView = onOpenWebView)
                 }
             }
 
@@ -129,7 +132,7 @@ fun SummaryScreen(
                     )
                 }
                 items(olderSummaries, key = { it.id }) { summary ->
-                    SummaryCard(summary = summary)
+                    SummaryCard(summary = summary, onOpenWebView = onOpenWebView)
                 }
             }
         }
@@ -379,12 +382,13 @@ fun PrevNextStatusRow(
 // ─────────────────────────────────────────────
 
 @Composable
-fun SummaryCard(summary: Summary) {
+fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
     val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
     val isError = summary.content.startsWith(stringResource(R.string.error_prefix)) ||
             summary.content.startsWith(stringResource(R.string.no_articles_prefix))
     val context = LocalContext.current
 
+    val sections = remember(summary.content) { parseSummarySections(summary.content) }
     var isExpanded by rememberSaveable(summary.id) { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -414,19 +418,61 @@ fun SummaryCard(summary: Summary) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Top
                 ) {
-                    Text(
-                        text = summary.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (isError) MaterialTheme.colorScheme.error
-                        else MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 8.dp)
-                            .animateContentSize(),
-                        maxLines = if (isExpanded) Int.MAX_VALUE else 3,
-                        overflow = TextOverflow.Ellipsis,
-                        lineHeight = 24.sp
-                    )
+                    if (isExpanded && !isError) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                                .animateContentSize(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            sections.forEachIndexed { index, section ->
+                                Text(
+                                    text = section.body,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    lineHeight = 24.sp
+                                )
+                                section.source?.let { source ->
+                                    AssistChip(
+                                        onClick = { onOpenWebView(normalizeForWebView(source.url)) },
+                                        shape = RoundedCornerShape(14.dp),
+                                        label = {
+                                            Text(
+                                                text = source.name,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Link,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    )
+                                }
+                                if (index != sections.lastIndex) {
+                                    Spacer(Modifier.height(6.dp))
+                                }
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = sections.joinToString("\n\n") { it.body },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isError) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                                .animateContentSize(),
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                            lineHeight = 24.sp
+                        )
+                    }
 
                     FilledIconButton(
                         onClick = { isExpanded = !isExpanded },
@@ -449,7 +495,6 @@ fun SummaryCard(summary: Summary) {
                 }
 
                 Spacer(Modifier.height(12.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -521,7 +566,7 @@ private fun isSameDay(t1: Long, t2: Long): Boolean {
     val cal1 = Calendar.getInstance().apply { timeInMillis = t1 }
     val cal2 = Calendar.getInstance().apply { timeInMillis = t2 }
     return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
-            cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+           cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
 }
 
 private fun getNextScheduledTimeMillis(hour: Int, minute: Int): Long {
@@ -538,6 +583,8 @@ private fun getNextScheduledTimeMillis(hour: Int, minute: Int): Long {
     return next.timeInMillis
 }
 
+// We use a private lazy formatter for non-composable utility if needed, 
+// or just create it when formatting a single value since it's not a hot loop for status.
 private fun formatShortStatusDate(timestamp: Long): String {
     val format = SimpleDateFormat("HH:mm, dd MMM", Locale("uk", "UA"))
     return format.format(Date(timestamp))
@@ -547,10 +594,11 @@ private fun shareSummaryText(
     context: Context,
     summaryText: String
 ) {
-    if (summaryText.isBlank()) return
+    val cleaned = cleanSummaryText(summaryText)
+    if (cleaned.isBlank()) return
     val shareIntent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, summaryText)
+        putExtra(Intent.EXTRA_TEXT, cleaned)
     }
     val chooser = Intent.createChooser(
         shareIntent,
@@ -564,6 +612,62 @@ private fun copySummaryText(
     summaryText: String
 ) {
     val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val clip = ClipData.newPlainText("summary_text", summaryText)
+    val clip = ClipData.newPlainText("summary_text", cleanSummaryText(summaryText))
     clipboardManager.setPrimaryClip(clip)
+}
+
+private fun cleanSummaryText(raw: String): String {
+    return raw
+        .lines()
+        .filterNot { it.trim().startsWith(SummarySourceMeta.PREFIX) }
+        .joinToString("\n")
+}
+
+private data class SourceMetaUi(val name: String, val url: String)
+private data class SummarySection(val body: String, val source: SourceMetaUi?)
+
+private fun parseSummarySections(raw: String): List<SummarySection> {
+    val blocks = raw
+        .split(Regex("\\n\\s*\\n"))
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+
+    return blocks.map { block ->
+        val lines = block.lines().map { it.trimEnd() }.filter { it.isNotBlank() }
+        val source = lines.lastOrNull()?.let { parseSourceMeta(it.trim()) }
+        val bodyLines = if (source != null) lines.dropLast(1) else lines
+        SummarySection(body = bodyLines.joinToString("\n"), source = source)
+    }
+}
+
+private fun parseSourceMeta(line: String): SourceMetaUi? {
+    if (!line.startsWith(SummarySourceMeta.PREFIX)) return null
+    val payload = line.removePrefix(SummarySourceMeta.PREFIX)
+    val separator = payload.lastIndexOf('|')
+    if (separator <= 0 || separator >= payload.lastIndex) return null
+    val name = payload.substring(0, separator).trim()
+    val url = payload.substring(separator + 1).trim()
+    if (name.isBlank() || url.isBlank()) return null
+    return SourceMetaUi(name, url)
+}
+
+private fun normalizeForWebView(url: String): String {
+    val trimmed = url.trim()
+    if (!trimmed.contains("t.me/")) return trimmed
+    val marker = "t.me/"
+    val idx = trimmed.indexOf(marker)
+    if (idx == -1) return trimmed
+    val prefix = trimmed.substring(0, idx + marker.length)
+    var path = trimmed.substring(idx + marker.length).trimStart('/')
+    if (path.startsWith("s/")) return "$prefix$path"
+    if (path.startsWith("c/")) return "$prefix$path"
+    val segments = path.split("/").filter { it.isNotBlank() }
+    if (segments.size >= 2) {
+        path = "s/${segments[0]}/${segments[1]}"
+        return "$prefix$path"
+    }
+    if (segments.size == 1) {
+        return "$prefix" + "s/${segments[0]}"
+    }
+    return trimmed
 }

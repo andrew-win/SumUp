@@ -1,36 +1,33 @@
 package com.andrewwin.sumup.domain.usecase
 
-import android.content.Context
-import com.andrewwin.sumup.R
 import com.andrewwin.sumup.domain.ExtractiveSummarizer
 import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.coroutines.DispatcherProvider
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 class BuildExtractiveSummaryUseCase @Inject constructor(
-    private val context: Context,
-    private val formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase
+    private val formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase,
+    private val dispatcherProvider: DispatcherProvider
 ) {
-    operator fun invoke(
+    suspend operator fun invoke(
         headlines: List<String>,
         contentMap: Map<String, String>,
         topCount: Int = 5,
         sentencesPerArticle: Int = 5
-    ): String {
-        val centralHeadlines = ExtractiveSummarizer.getCentralHeadlines(headlines, topCount)
-        val intro = context.getString(R.string.summary_extractive_intro)
-        
-        val summaryBody = centralHeadlines.mapIndexed { index, title ->
+    ): String = withContext(dispatcherProvider.default) {
+        val orderedHeadlines = headlines.take(topCount)
+        val summaryBody = orderedHeadlines.map { title ->
             val content = contentMap[title].orEmpty()
             val sentences = ExtractiveSummarizer.summarize(content, sentencesPerArticle)
             
             formatExtractiveSummaryUseCase.formatItem(
                 title = title,
                 sentences = sentences,
-                isScheduledReport = true,
-                index = index + 1
+                isScheduledReport = true
             )
         }.joinToString("\n\n")
 
-        return "$intro\n\n$summaryBody"
+        summaryBody
     }
 }

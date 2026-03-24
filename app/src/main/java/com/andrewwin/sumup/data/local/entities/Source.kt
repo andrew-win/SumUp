@@ -15,7 +15,10 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("groupId")]
+    indices = [
+        Index("groupId"),
+        Index(value = ["type", "url"], unique = true)
+    ]
 )
 data class Source(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

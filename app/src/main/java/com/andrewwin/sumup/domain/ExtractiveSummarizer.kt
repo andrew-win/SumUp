@@ -8,18 +8,23 @@ object ExtractiveSummarizer {
         if (text.isBlank()) return emptyList()
         val targetCount = n.coerceAtLeast(1)
 
-        val sentences = extractSentences(text, targetCount)
+        val sentences = extractSentences(text, targetCount + 1)
+        val candidateSentences = if (sentences.size > 1) {
+            sentences.drop(1)
+        } else {
+            sentences
+        }
 
-        if (sentences.isEmpty()) return emptyList()
+        if (candidateSentences.isEmpty()) return emptyList()
 
-        val topIndices = sentences.indices
-            .map { i -> i to scoreSentence(sentences[i], i) }
+        val topIndices = candidateSentences.indices
+            .map { i -> i to scoreSentence(candidateSentences[i], i) }
             .sortedByDescending { it.second }
             .take(targetCount)
             .map { it.first }
             .toSortedSet()
 
-        return sentences.filterIndexed { i, _ -> i in topIndices }
+        return candidateSentences.filterIndexed { i, _ -> i in topIndices }
     }
 
     private fun extractSentences(text: String, targetCount: Int): List<String> {
@@ -28,7 +33,7 @@ object ExtractiveSummarizer {
             .asSequence()
             .map { it.trim() }
             .map { cleanSentenceStart(it) }
-            .filter { it.isNotBlank() }
+            .filter { isValidSummarySentence(it) }
             .toList()
             .takeIf { it.size >= targetCount }
 
@@ -39,7 +44,7 @@ object ExtractiveSummarizer {
             .asSequence()
             .map { it.trim() }
             .map { cleanSentenceStart(it) }
-            .filter { it.isNotBlank() }
+            .filter { isValidSummarySentence(it) }
             .distinct()
             .toList()
 
@@ -60,6 +65,14 @@ object ExtractiveSummarizer {
         val trimmed = sentence.dropWhile { !it.isLetterOrDigit() }
         if (trimmed.isBlank()) return ""
         return trimmed.replaceFirstChar { it.uppercase() }
+    }
+
+    private fun isValidSummarySentence(sentence: String): Boolean {
+        val normalized = sentence.trim()
+        if (normalized.length < MIN_SUMMARY_SENTENCE_LENGTH_CHARS) return false
+        val compact = normalized.lowercase().replace(Regex("\\s+"), " ")
+        if (FOOTER_PATTERNS.any { it.containsMatchIn(compact) }) return false
+        return true
     }
 
     fun getCentralHeadlines(headlines: List<String>, count: Int = 3): List<String> {
@@ -98,4 +111,13 @@ object ExtractiveSummarizer {
 
     private val PRIMARY_SENTENCE_SPLIT_REGEX = Regex("(?<=[.!?…])\\s+|\\n+")
     private val FALLBACK_SENTENCE_SPLIT_REGEX = Regex("(?<=[;:])\\s+|\\n+")
+    private const val MIN_SUMMARY_SENTENCE_LENGTH_CHARS = 45
+    private val FOOTER_PATTERNS = listOf(
+        Regex("підписатися\\s+на"),
+        Regex("подписат(ь|и)ся\\s+на"),
+        Regex("subscribe"),
+        Regex("t\\.me/"),
+        Regex("telegram"),
+        Regex("times\\s+of\\s+ukraine")
+    )
 }

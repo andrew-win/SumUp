@@ -42,6 +42,30 @@ interface ArticleDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertArticles(articles: List<Article>): List<Long>
 
+    @Query(
+        """
+        UPDATE articles
+        SET sourceId = :sourceId,
+            title = :title,
+            content = :content,
+            mediaUrl = :mediaUrl,
+            videoId = :videoId,
+            publishedAt = :publishedAt,
+            viewCount = :viewCount
+        WHERE url = :url
+        """
+    )
+    suspend fun updateFetchedArticleByUrl(
+        sourceId: Long,
+        title: String,
+        content: String,
+        mediaUrl: String?,
+        videoId: String?,
+        publishedAt: Long,
+        viewCount: Long,
+        url: String
+    )
+
     @Query("UPDATE articles SET mediaUrl = :mediaUrl, videoId = :videoId WHERE url = :url")
     suspend fun updateMediaByUrl(url: String, mediaUrl: String?, videoId: String?)
 

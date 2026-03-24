@@ -27,7 +27,10 @@ class YouTubeParser {
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
             if (parser.name == "entry") {
-                articles.add(readEntry(parser, sourceId))
+                val article = readEntry(parser, sourceId)
+                if (!isShortsArticle(article)) {
+                    articles.add(article)
+                }
             } else {
                 skip(parser)
             }
@@ -96,16 +99,16 @@ class YouTubeParser {
         var videoId: String? = null
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
-            when (parser.name) {
-                "media:description" -> description = readText(parser)
-                "media:content" -> {
+            when (parser.name.localTagName()) {
+                "description" -> description = readText(parser)
+                "content" -> {
                     val url = parser.getAttributeValue(null, "url")
                     if (!url.isNullOrBlank() && videoId.isNullOrBlank()) {
                         videoId = extractVideoIdFromUrl(url)
                     }
                     skip(parser)
                 }
-                "media:thumbnail" -> {
+                "thumbnail" -> {
                     val url = parser.getAttributeValue(null, "url")
                     if (!url.isNullOrBlank()) {
                         thumbnailUrl = url
@@ -115,9 +118,12 @@ class YouTubeParser {
                     }
                     skip(parser)
                 }
-                "media:statistics" -> {
+                "statistics" -> {
                     viewCount = parser.getAttributeValue(null, "views")?.toLongOrNull() ?: 0L
                     skip(parser)
+                }
+                "community" -> {
+                    viewCount = readMediaCommunity(parser, viewCount)
                 }
                 else -> skip(parser)
             }
@@ -139,8 +145,20 @@ class YouTubeParser {
         return result
     }
 
+    private val formattersThreadLocal = ThreadLocal.withInitial {
+        listOf(
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US),
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US)
+        )
+    }
+
     private fun parseDate(dateString: String): Long {
-        return try { dateFormat.parse(dateString)?.time ?: 0L } catch (e: Exception) { 0L }
+        val formatters = formattersThreadLocal.get()
+        for (f in formatters) {
+            val date = runCatching { f.parse(dateString) }.getOrNull()
+            if (date != null) return date.time
+        }
+        return 0L
     }
 
     private fun skip(parser: XmlPullParser) {
@@ -174,6 +192,36 @@ class YouTubeParser {
         if (text.isNullOrBlank()) return null
         val match = Regex("[A-Za-z0-9_-]{11}").find(text)
         return match?.value
+    }
+
+    private fun readMediaCommunity(parser: XmlPullParser, currentViewCount: Long): Long {
+        var viewCount = currentViewCount
+        while (parser.next() != XmlPullParser.END_TAG) {
+            if (parser.eventType != XmlPullParser.START_TAG) continue
+            when (parser.name.localTagName()) {
+                "statistics" -> {
+                    viewCount = parser.getAttributeValue(null, "views")?.toLongOrNull() ?: viewCount
+                    skip(parser)
+                }
+                else -> skip(parser)
+            }
+        }
+        return viewCount
+    }
+
+    private fun String.localTagName(): String = substringAfter(':')
+
+    private fun isShortsArticle(article: Article): Boolean {
+        val url = article.url.lowercase()
+        if (url.contains("/shorts/")) return true
+
+        val title = article.title.lowercase()
+        if (title.contains("#shorts")) return true
+
+        val content = article.content.lowercase()
+        if (content.contains("#shorts")) return true
+
+        return false
     }
 
     private data class MediaGroupData(

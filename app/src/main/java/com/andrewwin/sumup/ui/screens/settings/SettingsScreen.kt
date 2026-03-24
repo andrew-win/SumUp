@@ -67,14 +67,20 @@ fun SettingsScreen(
     var aiMaxCharsPerArticle by rememberSaveable(userPreferences.aiMaxCharsPerArticle) { mutableStateOf(userPreferences.aiMaxCharsPerArticle.toFloat()) }
     var aiMaxCharsPerFeedArticle by rememberSaveable(userPreferences.aiMaxCharsPerFeedArticle) { mutableStateOf(userPreferences.aiMaxCharsPerFeedArticle.toFloat()) }
     var aiMaxCharsTotal by rememberSaveable(userPreferences.aiMaxCharsTotal) { mutableStateOf(userPreferences.aiMaxCharsTotal.toFloat()) }
-    var extractiveSentencesInFeed by rememberSaveable(userPreferences.extractiveSentencesInFeed) { mutableStateOf(userPreferences.extractiveSentencesInFeed.toFloat()) }
-    var extractiveSentencesInScheduled by rememberSaveable(userPreferences.extractiveSentencesInScheduled) { mutableStateOf(userPreferences.extractiveSentencesInScheduled.toFloat()) }
-    var extractiveNewsInScheduled by rememberSaveable(userPreferences.extractiveNewsInScheduled) { mutableStateOf(userPreferences.extractiveNewsInScheduled.toFloat()) }
+    var summaryItemsPerNewsInFeed by rememberSaveable(userPreferences.summaryItemsPerNewsInFeed) { mutableStateOf(userPreferences.summaryItemsPerNewsInFeed.toFloat()) }
+    var summaryItemsPerNewsInScheduled by rememberSaveable(userPreferences.summaryItemsPerNewsInScheduled) { mutableStateOf(userPreferences.summaryItemsPerNewsInScheduled.toFloat()) }
+    var summaryNewsInFeedExtractive by rememberSaveable(userPreferences.summaryNewsInFeedExtractive) { mutableStateOf(userPreferences.summaryNewsInFeedExtractive.toFloat()) }
+    var summaryNewsInFeedCloud by rememberSaveable(userPreferences.summaryNewsInFeedCloud) { mutableStateOf(userPreferences.summaryNewsInFeedCloud.toFloat()) }
+    var summaryNewsInScheduledExtractive by rememberSaveable(userPreferences.summaryNewsInScheduledExtractive) { mutableStateOf(userPreferences.summaryNewsInScheduledExtractive.toFloat()) }
+    var summaryNewsInScheduledCloud by rememberSaveable(userPreferences.summaryNewsInScheduledCloud) { mutableStateOf(userPreferences.summaryNewsInScheduledCloud.toFloat()) }
     var showLastSummariesCount by rememberSaveable(userPreferences.showLastSummariesCount) { mutableStateOf(userPreferences.showLastSummariesCount.toFloat()) }
     var showInfographicNewsCount by rememberSaveable(userPreferences.showInfographicNewsCount) { mutableStateOf(userPreferences.showInfographicNewsCount.toFloat()) }
     var localDeduplicationThreshold by rememberSaveable(userPreferences.localDeduplicationThreshold) { mutableStateOf(userPreferences.localDeduplicationThreshold) }
     var cloudDeduplicationThreshold by rememberSaveable(userPreferences.cloudDeduplicationThreshold) { mutableStateOf(userPreferences.cloudDeduplicationThreshold) }
     var minMentions by rememberSaveable(userPreferences.minMentions) { mutableStateOf(userPreferences.minMentions.toFloat()) }
+    var adaptiveExtractiveOnlyBelowChars by rememberSaveable(userPreferences.adaptiveExtractiveOnlyBelowChars) { mutableStateOf(userPreferences.adaptiveExtractiveOnlyBelowChars.toFloat()) }
+    var adaptiveExtractiveCompressAboveChars by rememberSaveable(userPreferences.adaptiveExtractiveCompressAboveChars) { mutableStateOf(userPreferences.adaptiveExtractiveCompressAboveChars.toFloat()) }
+    var adaptiveExtractiveCompressionPercent by rememberSaveable(userPreferences.adaptiveExtractiveCompressionPercent) { mutableStateOf(userPreferences.adaptiveExtractiveCompressionPercent.toFloat()) }
 
     Scaffold(
         topBar = {
@@ -332,18 +338,18 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = stringResource(R.string.ai_strategy_local)) {
+                SettingsSection(title = stringResource(R.string.settings_summary)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Column {
                             Text(
-                                stringResource(R.string.settings_extractive_sentences_feed, extractiveSentencesInFeed.toInt()),
+                                stringResource(R.string.settings_summary_items_per_news_feed, summaryItemsPerNewsInFeed.toInt()),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Slider(
-                                value = extractiveSentencesInFeed,
-                                onValueChange = { extractiveSentencesInFeed = it },
+                                value = summaryItemsPerNewsInFeed,
+                                onValueChange = { summaryItemsPerNewsInFeed = it },
                                 onValueChangeFinished = {
-                                    viewModel.updateExtractiveSentencesInFeed(extractiveSentencesInFeed.toInt())
+                                    viewModel.updateSummaryItemsPerNewsInFeed(summaryItemsPerNewsInFeed.toInt())
                                 },
                                 valueRange = 1f..10f,
                                 steps = 8
@@ -352,14 +358,14 @@ fun SettingsScreen(
 
                         Column {
                             Text(
-                                stringResource(R.string.settings_extractive_sentences_scheduled, extractiveSentencesInScheduled.toInt()),
+                                stringResource(R.string.settings_summary_items_per_news_scheduled, summaryItemsPerNewsInScheduled.toInt()),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Slider(
-                                value = extractiveSentencesInScheduled,
-                                onValueChange = { extractiveSentencesInScheduled = it },
+                                value = summaryItemsPerNewsInScheduled,
+                                onValueChange = { summaryItemsPerNewsInScheduled = it },
                                 onValueChangeFinished = {
-                                    viewModel.updateExtractiveSentencesInScheduled(extractiveSentencesInScheduled.toInt())
+                                    viewModel.updateSummaryItemsPerNewsInScheduled(summaryItemsPerNewsInScheduled.toInt())
                                 },
                                 valueRange = 1f..10f,
                                 steps = 8
@@ -368,14 +374,62 @@ fun SettingsScreen(
 
                         Column {
                             Text(
-                                stringResource(R.string.settings_extractive_news_scheduled, extractiveNewsInScheduled.toInt()),
+                                stringResource(R.string.settings_summary_news_feed_extractive, summaryNewsInFeedExtractive.toInt()),
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Slider(
-                                value = extractiveNewsInScheduled,
-                                onValueChange = { extractiveNewsInScheduled = it },
+                                value = summaryNewsInFeedExtractive,
+                                onValueChange = { summaryNewsInFeedExtractive = it },
                                 onValueChangeFinished = {
-                                    viewModel.updateExtractiveNewsInScheduled(extractiveNewsInScheduled.toInt())
+                                    viewModel.updateSummaryNewsInFeedExtractive(summaryNewsInFeedExtractive.toInt())
+                                },
+                                valueRange = 1f..20f,
+                                steps = 18
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                stringResource(R.string.settings_summary_news_feed_cloud, summaryNewsInFeedCloud.toInt()),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = summaryNewsInFeedCloud,
+                                onValueChange = { summaryNewsInFeedCloud = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateSummaryNewsInFeedCloud(summaryNewsInFeedCloud.toInt())
+                                },
+                                valueRange = 1f..20f,
+                                steps = 18
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                stringResource(R.string.settings_summary_news_scheduled_extractive, summaryNewsInScheduledExtractive.toInt()),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = summaryNewsInScheduledExtractive,
+                                onValueChange = { summaryNewsInScheduledExtractive = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateSummaryNewsInScheduledExtractive(summaryNewsInScheduledExtractive.toInt())
+                                },
+                                valueRange = 1f..20f,
+                                steps = 18
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                stringResource(R.string.settings_summary_news_scheduled_cloud, summaryNewsInScheduledCloud.toInt()),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = summaryNewsInScheduledCloud,
+                                onValueChange = { summaryNewsInScheduledCloud = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateSummaryNewsInScheduledCloud(summaryNewsInScheduledCloud.toInt())
                                 },
                                 valueRange = 1f..20f,
                                 steps = 18
@@ -630,16 +684,60 @@ fun SettingsScreen(
             item {
                 SettingsSection(title = stringResource(R.string.settings_adaptive_summary)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column {
                             Text(
-                                stringResource(R.string.settings_adaptive_extractive_preprocess),
-                                modifier = Modifier.weight(1f),
+                                stringResource(
+                                    R.string.settings_adaptive_extractive_only_below_chars,
+                                    adaptiveExtractiveOnlyBelowChars.toInt()
+                                ),
                                 style = MaterialTheme.typography.bodyLarge
                             )
-                            Switch(
-                                checked = userPreferences.isAdaptiveExtractivePreprocessingEnabled,
-                                onCheckedChange = { viewModel.updateAdaptiveExtractivePreprocessingEnabled(it) },
-                                modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
+                            Slider(
+                                value = adaptiveExtractiveOnlyBelowChars,
+                                onValueChange = { adaptiveExtractiveOnlyBelowChars = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateAdaptiveExtractiveOnlyBelowChars(adaptiveExtractiveOnlyBelowChars.toInt())
+                                },
+                                valueRange = 100f..4000f,
+                                steps = 38
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                stringResource(
+                                    R.string.settings_adaptive_extractive_compress_above_chars,
+                                    adaptiveExtractiveCompressAboveChars.toInt()
+                                ),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = adaptiveExtractiveCompressAboveChars,
+                                onValueChange = { adaptiveExtractiveCompressAboveChars = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateAdaptiveExtractiveCompressAboveChars(adaptiveExtractiveCompressAboveChars.toInt())
+                                },
+                                valueRange = 100f..4000f,
+                                steps = 38
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                stringResource(
+                                    R.string.settings_adaptive_extractive_compression_percent,
+                                    adaptiveExtractiveCompressionPercent.toInt()
+                                ),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = adaptiveExtractiveCompressionPercent,
+                                onValueChange = { adaptiveExtractiveCompressionPercent = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateAdaptiveExtractiveCompressionPercent(adaptiveExtractiveCompressionPercent.toInt())
+                                },
+                                valueRange = 10f..90f,
+                                steps = 79
                             )
                         }
                     }

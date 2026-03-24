@@ -21,15 +21,7 @@ import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -90,6 +82,7 @@ class FeedViewModel @Inject constructor(
     val groups = groupsWithSources
         .map { list -> list.map { it.group }.filter { it.isEnabled } }
         .distinctUntilChanged()
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val feedResultFlow = getFeedArticlesUseCase(
@@ -99,6 +92,12 @@ class FeedViewModel @Inject constructor(
         _savedFilter.map { it.savedOnly },
         userPreferences
     )
+        .distinctUntilChanged { old, new ->
+            old.isDedupInProgress == new.isDedupInProgress &&
+                old.clusters.size == new.clusters.size &&
+                old.clusters.map { it.representative.id } == new.clusters.map { it.representative.id } &&
+                old.clusters.map { it.duplicates.size } == new.clusters.map { it.duplicates.size }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GetFeedArticlesUseCase.FeedResult(emptyList(), false))
 
     private val feedUiState: StateFlow<FeedUiState> = combine(
@@ -116,6 +115,7 @@ class FeedViewModel @Inject constructor(
             isDedupInProgress = feed.isDedupInProgress
         )
     }
+        .distinctUntilChanged()
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FeedUiState(emptyList(), false))
 
@@ -125,7 +125,14 @@ class FeedViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val articleClusters: StateFlow<List<ArticleClusterUiModel>> = feedUiState
-        .map { it.clusters }
+        .map { state -> state.clusters to state.isDedupInProgress }
+        .scan(emptyList<ArticleClusterUiModel>()) { previous, (clusters, inProgress) ->
+            when {
+                clusters.isNotEmpty() -> clusters
+                inProgress -> previous
+                else -> emptyList()
+            }
+        }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

@@ -10,4 +10,5 @@ import javax.inject.Singleton
 class AppDispatcherProvider @Inject constructor() : DispatcherProvider {
     override val io: CoroutineDispatcher = Dispatchers.IO
     override val default: CoroutineDispatcher = Dispatchers.Default
+    override val main: CoroutineDispatcher = Dispatchers.Main
 }

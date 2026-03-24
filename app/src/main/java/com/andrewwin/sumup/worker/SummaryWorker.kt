@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.worker
 
 import android.content.Context
+import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -8,16 +9,18 @@ import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Summary
+import com.andrewwin.sumup.domain.ArticleCluster
 import com.andrewwin.sumup.domain.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.DeduplicationService
-import com.andrewwin.sumup.domain.ExtractiveSummarizer
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.summary.SummarySourceMeta
 import com.andrewwin.sumup.domain.usecase.BuildExtractiveSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
 import com.andrewwin.sumup.domain.usecase.NoArticlesException
+import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
@@ -34,7 +37,8 @@ class SummaryWorker @AssistedInject constructor(
     private val aiModelDao: AiModelDao,
     private val deduplicationService: DeduplicationService,
     private val formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase,
-    private val buildExtractiveSummaryUseCase: BuildExtractiveSummaryUseCase
+    private val buildExtractiveSummaryUseCase: BuildExtractiveSummaryUseCase,
+    private val manageModelUseCase: ManageModelUseCase
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -47,49 +51,63 @@ class SummaryWorker @AssistedInject constructor(
         return try {
             articleRepository.refreshArticles()
             
-            // Фільтрація за останні 24 години ("визначення дня")
             val dayTimestamp = System.currentTimeMillis() - 24 * 60 * 60 * 1000
             val recentArticles = articleRepository.getEnabledArticlesSince(dayTimestamp)
 
             val hasCloudEmbedding = aiRepository.hasEnabledEmbeddingConfig()
-            val dedupThreshold = if (hasCloudEmbedding) {
-                prefs.cloudDeduplicationThreshold
-            } else {
-                prefs.localDeduplicationThreshold
+            val resolvedModelPath = resolveModelPath(prefs)
+            val hasLocalEmbedding = resolvedModelPath?.let { deduplicationService.initialize(it) } ?: false
+            val canDeduplicate = when (prefs.aiStrategy) {
+                AiStrategy.LOCAL -> hasLocalEmbedding
+                AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> hasCloudEmbedding || hasLocalEmbedding
             }
-            if (!hasCloudEmbedding) {
-                prefs.modelPath?.let { deduplicationService.initialize(it) }
-            }
-            
-            val similarityCounts = if (recentArticles.size >= 2) {
-                val clusters = deduplicationService.clusterArticlesIncremental(
-                    recentArticles,
-                    dedupThreshold
-                ).first()
-                
-                val map = mutableMapOf<Long, Int>()
-                for (cluster in clusters) {
-                    val count = cluster.duplicates.size
-                    map[cluster.representative.id] = count
-                    for (duplicate in cluster.duplicates) {
-                        map[duplicate.first.id] = count
-                    }
+            Log.d(
+                TAG,
+                "dedup_state(worker): strategy=${prefs.aiStrategy}, enabled=${prefs.isDeduplicationEnabled}, modelPathSet=${!prefs.modelPath.isNullOrBlank()}, resolvedModelPathSet=${!resolvedModelPath.isNullOrBlank()}, hasCloudEmbedding=$hasCloudEmbedding, hasLocalEmbedding=$hasLocalEmbedding, canDeduplicate=$canDeduplicate, thresholdLocal=${prefs.localDeduplicationThreshold}, thresholdCloud=${prefs.cloudDeduplicationThreshold}, minMentions=${prefs.minMentions}, recentArticles=${recentArticles.size}"
+            )
+
+            var filteredArticles = recentArticles
+            if (prefs.isImportanceFilterEnabled) {
+                filteredArticles = filteredArticles.filter { article ->
+                    val source = articleRepository.getSourceById(article.sourceId)
+                    val sourceType = source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS
+                    articleImportanceScorer.score(article, sourceType) >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
                 }
-                map
-            } else {
-                emptyMap()
             }
 
-            // Фільтрація за важливістю
-            val articles = recentArticles.filter { article ->
-                val source = articleRepository.getSourceById(article.sourceId)
-                val baseScore = articleImportanceScorer.score(
-                    article,
-                    source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS
-                )
-                val boostedScore = baseScore + (similarityCounts[article.id] ?: 0) * SIMILARITY_BOOST_PER_ARTICLE
-                boostedScore >= 0.5f // Поріг для зведення
+            val baseClusters: List<ArticleCluster> =
+                if (!prefs.isDeduplicationEnabled || filteredArticles.size < 2 || !canDeduplicate) {
+                    filteredArticles.map { ArticleCluster(it, emptyList()) }
+                } else {
+                    val dedupThreshold = when (prefs.aiStrategy) {
+                        AiStrategy.LOCAL -> prefs.localDeduplicationThreshold
+                        AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> if (hasCloudEmbedding) {
+                            prefs.cloudDeduplicationThreshold
+                        } else {
+                            prefs.localDeduplicationThreshold
+                        }
+                    }
+                    deduplicationService.clusterArticlesIncremental(
+                        filteredArticles,
+                        dedupThreshold
+                    ).first()
+                }
+
+            var clusters = baseClusters
+            if (prefs.isDeduplicationEnabled) {
+                clusters = clusters.filter { cluster ->
+                    val mentions = cluster.duplicates.size + 1
+                    val isSingle = cluster.duplicates.isEmpty()
+
+                    if (isSingle) {
+                        !prefs.isHideSingleNewsEnabled
+                    } else {
+                        mentions >= prefs.minMentions
+                    }
+                }
             }
+
+            val articles = clusters.map { it.representative }.sortedByDescending { it.publishedAt }
 
             if (articles.isEmpty()) {
                 val message = applicationContext.getString(R.string.summary_worker_no_articles_today)
@@ -97,51 +115,56 @@ class SummaryWorker @AssistedInject constructor(
                 return Result.success()
             }
 
-            val summaryText = when (prefs.aiStrategy) {
+            val summaryTextRaw = when (prefs.aiStrategy) {
                 AiStrategy.LOCAL -> {
-                    val fullContentMap = articles.map { article ->
+                    val extractiveTopCount = prefs.summaryNewsInScheduledExtractive.coerceAtLeast(1)
+                    val articlesForExtractive = articles.take(extractiveTopCount)
+                    val fullContentMap = mutableMapOf<String, String>()
+                    for (article in articlesForExtractive) {
                         val source = articleRepository.getSourceById(article.sourceId)
                         val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
-                        formatted.displayTitle to articleRepository.fetchFullContent(article)
-                    }.toMap()
+                        fullContentMap[formatted.displayTitle] = articleRepository.fetchFullContent(article)
+                    }
                     buildExtractiveSummary(
                         headlines = fullContentMap.keys.toList(),
                         contentMap = fullContentMap,
-                        topCount = prefs.extractiveNewsInScheduled,
-                        sentencesPerArticle = prefs.extractiveSentencesInScheduled
+                        topCount = extractiveTopCount,
+                        sentencesPerArticle = prefs.summaryItemsPerNewsInScheduled
                     )
                 }
                 AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> {
                     val perArticleLimit = prefs.aiMaxCharsPerArticle.coerceAtLeast(200)
-                    val processedArticles = articles.take(MAX_ARTICLES_FOR_SUMMARIZATION).map { article -> 
+                    val cloudTopCount = prefs.summaryNewsInScheduledCloud.coerceAtLeast(1)
+                    val articlesToSummarize = articles.take(cloudTopCount).take(MAX_ARTICLES_FOR_SUMMARIZATION)
+                    val processedArticles = mutableListOf<com.andrewwin.sumup.data.local.entities.Article>()
+                    
+                    for (article in articlesToSummarize) {
                         val fullContent = articleRepository.fetchFullContent(article)
-                        val contentToSummarize = if (prefs.aiStrategy == AiStrategy.ADAPTIVE && prefs.isAdaptiveExtractivePreprocessingEnabled) {
-                             ExtractiveSummarizer
-                                .summarize(fullContent, prefs.extractiveSentencesInScheduled)
-                                .joinToString(" ")
-                        } else {
-                            fullContent
-                        }
-                        article.copy(content = contentToSummarize)
+                        val contentToSummarize = fullContent.take(perArticleLimit)
+                        processedArticles.add(article.copy(content = contentToSummarize))
                     }
                     
                     try {
-                        buildCloudSummary(processedArticles, aiRepository, perArticleLimit, prefs.extractiveSentencesInScheduled)
+                        buildCloudSummary(processedArticles, aiRepository, perArticleLimit, prefs.summaryItemsPerNewsInScheduled)
                     } catch (e: Exception) {
-                        val fullContentMap = articles.map { article ->
+                        val extractiveTopCount = prefs.summaryNewsInScheduledExtractive.coerceAtLeast(1)
+                        val articlesForExtractive = articles.take(extractiveTopCount)
+                        val fullContentMap = mutableMapOf<String, String>()
+                        for (article in articlesForExtractive) {
                             val source = articleRepository.getSourceById(article.sourceId)
                             val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
-                            formatted.displayTitle to articleRepository.fetchFullContent(article)
-                        }.toMap()
+                            fullContentMap[formatted.displayTitle] = articleRepository.fetchFullContent(article)
+                        }
                         buildExtractiveSummary(
                             headlines = fullContentMap.keys.toList(),
                             contentMap = fullContentMap,
-                            topCount = prefs.extractiveNewsInScheduled,
-                            sentencesPerArticle = prefs.extractiveSentencesInScheduled
+                            topCount = extractiveTopCount,
+                            sentencesPerArticle = prefs.summaryItemsPerNewsInScheduled
                         )
                     }
                 }
             }
+            val summaryText = appendSourceMetadata(summaryTextRaw, articles)
 
             if (summaryText.isBlank()) {
                 val message = applicationContext.getString(R.string.summary_worker_empty_response)
@@ -161,7 +184,7 @@ class SummaryWorker @AssistedInject constructor(
         }
     }
 
-    private fun buildExtractiveSummary(
+    private suspend fun buildExtractiveSummary(
         headlines: List<String>,
         contentMap: Map<String, String>,
         topCount: Int,
@@ -177,19 +200,97 @@ class SummaryWorker @AssistedInject constructor(
         articles: List<com.andrewwin.sumup.data.local.entities.Article>,
         aiRepo: AiRepository,
         perArticleLimit: Int,
-        extractiveSentenceCount: Int
+        pointsPerNews: Int
     ): String {
-        val content = articles.joinToString("\n\n") { article ->
+        val contentBuilder = StringBuilder()
+        for (article in articles) {
+            val source = articleRepository.getSourceById(article.sourceId)
+            val formatted = formatArticleHeadlineUseCase(
+                article,
+                source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS
+            )
             val truncated = article.content.take(perArticleLimit)
-            applicationContext.getString(R.string.summary_article_format, article.title, truncated)
+            if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
+            contentBuilder.append(
+                applicationContext.getString(R.string.summary_article_format, formatted.displayTitle, truncated)
+            )
         }
-        return aiRepo.summarize(content, extractiveSentenceCount)
+        return aiRepo.summarize(contentBuilder.toString(), pointsPerNews)
     }
 
     companion object {
         private const val TAG = "SummaryWorker"
         private const val MAX_ARTICLES_FOR_SUMMARIZATION = 15
         private const val MAX_RETRY_ATTEMPTS = 2
-        private const val SIMILARITY_BOOST_PER_ARTICLE = 0.15f
+    }
+
+    private suspend fun appendSourceMetadata(
+        summaryText: String,
+        orderedArticles: List<com.andrewwin.sumup.data.local.entities.Article>
+    ): String {
+        if (summaryText.isBlank()) return summaryText
+
+        data class SourceMeta(val titleKey: String, val sourceName: String, val sourceUrl: String)
+        val metas = mutableListOf<SourceMeta>()
+        for (article in orderedArticles) {
+            val source = articleRepository.getSourceById(article.sourceId)
+            val sourceName = source?.name?.trim().orEmpty()
+            val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
+            if (sourceName.isBlank() || sourceUrl.isBlank()) continue
+            val formatted = formatArticleHeadlineUseCase(
+                article,
+                source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS
+            )
+            metas.add(SourceMeta(normalizeKey(formatted.displayTitle), sourceName, sourceUrl))
+        }
+        if (metas.isEmpty()) return summaryText
+
+        val sections = summaryText.split(Regex("\\n\\s*\\n")).filter { it.isNotBlank() }
+        if (sections.isEmpty()) return summaryText
+
+        val used = BooleanArray(metas.size)
+        var fallbackIndex = 0
+        val enrichedSections = sections.map { section ->
+            val lines = section.lines().map { it.trimEnd() }
+            if (lines.any { it.startsWith(SummarySourceMeta.PREFIX) }) return@map section
+            val titleLine = lines.firstOrNull()?.trim().orEmpty()
+            val titleKey = normalizeKey(titleLine.removeSuffix(":"))
+            var exactIndex = -1
+            for (i in metas.indices) {
+                if (used[i]) continue
+                if (metas[i].titleKey == titleKey) {
+                    exactIndex = i
+                    break
+                }
+            }
+            val pickedIndex = if (exactIndex >= 0) {
+                exactIndex
+            } else {
+                while (fallbackIndex < metas.size && used[fallbackIndex]) fallbackIndex++
+                if (fallbackIndex < metas.size) fallbackIndex else -1
+            }
+            if (pickedIndex == -1) return@map section
+            used[pickedIndex] = true
+            val meta = metas[pickedIndex]
+            "$section\n${SummarySourceMeta.PREFIX}${meta.sourceName}|${meta.sourceUrl}"
+        }
+        return enrichedSections.joinToString("\n\n")
+    }
+
+    private fun normalizeKey(value: String): String {
+        return value
+            .lowercase()
+            .replace(Regex("[^\\p{L}\\p{Nd}\\s]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
+    private fun resolveModelPath(prefs: com.andrewwin.sumup.data.local.entities.UserPreferences): String? {
+        if (!prefs.modelPath.isNullOrBlank()) return prefs.modelPath
+        return if (manageModelUseCase.isModelExists()) {
+            manageModelUseCase.getModelPath()
+        } else {
+            null
+        }
     }
 }

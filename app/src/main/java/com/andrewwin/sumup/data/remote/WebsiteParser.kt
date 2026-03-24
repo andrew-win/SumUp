@@ -6,17 +6,11 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URI
-import java.time.Instant
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.LocalTime
-import java.time.Month
-import java.time.OffsetDateTime
-import java.time.ZoneId
-import java.time.ZoneOffset
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import javax.inject.Inject
 
 class WebsiteParser @Inject constructor() {
@@ -227,26 +221,13 @@ class WebsiteParser @Inject constructor() {
     private fun parseDateToMillis(rawDate: String?, fallbackMillis: Long): Long {
         if (rawDate.isNullOrBlank()) return fallbackMillis
         val trimmed = rawDate.trim()
-        return runCatching { Instant.parse(trimmed).toEpochMilli() }.getOrNull()
-            ?: runCatching { OffsetDateTime.parse(rawDate).toInstant().toEpochMilli() }.getOrNull()
-            ?: runCatching { ZonedDateTime.parse(rawDate).toInstant().toEpochMilli() }.getOrNull()
-            ?: runCatching {
-                LocalDateTime.parse(rawDate, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                    .toInstant(ZoneOffset.UTC)
-                    .toEpochMilli()
-            }.getOrNull()
-            ?: parseWithRfc(rawDate)
-            ?: parseWithDayMonthAndTime(trimmed)
-            ?: parseWithTimeOnly(trimmed)
-            ?: fallbackMillis
-    }
+        
+        val formatters = formattersThreadLocal.get()
+        for (f in formatters) {
+            runCatching { f.parse(trimmed)?.time }.getOrNull()?.let { return it }
+        }
 
-    private fun parseWithRfc(rawDate: String): Long? {
-        val normalized = rawDate.trim().replace("GMT", "+0000")
-        return runCatching {
-            val formatter = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH)
-            ZonedDateTime.parse(normalized, formatter).toInstant().toEpochMilli()
-        }.getOrNull()
+        return parseWithDayMonthAndTime(trimmed) ?: parseWithTimeOnly(trimmed) ?: fallbackMillis
     }
 
     private fun resolveUrl(baseUri: URI?, relativeOrAbsolute: String?): String? {
@@ -291,10 +272,13 @@ class WebsiteParser @Inject constructor() {
         val hours = match.groupValues[1].toIntOrNull() ?: return null
         val minutes = match.groupValues[2].toIntOrNull() ?: return null
         if (hours !in 0..23 || minutes !in 0..59) return null
-        val zone = ZoneId.systemDefault()
-        val now = ZonedDateTime.now(zone)
-        val localDateTime = LocalDateTime.of(now.toLocalDate(), LocalTime.of(hours, minutes))
-        return localDateTime.atZone(zone).toInstant().toEpochMilli()
+        
+        return Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hours)
+            set(Calendar.MINUTE, minutes)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
     }
 
     private fun parseWithDayMonthAndTime(value: String): Long? {
@@ -305,12 +289,15 @@ class WebsiteParser @Inject constructor() {
         val hours = match.groupValues[3].toIntOrNull() ?: return null
         val minutes = match.groupValues[4].toIntOrNull() ?: return null
         if (hours !in 0..23 || minutes !in 0..59) return null
-        val zone = ZoneId.systemDefault()
-        val now = ZonedDateTime.now(zone)
-        val year = now.year
-        val date = runCatching { LocalDate.of(year, month, day) }.getOrNull() ?: return null
-        val dateTime = LocalDateTime.of(date, LocalTime.of(hours, minutes)).atZone(zone)
-        return dateTime.toInstant().toEpochMilli()
+
+        return Calendar.getInstance().apply {
+            set(Calendar.MONTH, month)
+            set(Calendar.DAY_OF_MONTH, day)
+            set(Calendar.HOUR_OF_DAY, hours)
+            set(Calendar.MINUTE, minutes)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
     }
 
     private companion object {
@@ -323,23 +310,36 @@ class WebsiteParser @Inject constructor() {
         private val TIME_ONLY_REGEX = Regex("""\b([01]?\d|2[0-3]):([0-5]\d)\b""")
         private val DAY_MONTH_TIME_REGEX =
             Regex("""\b(\d{1,2})\s+([а-яА-Яa-zA-ZіїєґІЇЄҐ\.]+)\s*,?\s*([01]?\d|2[0-3]):([0-5]\d)\b""")
+
+        private val formattersThreadLocal = ThreadLocal.withInitial {
+            listOf(
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US),
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US),
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.US),
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.US),
+                SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH),
+                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US),
+                SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            ).onEach { it.timeZone = TimeZone.getTimeZone("UTC") }
+        }
+
         private val MONTH_MAP = mapOf(
-            "січ" to Month.JANUARY, "січня" to Month.JANUARY, "jan" to Month.JANUARY,
-            "лют" to Month.FEBRUARY, "лютого" to Month.FEBRUARY, "feb" to Month.FEBRUARY,
-            "бер" to Month.MARCH, "березня" to Month.MARCH, "mar" to Month.MARCH,
-            "кві" to Month.APRIL, "квітня" to Month.APRIL, "apr" to Month.APRIL,
-            "тра" to Month.MAY, "травня" to Month.MAY, "may" to Month.MAY,
-            "чер" to Month.JUNE, "червня" to Month.JUNE, "jun" to Month.JUNE,
-            "лип" to Month.JULY, "липня" to Month.JULY, "jul" to Month.JULY,
-            "сер" to Month.AUGUST, "серпня" to Month.AUGUST, "aug" to Month.AUGUST,
-            "вер" to Month.SEPTEMBER, "вересня" to Month.SEPTEMBER, "sep" to Month.SEPTEMBER,
-            "жов" to Month.OCTOBER, "жовтня" to Month.OCTOBER, "oct" to Month.OCTOBER,
-            "лис" to Month.NOVEMBER, "листопада" to Month.NOVEMBER, "nov" to Month.NOVEMBER,
-            "гру" to Month.DECEMBER, "грудня" to Month.DECEMBER, "dec" to Month.DECEMBER,
-            "янв" to Month.JANUARY, "фев" to Month.FEBRUARY, "марта" to Month.MARCH,
-            "апр" to Month.APRIL, "июн" to Month.JUNE, "июл" to Month.JULY,
-            "авг" to Month.AUGUST, "сен" to Month.SEPTEMBER, "окт" to Month.OCTOBER,
-            "ноя" to Month.NOVEMBER, "дек" to Month.DECEMBER
+            "січ" to Calendar.JANUARY, "січня" to Calendar.JANUARY, "jan" to Calendar.JANUARY,
+            "лют" to Calendar.FEBRUARY, "лютого" to Calendar.FEBRUARY, "feb" to Calendar.FEBRUARY,
+            "бер" to Calendar.MARCH, "березня" to Calendar.MARCH, "mar" to Calendar.MARCH,
+            "кві" to Calendar.APRIL, "квітня" to Calendar.APRIL, "apr" to Calendar.APRIL,
+            "тра" to Calendar.MAY, "травня" to Calendar.MAY, "may" to Calendar.MAY,
+            "чер" to Calendar.JUNE, "червня" to Calendar.JUNE, "jun" to Calendar.JUNE,
+            "лип" to Calendar.JULY, "липня" to Calendar.JULY, "jul" to Calendar.JULY,
+            "сер" to Calendar.AUGUST, "серпня" to Calendar.AUGUST, "aug" to Calendar.AUGUST,
+            "вер" to Calendar.SEPTEMBER, "вересня" to Calendar.SEPTEMBER, "sep" to Calendar.SEPTEMBER,
+            "жов" to Calendar.OCTOBER, "жовтня" to Calendar.OCTOBER, "oct" to Calendar.OCTOBER,
+            "лис" to Calendar.NOVEMBER, "листопада" to Calendar.NOVEMBER, "nov" to Calendar.NOVEMBER,
+            "гру" to Calendar.DECEMBER, "грудня" to Calendar.DECEMBER, "dec" to Calendar.DECEMBER,
+            "янв" to Calendar.JANUARY, "фев" to Calendar.FEBRUARY, "марта" to Calendar.MARCH,
+            "апр" to Calendar.APRIL, "июн" to Calendar.JUNE, "июл" to Calendar.JULY,
+            "авг" to Calendar.AUGUST, "сен" to Calendar.SEPTEMBER, "окт" to Calendar.OCTOBER,
+            "ноя" to Calendar.NOVEMBER, "дек" to Calendar.DECEMBER
         )
     }
 }

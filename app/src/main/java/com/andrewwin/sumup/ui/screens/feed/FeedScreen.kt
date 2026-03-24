@@ -50,6 +50,7 @@ import coil.compose.AsyncImage
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.domain.summary.SummarySourceMeta
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleUiModel
 import com.andrewwin.sumup.ui.theme.Rubik
@@ -337,12 +338,35 @@ fun FeedScreen(
                                     CircularProgressIndicator(strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
                                 }
                             } else if (aiResult != null) {
+                                val sections = parseSummarySections(aiResult.orEmpty())
                                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Text(
-                                        text = aiResult ?: "",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        lineHeight = 28.sp
-                                    )
+                                    sections.forEach { section ->
+                                        Text(
+                                            text = section.body,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            lineHeight = 28.sp
+                                        )
+                                        section.source?.let { source ->
+                                            AssistChip(
+                                                onClick = { onOpenWebView(normalizeForWebView(source.url)) },
+                                                shape = RoundedCornerShape(14.dp),
+                                                label = {
+                                                    Text(
+                                                        source.name,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Link,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            )
+                                        }
+                                    }
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.End,
@@ -458,9 +482,10 @@ fun FeedScreen(
 }
 
 private fun copyTextToClipboard(context: Context, text: String) {
-    if (text.isBlank()) return
+    val cleaned = cleanSummaryText(text)
+    if (cleaned.isBlank()) return
     val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboardManager.setPrimaryClip(ClipData.newPlainText("ai_result_text", text))
+    clipboardManager.setPrimaryClip(ClipData.newPlainText("ai_result_text", cleaned))
 }
 
 private fun shareText(
@@ -468,12 +493,69 @@ private fun shareText(
     text: String,
     chooserTitle: String
 ) {
-    if (text.isBlank()) return
+    val cleaned = cleanSummaryText(text)
+    if (cleaned.isBlank()) return
     val shareIntent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, text)
+        putExtra(Intent.EXTRA_TEXT, cleaned)
     }
     context.startActivity(Intent.createChooser(shareIntent, chooserTitle))
+}
+
+private data class SourceMetaUi(val name: String, val url: String)
+private data class SummarySection(val body: String, val source: SourceMetaUi?)
+
+private fun parseSummarySections(raw: String): List<SummarySection> {
+    val blocks = raw
+        .split(Regex("\\n\\s*\\n"))
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+
+    return blocks.map { block ->
+        val lines = block.lines().map { it.trimEnd() }.filter { it.isNotBlank() }
+        val source = lines.lastOrNull()?.let { parseSourceMeta(it.trim()) }
+        val bodyLines = if (source != null) lines.dropLast(1) else lines
+        SummarySection(body = bodyLines.joinToString("\n"), source = source)
+    }
+}
+
+private fun parseSourceMeta(line: String): SourceMetaUi? {
+    if (!line.startsWith(SummarySourceMeta.PREFIX)) return null
+    val payload = line.removePrefix(SummarySourceMeta.PREFIX)
+    val separator = payload.lastIndexOf('|')
+    if (separator <= 0 || separator >= payload.lastIndex) return null
+    val name = payload.substring(0, separator).trim()
+    val url = payload.substring(separator + 1).trim()
+    if (name.isBlank() || url.isBlank()) return null
+    return SourceMetaUi(name, url)
+}
+
+private fun cleanSummaryText(raw: String): String {
+    return raw
+        .lines()
+        .filterNot { it.trim().startsWith(SummarySourceMeta.PREFIX) }
+        .joinToString("\n")
+}
+
+private fun normalizeForWebView(url: String): String {
+    val trimmed = url.trim()
+    if (!trimmed.contains("t.me/")) return trimmed
+    val marker = "t.me/"
+    val idx = trimmed.indexOf(marker)
+    if (idx == -1) return trimmed
+    val prefix = trimmed.substring(0, idx + marker.length)
+    var path = trimmed.substring(idx + marker.length).trimStart('/')
+    if (path.startsWith("s/")) return "$prefix$path"
+    if (path.startsWith("c/")) return "$prefix$path"
+    val segments = path.split("/").filter { it.isNotBlank() }
+    if (segments.size >= 2) {
+        path = "s/${segments[0]}/${segments[1]}"
+        return "$prefix$path"
+    }
+    if (segments.size == 1) {
+        return "$prefix" + "s/${segments[0]}"
+    }
+    return trimmed
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

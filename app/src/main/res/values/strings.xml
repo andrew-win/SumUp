@@ -110,8 +110,17 @@
     <string name="error_no_articles">Немає нових статей для сумаризації.</string>
     <string name="settings_importance_filter">Важливість</string>
     <string name="settings_enable_importance_filter">Приховувати малоінформативні</string>
+    <string name="settings_summary">Сумаризація</string>
+    <string name="settings_summary_items_per_news_feed">Пунктів на новину у стрічці: %d</string>
+    <string name="settings_summary_items_per_news_scheduled">Пунктів на новину у запланованих: %d</string>
+    <string name="settings_summary_news_feed_extractive">Новин із стрічки при екстрактивній сумаризації: %d</string>
+    <string name="settings_summary_news_feed_cloud">Новин із стрічки при хмарній сумаризації: %d</string>
+    <string name="settings_summary_news_scheduled_extractive">Новин для запланованих при екстрактивній сумаризації: %d</string>
+    <string name="settings_summary_news_scheduled_cloud">Новин для запланованих при хмарній сумаризації: %d</string>
     <string name="settings_adaptive_summary">Адаптивна сумаризація</string>
-    <string name="settings_adaptive_extractive_preprocess">Використовувати екстрактивну сумаризацію перед відправкою хмарним моделем</string>
+    <string name="settings_adaptive_extractive_only_below_chars">Тільки екстрактивна якщо новина менше: %d</string>
+    <string name="settings_adaptive_extractive_compress_above_chars">Стискати екстрактивною перед хмарною для новин більше: %d</string>
+    <string name="settings_adaptive_extractive_compression_percent">Відсоток стиснення: %d%%</string>
     <string name="settings_filtering">Стрічка</string>
     <string name="settings_feed">Стрічка</string>
     <string name="settings_language">Мова</string>
@@ -128,6 +137,7 @@
     <string name="settings_importance_weight_views">Коеф. переглядів: %s</string>
     <string name="settings_importance_weight_facts">Коеф. фактів: %s</string>
     <string name="settings_extractive_sentences_feed">Речень у стрічці: %d</string>
+    <string name="settings_extractive_news_feed">Новин у стрічці: %d</string>
     <string name="settings_extractive_sentences_scheduled">Речень у запланованих: %d</string>
     <string name="settings_extractive_news_scheduled">Кількість новин у запланованих: %d</string>
     <string name="settings_show_last_summaries_count">Показувати останніх зведень: %d</string>

@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.domain
 
+import android.util.Log
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
@@ -34,9 +35,13 @@ class DeduplicationService(
 
     suspend fun initialize(modelPath: String): Boolean = withContext(Dispatchers.IO) {
         runCatching {
+            Log.d(TAG, "initialize: start, modelPath=$modelPath, hasSession=${ortSession != null}")
             if (ortSession != null) return@withContext true
             val modelFile = File(modelPath)
-            if (!modelFile.exists()) return@withContext false
+            if (!modelFile.exists()) {
+                Log.e(TAG, "initialize: model file not found, path=$modelPath")
+                return@withContext false
+            }
             val opts = OrtSession.SessionOptions().apply {
                 setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
                 setIntraOpNumThreads(1)
@@ -45,7 +50,10 @@ class DeduplicationService(
                 registerCustomOpLibrary(OrtxPackage.getLibraryPath())
             }
             ortSession = ortEnv.createSession(modelPath, opts)
+            Log.d(TAG, "initialize: success, modelPath=$modelPath")
             true
+        }.onFailure { e ->
+            Log.e(TAG, "initialize: failed, modelPath=$modelPath, error=${e.message}", e)
         }.getOrDefault(false)
     }
 
@@ -224,6 +232,7 @@ class DeduplicationService(
     }
 
     companion object {
+        private const val TAG = "DeduplicationService"
         private const val EMBEDDING_DIM = 768
         private const val DB_BATCH_SIZE = 32
     }

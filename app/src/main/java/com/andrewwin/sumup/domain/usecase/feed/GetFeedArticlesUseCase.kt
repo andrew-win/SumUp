@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.domain.usecase.feed
 
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.ArticleCluster
@@ -9,6 +10,7 @@ import com.andrewwin.sumup.domain.DeduplicationService
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
+import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.coroutineScope
@@ -22,7 +24,8 @@ class GetFeedArticlesUseCase @Inject constructor(
     private val sourceRepository: SourceRepository,
     private val deduplicationService: DeduplicationService,
     private val importanceScorer: ArticleImportanceScorer,
-    private val aiRepository: AiRepository
+    private val aiRepository: AiRepository,
+    private val manageModelUseCase: ManageModelUseCase
 ) {
     private val tag = "GetFeedArticles"
 
@@ -124,14 +127,33 @@ class GetFeedArticlesUseCase @Inject constructor(
                         if (!shouldRunDedup) return@coroutineScope
 
                         delay(DEDUP_DELAY_MS)
-                        
-                        state.prefs.modelPath?.let { path ->
-                            deduplicationService.initialize(path)
+
+                        val hasCloudEmbedding = withContext(Dispatchers.IO) {
+                            aiRepository.hasEnabledEmbeddingConfig()
+                        }
+                        val resolvedModelPath = resolveModelPath(state.prefs)
+                        val hasLocalEmbedding = resolvedModelPath
+                            ?.let { path -> deduplicationService.initialize(path) }
+                            ?: false
+
+                        val canDeduplicate = when (state.prefs.aiStrategy) {
+                            AiStrategy.LOCAL -> hasLocalEmbedding
+                            AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> hasCloudEmbedding || hasLocalEmbedding
+                        }
+                        Log.d(
+                            tag,
+                            "dedup_state(feed): strategy=${state.prefs.aiStrategy}, enabled=${state.prefs.isDeduplicationEnabled}, modelPathSet=${!state.prefs.modelPath.isNullOrBlank()}, resolvedModelPathSet=${!resolvedModelPath.isNullOrBlank()}, hasCloudEmbedding=$hasCloudEmbedding, hasLocalEmbedding=$hasLocalEmbedding, canDeduplicate=$canDeduplicate, thresholdLocal=${state.prefs.localDeduplicationThreshold}, thresholdCloud=${state.prefs.cloudDeduplicationThreshold}, minMentions=${state.prefs.minMentions}, articles=${state.articles.size}"
+                        )
+                        if (!canDeduplicate) {
+                            Log.w(tag, "dedup_state(feed): skipped, canDeduplicate=false")
+                            emit(FeedResult(initial, false))
+                            return@coroutineScope
                         }
 
                         var lastClusters: List<ArticleCluster>? = null
-                        val deduplicationThreshold = withContext(Dispatchers.IO) {
-                            if (aiRepository.hasEnabledEmbeddingConfig()) {
+                        val deduplicationThreshold = when (state.prefs.aiStrategy) {
+                            AiStrategy.LOCAL -> state.prefs.localDeduplicationThreshold
+                            AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> if (hasCloudEmbedding) {
                                 state.prefs.cloudDeduplicationThreshold
                             } else {
                                 state.prefs.localDeduplicationThreshold
@@ -166,8 +188,17 @@ class GetFeedArticlesUseCase @Inject constructor(
     ): List<ArticleCluster> {
         if (!prefs.isDeduplicationEnabled) return clusters
         if (clusters.isEmpty()) return clusters
-        if (clusters.all { it.duplicates.isEmpty() }) return clusters
-        return clusters.filter { it.duplicates.size + 1 >= prefs.minMentions }
+
+        return clusters.filter { cluster ->
+            val mentions = cluster.duplicates.size + 1
+            val isSingle = cluster.duplicates.isEmpty()
+
+            if (isSingle) {
+                !prefs.isHideSingleNewsEnabled
+            } else {
+                mentions >= prefs.minMentions
+            }
+        }
     }
 
     private suspend fun buildClustersFromDb(
@@ -247,6 +278,15 @@ class GetFeedArticlesUseCase @Inject constructor(
         val prefs: UserPreferences
     )
 
+    private fun resolveModelPath(prefs: UserPreferences): String? {
+        if (!prefs.modelPath.isNullOrBlank()) return prefs.modelPath
+        return if (manageModelUseCase.isModelExists()) {
+            manageModelUseCase.getModelPath()
+        } else {
+            null
+        }
+    }
+
     data class FeedResult(
         val clusters: List<ArticleCluster>,
         val isDedupInProgress: Boolean
@@ -254,7 +294,7 @@ class GetFeedArticlesUseCase @Inject constructor(
 
     companion object {
         private const val DEDUP_DELAY_MS = 200L
-        private const val DEDUP_THROTTLE_MS = 25L
-        private const val DEDUP_EMIT_EVERY = 12
+        private const val DEDUP_THROTTLE_MS = 60L
+        private const val DEDUP_EMIT_EVERY = 32
     }
 }

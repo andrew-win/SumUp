@@ -121,7 +121,8 @@ class SummaryViewModel @Inject constructor(
                 }.sortedByDescending { it.value }.take(limit)
             }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.flowOn(kotlinx.coroutines.Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun setChartType(type: SummaryChartType) {
         _chartType.value = type

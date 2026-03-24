@@ -12,13 +12,8 @@ import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
 import com.andrewwin.sumup.domain.usecase.sources.SuggestedTheme
 import com.andrewwin.sumup.domain.usecase.sources.ThemeSuggestion
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -36,6 +31,7 @@ class SourcesViewModel @Inject constructor(
                 groupWithSources.copy(sources = groupWithSources.sources.filter { it.url !in themeUrls })
             }
         }
+        .flowOn(Dispatchers.Default)
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -67,9 +63,15 @@ class SourcesViewModel @Inject constructor(
     }
 
     fun toggleThemeSubscription(suggestion: ThemeSuggestion, isSubscribed: Boolean) {
+        _suggestedThemes.update { themes ->
+            themes.map { current ->
+                if (current.theme == suggestion.theme) current.copy(isSubscribed = isSubscribed) else current
+            }
+        }
+
         viewModelScope.launch {
             if (isSubscribed) {
-                val firstGroup = repository.groupsWithSources.first().firstOrNull()?.group
+                val firstGroup = repository.groupsWithSources.firstOrNull()?.firstOrNull()?.group
                 if (firstGroup != null) {
                     suggestion.theme.sources.forEach { source ->
                         repository.addSource(
@@ -88,6 +90,7 @@ class SourcesViewModel @Inject constructor(
                         ?.let { repository.deleteSource(it) }
                 }
             }
+            loadSuggestedThemes()
         }
     }
 

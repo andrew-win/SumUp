@@ -27,7 +27,10 @@ class SourceRepositoryImpl @Inject constructor(
         sourceDao.getSourcesByIds(sourceIds)
 
     override suspend fun addGroup(name: String) {
-        sourceDao.insertGroup(SourceGroup(name = name))
+        val normalizedName = name.trim()
+        if (normalizedName.isBlank()) return
+        if (sourceDao.groupExistsByName(normalizedName)) return
+        sourceDao.insertGroup(SourceGroup(name = normalizedName))
     }
 
     override suspend fun updateGroup(group: SourceGroup) {
@@ -60,17 +63,36 @@ class SourceRepositoryImpl @Inject constructor(
         dateSelector: String?,
         useHeadlessBrowser: Boolean
     ) {
+        val normalizedName = name.trim()
         val normalizedUrl = normalizeUrl(url, type)
+        if (normalizedName.isBlank() || normalizedUrl.isBlank()) return
+        if (sourceDao.sourceExistsByTypeAndUrl(type, normalizedUrl)) return
+
         val normalizedTitleSelector = normalizeSelector(titleSelector)
         val normalizedPostLinkSelector = normalizeSelector(postLinkSelector)
         val normalizedDescriptionSelector = normalizeSelector(descriptionSelector)
         val normalizedDateSelector = normalizeSelector(dateSelector)
+        val sourceToInsert = Source(
+            groupId = groupId,
+            name = normalizedName,
+            url = normalizedUrl,
+            type = type,
+            footerPattern = null,
+            titleSelector = normalizedTitleSelector,
+            postLinkSelector = normalizedPostLinkSelector,
+            descriptionSelector = normalizedDescriptionSelector,
+            dateSelector = normalizedDateSelector,
+            useHeadlessBrowser = useHeadlessBrowser
+        )
+        val insertedId = sourceDao.insertSource(sourceToInsert)
+        if (insertedId <= 0L) return
+
         val footerPattern = try {
             val sampleArticles = remoteArticleDataSource.fetchArticles(
                 Source(
-                    id = 0L,
+                    id = insertedId,
                     groupId = groupId,
-                    name = name,
+                    name = normalizedName,
                     url = normalizedUrl,
                     type = type,
                     titleSelector = normalizedTitleSelector,
@@ -87,20 +109,9 @@ class SourceRepositoryImpl @Inject constructor(
             null
         }
 
-        sourceDao.insertSource(
-            Source(
-                groupId = groupId,
-                name = name,
-                url = normalizedUrl,
-                type = type,
-                footerPattern = footerPattern,
-                titleSelector = normalizedTitleSelector,
-                postLinkSelector = normalizedPostLinkSelector,
-                descriptionSelector = normalizedDescriptionSelector,
-                dateSelector = normalizedDateSelector,
-                useHeadlessBrowser = useHeadlessBrowser
-            )
-        )
+        if (!footerPattern.isNullOrBlank()) {
+            sourceDao.updateSource(sourceToInsert.copy(id = insertedId, footerPattern = footerPattern))
+        }
     }
 
     override suspend fun updateSource(source: Source) {

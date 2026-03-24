@@ -27,6 +27,9 @@ interface SourceDao {
     @Query("SELECT * FROM source_groups")
     fun getAllGroups(): Flow<List<SourceGroup>>
 
+    @Query("SELECT EXISTS(SELECT 1 FROM source_groups WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name)))")
+    suspend fun groupExistsByName(name: String): Boolean
+
     @Query("SELECT * FROM sources WHERE groupId = :groupId")
     fun getSourcesByGroupId(groupId: Long): Flow<List<Source>>
 
@@ -36,11 +39,14 @@ interface SourceDao {
     @Query("SELECT * FROM sources WHERE id IN (:sourceIds)")
     suspend fun getSourcesByIds(sourceIds: List<Long>): List<Source>
 
+    @Query("SELECT EXISTS(SELECT 1 FROM sources WHERE type = :type AND LOWER(TRIM(url)) = LOWER(TRIM(:url)))")
+    suspend fun sourceExistsByTypeAndUrl(type: com.andrewwin.sumup.data.local.entities.SourceType, url: String): Boolean
+
     @Transaction
     @Query("SELECT * FROM source_groups")
     fun getGroupsWithSources(): Flow<List<GroupWithSources>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertGroup(group: SourceGroup): Long
 
     @Update
@@ -49,8 +55,8 @@ interface SourceDao {
     @Delete
     suspend fun deleteGroup(group: SourceGroup)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertSource(source: Source)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertSource(source: Source): Long
 
     @Update
     suspend fun updateSource(source: Source)

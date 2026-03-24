@@ -161,8 +161,16 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(isImportanceFilterEnabled = enabled) } }
     }
 
-    fun updateAdaptiveExtractivePreprocessingEnabled(enabled: Boolean) {
-        viewModelScope.launch { updatePreferences { it.copy(isAdaptiveExtractivePreprocessingEnabled = enabled) } }
+    fun updateAdaptiveExtractiveOnlyBelowChars(chars: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(adaptiveExtractiveOnlyBelowChars = chars) } }
+    }
+
+    fun updateAdaptiveExtractiveCompressAboveChars(chars: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(adaptiveExtractiveCompressAboveChars = chars) } }
+    }
+
+    fun updateAdaptiveExtractiveCompressionPercent(percent: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(adaptiveExtractiveCompressionPercent = percent) } }
     }
 
     fun updateSummaryPrompt(prompt: String) {
@@ -196,16 +204,28 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun updateExtractiveSentencesInFeed(count: Int) {
-        viewModelScope.launch { updatePreferences { it.copy(extractiveSentencesInFeed = count) } }
+    fun updateSummaryItemsPerNewsInFeed(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(summaryItemsPerNewsInFeed = count) } }
     }
 
-    fun updateExtractiveSentencesInScheduled(count: Int) {
-        viewModelScope.launch { updatePreferences { it.copy(extractiveSentencesInScheduled = count) } }
+    fun updateSummaryItemsPerNewsInScheduled(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(summaryItemsPerNewsInScheduled = count) } }
     }
 
-    fun updateExtractiveNewsInScheduled(count: Int) {
-        viewModelScope.launch { updatePreferences { it.copy(extractiveNewsInScheduled = count) } }
+    fun updateSummaryNewsInFeedExtractive(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(summaryNewsInFeedExtractive = count) } }
+    }
+
+    fun updateSummaryNewsInFeedCloud(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(summaryNewsInFeedCloud = count) } }
+    }
+
+    fun updateSummaryNewsInScheduledExtractive(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(summaryNewsInScheduledExtractive = count) } }
+    }
+
+    fun updateSummaryNewsInScheduledCloud(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(summaryNewsInScheduledCloud = count) } }
     }
 
     fun updateShowLastSummariesCount(count: Int) {

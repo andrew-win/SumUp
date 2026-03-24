@@ -238,15 +238,21 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideFormatExtractiveSummaryUseCase(@ApplicationContext context: Context): FormatExtractiveSummaryUseCase = 
-        FormatExtractiveSummaryUseCase(context)
+    fun provideFormatExtractiveSummaryUseCase(): FormatExtractiveSummaryUseCase =
+        FormatExtractiveSummaryUseCase()
+
+    @Provides
+    @Singleton
+    fun provideCleanArticleTextUseCase(
+        dispatcherProvider: com.andrewwin.sumup.domain.coroutines.DispatcherProvider
+    ): CleanArticleTextUseCase = CleanArticleTextUseCase(dispatcherProvider)
 
     @Provides
     @Singleton
     fun provideBuildExtractiveSummaryUseCase(
-        @ApplicationContext context: Context,
-        formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase
-    ): BuildExtractiveSummaryUseCase = BuildExtractiveSummaryUseCase(context, formatExtractiveSummaryUseCase)
+        formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase,
+        dispatcherProvider: com.andrewwin.sumup.domain.coroutines.DispatcherProvider
+    ): BuildExtractiveSummaryUseCase = BuildExtractiveSummaryUseCase(formatExtractiveSummaryUseCase, dispatcherProvider)
 
     @Provides
     @Singleton

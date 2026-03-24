@@ -27,31 +27,43 @@ class ArticleRepositoryImpl @Inject constructor(
 
     override suspend fun refreshArticles() = withContext(Dispatchers.IO) {
         val groups = sourceDao.getGroupsWithSources().first()
-        groups.forEach { groupWithSources ->
+        for (groupWithSources in groups) {
             if (groupWithSources.group.isEnabled) {
-                groupWithSources.sources.forEach { source ->
+                for (source in groupWithSources.sources) {
                     if (source.isEnabled) {
                         val fetchedArticles = remoteArticleDataSource.fetchArticles(source)
 
                         if (fetchedArticles.isNotEmpty()) {
-                            val cleanedContents = fetchedArticles
-                                .take(10)
-                                .map { it.content }
-                            val newFooterPattern = cleanArticleTextUseCase(cleanedContents)
+                            val contentsForFooter = fetchedArticles.take(10).map { it.content }
+                            val newFooterPattern = cleanArticleTextUseCase(contentsForFooter)
 
                             if (newFooterPattern != null && newFooterPattern != source.footerPattern) {
                                 sourceDao.updateSource(source.copy(footerPattern = newFooterPattern))
                             }
 
                             val currentFooter = newFooterPattern ?: source.footerPattern
-                            val cleanedArticles = fetchedArticles.map { article ->
-                                article.copy(
-                                    content = cleanArticleTextUseCase(article.content, source.type, currentFooter)
+                            val cleanedArticles = mutableListOf<Article>()
+                            for (article in fetchedArticles) {
+                                val cleanedContent = cleanArticleTextUseCase(article.content, source.type, currentFooter)
+                                cleanedArticles.add(article.copy(content = cleanedContent))
+                            }
+                            
+                            articleDao.insertArticles(cleanedArticles)
+
+                            for (article in cleanedArticles) {
+                                articleDao.updateFetchedArticleByUrl(
+                                    sourceId = article.sourceId,
+                                    title = article.title,
+                                    content = article.content,
+                                    mediaUrl = article.mediaUrl,
+                                    videoId = article.videoId,
+                                    publishedAt = article.publishedAt,
+                                    viewCount = article.viewCount,
+                                    url = article.url
                                 )
                             }
-                            val insertResults = articleDao.insertArticles(cleanedArticles)
-                            val insertedCount = insertResults.count { it != -1L }
-                            cleanedArticles.forEach { article ->
+
+                            for (article in cleanedArticles) {
                                 if (!article.mediaUrl.isNullOrBlank() || !article.videoId.isNullOrBlank()) {
                                     articleDao.updateMediaByUrl(
                                         url = article.url,

@@ -10,7 +10,7 @@ import com.andrewwin.sumup.data.remote.HeadlessBrowserHtmlFetcher
 import com.andrewwin.sumup.data.remote.WebsiteParser
 import com.andrewwin.sumup.data.remote.YouTubeParser
 import io.github.thoroldvix.api.TranscriptApiFactory
-import io.github.thoroldvix.api.TranscriptFormatters
+import io.github.thoroldvix.api.TranscriptContent
 import io.github.thoroldvix.api.YoutubeClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -163,8 +163,12 @@ class RemoteArticleDataSource @Inject constructor(
                     else -> url.substringAfterLast("/")
                 }
                 val transcriptList = youtubeTranscriptApi.listTranscripts(videoId)
-                val transcript = transcriptList.findTranscript("uk", "ru", "en")
-                val transcriptText = TranscriptFormatters.textFormatter().format(transcript.fetch())
+                val transcript = runCatching {
+                    transcriptList.findGeneratedTranscript("uk", "ru", "en")
+                }.getOrElse {
+                    transcriptList.findTranscript("uk", "ru", "en")
+                }
+                val transcriptText = formatYoutubeTranscriptByTiming(transcript.fetch())
                 Log.d(TAG_FULL_CONTENT, "youtube_ok: url=$url, length=${transcriptText.length}")
                 return@withContext transcriptText
             }
@@ -192,6 +196,68 @@ class RemoteArticleDataSource @Inject constructor(
         }
     }
 
+    private fun formatYoutubeTranscriptByTiming(transcript: TranscriptContent): String {
+        val fragments = transcript.content
+            .filter { !it.text.isNullOrBlank() }
+            .sortedBy { it.start }
+        if (fragments.isEmpty()) return ""
+
+        val blocks = mutableListOf<String>()
+        val current = StringBuilder()
+        var blockStart = fragments.first().start
+        var blockEnd = blockStart
+
+        fragments.forEach { fragment ->
+            val normalized = normalizeTranscriptFragment(fragment.text)
+            if (normalized.isBlank()) return@forEach
+
+            val fragmentEnd = fragment.start + fragment.dur
+            val shouldFlush =
+                current.isNotEmpty() &&
+                    (fragment.start - blockEnd > YT_BLOCK_GAP_SECONDS ||
+                        fragmentEnd - blockStart >= YT_BLOCK_WINDOW_SECONDS ||
+                        current.length >= YT_BLOCK_MAX_CHARS)
+
+            if (shouldFlush) {
+                blocks += finalizeTranscriptBlock(current.toString())
+                current.clear()
+                blockStart = fragment.start
+            }
+
+            if (current.isNotEmpty()) current.append(' ')
+            current.append(normalized)
+            blockEnd = fragmentEnd
+        }
+
+        if (current.isNotEmpty()) {
+            blocks += finalizeTranscriptBlock(current.toString())
+        }
+
+        return blocks.joinToString(separator = "\n\n")
+    }
+
+    private fun normalizeTranscriptFragment(raw: String?): String {
+        if (raw.isNullOrBlank()) return ""
+        val withoutTags = raw.replace(Regex("<[^>]+>"), " ")
+        return withoutTags
+            .replace('\n', ' ')
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
+    private fun finalizeTranscriptBlock(rawBlock: String): String {
+        val cleaned = rawBlock
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        if (cleaned.isEmpty()) return ""
+
+        return if (cleaned.last() == '.' || cleaned.last() == '!' || cleaned.last() == '?') {
+            cleaned
+        } else {
+            "$cleaned."
+        }
+    }
+
     private companion object {
         private const val HEADER_USER_AGENT = "User-Agent"
         private const val HEADER_ACCEPT_LANGUAGE = "Accept-Language"
@@ -202,5 +268,8 @@ class RemoteArticleDataSource @Inject constructor(
         private const val TAG_FULL_CONTENT = "WebsiteFullContent"
         private const val MAX_DEBUG_ITEMS_TO_LOG = 10
         private const val DEBUG_TITLE_PREVIEW_LEN = 80
+        private const val YT_BLOCK_WINDOW_SECONDS = 22.0
+        private const val YT_BLOCK_GAP_SECONDS = 2.2
+        private const val YT_BLOCK_MAX_CHARS = 260
     }
 }
