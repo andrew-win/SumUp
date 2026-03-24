@@ -34,6 +34,8 @@ data class UserPreferences(
     val extractiveSentencesInFeed: Int = 3,
     val extractiveSentencesInScheduled: Int = 5,
     val extractiveNewsInScheduled: Int = 10,
+    val showLastSummariesCount: Int = 5,
+    val showInfographicNewsCount: Int = 4,
     val aiMaxCharsPerArticle: Int = 1000,
     val aiMaxCharsPerFeedArticle: Int = 1000,
     val aiMaxCharsTotal: Int = 12000,

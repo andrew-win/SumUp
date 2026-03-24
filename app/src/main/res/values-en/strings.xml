@@ -130,6 +130,8 @@
     <string name="settings_extractive_sentences_feed">Sentences in feed: %d</string>
     <string name="settings_extractive_sentences_scheduled">Sentences in scheduled: %d</string>
     <string name="settings_extractive_news_scheduled">News count in scheduled: %d</string>
+    <string name="settings_show_last_summaries_count">Show latest summaries: %d</string>
+    <string name="settings_show_infographic_news_count">Show news in infographic: %d</string>
     <string name="settings_ai_limits">AI processing limits</string>
     <string name="settings_ai_chars_per_article_processing">Chars per article while processing: %d</string>
     <string name="settings_ai_chars_per_feed_article">Chars per article answer in feed: %d</string>
@@ -184,6 +186,10 @@
     <string name="provider_claude">Claude</string>
     <string name="feed_refreshing">Refreshing...</string>
     <string name="feed_share_chooser_title">Share article</string>
+    <string name="feed_added_to_saved">Added to favorites</string>
+    <string name="summary_share_chooser_title">Share summary</string>
+    <string name="summary_copied">Summary copied</string>
+    <string name="ai_result_copied">Answer copied</string>
     <string name="chart_views">Views</string>
     <string name="chart_mentions">Mentions</string>
     <string name="chart_factuality">Importance</string>

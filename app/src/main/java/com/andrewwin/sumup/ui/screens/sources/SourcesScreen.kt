@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
@@ -30,6 +32,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.dao.GroupWithSources
@@ -498,162 +502,194 @@ fun SourceDialog(
     var useHeadlessBrowser by remember(source?.id) { mutableStateOf(source?.useHeadlessBrowser ?: false) }
     var expanded by remember { mutableStateOf(false) }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(if (source == null) R.string.add_source else R.string.edit_source)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.source_name)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = stringResource(if (source == null) R.string.add_source else R.string.edit_source),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
                 )
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = {
-                        val labelRes = if (type == SourceType.WEBSITE) {
-                            R.string.source_url_website
-                        } else {
-                            R.string.source_url
-                        }
-                        Text(stringResource(labelRes))
-                    },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large
-                )
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     OutlinedTextField(
-                        value = stringResource(when(type) {
-                            SourceType.RSS -> R.string.source_type_rss
-                            SourceType.TELEGRAM -> R.string.source_type_telegram
-                            SourceType.YOUTUBE -> R.string.source_type_youtube
-                            SourceType.WEBSITE -> R.string.source_type_website
-                        }),
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text(stringResource(R.string.source_type)) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
-                            .fillMaxWidth(),
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text(stringResource(R.string.source_name)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.large
                     )
-                    ExposedDropdownMenu(
+                    OutlinedTextField(
+                        value = url,
+                        onValueChange = { url = it },
+                        label = {
+                            val labelRes = if (type == SourceType.WEBSITE) {
+                                R.string.source_url_website
+                            } else {
+                                R.string.source_url
+                            }
+                            Text(stringResource(labelRes))
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large
+                    )
+                    ExposedDropdownMenuBox(
                         expanded = expanded,
-                        onDismissRequest = { expanded = false }
+                        onExpandedChange = { expanded = !expanded }
                     ) {
-                        SourceType.entries.forEach { entry ->
-                            DropdownMenuItem(
-                                text = { 
-                                    Text(stringResource(when(entry) {
-                                        SourceType.RSS -> R.string.source_type_rss
-                                        SourceType.TELEGRAM -> R.string.source_type_telegram
-                                        SourceType.YOUTUBE -> R.string.source_type_youtube
-                                        SourceType.WEBSITE -> R.string.source_type_website
-                                    })) 
-                                },
-                                onClick = {
-                                    type = entry
-                                    if (entry != SourceType.WEBSITE) {
-                                        titleSelector = ""
-                                        postLinkSelector = ""
-                                        descriptionSelector = ""
-                                        dateSelector = ""
-                                        useHeadlessBrowser = false
+                        OutlinedTextField(
+                            value = stringResource(when(type) {
+                                SourceType.RSS -> R.string.source_type_rss
+                                SourceType.TELEGRAM -> R.string.source_type_telegram
+                                SourceType.YOUTUBE -> R.string.source_type_youtube
+                                SourceType.WEBSITE -> R.string.source_type_website
+                            }),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.source_type)) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                            modifier = Modifier
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                                .fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            SourceType.entries.forEach { entry ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(stringResource(when(entry) {
+                                            SourceType.RSS -> R.string.source_type_rss
+                                            SourceType.TELEGRAM -> R.string.source_type_telegram
+                                            SourceType.YOUTUBE -> R.string.source_type_youtube
+                                            SourceType.WEBSITE -> R.string.source_type_website
+                                        }))
+                                    },
+                                    onClick = {
+                                        type = entry
+                                        if (entry != SourceType.WEBSITE) {
+                                            titleSelector = ""
+                                            postLinkSelector = ""
+                                            descriptionSelector = ""
+                                            dateSelector = ""
+                                            useHeadlessBrowser = false
+                                        }
+                                        expanded = false
                                     }
-                                    expanded = false
-                                }
+                                )
+                            }
+                        }
+                    }
+                    if (type == SourceType.WEBSITE) {
+                        OutlinedTextField(
+                            value = titleSelector,
+                            onValueChange = { titleSelector = it },
+                            label = { Text(stringResource(R.string.website_title_selector)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large
+                        )
+                        OutlinedTextField(
+                            value = postLinkSelector,
+                            onValueChange = { postLinkSelector = it },
+                            label = { Text(stringResource(R.string.website_post_link_selector_optional)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large
+                        )
+                        OutlinedTextField(
+                            value = descriptionSelector,
+                            onValueChange = { descriptionSelector = it },
+                            label = { Text(stringResource(R.string.website_description_selector_optional)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large
+                        )
+                        OutlinedTextField(
+                            value = dateSelector,
+                            onValueChange = { dateSelector = it },
+                            label = { Text(stringResource(R.string.website_date_selector_optional)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = stringResource(R.string.website_use_headless_browser),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Switch(
+                                checked = useHeadlessBrowser,
+                                onCheckedChange = { useHeadlessBrowser = it }
                             )
                         }
                     }
+                    Spacer(Modifier.height(12.dp))
                 }
-                if (type == SourceType.WEBSITE) {
-                    OutlinedTextField(
-                        value = titleSelector,
-                        onValueChange = { titleSelector = it },
-                        label = { Text(stringResource(R.string.website_title_selector)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
                         shape = MaterialTheme.shapes.large
-                    )
-                    OutlinedTextField(
-                        value = postLinkSelector,
-                        onValueChange = { postLinkSelector = it },
-                        label = { Text(stringResource(R.string.website_post_link_selector_optional)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large
-                    )
-                    OutlinedTextField(
-                        value = descriptionSelector,
-                        onValueChange = { descriptionSelector = it },
-                        label = { Text(stringResource(R.string.website_description_selector_optional)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large
-                    )
-                    OutlinedTextField(
-                        value = dateSelector,
-                        onValueChange = { dateSelector = it },
-                        label = { Text(stringResource(R.string.website_date_selector_optional)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = stringResource(R.string.website_use_headless_browser),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Switch(
-                            checked = useHeadlessBrowser,
-                            onCheckedChange = { useHeadlessBrowser = it }
-                        )
+                        Text(stringResource(R.string.cancel))
+                    }
+                    Button(
+                        onClick = {
+                            val hasRequiredWebsiteSelector = type != SourceType.WEBSITE || titleSelector.isNotBlank()
+                            if (name.isNotBlank() && url.isNotBlank() && hasRequiredWebsiteSelector) {
+                                onConfirm(
+                                    name,
+                                    url,
+                                    type,
+                                    titleSelector.takeIf { it.isNotBlank() },
+                                    postLinkSelector.takeIf { it.isNotBlank() },
+                                    descriptionSelector.takeIf { it.isNotBlank() },
+                                    dateSelector.takeIf { it.isNotBlank() },
+                                    useHeadlessBrowser
+                                )
+                                onDismiss()
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Text(stringResource(if (source == null) R.string.add else R.string.save))
                     }
                 }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { 
-                    val hasRequiredWebsiteSelector = type != SourceType.WEBSITE || titleSelector.isNotBlank()
-                    if (name.isNotBlank() && url.isNotBlank() && hasRequiredWebsiteSelector) {
-                        onConfirm(
-                            name,
-                            url,
-                            type,
-                            titleSelector.takeIf { it.isNotBlank() },
-                            postLinkSelector.takeIf { it.isNotBlank() },
-                            descriptionSelector.takeIf { it.isNotBlank() },
-                            dateSelector.takeIf { it.isNotBlank() },
-                            useHeadlessBrowser
-                        )
-                        onDismiss()
-                    }
-                },
-                shape = MaterialTheme.shapes.large
-            ) {
-                Text(stringResource(if (source == null) R.string.add else R.string.save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
             }
         }
-    )
+    }
 }
 
 @Composable

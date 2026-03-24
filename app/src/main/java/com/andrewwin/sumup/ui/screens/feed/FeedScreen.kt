@@ -2,6 +2,9 @@ package com.andrewwin.sumup.ui.screens.feed
 
 import android.content.Context
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Share
@@ -37,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
@@ -253,7 +258,17 @@ fun FeedScreen(
                                 isFeedAiActive = false
                                 viewModel.clearAiResult()
                             },
-                            onToggleSaved = { viewModel.toggleSaved(it.article) },
+                            onToggleSaved = {
+                                val willBeAddedToSaved = !it.article.isFavorite
+                                viewModel.toggleSaved(it.article)
+                                if (willBeAddedToSaved) {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.feed_added_to_saved),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
                             isDedupInProgress = isDedupInProgress,
                             minMentions = userPreferences.minMentions
                         )
@@ -262,87 +277,157 @@ fun FeedScreen(
             }
         }
 
-        // AI Bottom Sheet
+        // AI Fullscreen dialog
         if (articleForAi != null || isFeedAiActive) {
-            ModalBottomSheet(
+            Dialog(
                 onDismissRequest = {
                     articleForAi = null
                     isFeedAiActive = false
                     viewModel.clearAiResult()
                     userQuestion = ""
                 },
-                shape = MaterialTheme.shapes.extraLarge
+                properties = DialogProperties(usePlatformDefaultWidth = false)
             ) {
-                Column(
+                Surface(
                     modifier = Modifier
-                        .padding(horizontal = 24.dp)
                         .fillMaxWidth()
-                        .navigationBarsPadding()
+                        .fillMaxHeight(),
+                    color = MaterialTheme.colorScheme.background
                 ) {
-                    Box(
+                    Column(
                         modifier = Modifier
-                            .weight(1f, fill = false)
-                            .heightIn(max = 400.dp)
-                            .verticalScroll(rememberScrollState())
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .navigationBarsPadding()
                     ) {
-                        if (isAiLoading) {
-                            Box(
-                                Modifier.fillMaxWidth().height(150.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
-                            }
-                        } else if (aiResult != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                text = aiResult ?: "",
-                                style = MaterialTheme.typography.bodyMedium,
-                                lineHeight = 28.sp
+                                text = if (isFeedAiActive) stringResource(R.string.ai_summarize_feed) else stringResource(R.string.ai_summarize_article),
+                                style = MaterialTheme.typography.titleLarge
                             )
+                            IconButton(
+                                onClick = {
+                                    articleForAi = null
+                                    isFeedAiActive = false
+                                    viewModel.clearAiResult()
+                                    userQuestion = ""
+                                }
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = null)
+                            }
                         }
-                    }
 
-                    if ((aiResult != null || !isAiLoading) && userPreferences.aiStrategy != AiStrategy.LOCAL) {
-                        Spacer(Modifier.height(24.dp))
-                        OutlinedTextField(
-                            value = userQuestion,
-                            onValueChange = { userQuestion = it },
-                            label = null,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large,
-                            trailingIcon = {
-                                IconButton(onClick = {
-                                    if (isFeedAiActive) viewModel.askFeed(userQuestion)
-                                    else articleForAi?.let { viewModel.askQuestion(it.article, userQuestion) }
-                                }) {
-                                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f, fill = true)
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            if (isAiLoading) {
+                                Box(
+                                    Modifier.fillMaxWidth().height(150.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
+                                }
+                            } else if (aiResult != null) {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text(
+                                        text = aiResult ?: "",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        lineHeight = 28.sp
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        IconButton(
+                                            onClick = {
+                                                copyTextToClipboard(context, aiResult.orEmpty())
+                                                Toast.makeText(
+                                                    context,
+                                                    context.getString(R.string.ai_result_copied),
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.ContentCopy,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                shareText(
+                                                    context = context,
+                                                    text = aiResult.orEmpty(),
+                                                    chooserTitle = context.getString(R.string.summary_share_chooser_title)
+                                                )
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Share,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
-                        )
-                    }
+                        }
 
-                    if (aiResult != null || !isAiLoading) {
-                        Spacer(Modifier.height(16.dp))
-                        Button(
-                            onClick = {
-                                if (isFeedAiActive) viewModel.summarizeFeed()
-                                else articleForAi?.let { viewModel.summarizeArticle(it.article) }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large,
-                            contentPadding = PaddingValues(16.dp)
-                        ) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                text = if (isFeedAiActive) stringResource(R.string.ai_summarize_feed)
-                                else stringResource(R.string.ai_summarize_article),
-                                style = MaterialTheme.typography.labelLarge
+                        if ((aiResult != null || !isAiLoading) && userPreferences.aiStrategy != AiStrategy.LOCAL) {
+                            Spacer(Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = userQuestion,
+                                onValueChange = { userQuestion = it },
+                                label = null,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.large,
+                                trailingIcon = {
+                                    IconButton(onClick = {
+                                        if (isFeedAiActive) viewModel.askFeed(userQuestion)
+                                        else articleForAi?.let { viewModel.askQuestion(it.article, userQuestion) }
+                                    }) {
+                                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
+                                    }
+                                }
                             )
                         }
+
+                        if (aiResult != null || !isAiLoading) {
+                            Spacer(Modifier.height(12.dp))
+                            Button(
+                                onClick = {
+                                    if (isFeedAiActive) viewModel.summarizeFeed()
+                                    else articleForAi?.let { viewModel.summarizeArticle(it.article) }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.large,
+                                contentPadding = PaddingValues(16.dp)
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = if (isFeedAiActive) stringResource(R.string.ai_summarize_feed)
+                                    else stringResource(R.string.ai_summarize_article),
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
+                        }
                     }
-                    Spacer(Modifier.height(48.dp))
                 }
-            }
+            } 
         }
 
         // Expanded image dialog
@@ -370,6 +455,25 @@ fun FeedScreen(
             }
         }
     }
+}
+
+private fun copyTextToClipboard(context: Context, text: String) {
+    if (text.isBlank()) return
+    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboardManager.setPrimaryClip(ClipData.newPlainText("ai_result_text", text))
+}
+
+private fun shareText(
+    context: Context,
+    text: String,
+    chooserTitle: String
+) {
+    if (text.isBlank()) return
+    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    context.startActivity(Intent.createChooser(shareIntent, chooserTitle))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

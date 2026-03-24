@@ -1,5 +1,10 @@
 package com.andrewwin.sumup.ui.screens.summary
 
+import android.content.Context
+import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.widget.Toast
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,6 +17,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -19,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,8 +53,10 @@ fun SummaryScreen(
     val todaySummary = remember(summaries) {
         summaries.firstOrNull { isSameDay(it.createdAt, System.currentTimeMillis()) }
     }
-    val olderSummaries = remember(summaries, todaySummary) {
-        summaries.filter { it.id != todaySummary?.id }
+    val olderSummaries = remember(summaries, todaySummary, userPreferences.showLastSummariesCount) {
+        summaries
+            .filter { it.id != todaySummary?.id }
+            .take(userPreferences.showLastSummariesCount.coerceAtLeast(1))
     }
     val lastSummary = remember(summaries) { summaries.firstOrNull() }
 
@@ -373,6 +383,7 @@ fun SummaryCard(summary: Summary) {
     val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
     val isError = summary.content.startsWith(stringResource(R.string.error_prefix)) ||
             summary.content.startsWith(stringResource(R.string.no_articles_prefix))
+    val context = LocalContext.current
 
     var isExpanded by rememberSaveable(summary.id) { mutableStateOf(false) }
 
@@ -442,8 +453,47 @@ fun SummaryCard(summary: Summary) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        IconButton(
+                            onClick = {
+                                copySummaryText(context, summary.content)
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.summary_copied),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            },
+                            modifier = Modifier.size(30.dp),
+                            colors = IconButtonDefaults.iconButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.ContentCopy,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = { shareSummaryText(context, summary.content) },
+                            modifier = Modifier.size(30.dp),
+                            colors = IconButtonDefaults.iconButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Share,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
                     val strategyLabel = when (summary.strategy) {
                         AiStrategy.CLOUD -> stringResource(R.string.ai_strategy_cloud)
                         AiStrategy.LOCAL -> stringResource(R.string.ai_strategy_local)
@@ -491,4 +541,29 @@ private fun getNextScheduledTimeMillis(hour: Int, minute: Int): Long {
 private fun formatShortStatusDate(timestamp: Long): String {
     val format = SimpleDateFormat("HH:mm, dd MMM", Locale("uk", "UA"))
     return format.format(Date(timestamp))
+}
+
+private fun shareSummaryText(
+    context: Context,
+    summaryText: String
+) {
+    if (summaryText.isBlank()) return
+    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, summaryText)
+    }
+    val chooser = Intent.createChooser(
+        shareIntent,
+        context.getString(R.string.summary_share_chooser_title)
+    )
+    context.startActivity(chooser)
+}
+
+private fun copySummaryText(
+    context: Context,
+    summaryText: String
+) {
+    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val clip = ClipData.newPlainText("summary_text", summaryText)
+    clipboardManager.setPrimaryClip(clip)
 }

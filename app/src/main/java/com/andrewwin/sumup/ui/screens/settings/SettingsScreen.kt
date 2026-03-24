@@ -2,6 +2,8 @@ package com.andrewwin.sumup.ui.screens.settings
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
@@ -20,6 +22,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
@@ -66,6 +70,8 @@ fun SettingsScreen(
     var extractiveSentencesInFeed by rememberSaveable(userPreferences.extractiveSentencesInFeed) { mutableStateOf(userPreferences.extractiveSentencesInFeed.toFloat()) }
     var extractiveSentencesInScheduled by rememberSaveable(userPreferences.extractiveSentencesInScheduled) { mutableStateOf(userPreferences.extractiveSentencesInScheduled.toFloat()) }
     var extractiveNewsInScheduled by rememberSaveable(userPreferences.extractiveNewsInScheduled) { mutableStateOf(userPreferences.extractiveNewsInScheduled.toFloat()) }
+    var showLastSummariesCount by rememberSaveable(userPreferences.showLastSummariesCount) { mutableStateOf(userPreferences.showLastSummariesCount.toFloat()) }
+    var showInfographicNewsCount by rememberSaveable(userPreferences.showInfographicNewsCount) { mutableStateOf(userPreferences.showInfographicNewsCount.toFloat()) }
     var localDeduplicationThreshold by rememberSaveable(userPreferences.localDeduplicationThreshold) { mutableStateOf(userPreferences.localDeduplicationThreshold) }
     var cloudDeduplicationThreshold by rememberSaveable(userPreferences.cloudDeduplicationThreshold) { mutableStateOf(userPreferences.cloudDeduplicationThreshold) }
     var minMentions by rememberSaveable(userPreferences.minMentions) { mutableStateOf(userPreferences.minMentions.toFloat()) }
@@ -579,6 +585,44 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.bodyLarge
                             )
                         }
+
+                        Column {
+                            Text(
+                                stringResource(
+                                    R.string.settings_show_last_summaries_count,
+                                    showLastSummariesCount.toInt()
+                                ),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = showLastSummariesCount,
+                                onValueChange = { showLastSummariesCount = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateShowLastSummariesCount(showLastSummariesCount.toInt())
+                                },
+                                valueRange = 1f..20f,
+                                steps = 18
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                stringResource(
+                                    R.string.settings_show_infographic_news_count,
+                                    showInfographicNewsCount.toInt()
+                                ),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = showInfographicNewsCount,
+                                onValueChange = { showInfographicNewsCount = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateShowInfographicNewsCount(showInfographicNewsCount.toInt())
+                                },
+                                valueRange = 1f..10f,
+                                steps = 8
+                            )
+                        }
                     }
                 }
             }
@@ -813,137 +857,172 @@ fun AiConfigDialog(
     var expandedProvider by remember { mutableStateOf(false) }
     var expandedModel by remember { mutableStateOf(false) }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(if (config == null) R.string.settings_add_api_key else R.string.settings_edit_api_key)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = name, 
-                    onValueChange = { name = it }, 
-                    label = { Text(stringResource(R.string.dialog_config_name)) }, 
-                    modifier = Modifier.fillMaxWidth(), 
-                    singleLine = true, 
-                    shape = MaterialTheme.shapes.large
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = stringResource(if (config == null) R.string.settings_add_api_key else R.string.settings_edit_api_key),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
                 )
-                
-                ExposedDropdownMenuBox(
-                    expanded = expandedProvider, 
-                    onExpandedChange = { expandedProvider = !expandedProvider }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     OutlinedTextField(
-                        value = stringResource(provider.labelRes), 
-                        onValueChange = {}, 
-                        readOnly = true, 
-                        label = { Text(stringResource(R.string.dialog_provider)) }, 
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedProvider) }, 
-                        modifier = Modifier
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
-                            .fillMaxWidth(), 
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text(stringResource(R.string.dialog_config_name)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
                         shape = MaterialTheme.shapes.large
                     )
-                    ExposedDropdownMenu(
-                        expanded = expandedProvider, 
-                        onDismissRequest = { expandedProvider = false }
-                    ) {
-                        AiProvider.entries.forEach { entry ->
-                            DropdownMenuItem(
-                                text = { Text(stringResource(entry.labelRes)) },
-                                onClick = { 
-                                    provider = entry
-                                    modelName = ""
-                                    expandedProvider = false 
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        painter = painterResource(entry.iconRes),
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.secondary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            )
-                        }
-                    }
-                }
-                
-                OutlinedTextField(
-                    value = apiKey, 
-                    onValueChange = { apiKey = it }, 
-                    label = { Text(stringResource(R.string.dialog_api_key)) }, 
-                    modifier = Modifier.fillMaxWidth(), 
-                    singleLine = true, 
-                    shape = MaterialTheme.shapes.large
-                )
-                
-                Row(verticalAlignment = Alignment.CenterVertically) {
+
                     ExposedDropdownMenuBox(
-                        expanded = expandedModel, 
-                        onExpandedChange = { if (availableModels.isNotEmpty()) expandedModel = !expandedModel }, 
-                        modifier = Modifier.weight(1f)
+                        expanded = expandedProvider,
+                        onExpandedChange = { expandedProvider = !expandedProvider }
                     ) {
                         OutlinedTextField(
-                            value = modelName, 
-                            onValueChange = { modelName = it }, 
-                            label = { Text(stringResource(R.string.dialog_model)) }, 
-                            placeholder = { 
-                                Text(
-                                    if (isLoadingModels) stringResource(R.string.dialog_model_loading) 
-                                    else stringResource(R.string.dialog_model_select)
-                                ) 
-                            }, 
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedModel) }, 
+                            value = stringResource(provider.labelRes),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.dialog_provider)) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedProvider) },
                             modifier = Modifier
-                                .menuAnchor(MenuAnchorType.PrimaryEditable, true)
-                                .fillMaxWidth(), 
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                                .fillMaxWidth(),
                             shape = MaterialTheme.shapes.large
                         )
-                        if (availableModels.isNotEmpty()) {
-                            ExposedDropdownMenu(
-                                expanded = expandedModel, 
-                                onDismissRequest = { expandedModel = false }
-                            ) {
-                                availableModels.forEach { model ->
-                                    DropdownMenuItem(
-                                        text = { Text(model) }, 
-                                        onClick = { 
-                                            modelName = model
-                                            expandedModel = false 
-                                        }
-                                    )
-                                }
+                        ExposedDropdownMenu(
+                            expanded = expandedProvider,
+                            onDismissRequest = { expandedProvider = false }
+                        ) {
+                            AiProvider.entries.forEach { entry ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(entry.labelRes)) },
+                                    onClick = {
+                                        provider = entry
+                                        modelName = ""
+                                        expandedProvider = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            painter = painterResource(entry.iconRes),
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.secondary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                )
                             }
                         }
                     }
-                    Spacer(Modifier.width(8.dp))
-                    if (isLoadingModels) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                    } else {
-                        TextButton(onClick = { viewModel.loadModels(provider, apiKey, type) }) { 
-                            Text(stringResource(R.string.dialog_load)) 
+
+                    OutlinedTextField(
+                        value = apiKey,
+                        onValueChange = { apiKey = it },
+                        label = { Text(stringResource(R.string.dialog_api_key)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.large
+                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ExposedDropdownMenuBox(
+                            expanded = expandedModel,
+                            onExpandedChange = { if (availableModels.isNotEmpty()) expandedModel = !expandedModel },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            OutlinedTextField(
+                                value = modelName,
+                                onValueChange = { modelName = it },
+                                label = { Text(stringResource(R.string.dialog_model)) },
+                                placeholder = {
+                                    Text(
+                                        if (isLoadingModels) stringResource(R.string.dialog_model_loading)
+                                        else stringResource(R.string.dialog_model_select)
+                                    )
+                                },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedModel) },
+                                modifier = Modifier
+                                    .menuAnchor(MenuAnchorType.PrimaryEditable, true)
+                                    .fillMaxWidth(),
+                                shape = MaterialTheme.shapes.large
+                            )
+                            if (availableModels.isNotEmpty()) {
+                                ExposedDropdownMenu(
+                                    expanded = expandedModel,
+                                    onDismissRequest = { expandedModel = false }
+                                ) {
+                                    availableModels.forEach { model ->
+                                        DropdownMenuItem(
+                                            text = { Text(model) },
+                                            onClick = {
+                                                modelName = model
+                                                expandedModel = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        if (isLoadingModels) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        } else {
+                            TextButton(onClick = { viewModel.loadModels(provider, apiKey, type) }) {
+                                Text(stringResource(R.string.dialog_load))
+                            }
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { 
-                    if (name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()) {
-                        onConfirm(config?.copy(name = name, provider = provider, apiKey = apiKey, modelName = modelName) 
-                            ?: AiModelConfig(name = name, provider = provider, apiKey = apiKey, modelName = modelName, type = type))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Text(stringResource(R.string.cancel))
                     }
-                }, 
-                enabled = name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank() && !isLoadingModels, 
-                shape = MaterialTheme.shapes.large
-            ) { 
-                Text(stringResource(if (config == null) R.string.add else R.string.save)) 
+                    Button(
+                        onClick = {
+                            if (name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()) {
+                                onConfirm(
+                                    config?.copy(name = name, provider = provider, apiKey = apiKey, modelName = modelName)
+                                        ?: AiModelConfig(name = name, provider = provider, apiKey = apiKey, modelName = modelName, type = type)
+                                )
+                            }
+                        },
+                        enabled = name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank() && !isLoadingModels,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Text(stringResource(if (config == null) R.string.add else R.string.save))
+                    }
+                }
             }
-        },
-        dismissButton = { 
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } 
         }
-    )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

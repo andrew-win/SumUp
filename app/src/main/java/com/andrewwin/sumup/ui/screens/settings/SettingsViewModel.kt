@@ -208,6 +208,14 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(extractiveNewsInScheduled = count) } }
     }
 
+    fun updateShowLastSummariesCount(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(showLastSummariesCount = count) } }
+    }
+
+    fun updateShowInfographicNewsCount(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(showInfographicNewsCount = count) } }
+    }
+
     fun updateAiMaxCharsPerArticle(count: Int) {
         viewModelScope.launch { updatePreferences { it.copy(aiMaxCharsPerArticle = count) } }
     }

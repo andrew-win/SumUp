@@ -130,6 +130,8 @@
     <string name="settings_extractive_sentences_feed">Речень у стрічці: %d</string>
     <string name="settings_extractive_sentences_scheduled">Речень у запланованих: %d</string>
     <string name="settings_extractive_news_scheduled">Кількість новин у запланованих: %d</string>
+    <string name="settings_show_last_summaries_count">Показувати останніх зведень: %d</string>
+    <string name="settings_show_infographic_news_count">Показувати новин в інфографіці: %d</string>
     <string name="settings_ai_limits">Ліміт для ШІ-обробки</string>
     <string name="settings_ai_chars_per_article_processing">Символів на новину при обробці: %d</string>
     <string name="settings_ai_chars_per_feed_article">Символів при відповіді на конкретну новину у стрічці: %d</string>
@@ -187,6 +189,10 @@
     <string name="provider_claude">Claude</string>
     <string name="feed_refreshing">Оновлення...</string>
     <string name="feed_share_chooser_title">Поділитися новиною</string>
+    <string name="feed_added_to_saved">Додано в обране</string>
+    <string name="summary_share_chooser_title">Поділитися зведенням</string>
+    <string name="summary_copied">Зведення скопійовано</string>
+    <string name="ai_result_copied">Відповідь скопійовано</string>
 
     <string name="chart_views">Перегляди</string>
     <string name="chart_mentions">Згадки</string>

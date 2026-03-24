@@ -81,10 +81,12 @@ class SummaryViewModel @Inject constructor(
             userPreferencesFlow = userPreferences
         ),
         _chartType,
+        userPreferences,
         sourceRepository.groupsWithSources
-    ) { feedResult, type, groups ->
+    ) { feedResult, type, prefs, groups ->
         val sourceTypeMap = groups.flatMap { it.sources }.associate { it.id to it.type }
         val clusters = feedResult.clusters
+        val limit = prefs.showInfographicNewsCount.coerceAtLeast(1)
         
         when (type) {
             SummaryChartType.VIEWS -> {
@@ -95,7 +97,7 @@ class SummaryViewModel @Inject constructor(
                         value = totalViews.toFloat(),
                         displayValue = formatViews(totalViews)
                     )
-                }.sortedByDescending { it.value }.take(4)
+                }.sortedByDescending { it.value }.take(limit)
             }
             SummaryChartType.MENTIONS -> {
                 clusters.map { cluster ->
@@ -105,7 +107,7 @@ class SummaryViewModel @Inject constructor(
                         value = count.toFloat(),
                         displayValue = count.toString()
                     )
-                }.sortedByDescending { it.value }.take(4)
+                }.sortedByDescending { it.value }.take(limit)
             }
             SummaryChartType.FACTUALITY -> {
                 clusters.map { cluster ->
@@ -116,7 +118,7 @@ class SummaryViewModel @Inject constructor(
                         value = score,
                         displayValue = "%.2f".format(score)
                     )
-                }.sortedByDescending { it.value }.take(4)
+                }.sortedByDescending { it.value }.take(limit)
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
