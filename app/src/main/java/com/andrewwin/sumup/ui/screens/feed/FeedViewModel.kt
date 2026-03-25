@@ -16,6 +16,7 @@ import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.ai.AskQuestionUseCase
+import com.andrewwin.sumup.domain.usecase.ai.CompareArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.ai.SummarizeContentUseCase
 import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
@@ -46,6 +47,7 @@ class FeedViewModel @Inject constructor(
     private val refreshArticlesUseCase: RefreshArticlesUseCase,
     private val getFeedArticlesUseCase: GetFeedArticlesUseCase,
     private val summarizeContentUseCase: SummarizeContentUseCase,
+    private val compareArticlesUseCase: CompareArticlesUseCase,
     private val askQuestionUseCase: AskQuestionUseCase,
     private val sourceRepository: SourceRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
@@ -180,6 +182,11 @@ class FeedViewModel @Inject constructor(
     fun summarizeFeed() {
         val articles = articleClusters.value.map { it.representative.article }
         if (articles.isNotEmpty()) launchAi { summarizeContentUseCase(articles) }
+    }
+
+    fun compareCluster(cluster: ArticleClusterUiModel) {
+        if (cluster.duplicates.isEmpty()) return
+        launchAi { compareArticlesUseCase(cluster) }
     }
 
     fun askFeed(question: String) {

@@ -196,6 +196,7 @@
     <string name="provider_claude">Claude</string>
     <string name="feed_refreshing">Refreshing...</string>
     <string name="feed_share_chooser_title">Share article</string>
+    <string name="feed_compare_similar_news">Compare similar news</string>
     <string name="feed_added_to_saved">Added to favorites</string>
     <string name="summary_share_chooser_title">Share summary</string>
     <string name="summary_copied">Summary copied</string>

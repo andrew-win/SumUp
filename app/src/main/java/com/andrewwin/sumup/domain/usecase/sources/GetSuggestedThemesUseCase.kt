@@ -1,25 +1,24 @@
 package com.andrewwin.sumup.domain.usecase.sources
 
-import com.andrewwin.sumup.data.local.entities.SourceType
+import android.content.Context
+import android.content.SharedPreferences
 import com.andrewwin.sumup.data.local.entities.Source
+import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
-import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.EmbeddingService
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.sqrt
-import android.util.Log
-import android.content.Context
-import android.content.SharedPreferences
-import com.andrewwin.sumup.domain.ArticleImportanceScorer
-import dagger.hilt.android.qualifiers.ApplicationContext
 
 data class ThemeSource(val url: String, val type: SourceType)
 
@@ -186,7 +185,6 @@ class GetSuggestedThemesUseCase @Inject constructor(
     }
 
     operator fun invoke(forceRefresh: Boolean = false): Flow<List<ThemeSuggestion>> = flow {
-        Log.d(tag, "Started GetSuggestedThemesUseCase (forceRefresh=$forceRefresh)")
         val groupsWithSources = sourceRepository.groupsWithSources.first()
         val allSources = groupsWithSources.flatMap { it.sources }
         val allSourcesUrls = allSources.map { it.url }.toSet()
@@ -218,7 +216,6 @@ class GetSuggestedThemesUseCase @Inject constructor(
 
         val hasCloudEmbedding = aiRepository.hasEnabledEmbeddingConfig()
         val isModelLoaded = hasCloudEmbedding || manageModelUseCase.isModelExists()
-        Log.d(tag, "vectorization available: $isModelLoaded, cloud=$hasCloudEmbedding")
 
         if (!isModelLoaded) {
             emit(SuggestedTheme.entries.map { 
@@ -229,8 +226,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
         
         // If we have a cache and sources haven't changed, and not forcing refresh, return cache
         if (!forceRefresh && savedThemeUrls != null && currentSourcesHash == lastSavedHash) {
-            Log.d(tag, "Returning themes from SharedPreferences.")
-            val cached = SuggestedTheme.entries.map { 
+            val cached = SuggestedTheme.entries.map {
                  ThemeSuggestion(it, score = 10f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) }, isRecommended = savedThemeUrls.contains(it.title)) 
             }.sortedByDescending { if (it.isRecommended) 1 else 0 }
             emit(cached)
@@ -261,7 +257,6 @@ class GetSuggestedThemesUseCase @Inject constructor(
                      .take(7)
             }
 
-        Log.d(tag, "Found ${userArticles.size} user articles to compare")
         if (userArticles.isEmpty()) {
             emit(SuggestedTheme.entries.map { 
                 ThemeSuggestion(it, 0f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) })
@@ -275,7 +270,6 @@ class GetSuggestedThemesUseCase @Inject constructor(
             val modelPath = manageModelUseCase.getModelPath()
             embeddingService.initialize(modelPath)
         }
-        Log.d(tag, "Embedding service initialized: $localEmbeddingReady")
         if (!localEmbeddingReady) {
             emit(SuggestedTheme.entries.map { 
                 ThemeSuggestion(it, 0f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) })
@@ -292,13 +286,11 @@ class GetSuggestedThemesUseCase @Inject constructor(
             }
         ).coerceIn(0f, 0.99f)
 
-        Log.d(tag, "Calculating embeddings for user articles...")
-        val userEmbeddings = userArticles.mapNotNull { 
+        val userEmbeddings = userArticles.mapNotNull {
            val emb = getEmbedding(it.title, hasCloudEmbedding)
            it.title to normalize(emb)
         }
 
-        Log.d(tag, "Calculating static anchor embeddings for all themes...")
         val staticAnchorEmbeddings: Map<SuggestedTheme, FloatArray> = SuggestedTheme.entries.associateWith { theme ->
             val anchorEmbs = theme.anchors.map { normalize(getEmbedding(it, hasCloudEmbedding)) }
             val vectorSize = anchorEmbs.first().size
@@ -311,7 +303,6 @@ class GetSuggestedThemesUseCase @Inject constructor(
 
         val suggestions = mutableListOf<ThemeSuggestion>()
         for (theme in SuggestedTheme.entries) {
-            Log.d(tag, "Processing theme: ${theme.title}")
             val firstSource = theme.sources.first()
             
             // Optimization: if we already have articles for this source, use them instead of fetching
@@ -330,18 +321,15 @@ class GetSuggestedThemesUseCase @Inject constructor(
                         )
                     )
                 } catch (e: Exception) {
-                    Log.e(tag, "Failed to fetch articles for theme ${theme.title}", e)
                     emptyList()
                 }
             }
 
             if (themeArticles.isEmpty()) {
-                Log.d(tag, "No articles found for theme: ${theme.title}")
                 suggestions.add(ThemeSuggestion(theme, 0f, isSubscribed = theme.sources.all { allSourcesUrls.contains(it.url) }))
                 continue
             }
             
-            Log.d(tag, "Calculating embeddings for ${themeArticles.size} articles of theme: ${theme.title}")
             val themeEmbeddings = themeArticles
                 .filter {
                     val importance = articleImportanceScorer.score(it, firstSource.type)
@@ -359,14 +347,12 @@ class GetSuggestedThemesUseCase @Inject constructor(
                             .joinToString(" ")
                             .trim()
                         if (titleForEmbedding.isBlank()) titleForEmbedding = "погода"
-                        Log.d(tag, "Weather processed title for embedding: '$titleForEmbedding' (original: '${it.title}')")
                     }
                     val emb = getEmbedding(titleForEmbedding, hasCloudEmbedding)
                     normalize(emb)
                 }
 
             if (themeEmbeddings.isEmpty()) {
-                Log.d(tag, "No valid theme embeddings for: ${theme.title}")
                 suggestions.add(ThemeSuggestion(theme, 0f, isSubscribed = theme.sources.all { allSourcesUrls.contains(it.url) }))
                 continue
             }
@@ -382,26 +368,20 @@ class GetSuggestedThemesUseCase @Inject constructor(
                 }
             }
             val themeAnchorEmb = normalize(FloatArray(vectorSize) { sumVector[it] / allEmbs.size })
-            Log.d(tag, "Anchor for [${theme.title}]: combined ${themeEmbeddings.size} articles + ${theme.anchors.size} static anchors")
-            
+
             var matchScore = 0f
             for ((uTitle, uEmb) in userEmbeddings) {
                 val sim = dotProduct(uEmb, themeAnchorEmb)
                 if (sim >= simThreshold) {
                     matchScore += sim
-                    Log.d(tag, "MATCH [${theme.title}] '$uTitle' sim=$sim")
-                } else {
-                    Log.d(tag, "No match [${theme.title}] '$uTitle' sim=$sim")
                 }
             }
-            Log.d(tag, "Theme: ${theme.title}, Final Match Score: $matchScore")
             suggestions.add(ThemeSuggestion(theme, matchScore, isSubscribed = theme.sources.all { allSourcesUrls.contains(it.url) }))
         }
 
         val sorted = suggestions.sortedByDescending { it.score }
         val resultList = sorted.map { it.copy(isRecommended = it.score >= 1.5f) }.sortedByDescending { if (it.isRecommended) 1 else 0 }
-        Log.d(tag, "Final suggested themes: ${resultList.map { it.theme.title to it.score }}")
-        
+
         prefs.edit()
              .putInt("sourcesHash", currentSourcesHash)
              .putStringSet("savedThemes", resultList.filter { it.isRecommended }.map { it.theme.title }.toSet())

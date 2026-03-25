@@ -328,8 +328,8 @@ fun PrevNextStatusRow(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(80.dp)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = stringResource(R.string.summary_previous_short),
@@ -357,8 +357,8 @@ fun PrevNextStatusRow(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(80.dp)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = stringResource(R.string.summary_next_short),

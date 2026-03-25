@@ -1,7 +1,6 @@
 package com.andrewwin.sumup
 
 import android.app.Application
-import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.WorkManager
@@ -18,7 +17,7 @@ class SumUpApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         runCatching { FirebaseApp.initializeApp(this) }
-            .onFailure { e -> Log.e("SumUpApp", "Firebase init failed", e) }
+            .onFailure { e -> }
         try {
             Configuration.Builder()
                 .setWorkerFactory(workerFactory)
@@ -27,7 +26,6 @@ class SumUpApp : Application(), Configuration.Provider {
                     WorkManager.initialize(this, config)
                 }
         } catch (e: Exception) {
-            Log.e("SumUpApp", "WorkManager already initialized or failed", e)
         }
     }
 

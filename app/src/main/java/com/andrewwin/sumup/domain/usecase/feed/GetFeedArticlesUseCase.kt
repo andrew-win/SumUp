@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.domain.usecase.feed
 
-import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.AiStrategy
+import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.ArticleCluster
@@ -11,11 +11,14 @@ import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
-import android.util.Log
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 class GetFeedArticlesUseCase @Inject constructor(
@@ -137,12 +140,7 @@ class GetFeedArticlesUseCase @Inject constructor(
                             AiStrategy.LOCAL -> hasLocalEmbedding
                             AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> hasCloudEmbedding || hasLocalEmbedding
                         }
-                        Log.d(
-                            tag,
-                            "dedup_state(feed): strategy=${state.prefs.aiStrategy}, enabled=${state.prefs.isDeduplicationEnabled}, modelPathSet=${!state.prefs.modelPath.isNullOrBlank()}, resolvedModelPathSet=${!resolvedModelPath.isNullOrBlank()}, hasCloudEmbedding=$hasCloudEmbedding, hasLocalEmbedding=$hasLocalEmbedding, canDeduplicate=$canDeduplicate, thresholdLocal=${state.prefs.localDeduplicationThreshold}, thresholdCloud=${state.prefs.cloudDeduplicationThreshold}, minMentions=${state.prefs.minMentions}, articles=${state.articles.size}"
-                        )
                         if (!canDeduplicate) {
-                            Log.w(tag, "dedup_state(feed): skipped, canDeduplicate=false")
                             emit(FeedResult(initial, false))
                             return@coroutineScope
                         }

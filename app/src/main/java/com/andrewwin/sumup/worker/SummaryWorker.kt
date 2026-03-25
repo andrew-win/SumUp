@@ -4,11 +4,10 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import android.content.Context
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -73,10 +72,6 @@ class SummaryWorker @AssistedInject constructor(
                 AiStrategy.LOCAL -> hasLocalEmbedding
                 AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> hasCloudEmbedding || hasLocalEmbedding
             }
-            Log.d(
-                TAG,
-                "dedup_state(worker): strategy=${prefs.aiStrategy}, enabled=${prefs.isDeduplicationEnabled}, modelPathSet=${!prefs.modelPath.isNullOrBlank()}, resolvedModelPathSet=${!resolvedModelPath.isNullOrBlank()}, hasCloudEmbedding=$hasCloudEmbedding, hasLocalEmbedding=$hasLocalEmbedding, canDeduplicate=$canDeduplicate, thresholdLocal=${prefs.localDeduplicationThreshold}, thresholdCloud=${prefs.cloudDeduplicationThreshold}, minMentions=${prefs.minMentions}, recentArticles=${recentArticles.size}"
-            )
 
             var filteredArticles = recentArticles
             if (prefs.isImportanceFilterEnabled) {

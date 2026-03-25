@@ -234,6 +234,7 @@
     <string name="provider_claude">Claude</string>
     <string name="feed_refreshing">Оновлення...</string>
     <string name="feed_share_chooser_title">Поділитися новиною</string>
+    <string name="feed_compare_similar_news">Порівняти схожі новини</string>
     <string name="feed_added_to_saved">Додано в обране</string>
     <string name="summary_share_chooser_title">Поділитися зведенням</string>
     <string name="summary_copied">Зведення скопійовано</string>

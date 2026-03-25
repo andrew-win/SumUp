@@ -1,6 +1,5 @@
 package com.andrewwin.sumup.domain
 
-import android.util.Log
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
@@ -9,18 +8,18 @@ import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -41,11 +40,9 @@ class DeduplicationService(
 
     suspend fun initialize(modelPath: String): Boolean = withContext(Dispatchers.IO) {
         runCatching {
-            Log.d(TAG, "initialize: start, modelPath=$modelPath, hasSession=${ortSession != null}")
             if (ortSession != null) return@withContext true
             val modelFile = File(modelPath)
             if (!modelFile.exists()) {
-                Log.e(TAG, "initialize: model file not found, path=$modelPath")
                 return@withContext false
             }
             val opts = OrtSession.SessionOptions().apply {
@@ -56,10 +53,8 @@ class DeduplicationService(
                 registerCustomOpLibrary(OrtxPackage.getLibraryPath())
             }
             ortSession = ortEnv.createSession(modelPath, opts)
-            Log.d(TAG, "initialize: success, modelPath=$modelPath")
             true
         }.onFailure { e ->
-            Log.e(TAG, "initialize: failed, modelPath=$modelPath, error=${e.message}", e)
         }.getOrDefault(false)
     }
 

@@ -1,6 +1,5 @@
 package com.andrewwin.sumup.data.remote
 
-import android.util.Log
 import com.andrewwin.sumup.data.local.entities.Article
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -8,7 +7,6 @@ import org.jsoup.nodes.Element
 import java.net.URI
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import javax.inject.Inject
@@ -25,27 +23,17 @@ class WebsiteParser @Inject constructor() {
         dateSelector: String?
     ): List<Article> {
         if (html.isBlank()) {
-            Log.d(TAG_WEBSITE_PARSER, "skip: sourceId=$sourceId, reason=blank_html")
             return emptyList()
         }
         val document = Jsoup.parse(html, sourceUrl)
         val normalizedSelector = normalizeCssSelector(titleSelector)
-        if (normalizedSelector != titleSelector) {
-            Log.d(
-                TAG_WEBSITE_PARSER,
-                "selector_normalized: sourceId=$sourceId, raw='$titleSelector', normalized='$normalizedSelector'"
-            )
-        }
 
         val titleElements = selectTitleElementsWithFallback(
             document = document,
             selector = normalizedSelector,
             sourceId = sourceId
         )
-        Log.d(
-            TAG_WEBSITE_PARSER,
-            "selected_titles: sourceId=$sourceId, selector=$normalizedSelector, count=${titleElements.size}"
-        )
+
         if (titleElements.isEmpty()) {
             val allAnchors = document.select("a")
             val classHistogram = allAnchors
@@ -70,19 +58,6 @@ class WebsiteParser @Inject constructor() {
             val tokenHints = selectorTokens.joinToString(" | ") { token ->
                 "token='$token' hits=${html.contains(token)}"
             }
-            Log.d(
-                TAG_WEBSITE_PARSER,
-                "diagnostic_zero_match: sourceId=$sourceId, anchors=${allAnchors.size}, classHistogram=$classHistogram"
-            )
-            Log.d(
-                TAG_WEBSITE_PARSER,
-                "diagnostic_selector_tokens: sourceId=$sourceId, $tokenHints"
-            )
-            Log.d(
-                TAG_WEBSITE_PARSER,
-                "diagnostic_anchor_samples: sourceId=$sourceId, $classContainsImTl"
-            )
-            Log.d(TAG_WEBSITE_PARSER, "skip: sourceId=$sourceId, reason=no_title_elements")
             return emptyList()
         }
 
@@ -92,7 +67,6 @@ class WebsiteParser @Inject constructor() {
         val items = titleElements.mapIndexedNotNull { index, titleElement ->
             val title = titleElement.text().trim()
             if (title.isBlank()) {
-                Log.d(TAG_WEBSITE_PARSER, "drop_item[$index]: sourceId=$sourceId, reason=blank_title")
                 return@mapIndexedNotNull null
             }
 
@@ -112,14 +86,6 @@ class WebsiteParser @Inject constructor() {
                 index = index
             )
             val contentToSave = description ?: title
-            Log.d(
-                TAG_WEBSITE_PARSER,
-                "item_content[$index]: sourceId=$sourceId, titleLen=${title.length}, descriptionLen=${description?.length ?: 0}, contentLen=${contentToSave.length}, contentPreview='${contentToSave.take(LOG_CONTENT_PREVIEW_LEN)}'"
-            )
-            Log.d(
-                TAG_WEBSITE_PARSER,
-                "item[$index]: sourceId=$sourceId, titleLen=${title.length}, resolvedUrl=$articleUrl, hasDescription=${!description.isNullOrBlank()}, publishedAt=$publishedAt"
-            )
 
             Article(
                 sourceId = sourceId,
@@ -129,7 +95,6 @@ class WebsiteParser @Inject constructor() {
                 publishedAt = publishedAt
             )
         }
-        Log.d(TAG_WEBSITE_PARSER, "result: sourceId=$sourceId, items=${items.size}")
         return items
     }
 
@@ -144,10 +109,6 @@ class WebsiteParser @Inject constructor() {
         val fallbackSelectors = buildFallbackSelectors(selector)
         for (fallback in fallbackSelectors) {
             val matched = runCatching { document.select(fallback) }.getOrDefault(emptyList())
-            Log.d(
-                TAG_WEBSITE_PARSER,
-                "selector_fallback: sourceId=$sourceId, fallback='$fallback', count=${matched.size}"
-            )
             if (matched.isNotEmpty()) return matched
         }
 
@@ -306,7 +267,6 @@ class WebsiteParser @Inject constructor() {
         private const val MAX_CLASS_HISTOGRAM_ITEMS = 12
         private const val MAX_ANCHOR_SAMPLES = 8
         private const val MAX_PARENT_SCAN = 4
-        private const val LOG_CONTENT_PREVIEW_LEN = 140
         private val TIME_ONLY_REGEX = Regex("""\b([01]?\d|2[0-3]):([0-5]\d)\b""")
         private val DAY_MONTH_TIME_REGEX =
             Regex("""\b(\d{1,2})\s+([а-яА-Яa-zA-ZіїєґІЇЄҐ\.]+)\s*,?\s*([01]?\d|2[0-3]):([0-5]\d)\b""")

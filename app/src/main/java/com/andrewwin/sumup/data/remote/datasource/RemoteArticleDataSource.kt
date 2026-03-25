@@ -1,12 +1,11 @@
 package com.andrewwin.sumup.data.remote.datasource
 
-import android.util.Log
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.data.remote.HeadlessBrowserHtmlFetcher
 import com.andrewwin.sumup.data.remote.RssParser
 import com.andrewwin.sumup.data.remote.TelegramParser
-import com.andrewwin.sumup.data.remote.HeadlessBrowserHtmlFetcher
 import com.andrewwin.sumup.data.remote.WebsiteParser
 import com.andrewwin.sumup.data.remote.YouTubeParser
 import io.github.thoroldvix.api.TranscriptApiFactory
@@ -63,16 +62,11 @@ class RemoteArticleDataSource @Inject constructor(
     private suspend fun fetchWebsiteArticles(source: Source): List<Article> {
         val titleSelector = source.titleSelector?.trim().orEmpty()
         if (titleSelector.isBlank()) {
-            Log.d(TAG_WEBSITE_FETCH, "skip: sourceId=${source.id}, reason=blank_title_selector")
             return emptyList()
         }
-        Log.d(
-            TAG_WEBSITE_FETCH,
-            "start: sourceId=${source.id}, url=${source.url}, titleSelector=$titleSelector, postLinkSelector=${source.postLinkSelector}, descriptionSelector=${source.descriptionSelector}, dateSelector=${source.dateSelector}"
-        )
+
         return try {
             val html = if (source.useHeadlessBrowser) {
-                Log.d(TAG_WEBSITE_FETCH, "mode=headless_browser, sourceId=${source.id}")
                 headlessBrowserHtmlFetcher.fetchHtml(source.url).orEmpty()
             } else {
                 val request = Request.Builder()
@@ -81,15 +75,12 @@ class RemoteArticleDataSource @Inject constructor(
                     .header(HEADER_ACCEPT_LANGUAGE, ACCEPT_LANGUAGE_VALUE)
                     .build()
                 okHttpClient.newCall(request).execute().use { response ->
-                    Log.d(TAG_WEBSITE_FETCH, "http: sourceId=${source.id}, code=${response.code}, successful=${response.isSuccessful}")
                     if (!response.isSuccessful) {
-                        Log.d(TAG_WEBSITE_FETCH, "http_failed: sourceId=${source.id}, code=${response.code}")
                         return emptyList()
                     }
                     response.body?.string().orEmpty()
                 }
             }
-            Log.d(TAG_WEBSITE_FETCH, "html_received: sourceId=${source.id}, length=${html.length}")
             val parsed = websiteParser.parse(
                 sourceId = source.id,
                 sourceUrl = source.url,
@@ -99,16 +90,8 @@ class RemoteArticleDataSource @Inject constructor(
                 descriptionSelector = source.descriptionSelector,
                 dateSelector = source.dateSelector
             )
-            Log.d(TAG_WEBSITE_FETCH, "parsed: sourceId=${source.id}, count=${parsed.size}")
-            parsed.take(MAX_DEBUG_ITEMS_TO_LOG).forEachIndexed { index, article ->
-                Log.d(
-                    TAG_WEBSITE_FETCH,
-                    "item[$index]: sourceId=${source.id}, title=${article.title.take(DEBUG_TITLE_PREVIEW_LEN)}, url=${article.url}, publishedAt=${article.publishedAt}, contentLen=${article.content.length}"
-                )
-            }
             parsed
         } catch (e: Exception) {
-            Log.e(TAG_WEBSITE_FETCH, "error: sourceId=${source.id}, url=${source.url}, message=${e.message}", e)
             emptyList()
         }
     }
@@ -153,8 +136,7 @@ class RemoteArticleDataSource @Inject constructor(
 
     suspend fun fetchFullContent(url: String, type: SourceType): String? = withContext(Dispatchers.IO) {
         if (type != SourceType.RSS && type != SourceType.YOUTUBE && type != SourceType.WEBSITE) return@withContext null
-        Log.d(TAG_FULL_CONTENT, "start: type=$type, url=$url")
-        
+
         try {
             if (type == SourceType.YOUTUBE) {
                 val videoId = when {
@@ -169,12 +151,10 @@ class RemoteArticleDataSource @Inject constructor(
                     transcriptList.findTranscript("uk", "ru", "en")
                 }
                 val transcriptText = formatYoutubeTranscriptByTiming(transcript.fetch())
-                Log.d(TAG_FULL_CONTENT, "youtube_ok: url=$url, length=${transcriptText.length}")
                 return@withContext transcriptText
             }
 
             if (!url.startsWith("https://", true) && !url.startsWith("http://", true)) {
-                Log.d(TAG_FULL_CONTENT, "skip_invalid_url: type=$type, url=$url")
                 return@withContext null
             }
 
@@ -185,13 +165,10 @@ class RemoteArticleDataSource @Inject constructor(
                     .header(HEADER_ACCEPT_LANGUAGE, ACCEPT_LANGUAGE_VALUE)
                     .build()
             ).execute()
-            Log.d(TAG_FULL_CONTENT, "http: type=$type, code=${response.code}, successful=${response.isSuccessful}, url=$url")
             if (!response.isSuccessful) return@withContext null
             val body = response.body?.string()
-            Log.d(TAG_FULL_CONTENT, "http_ok: type=$type, url=$url, length=${body?.length ?: 0}")
             return@withContext body
         } catch (e: Exception) {
-            Log.e(TAG_FULL_CONTENT, "error: type=$type, url=$url, message=${e.message}", e)
             null
         }
     }
@@ -266,7 +243,6 @@ class RemoteArticleDataSource @Inject constructor(
         private const val ACCEPT_LANGUAGE_VALUE = "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7"
         private const val TAG_WEBSITE_FETCH = "WebsiteFetch"
         private const val TAG_FULL_CONTENT = "WebsiteFullContent"
-        private const val MAX_DEBUG_ITEMS_TO_LOG = 10
         private const val DEBUG_TITLE_PREVIEW_LEN = 80
         private const val YT_BLOCK_WINDOW_SECONDS = 22.0
         private const val YT_BLOCK_GAP_SECONDS = 2.2

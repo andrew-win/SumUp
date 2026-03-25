@@ -1,7 +1,6 @@
 package com.andrewwin.sumup.di
 
 import android.content.Context
-import android.util.Log
 import androidx.work.WorkManager
 import com.andrewwin.sumup.data.local.AppDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
@@ -88,25 +87,11 @@ object AppModule {
             .addInterceptor { chain ->
                 val request = chain.request()
                 val startNanos = System.nanoTime()
-                Log.d("OkHttp", "-> ${request.method} ${request.url}")
                 val response = chain.proceed(request)
                 val tookMs = (System.nanoTime() - startNanos) / 1_000_000
-                logResponse(response, tookMs)
                 response
             }
             .build()
-
-    private fun logResponse(response: Response, tookMs: Long) {
-        val url = response.request.url.toString()
-        val code = response.code
-        val contentType = response.body?.contentType()?.toString().orEmpty()
-        val contentLength = response.body?.contentLength() ?: -1L
-        Log.d("OkHttp", "<- $code (${tookMs}ms) $url contentType=$contentType length=$contentLength")
-        val preview = response.peekBody(2048).string()
-        if (preview.isNotBlank()) {
-            Log.d("OkHttp", "body preview: ${preview.take(2048)}")
-        }
-    }
 
     @Provides
     @Singleton

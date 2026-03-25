@@ -1,6 +1,5 @@
 package com.andrewwin.sumup.domain
 
-import android.util.Log
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.SourceType
 import kotlin.math.min
@@ -13,29 +12,17 @@ class ArticleImportanceScorer {
     ): Float {
         val contentLength = article.content.length
         if (contentLength < MIN_CONTENT_LENGTH) {
-            Log.d(
-                TAG_IMPORTANCE,
-                "score_zero_length: sourceType=$sourceType, url=${article.url}, contentLen=$contentLength, minLen=$MIN_CONTENT_LENGTH, title='${article.title.take(LOG_TITLE_PREVIEW_LEN)}'"
-            )
             return 0f
         }
 
         val spamReason = detectSpamReason(article, sourceType)
         if (spamReason != null) {
-            Log.d(
-                TAG_IMPORTANCE,
-                "score_zero_spam: sourceType=$sourceType, url=${article.url}, contentLen=$contentLength, reason=$spamReason, title='${article.title.take(LOG_TITLE_PREVIEW_LEN)}', contentPreview='${article.content.take(LOG_CONTENT_PREVIEW_LEN)}'"
-            )
             return 0f
         }
 
         val viewScore = computeViewScore(article.viewCount, sourceType)
         val factScore = computeFactScore(article.content)
         val total = viewScore + factScore
-        Log.d(
-            TAG_IMPORTANCE,
-            "score_ok: sourceType=$sourceType, url=${article.url}, contentLen=$contentLength, viewCount=${article.viewCount}, viewScore=$viewScore, factScore=$factScore, total=$total, threshold=$IMPORTANCE_THRESHOLD, title='${article.title.take(LOG_TITLE_PREVIEW_LEN)}'"
-        )
 
         return total
     }
@@ -58,23 +45,16 @@ class ArticleImportanceScorer {
         val lenNoPhones = withoutPhones.length
         val withoutUrls = URL_REGEX.replace(rawContent, "")
         val lenNoUrls = withoutUrls.length
-        Log.d(
-            TAG_IMPORTANCE,
-            "spam_trace: sourceType=$sourceType, url=${article.url}, len_raw=$lenRaw, len_no_marker=$lenNoMarker, len_no_keywords=$lenNoKeywords, len_no_phone=$lenNoPhones, len_no_urls=$lenNoUrls"
-        )
 
         if (text.contains(SPAM_MARKER)) {
-            Log.d(TAG_IMPORTANCE, "spam_hit: sourceType=$sourceType, url=${article.url}, reason=contains_spam_marker")
             return "contains_spam_marker"
         }
 
         if (SPAM_KEYWORDS.any { text.contains(it) }) {
-            Log.d(TAG_IMPORTANCE, "spam_hit: sourceType=$sourceType, url=${article.url}, reason=contains_spam_keyword")
             return "contains_spam_keyword"
         }
         
         if (PHONE_REGEX.containsMatchIn(rawContent)) {
-            Log.d(TAG_IMPORTANCE, "spam_hit: sourceType=$sourceType, url=${article.url}, reason=contains_phone_number")
             return "contains_phone_number"
         }
         
@@ -89,12 +69,7 @@ class ArticleImportanceScorer {
         }
         
         val linksCount = filteredLinks.count()
-        Log.d(
-            TAG_IMPORTANCE,
-            "spam_links: sourceType=$sourceType, url=${article.url}, totalLinks=$linksCount, threshold=$SPAM_LINK_THRESHOLD"
-        )
         if (linksCount >= SPAM_LINK_THRESHOLD) {
-            Log.d(TAG_IMPORTANCE, "spam_hit: sourceType=$sourceType, url=${article.url}, reason=too_many_links:$linksCount")
             return "too_many_links:$linksCount"
         }
         return null
@@ -164,8 +139,6 @@ class ArticleImportanceScorer {
         private const val STATIC_RSS_VIEW_SCORE = 0.25f
         const val IMPORTANCE_THRESHOLD = 0.5f
         private const val TAG_IMPORTANCE = "ArticleImportance"
-        private const val LOG_TITLE_PREVIEW_LEN = 120
-        private const val LOG_CONTENT_PREVIEW_LEN = 160
 
         private val SPAM_KEYWORDS = listOf("реклама", "промо", "промокод")
         private const val SPAM_MARKER = "[ad]"

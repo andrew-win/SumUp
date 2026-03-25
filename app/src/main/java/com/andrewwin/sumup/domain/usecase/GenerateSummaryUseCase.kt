@@ -1,6 +1,5 @@
 package com.andrewwin.sumup.domain.usecase
 
-import android.util.Log
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
@@ -20,12 +19,9 @@ class GenerateSummaryUseCaseImpl @Inject constructor(
 ) : GenerateSummaryUseCase {
 
     override suspend fun invoke(): String {
-        Log.d("SummaryUseCase", "Starting generate summary use case")
         val articles = articleRepository.getEnabledArticlesOnce()
-        Log.d("SummaryUseCase", "Found ${articles.size} enabled articles")
 
         if (articles.isEmpty()) {
-            Log.w("SummaryUseCase", "No articles available for summary")
             throw NoArticlesException()
         }
 
@@ -36,7 +32,6 @@ class GenerateSummaryUseCaseImpl @Inject constructor(
             AiStrategy.LOCAL -> articles.take(extractiveTopCount)
             AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> articles.take(cloudTopCount)
         }
-        Log.d("SummaryUseCase", "Taking top ${articlesToSummarize.size} articles")
 
         if (prefs.aiStrategy == AiStrategy.LOCAL) {
             val fullContentMap = mutableMapOf<String, String>()
@@ -70,7 +65,6 @@ class GenerateSummaryUseCaseImpl @Inject constructor(
                 pointsPerNews = prefs.summaryItemsPerNewsInScheduled
             )
         } catch (e: com.andrewwin.sumup.domain.exception.NoActiveModelException) {
-            Log.i("SummaryUseCase", "Adaptive Strategy fallback: No active model, using extractive template")
             val fullContentMap = mutableMapOf<String, String>()
             for (article in articlesToSummarize) {
                 val source = articleRepository.getSourceById(article.sourceId)
@@ -84,7 +78,6 @@ class GenerateSummaryUseCaseImpl @Inject constructor(
                 sentencesPerArticle = prefs.summaryItemsPerNewsInScheduled
             )
         } catch (e: Exception) {
-            Log.e("SummaryUseCase", "Failed to generate summary", e)
             throw e
         }
     }

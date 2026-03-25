@@ -88,6 +88,8 @@ fun FeedScreen(
 
     var articleForAi by remember { mutableStateOf<ArticleUiModel?>(null) }
     var isFeedAiActive by remember { mutableStateOf(false) }
+    var isCompareAiActive by remember { mutableStateOf(false) }
+    var clusterForAiCompare by remember { mutableStateOf<ArticleClusterUiModel?>(null) }
     var userQuestion by remember { mutableStateOf("") }
     var expandedImageUrl by remember { mutableStateOf<String?>(null) }
 
@@ -164,7 +166,11 @@ fun FeedScreen(
                     }
                 }
                 FloatingActionButton(
-                    onClick = { isFeedAiActive = true },
+                    onClick = {
+                        isFeedAiActive = true
+                        isCompareAiActive = false
+                        clusterForAiCompare = null
+                    },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                     shape = RoundedCornerShape(24.dp),
@@ -263,7 +269,18 @@ fun FeedScreen(
                             onAiClick = {
                                 articleForAi = it
                                 isFeedAiActive = false
+                                isCompareAiActive = false
+                                clusterForAiCompare = null
                                 viewModel.clearAiResult()
+                            },
+                            onCompareClick = {
+                                articleForAi = null
+                                isFeedAiActive = true
+                                isCompareAiActive = true
+                                clusterForAiCompare = cluster
+                                userQuestion = ""
+                                viewModel.clearAiResult()
+                                viewModel.compareCluster(cluster)
                             },
                             onToggleSaved = {
                                 val willBeAddedToSaved = !it.article.isFavorite
@@ -290,6 +307,8 @@ fun FeedScreen(
                 onDismissRequest = {
                     articleForAi = null
                     isFeedAiActive = false
+                    isCompareAiActive = false
+                    clusterForAiCompare = null
                     viewModel.clearAiResult()
                     userQuestion = ""
                 },
@@ -315,13 +334,19 @@ fun FeedScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (isFeedAiActive) stringResource(R.string.ai_summarize_feed) else stringResource(R.string.ai_summarize_article),
+                                text = when {
+                                    isCompareAiActive -> stringResource(R.string.feed_compare_similar_news)
+                                    isFeedAiActive -> stringResource(R.string.ai_summarize_feed)
+                                    else -> stringResource(R.string.ai_summarize_article)
+                                },
                                 style = MaterialTheme.typography.titleLarge
                             )
                             IconButton(
                                 onClick = {
                                     articleForAi = null
                                     isFeedAiActive = false
+                                    isCompareAiActive = false
+                                    clusterForAiCompare = null
                                     viewModel.clearAiResult()
                                     userQuestion = ""
                                 }
@@ -426,7 +451,9 @@ fun FeedScreen(
                                 shape = MaterialTheme.shapes.large,
                                 trailingIcon = {
                                     IconButton(onClick = {
-                                        if (isFeedAiActive) viewModel.askFeed(userQuestion)
+                                        if (isCompareAiActive) {
+                                            clusterForAiCompare?.let { viewModel.compareCluster(it) }
+                                        } else if (isFeedAiActive) viewModel.askFeed(userQuestion)
                                         else articleForAi?.let { viewModel.askQuestion(it.article, userQuestion) }
                                     }) {
                                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
@@ -439,7 +466,9 @@ fun FeedScreen(
                             Spacer(Modifier.height(12.dp))
                             Button(
                                 onClick = {
-                                    if (isFeedAiActive) viewModel.summarizeFeed()
+                                    if (isCompareAiActive) {
+                                        clusterForAiCompare?.let { viewModel.compareCluster(it) }
+                                    } else if (isFeedAiActive) viewModel.summarizeFeed()
                                     else articleForAi?.let { viewModel.summarizeArticle(it.article) }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
@@ -449,8 +478,11 @@ fun FeedScreen(
                                 Icon(Icons.Default.AutoAwesome, contentDescription = null)
                                 Spacer(Modifier.width(12.dp))
                                 Text(
-                                    text = if (isFeedAiActive) stringResource(R.string.ai_summarize_feed)
-                                    else stringResource(R.string.ai_summarize_article),
+                                    text = when {
+                                        isCompareAiActive -> stringResource(R.string.feed_compare_similar_news)
+                                        isFeedAiActive -> stringResource(R.string.ai_summarize_feed)
+                                        else -> stringResource(R.string.ai_summarize_article)
+                                    },
                                     style = MaterialTheme.typography.labelLarge
                                 )
                             }
@@ -510,19 +542,45 @@ private fun shareText(
 
 private data class SourceMetaUi(val name: String, val url: String)
 private data class SummarySection(val body: String, val source: SourceMetaUi?)
+private val SourceMetaInlineRegex = Regex("${Regex.escape(SummarySourceMeta.PREFIX)}[^\\n]*")
 
 private fun parseSummarySections(raw: String): List<SummarySection> {
-    val blocks = raw
-        .split(Regex("\\n\\s*\\n"))
-        .map { it.trim() }
-        .filter { it.isNotBlank() }
+    val normalizedRaw = raw.replace(Regex("\\s*${Regex.escape(SummarySourceMeta.PREFIX)}"), "\n${SummarySourceMeta.PREFIX}")
+    data class MutableSummarySection(var body: String, var source: SourceMetaUi?)
+    val sections = mutableListOf<MutableSummarySection>()
+    val lines = normalizedRaw.lines().map { it.trimEnd() }.filter { it.isNotBlank() }
 
-    return blocks.map { block ->
-        val lines = block.lines().map { it.trimEnd() }.filter { it.isNotBlank() }
-        val source = lines.lastOrNull()?.let { parseSourceMeta(it.trim()) }
-        val bodyLines = if (source != null) lines.dropLast(1) else lines
-        SummarySection(body = bodyLines.joinToString("\n"), source = source)
+    lines.forEach { line ->
+        val trimmed = line.trim()
+        if (trimmed.startsWith(SummarySourceMeta.PREFIX)) {
+            val source = parseSourceMeta(trimmed) ?: return@forEach
+            val lastIndex = sections.indexOfLast { it.source == null && it.body.isNotBlank() }
+            if (lastIndex >= 0) {
+                sections[lastIndex].source = source
+            }
+            return@forEach
+        }
+
+        val bodyLine = trimmed.replace(SourceMetaInlineRegex, "").trim()
+        if (bodyLine.isBlank()) return@forEach
+
+        val last = sections.lastOrNull()
+        val shouldAppendToLastBullet = last != null &&
+            last.source == null &&
+            (last.body.startsWith("•") || last.body.startsWith("-")) &&
+            !bodyLine.startsWith("•") &&
+            !bodyLine.startsWith("-")
+
+        if (shouldAppendToLastBullet) {
+            last.body = "${last.body} ${bodyLine}".trim()
+        } else {
+            sections += MutableSummarySection(body = bodyLine, source = null)
+        }
     }
+
+    return sections
+        .map { SummarySection(body = it.body, source = it.source) }
+        .filter { it.body.isNotBlank() || it.source != null }
 }
 
 private fun parseSourceMeta(line: String): SourceMetaUi? {
@@ -537,9 +595,13 @@ private fun parseSourceMeta(line: String): SourceMetaUi? {
 }
 
 private fun cleanSummaryText(raw: String): String {
-    return raw
+    val normalizedRaw = raw.replace(Regex("\\s*${Regex.escape(SummarySourceMeta.PREFIX)}"), "\n${SummarySourceMeta.PREFIX}")
+    return normalizedRaw
+        .replace(SourceMetaInlineRegex, "")
         .lines()
         .filterNot { it.trim().startsWith(SummarySourceMeta.PREFIX) }
+        .map { it.trimEnd() }
+        .filter { it.isNotBlank() }
         .joinToString("\n")
 }
 
@@ -741,6 +803,7 @@ fun ArticleClusterCard(
     onMediaClick: (String) -> Unit,
     onOpenSource: (ArticleUiModel) -> Unit,
     onAiClick: (ArticleUiModel) -> Unit,
+    onCompareClick: () -> Unit,
     onToggleSaved: (ArticleUiModel) -> Unit,
     isDedupInProgress: Boolean,
     minMentions: Int
@@ -773,6 +836,8 @@ fun ArticleClusterCard(
                     onMediaClick = onMediaClick,
                     onOpenSource = { onOpenSource(cluster.representative) },
                     onAiClick = { onAiClick(cluster.representative) },
+                    onCompareClick = onCompareClick,
+                    hasSimilarNews = cluster.duplicates.isNotEmpty(),
                     onToggleSaved = { onToggleSaved(cluster.representative) }
                 )
 
@@ -839,6 +904,8 @@ fun ArticleItem(
     onMediaClick: (String) -> Unit,
     onOpenSource: () -> Unit,
     onAiClick: () -> Unit,
+    onCompareClick: () -> Unit,
+    hasSimilarNews: Boolean,
     onToggleSaved: () -> Unit
 ) {
     val context = LocalContext.current
@@ -911,7 +978,7 @@ fun ArticleItem(
             Spacer(Modifier.height(10.dp))
         }
 
-        // Three equal-width action buttons — same color
+        // Four equal-width action buttons — same color
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -920,6 +987,20 @@ fun ArticleItem(
             ActionChip(
                 onClick = onAiClick,
                 icon = { Icon(painterResource(R.drawable.ic_ask_ai), contentDescription = null, modifier = Modifier.size(18.dp)) },
+                modifier = Modifier.weight(1f),
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            ActionChip(
+                onClick = onCompareClick,
+                enabled = hasSimilarNews,
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.CompareArrows,
+                        contentDescription = stringResource(R.string.feed_compare_similar_news),
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
                 modifier = Modifier.weight(1f),
                 containerColor = MaterialTheme.colorScheme.surfaceVariant,
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1071,12 +1152,14 @@ private fun ActionChip(
     onClick: () -> Unit,
     icon: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     label: String? = null,
     containerColor: Color,
     contentColor: Color
 ) {
     Surface(
         onClick = onClick,
+        enabled = enabled,
         shape = RoundedCornerShape(20.dp),
         color = containerColor,
         modifier = modifier
