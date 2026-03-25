@@ -12,7 +12,6 @@ import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -126,8 +125,6 @@ class GetFeedArticlesUseCase @Inject constructor(
 
                         if (!shouldRunDedup) return@coroutineScope
 
-                        delay(DEDUP_DELAY_MS)
-
                         val hasCloudEmbedding = withContext(Dispatchers.IO) {
                             aiRepository.hasEnabledEmbeddingConfig()
                         }
@@ -164,8 +161,7 @@ class GetFeedArticlesUseCase @Inject constructor(
                             .clusterArticlesIncremental(
                                 articles = state.articles,
                                 threshold = deduplicationThreshold,
-                                emitEvery = DEDUP_EMIT_EVERY,
-                                throttleMs = DEDUP_THROTTLE_MS
+                                emitEvery = DEDUP_EMIT_EVERY
                             )
                             .collect { clusters ->
                                 val filtered = applyMinMentionsFilter(clusters, state.prefs)
@@ -293,8 +289,6 @@ class GetFeedArticlesUseCase @Inject constructor(
     )
 
     companion object {
-        private const val DEDUP_DELAY_MS = 200L
-        private const val DEDUP_THROTTLE_MS = 60L
         private const val DEDUP_EMIT_EVERY = 32
     }
 }

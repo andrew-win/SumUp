@@ -9,6 +9,9 @@ import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -16,6 +19,8 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -32,6 +37,7 @@ class DeduplicationService(
 ) {
     private val ortEnv: OrtEnvironment = OrtEnvironment.getEnvironment()
     private var ortSession: OrtSession? = null
+    private val ortThreadCount: Int = Runtime.getRuntime().availableProcessors().coerceIn(2, 4)
 
     suspend fun initialize(modelPath: String): Boolean = withContext(Dispatchers.IO) {
         runCatching {
@@ -43,10 +49,10 @@ class DeduplicationService(
                 return@withContext false
             }
             val opts = OrtSession.SessionOptions().apply {
-                setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
-                setIntraOpNumThreads(1)
-                setInterOpNumThreads(1)
-                setMemoryPatternOptimization(false)
+                setExecutionMode(OrtSession.SessionOptions.ExecutionMode.PARALLEL)
+                setIntraOpNumThreads(ortThreadCount)
+                setInterOpNumThreads(ortThreadCount)
+                setMemoryPatternOptimization(true)
                 registerCustomOpLibrary(OrtxPackage.getLibraryPath())
             }
             ortSession = ortEnv.createSession(modelPath, opts)
@@ -57,25 +63,36 @@ class DeduplicationService(
         }.getOrDefault(false)
     }
 
-    private suspend fun resolveEmbedding(article: Article): FloatArray {
-        article.embedding?.let { return EmbeddingUtils.toFloatArray(it) }
+    private fun normalizeTitle(title: String): String {
+        return title.lowercase().replace(WHITESPACE_REGEX, " ").trim()
+    }
 
+    private suspend fun resolveEmbedding(
+        article: Article
+    ): EmbeddingResult {
+        article.embedding?.let { return EmbeddingResult(EmbeddingUtils.toFloatArray(it), null) }
         val cloudEmbedding = aiRepository.embed(article.title)
         if (cloudEmbedding != null) {
             val normalized = normalize(cloudEmbedding)
-            persistEmbedding(article, normalized)
-            return normalized
+            return EmbeddingResult(
+                embedding = normalized,
+                updatedArticle = article.copy(embedding = EmbeddingUtils.toByteArray(normalized))
+            )
         }
 
-        val session = ortSession ?: return FloatArray(EMBEDDING_DIM)
+        val session = ortSession ?: return EmbeddingResult(FloatArray(EMBEDDING_DIM), null)
         val raw = computeLocalEmbedding(session, article.title)
         val normalized = normalize(resizeEmbedding(raw))
-        persistEmbedding(article, normalized)
-        return normalized
+        return EmbeddingResult(
+            embedding = normalized,
+            updatedArticle = article.copy(embedding = EmbeddingUtils.toByteArray(normalized))
+        )
     }
 
-    private suspend fun persistEmbedding(article: Article, embedding: FloatArray) {
-        articleRepository.updateArticles(listOf(article.copy(embedding = EmbeddingUtils.toByteArray(embedding))))
+    private suspend fun flushPendingArticleUpdates(pendingArticleUpdates: MutableList<Article>) {
+        if (pendingArticleUpdates.isEmpty()) return
+        articleRepository.updateArticles(pendingArticleUpdates.toList())
+        pendingArticleUpdates.clear()
     }
 
     private fun computeLocalEmbedding(session: OrtSession, text: String): FloatArray {
@@ -112,7 +129,7 @@ class DeduplicationService(
         articles: List<Article>,
         threshold: Float,
         emitEvery: Int = 12,
-        throttleMs: Long = 25L
+        throttleMs: Long = 0L
     ): Flow<List<ArticleCluster>> = flow {
         if (articles.size < 2) {
             emit(articles.map { ArticleCluster(it, emptyList()) })
@@ -128,18 +145,92 @@ class DeduplicationService(
         newArticles: List<Article>,
         threshold: Float,
         emitEvery: Int = 12,
-        throttleMs: Long = 25L
+        throttleMs: Long = 0L
     ): Flow<List<ArticleCluster>> = flow {
+        val titleEmbeddingCache = mutableMapOf<String, FloatArray>()
         val clusters = existingClusters.map { cluster ->
+            val repEmbedding = resolveExistingEmbedding(cluster.representative, titleEmbeddingCache)
             MutableCluster(
                 representative = cluster.representative,
-                repEmbedding = resolveEmbedding(cluster.representative),
+                repEmbedding = repEmbedding,
                 duplicates = cluster.duplicates.toMutableList()
             )
         }.toMutableList()
+        existingClusters.forEach { cluster ->
+            cluster.duplicates.forEach { (article, _) ->
+                article.embedding?.let {
+                    titleEmbeddingCache[normalizeTitle(article.title)] = EmbeddingUtils.toFloatArray(it)
+                }
+            }
+        }
         processArticlesIntoClusters(newArticles, clusters, threshold, emitEvery, throttleMs)
         emit(clusters.map { it.toCluster() })
     }.flowOn(Dispatchers.Default)
+
+    private fun resolveExistingEmbedding(
+        article: Article,
+        titleEmbeddingCache: MutableMap<String, FloatArray>
+    ): FloatArray {
+        val embedding = article.embedding?.let(EmbeddingUtils::toFloatArray) ?: FloatArray(EMBEDDING_DIM)
+        if (article.embedding != null) {
+            titleEmbeddingCache[normalizeTitle(article.title)] = embedding
+        }
+        return embedding
+    }
+
+    private suspend fun precomputeEmbeddings(
+        articles: List<Article>,
+        titleEmbeddingCache: MutableMap<String, FloatArray>,
+        maxParallel: Int = MAX_EMBEDDING_PARALLELISM
+    ): Pair<Map<Long, FloatArray>, MutableList<Article>> = coroutineScope {
+        val embeddingsById = mutableMapOf<Long, FloatArray>()
+        val pendingArticleUpdates = mutableListOf<Article>()
+        val unresolvedGroups = mutableListOf<Pair<String, List<Article>>>()
+
+        for ((normalizedTitle, group) in articles.groupBy { normalizeTitle(it.title) }) {
+            val cached = titleEmbeddingCache[normalizedTitle]
+                ?: group.firstNotNullOfOrNull { it.embedding?.let(EmbeddingUtils::toFloatArray) }
+            if (cached != null) {
+                titleEmbeddingCache[normalizedTitle] = cached
+                group.forEach { article ->
+                    embeddingsById[article.id] = cached
+                    if (article.embedding == null) {
+                        pendingArticleUpdates.add(article.copy(embedding = EmbeddingUtils.toByteArray(cached)))
+                    }
+                }
+            } else {
+                unresolvedGroups.add(normalizedTitle to group)
+            }
+        }
+
+        if (unresolvedGroups.isNotEmpty()) {
+            val semaphore = Semaphore(maxParallel.coerceAtLeast(1))
+            val resolved = unresolvedGroups.map { (normalizedTitle, group) ->
+                val representative = group.first()
+                async {
+                    semaphore.withPermit {
+                        normalizedTitle to (group to resolveEmbedding(representative))
+                    }
+                }
+            }.awaitAll()
+
+            for ((normalizedTitle, value) in resolved) {
+                val (group, result) = value
+                titleEmbeddingCache[normalizedTitle] = result.embedding
+                result.updatedArticle?.let(pendingArticleUpdates::add)
+                group.forEachIndexed { index, article ->
+                    embeddingsById[article.id] = result.embedding
+                    if (index > 0 && article.embedding == null) {
+                        pendingArticleUpdates.add(
+                            article.copy(embedding = EmbeddingUtils.toByteArray(result.embedding))
+                        )
+                    }
+                }
+            }
+        }
+
+        embeddingsById to pendingArticleUpdates
+    }
 
     private suspend fun FlowCollector<List<ArticleCluster>>.processArticlesIntoClusters(
         articles: List<Article>,
@@ -149,21 +240,34 @@ class DeduplicationService(
         throttleMs: Long
     ) {
         val pendingSimilarities = mutableListOf<ArticleSimilarity>()
+        val titleEmbeddingCache = mutableMapOf<String, FloatArray>()
+        clusters.forEach { cluster ->
+            titleEmbeddingCache[normalizeTitle(cluster.representative.title)] = cluster.repEmbedding
+            cluster.duplicates.forEach { (article, _) ->
+                article.embedding?.let {
+                    titleEmbeddingCache[normalizeTitle(article.title)] = EmbeddingUtils.toFloatArray(it)
+                }
+            }
+        }
+        val (embeddingsByArticleId, pendingArticleUpdates) = precomputeEmbeddings(articles, titleEmbeddingCache)
 
         for ((index, article) in articles.withIndex()) {
-            val embedding = resolveEmbedding(article)
+            val embedding = embeddingsByArticleId[article.id] ?: FloatArray(EMBEDDING_DIM)
 
-            val bestMatch = if (embedding.all { it == 0f }) null
-            else clusters
-                .filter { it.repEmbedding.size == embedding.size }
-                .mapNotNull { cluster ->
+            var matchedCluster: MutableCluster? = null
+            var matchedScore = Float.NEGATIVE_INFINITY
+            if (!isZeroVector(embedding)) {
+                for (cluster in clusters) {
+                    if (cluster.repEmbedding.size != embedding.size) continue
                     val score = dotProduct(embedding, cluster.repEmbedding)
-                    if (score >= threshold) cluster to score else null
+                    if (score >= threshold && score > matchedScore) {
+                        matchedScore = score
+                        matchedCluster = cluster
+                    }
                 }
-                .maxByOrNull { (_, score) -> score }
+            }
 
-            if (bestMatch != null) {
-                val (matchedCluster, matchedScore) = bestMatch
+            if (matchedCluster != null) {
                 matchedCluster.duplicates.add(article to matchedScore)
                 pendingSimilarities.add(
                     ArticleSimilarity(matchedCluster.representative.id, article.id, matchedScore)
@@ -176,6 +280,9 @@ class DeduplicationService(
                 articleRepository.upsertSimilarities(pendingSimilarities.toList())
                 pendingSimilarities.clear()
             }
+            if (pendingArticleUpdates.size >= DB_BATCH_SIZE) {
+                flushPendingArticleUpdates(pendingArticleUpdates)
+            }
 
             if ((index + 1) % emitEvery == 0) {
                 emit(clusters.map { it.toCluster() })
@@ -187,16 +294,24 @@ class DeduplicationService(
         if (pendingSimilarities.isNotEmpty()) {
             articleRepository.upsertSimilarities(pendingSimilarities)
         }
+        flushPendingArticleUpdates(pendingArticleUpdates)
     }
 
     suspend fun warmUpEmbeddings(
         articles: List<Article>,
-        throttleMs: Long = 20L
+        throttleMs: Long = 0L
     ) = withContext(Dispatchers.Default) {
-        articles.forEach { article ->
-            resolveEmbedding(article)
-            if (throttleMs > 0) delay(throttleMs)
+        val titleEmbeddingCache = mutableMapOf<String, FloatArray>()
+        val (_, pendingArticleUpdates) = precomputeEmbeddings(articles, titleEmbeddingCache)
+        flushPendingArticleUpdates(pendingArticleUpdates)
+        if (throttleMs > 0) delay(throttleMs)
+    }
+
+    private fun isZeroVector(vector: FloatArray): Boolean {
+        for (value in vector) {
+            if (value != 0f) return false
         }
+        return true
     }
 
     private fun normalize(vector: FloatArray): FloatArray {
@@ -231,10 +346,17 @@ class DeduplicationService(
         fun toCluster(): ArticleCluster = ArticleCluster(representative, duplicates.toList())
     }
 
+    private data class EmbeddingResult(
+        val embedding: FloatArray,
+        val updatedArticle: Article?
+    )
+
     companion object {
         private const val TAG = "DeduplicationService"
         private const val EMBEDDING_DIM = 768
         private const val DB_BATCH_SIZE = 32
+        private const val MAX_EMBEDDING_PARALLELISM = 6
+        private val WHITESPACE_REGEX = Regex("\\s+")
     }
 }
 

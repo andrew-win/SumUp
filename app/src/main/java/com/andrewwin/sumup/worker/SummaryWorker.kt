@@ -24,6 +24,7 @@ import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.last
 
 @HiltWorker
 class SummaryWorker @AssistedInject constructor(
@@ -90,7 +91,7 @@ class SummaryWorker @AssistedInject constructor(
                     deduplicationService.clusterArticlesIncremental(
                         filteredArticles,
                         dedupThreshold
-                    ).first()
+                    ).last()
                 }
 
             var clusters = baseClusters
