@@ -59,7 +59,13 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
-private val ClusterDateFormat = SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA"))
+private val ClusterDateFormatThreadLocal = ThreadLocal.withInitial {
+    SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA"))
+}
+
+private fun formatClusterDate(timestamp: Long): String {
+    return ClusterDateFormatThreadLocal.get().format(Date(timestamp))
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -743,7 +749,7 @@ fun ArticleClusterCard(
 
     Column {
         Text(
-            text = ClusterDateFormat.format(Date(publishedAt)),
+            text = formatClusterDate(publishedAt),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)

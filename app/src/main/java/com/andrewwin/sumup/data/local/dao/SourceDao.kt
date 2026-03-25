@@ -46,6 +46,13 @@ interface SourceDao {
     @Query("SELECT * FROM source_groups")
     fun getGroupsWithSources(): Flow<List<GroupWithSources>>
 
+    @Transaction
+    @Query("SELECT * FROM source_groups")
+    suspend fun getGroupsWithSourcesOnce(): List<GroupWithSources>
+
+    @Query("SELECT * FROM source_groups WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name)) LIMIT 1")
+    suspend fun findGroupByName(name: String): SourceGroup?
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertGroup(group: SourceGroup): Long
 
@@ -58,9 +65,18 @@ interface SourceDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertSource(source: Source): Long
 
+    @Query("SELECT * FROM sources WHERE type = :type AND LOWER(TRIM(url)) = LOWER(TRIM(:url)) LIMIT 1")
+    suspend fun findSourceByTypeAndUrl(type: com.andrewwin.sumup.data.local.entities.SourceType, url: String): Source?
+
     @Update
     suspend fun updateSource(source: Source)
 
     @Delete
     suspend fun deleteSource(source: Source)
+
+    @Query("DELETE FROM sources")
+    suspend fun deleteAllSources()
+
+    @Query("DELETE FROM source_groups WHERE isDeletable = 1")
+    suspend fun deleteDeletableGroups()
 }

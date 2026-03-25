@@ -6,6 +6,8 @@ import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
+import com.andrewwin.sumup.domain.repository.ImportedSource
+import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.usecase.CleanArticleTextUseCase
 import kotlinx.coroutines.flow.Flow
@@ -128,6 +130,81 @@ class SourceRepositoryImpl @Inject constructor(
 
     override suspend fun deleteSource(source: Source) {
         sourceDao.deleteSource(source)
+    }
+
+    override suspend fun getGroupsWithSourcesSnapshot(): List<GroupWithSources> =
+        sourceDao.getGroupsWithSourcesOnce()
+
+    override suspend fun importGroupsWithSources(
+        groups: List<ImportedSourceGroup>,
+        merge: Boolean
+    ) {
+        if (!merge) {
+            sourceDao.deleteAllSources()
+            sourceDao.deleteDeletableGroups()
+        }
+
+        for (group in groups) {
+            val normalizedGroupName = group.name.trim()
+            if (normalizedGroupName.isBlank()) continue
+
+            val existingGroup = sourceDao.findGroupByName(normalizedGroupName)
+            val targetGroupId = if (existingGroup != null) {
+                sourceDao.updateGroup(
+                    existingGroup.copy(
+                        isEnabled = group.isEnabled,
+                        isDeletable = existingGroup.isDeletable
+                    )
+                )
+                existingGroup.id
+            } else {
+                val insertedId = sourceDao.insertGroup(
+                    SourceGroup(
+                        name = normalizedGroupName,
+                        isEnabled = group.isEnabled,
+                        isDeletable = group.isDeletable
+                    )
+                )
+                if (insertedId > 0L) insertedId else sourceDao.findGroupByName(normalizedGroupName)?.id ?: continue
+            }
+
+            for (importedSource in group.sources) {
+                upsertImportedSource(targetGroupId, importedSource)
+            }
+        }
+    }
+
+    private suspend fun upsertImportedSource(groupId: Long, imported: ImportedSource) {
+        val normalizedUrl = normalizeUrl(imported.url, imported.type)
+        val normalizedName = imported.name.trim()
+        if (normalizedUrl.isBlank() || normalizedName.isBlank()) return
+
+        val normalizedTitleSelector = normalizeSelector(imported.titleSelector)
+        val normalizedPostLinkSelector = normalizeSelector(imported.postLinkSelector)
+        val normalizedDescriptionSelector = normalizeSelector(imported.descriptionSelector)
+        val normalizedDateSelector = normalizeSelector(imported.dateSelector)
+
+        val existing = sourceDao.findSourceByTypeAndUrl(imported.type, normalizedUrl)
+        val updated = Source(
+            id = existing?.id ?: 0L,
+            groupId = groupId,
+            name = normalizedName,
+            url = normalizedUrl,
+            type = imported.type,
+            isEnabled = imported.isEnabled,
+            footerPattern = imported.footerPattern?.trim()?.takeIf { it.isNotEmpty() },
+            titleSelector = normalizedTitleSelector,
+            postLinkSelector = normalizedPostLinkSelector,
+            descriptionSelector = normalizedDescriptionSelector,
+            dateSelector = normalizedDateSelector,
+            useHeadlessBrowser = imported.useHeadlessBrowser
+        )
+
+        if (existing == null) {
+            sourceDao.insertSource(updated)
+        } else {
+            sourceDao.updateSource(updated)
+        }
     }
 
     private fun normalizeUrl(url: String, type: SourceType): String {

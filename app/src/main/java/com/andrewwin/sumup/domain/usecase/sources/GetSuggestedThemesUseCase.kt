@@ -181,7 +181,9 @@ class GetSuggestedThemesUseCase @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val tag = "GetSuggestedThemes"
-    private val prefs: SharedPreferences = context.getSharedPreferences("suggested_themes_prefs", Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        context.getSharedPreferences("suggested_themes_prefs", Context.MODE_PRIVATE)
+    }
 
     operator fun invoke(forceRefresh: Boolean = false): Flow<List<ThemeSuggestion>> = flow {
         Log.d(tag, "Started GetSuggestedThemesUseCase (forceRefresh=$forceRefresh)")

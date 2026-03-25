@@ -148,8 +148,19 @@ class DeduplicationService(
         throttleMs: Long = 0L
     ): Flow<List<ArticleCluster>> = flow {
         val titleEmbeddingCache = mutableMapOf<String, FloatArray>()
+        val existingArticles = existingClusters.flatMap { cluster ->
+            buildList {
+                add(cluster.representative)
+                addAll(cluster.duplicates.map { it.first })
+            }
+        }
+        val storedEmbeddingsById = articleRepository.getEmbeddingsByIds(existingArticles.map { it.id })
         val clusters = existingClusters.map { cluster ->
-            val repEmbedding = resolveExistingEmbedding(cluster.representative, titleEmbeddingCache)
+            val repEmbedding = resolveExistingEmbedding(
+                article = cluster.representative,
+                titleEmbeddingCache = titleEmbeddingCache,
+                storedEmbeddingsById = storedEmbeddingsById
+            )
             MutableCluster(
                 representative = cluster.representative,
                 repEmbedding = repEmbedding,
@@ -158,9 +169,8 @@ class DeduplicationService(
         }.toMutableList()
         existingClusters.forEach { cluster ->
             cluster.duplicates.forEach { (article, _) ->
-                article.embedding?.let {
-                    titleEmbeddingCache[normalizeTitle(article.title)] = EmbeddingUtils.toFloatArray(it)
-                }
+                val embeddingBytes = article.embedding ?: storedEmbeddingsById[article.id]
+                embeddingBytes?.let { titleEmbeddingCache[normalizeTitle(article.title)] = EmbeddingUtils.toFloatArray(it) }
             }
         }
         processArticlesIntoClusters(newArticles, clusters, threshold, emitEvery, throttleMs)
@@ -169,12 +179,12 @@ class DeduplicationService(
 
     private fun resolveExistingEmbedding(
         article: Article,
-        titleEmbeddingCache: MutableMap<String, FloatArray>
+        titleEmbeddingCache: MutableMap<String, FloatArray>,
+        storedEmbeddingsById: Map<Long, ByteArray?>
     ): FloatArray {
-        val embedding = article.embedding?.let(EmbeddingUtils::toFloatArray) ?: FloatArray(EMBEDDING_DIM)
-        if (article.embedding != null) {
-            titleEmbeddingCache[normalizeTitle(article.title)] = embedding
-        }
+        val embeddingBytes = article.embedding ?: storedEmbeddingsById[article.id]
+        val embedding = embeddingBytes?.let(EmbeddingUtils::toFloatArray) ?: FloatArray(EMBEDDING_DIM)
+        if (embeddingBytes != null) titleEmbeddingCache[normalizeTitle(article.title)] = embedding
         return embedding
     }
 
@@ -186,15 +196,19 @@ class DeduplicationService(
         val embeddingsById = mutableMapOf<Long, FloatArray>()
         val pendingArticleUpdates = mutableListOf<Article>()
         val unresolvedGroups = mutableListOf<Pair<String, List<Article>>>()
+        val storedEmbeddingsById = articleRepository.getEmbeddingsByIds(articles.map { it.id })
 
         for ((normalizedTitle, group) in articles.groupBy { normalizeTitle(it.title) }) {
             val cached = titleEmbeddingCache[normalizedTitle]
-                ?: group.firstNotNullOfOrNull { it.embedding?.let(EmbeddingUtils::toFloatArray) }
+                ?: group.firstNotNullOfOrNull { article ->
+                    article.embedding?.let(EmbeddingUtils::toFloatArray)
+                        ?: storedEmbeddingsById[article.id]?.let(EmbeddingUtils::toFloatArray)
+                }
             if (cached != null) {
                 titleEmbeddingCache[normalizedTitle] = cached
                 group.forEach { article ->
                     embeddingsById[article.id] = cached
-                    if (article.embedding == null) {
+                    if (article.embedding == null && storedEmbeddingsById[article.id] == null) {
                         pendingArticleUpdates.add(article.copy(embedding = EmbeddingUtils.toByteArray(cached)))
                     }
                 }
@@ -220,7 +234,7 @@ class DeduplicationService(
                 result.updatedArticle?.let(pendingArticleUpdates::add)
                 group.forEachIndexed { index, article ->
                     embeddingsById[article.id] = result.embedding
-                    if (index > 0 && article.embedding == null) {
+                    if (index > 0 && article.embedding == null && storedEmbeddingsById[article.id] == null) {
                         pendingArticleUpdates.add(
                             article.copy(embedding = EmbeddingUtils.toByteArray(result.embedding))
                         )

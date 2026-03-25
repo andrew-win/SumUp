@@ -9,7 +9,6 @@ import java.util.Locale
 
 class YouTubeParser {
     private val tag = "YouTubeParser"
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
 
     fun parse(inputStream: InputStream, sourceId: Long): List<Article> {
         inputStream.use {

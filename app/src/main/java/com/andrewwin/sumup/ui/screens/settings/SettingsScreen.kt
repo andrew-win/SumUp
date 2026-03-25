@@ -1,5 +1,10 @@
 package com.andrewwin.sumup.ui.screens.settings
 
+import android.Manifest
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,20 +15,26 @@ import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
@@ -32,7 +43,12 @@ import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.AppThemeMode
+import java.text.SimpleDateFormat
 import java.util.Locale
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import android.content.pm.PackageManager
 
 private const val SETTINGS_SWITCH_SCALE = 0.85f
 
@@ -51,17 +67,120 @@ val AiProvider.iconRes: Int
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val summaryConfigs by viewModel.summaryConfigs.collectAsState()
     val embeddingConfigs by viewModel.embeddingConfigs.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
     val downloadState by viewModel.downloadState.collectAsState()
+    val transferState by viewModel.transferState.collectAsState()
+    val authUiState by viewModel.authUiState.collectAsState()
+    val isCloudSyncEnabled by viewModel.isCloudSyncEnabled.collectAsState()
+    val syncIntervalHours by viewModel.syncIntervalHours.collectAsState()
+    val backupSelectionState by viewModel.backupSelection.collectAsState()
     
     var showConfigDialog by remember { mutableStateOf<Pair<AiModelConfig?, AiModelType>?>(null) }
     var showTimePicker by remember { mutableStateOf(false) }
     var summaryPrompt by remember(userPreferences.summaryPrompt) { mutableStateOf(userPreferences.summaryPrompt) }
+    var isMergeImport by rememberSaveable { mutableStateOf(true) }
+    var syncIntervalExpanded by remember { mutableStateOf(false) }
     
     var showClearArticlesDialog by remember { mutableStateOf(false) }
     var showClearEmbeddingsDialog by remember { mutableStateOf(false) }
+    var showResetSettingsDialog by remember { mutableStateOf(false) }
+    var showEmailAuthDialog by remember { mutableStateOf(false) }
+
+    val backupSelection = BackupSelection(
+        includeSources = backupSelectionState.includeSources,
+        includeSubscriptions = backupSelectionState.includeSubscriptions,
+        includeSettingsNoApi = backupSelectionState.includeSettingsNoApi,
+        includeApiKeys = backupSelectionState.includeApiKeys
+    )
+
+    val webClientId = remember(context) {
+        val id = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+        if (id != 0) context.getString(id) else ""
+    }
+    val googleSignInClient = remember(context, webClientId) {
+        val builder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+        if (webClientId.isNotBlank()) builder.requestIdToken(webClientId)
+        GoogleSignIn.getClient(context, builder.build())
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.importSettingsAndSources(
+                uri = uri,
+                merge = isMergeImport,
+                selection = backupSelection
+            )
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            viewModel.exportSettingsAndSources(
+                uri = uri,
+                selection = backupSelection
+            )
+        }
+    }
+
+    val googleAuthLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != android.app.Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        val account = runCatching { task.getResult(ApiException::class.java) }.getOrNull()
+        val token = account?.idToken
+        if (!token.isNullOrBlank()) {
+            viewModel.signInWithGoogleIdToken(token)
+        } else {
+            Toast.makeText(context, "Немає Google token. Додайте google-services.json", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            viewModel.updateScheduledSummaryPushEnabled(true)
+        } else {
+            Toast.makeText(context, context.getString(R.string.settings_notification_permission_denied), Toast.LENGTH_SHORT).show()
+            viewModel.updateScheduledSummaryPushEnabled(false)
+        }
+    }
+
+    LaunchedEffect(transferState) {
+        when (val state = transferState) {
+            is TransferState.Success -> {
+                Toast.makeText(context, state.message, Toast.LENGTH_SHORT).show()
+                viewModel.resetTransferState()
+            }
+            is TransferState.Error -> {
+                Toast.makeText(context, state.message, Toast.LENGTH_SHORT).show()
+                viewModel.resetTransferState()
+            }
+            else -> Unit
+        }
+    }
+
+    LaunchedEffect(userPreferences.isScheduledSummaryPushEnabled) {
+        if (
+            userPreferences.isScheduledSummaryPushEnabled &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     // Local state for sliders to avoid lag
     var aiMaxCharsPerArticle by rememberSaveable(userPreferences.aiMaxCharsPerArticle) { mutableStateOf(userPreferences.aiMaxCharsPerArticle.toFloat()) }
@@ -110,28 +229,174 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             item {
-                SettingsSection(title = stringResource(R.string.settings_ai_strategy)) {
-                    val strategies = listOf(
-                        AiStrategy.LOCAL to R.string.ai_strategy_local,
-                        AiStrategy.CLOUD to R.string.ai_strategy_cloud,
-                        AiStrategy.ADAPTIVE to R.string.ai_strategy_adaptive
-                    )
-                    
-                    SingleChoiceSegmentedButtonRow(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        strategies.forEachIndexed { index, (strategy, labelRes) ->
-                            SegmentedButton(
-                                shape = SegmentedButtonDefaults.itemShape(index = index, count = strategies.size),
-                                onClick = { viewModel.updateAiStrategy(strategy) },
-                                selected = userPreferences.aiStrategy == strategy
-                            ) {
+                SettingsSection(title = stringResource(R.string.settings_sync)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(56.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = stringResource(labelRes),
-                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 11.sp),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    text = authUiState.displayName.ifBlank { stringResource(R.string.settings_user_name) },
+                                    style = MaterialTheme.typography.titleMedium
                                 )
+                                Text(
+                                    text = authUiState.email.ifBlank { stringResource(R.string.settings_not_signed_in) },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        BackupOptionRow(
+                            title = stringResource(R.string.settings_sync_enabled),
+                            checked = isCloudSyncEnabled,
+                            onCheckedChange = { enabled ->
+                                viewModel.setCloudSyncEnabled(enabled, backupSelection)
+                            }
+                        )
+                        ExposedDropdownMenuBox(
+                            expanded = syncIntervalExpanded,
+                            onExpandedChange = { syncIntervalExpanded = !syncIntervalExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = stringResource(R.string.settings_sync_interval_hours, syncIntervalHours),
+                                onValueChange = {},
+                                readOnly = true,
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth(),
+                                label = { Text(stringResource(R.string.settings_sync_interval_label)) },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = syncIntervalExpanded) }
+                            )
+                            ExposedDropdownMenu(
+                                expanded = syncIntervalExpanded,
+                                onDismissRequest = { syncIntervalExpanded = false }
+                            ) {
+                                listOf(1, 3, 6, 12, 24).forEach { hours ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.settings_sync_interval_hours, hours)) },
+                                        onClick = {
+                                            syncIntervalExpanded = false
+                                            viewModel.updateSyncIntervalHours(hours)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        BackupCheckboxRow(
+                            title = stringResource(R.string.settings_backup_sources),
+                            checked = backupSelection.includeSources,
+                            onCheckedChange = {
+                                viewModel.updateBackupSelection(backupSelection.copy(includeSources = it))
+                            }
+                        )
+                        BackupCheckboxRow(
+                            title = stringResource(R.string.settings_backup_subscriptions),
+                            checked = backupSelection.includeSubscriptions,
+                            onCheckedChange = {
+                                viewModel.updateBackupSelection(backupSelection.copy(includeSubscriptions = it))
+                            }
+                        )
+                        BackupCheckboxRow(
+                            title = stringResource(R.string.settings_backup_settings_no_api),
+                            checked = backupSelection.includeSettingsNoApi,
+                            onCheckedChange = {
+                                viewModel.updateBackupSelection(backupSelection.copy(includeSettingsNoApi = it))
+                            }
+                        )
+                        BackupCheckboxRow(
+                            title = stringResource(R.string.settings_backup_api_keys),
+                            checked = backupSelection.includeApiKeys,
+                            onCheckedChange = {
+                                viewModel.updateBackupSelection(backupSelection.copy(includeApiKeys = it))
+                            }
+                        )
+
+                        Button(
+                            onClick = {
+                                if (authUiState.isSignedIn) {
+                                    viewModel.signOut()
+                                } else {
+                                    showEmailAuthDialog = true
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            shape = MaterialTheme.shapes.extraLarge
+                        ) {
+                            Text(
+                                text = if (authUiState.isSignedIn) {
+                                    stringResource(R.string.settings_logout)
+                                } else {
+                                    stringResource(R.string.settings_login_register)
+                                }
+                            )
+                        }
+
+                        if (authUiState.isSignedIn) {
+                            OutlinedButton(
+                                onClick = { viewModel.syncNow(backupSelection) },
+                                enabled = isCloudSyncEnabled && transferState !is TransferState.Working,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp),
+                                shape = MaterialTheme.shapes.extraLarge
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.settings_sync_now))
+                            }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                                },
+                                enabled = transferState !is TransferState.Working,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(52.dp),
+                                shape = MaterialTheme.shapes.extraLarge
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDownward,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.settings_import_button))
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(java.util.Date())
+                                    exportLauncher.launch("sumup-backup-$date.json")
+                                },
+                                enabled = transferState !is TransferState.Working,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(52.dp),
+                                shape = MaterialTheme.shapes.extraLarge
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowUpward,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.settings_export_button))
                             }
                         }
                     }
@@ -157,7 +422,6 @@ fun SettingsScreen(
                     }
                 }
             }
-
             item {
                 SettingsSection(title = stringResource(R.string.settings_theme)) {
                     val themeModes = listOf(
@@ -174,7 +438,7 @@ fun SettingsScreen(
                             ) {
                                 Text(
                                     text = stringResource(labelRes),
-                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 11.sp),
+                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -183,10 +447,37 @@ fun SettingsScreen(
                     }
                 }
             }
-
+            item {
+                SettingsSection(title = stringResource(R.string.settings_ai_strategy)) {
+                    val strategies = listOf(
+                        AiStrategy.LOCAL to R.string.ai_strategy_local,
+                        AiStrategy.CLOUD to R.string.ai_strategy_cloud,
+                        AiStrategy.ADAPTIVE to R.string.ai_strategy_adaptive
+                    )
+                    
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        strategies.forEachIndexed { index, (strategy, labelRes) ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = strategies.size),
+                                onClick = { viewModel.updateAiStrategy(strategy) },
+                                selected = userPreferences.aiStrategy == strategy
+                            ) {
+                                Text(
+                                    text = stringResource(labelRes),
+                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             item {
                 SettingsSection(
-                    title = stringResource(R.string.settings_cloud_summary),
+                    title = stringResource(R.string.settings_cloud_summary_api_keys),
                     trailing = {
                         IconButton(
                             onClick = { showConfigDialog = null to AiModelType.SUMMARY },
@@ -250,7 +541,7 @@ fun SettingsScreen(
 
             item {
                 SettingsSection(
-                    title = stringResource(R.string.settings_cloud_vectorization),
+                    title = stringResource(R.string.settings_cloud_vectorization_api_keys),
                     trailing = {
                         IconButton(
                             onClick = { showConfigDialog = null to AiModelType.EMBEDDING },
@@ -284,7 +575,6 @@ fun SettingsScreen(
                     }
                 }
             }
-
             item {
                 SettingsSection(title = stringResource(R.string.settings_ai_limits)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -336,9 +626,8 @@ fun SettingsScreen(
                     }
                 }
             }
-
             item {
-                SettingsSection(title = stringResource(R.string.settings_summary)) {
+                SettingsSection(title = stringResource(R.string.settings_local_summary)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Column {
                             Text(
@@ -355,7 +644,6 @@ fun SettingsScreen(
                                 steps = 8
                             )
                         }
-
                         Column {
                             Text(
                                 stringResource(R.string.settings_summary_items_per_news_scheduled, summaryItemsPerNewsInScheduled.toInt()),
@@ -371,7 +659,6 @@ fun SettingsScreen(
                                 steps = 8
                             )
                         }
-
                         Column {
                             Text(
                                 stringResource(R.string.settings_summary_news_feed_extractive, summaryNewsInFeedExtractive.toInt()),
@@ -387,23 +674,6 @@ fun SettingsScreen(
                                 steps = 18
                             )
                         }
-
-                        Column {
-                            Text(
-                                stringResource(R.string.settings_summary_news_feed_cloud, summaryNewsInFeedCloud.toInt()),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Slider(
-                                value = summaryNewsInFeedCloud,
-                                onValueChange = { summaryNewsInFeedCloud = it },
-                                onValueChangeFinished = {
-                                    viewModel.updateSummaryNewsInFeedCloud(summaryNewsInFeedCloud.toInt())
-                                },
-                                valueRange = 1f..20f,
-                                steps = 18
-                            )
-                        }
-
                         Column {
                             Text(
                                 stringResource(R.string.settings_summary_news_scheduled_extractive, summaryNewsInScheduledExtractive.toInt()),
@@ -419,7 +689,27 @@ fun SettingsScreen(
                                 steps = 18
                             )
                         }
-
+                    }
+                }
+            }
+            item {
+                SettingsSection(title = stringResource(R.string.settings_cloud_summary)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Column {
+                            Text(
+                                stringResource(R.string.settings_summary_news_feed_cloud, summaryNewsInFeedCloud.toInt()),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = summaryNewsInFeedCloud,
+                                onValueChange = { summaryNewsInFeedCloud = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateSummaryNewsInFeedCloud(summaryNewsInFeedCloud.toInt())
+                                },
+                                valueRange = 1f..20f,
+                                steps = 18
+                            )
+                        }
                         Column {
                             Text(
                                 stringResource(R.string.settings_summary_news_scheduled_cloud, summaryNewsInScheduledCloud.toInt()),
@@ -438,7 +728,66 @@ fun SettingsScreen(
                     }
                 }
             }
-
+            item {
+                SettingsSection(title = stringResource(R.string.settings_adaptive_summary)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Column {
+                            Text(
+                                stringResource(
+                                    R.string.settings_adaptive_extractive_only_below_chars,
+                                    adaptiveExtractiveOnlyBelowChars.toInt()
+                                ),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = adaptiveExtractiveOnlyBelowChars,
+                                onValueChange = { adaptiveExtractiveOnlyBelowChars = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateAdaptiveExtractiveOnlyBelowChars(adaptiveExtractiveOnlyBelowChars.toInt())
+                                },
+                                valueRange = 500f..5000f,
+                                steps = 45
+                            )
+                        }
+                        Column {
+                            Text(
+                                stringResource(
+                                    R.string.settings_adaptive_extractive_compress_above_chars,
+                                    adaptiveExtractiveCompressAboveChars.toInt()
+                                ),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = adaptiveExtractiveCompressAboveChars,
+                                onValueChange = { adaptiveExtractiveCompressAboveChars = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateAdaptiveExtractiveCompressAboveChars(adaptiveExtractiveCompressAboveChars.toInt())
+                                },
+                                valueRange = 1000f..10000f,
+                                steps = 90
+                            )
+                        }
+                        Column {
+                            Text(
+                                stringResource(
+                                    R.string.settings_adaptive_extractive_compression_percent,
+                                    adaptiveExtractiveCompressionPercent.toInt()
+                                ),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Slider(
+                                value = adaptiveExtractiveCompressionPercent,
+                                onValueChange = { adaptiveExtractiveCompressionPercent = it },
+                                onValueChangeFinished = {
+                                    viewModel.updateAdaptiveExtractiveCompressionPercent(adaptiveExtractiveCompressionPercent.toInt())
+                                },
+                                valueRange = 10f..90f,
+                                steps = 79
+                            )
+                        }
+                    }
+                }
+            }
             item {
                 SettingsSection(title = stringResource(R.string.settings_feed)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -607,7 +956,6 @@ fun SettingsScreen(
                     }
                 }
             }
-
             item {
                 SettingsSection(title = stringResource(R.string.settings_scheduled_summary)) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -620,6 +968,33 @@ fun SettingsScreen(
                             Switch(
                                 checked = userPreferences.isScheduledSummaryEnabled,
                                 onCheckedChange = { viewModel.updateScheduledSummary(it, userPreferences.scheduledHour, userPreferences.scheduledMinute) },
+                                modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stringResource(R.string.settings_scheduled_push_notifications),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Switch(
+                                checked = userPreferences.isScheduledSummaryPushEnabled,
+                                onCheckedChange = { enabled ->
+                                    if (!enabled) {
+                                        viewModel.updateScheduledSummaryPushEnabled(false)
+                                    } else if (
+                                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                        ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.POST_NOTIFICATIONS
+                                        ) != PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    } else {
+                                        viewModel.updateScheduledSummaryPushEnabled(true)
+                                    }
+                                },
                                 modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
                             )
                         }
@@ -682,69 +1057,6 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = stringResource(R.string.settings_adaptive_summary)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Column {
-                            Text(
-                                stringResource(
-                                    R.string.settings_adaptive_extractive_only_below_chars,
-                                    adaptiveExtractiveOnlyBelowChars.toInt()
-                                ),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Slider(
-                                value = adaptiveExtractiveOnlyBelowChars,
-                                onValueChange = { adaptiveExtractiveOnlyBelowChars = it },
-                                onValueChangeFinished = {
-                                    viewModel.updateAdaptiveExtractiveOnlyBelowChars(adaptiveExtractiveOnlyBelowChars.toInt())
-                                },
-                                valueRange = 100f..4000f,
-                                steps = 38
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                stringResource(
-                                    R.string.settings_adaptive_extractive_compress_above_chars,
-                                    adaptiveExtractiveCompressAboveChars.toInt()
-                                ),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Slider(
-                                value = adaptiveExtractiveCompressAboveChars,
-                                onValueChange = { adaptiveExtractiveCompressAboveChars = it },
-                                onValueChangeFinished = {
-                                    viewModel.updateAdaptiveExtractiveCompressAboveChars(adaptiveExtractiveCompressAboveChars.toInt())
-                                },
-                                valueRange = 100f..4000f,
-                                steps = 38
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                stringResource(
-                                    R.string.settings_adaptive_extractive_compression_percent,
-                                    adaptiveExtractiveCompressionPercent.toInt()
-                                ),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Slider(
-                                value = adaptiveExtractiveCompressionPercent,
-                                onValueChange = { adaptiveExtractiveCompressionPercent = it },
-                                onValueChangeFinished = {
-                                    viewModel.updateAdaptiveExtractiveCompressionPercent(adaptiveExtractiveCompressionPercent.toInt())
-                                },
-                                valueRange = 10f..90f,
-                                steps = 79
-                            )
-                        }
-                    }
-                }
-            }
-
-            item {
                 SettingsSection(title = stringResource(R.string.settings_memory)) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Button(
@@ -776,9 +1088,25 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.labelLarge
                             )
                         }
+
+                        Button(
+                            onClick = { showResetSettingsDialog = true },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            shape = MaterialTheme.shapes.extraLarge,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
+                            Text(
+                                text = stringResource(R.string.settings_reset_settings),
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
                     }
                 }
             }
+
         }
 
         showConfigDialog?.let { (config, type) ->
@@ -815,6 +1143,29 @@ fun SettingsScreen(
                 text = stringResource(R.string.settings_clear_embeddings_confirm),
                 onConfirm = { viewModel.clearEmbeddings() },
                 onDismiss = { showClearEmbeddingsDialog = false }
+            )
+        }
+
+        if (showResetSettingsDialog) {
+            ConfirmDeleteDialog(
+                title = stringResource(R.string.settings_reset_settings),
+                text = stringResource(R.string.settings_reset_settings_confirm),
+                onConfirm = { viewModel.resetSettingsToDefaults() },
+                onDismiss = { showResetSettingsDialog = false }
+            )
+        }
+
+        if (showEmailAuthDialog) {
+            EmailAuthDialog(
+                onDismiss = { showEmailAuthDialog = false },
+                onLogin = { email, pass -> viewModel.signInWithEmail(email, pass, register = false) },
+                onRegister = { email, pass -> viewModel.signInWithEmail(email, pass, register = true) },
+                onGoogleLogin = {
+                    // Force account chooser instead of silent reuse of the previous account.
+                    googleSignInClient.signOut().addOnCompleteListener {
+                        googleAuthLauncher.launch(googleSignInClient.signInIntent)
+                    }
+                }
             )
         }
     }
@@ -877,6 +1228,203 @@ fun SettingsSection(
                 )
                 headerContent?.invoke()
                 content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackupOptionRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f)
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
+        )
+    }
+}
+
+@Composable
+private fun BackupCheckboxRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge
+        )
+    }
+}
+
+@Composable
+private fun EmailAuthDialog(
+    onDismiss: () -> Unit,
+    onLogin: (String, String) -> Unit,
+    onRegister: (String, String) -> Unit,
+    onGoogleLogin: () -> Unit
+) {
+    val emailRequiredMessage = stringResource(R.string.settings_validation_email_required)
+    val emailInvalidMessage = stringResource(R.string.settings_validation_email_invalid)
+    val passwordShortMessage = stringResource(R.string.settings_validation_password_short)
+    var email by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var isPasswordVisible by rememberSaveable { mutableStateOf(false) }
+    var validationError by rememberSaveable { mutableStateOf<String?>(null) }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_login_register),
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = null)
+                    }
+                }
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = {
+                        email = it
+                        validationError = null
+                    },
+                    label = { Text(stringResource(R.string.settings_email)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = {
+                        password = it
+                        validationError = null
+                    },
+                    label = { Text(stringResource(R.string.settings_password)) },
+                    singleLine = true,
+                    visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                            Icon(
+                                imageVector = if (isPasswordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                contentDescription = null
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                Button(
+                    onClick = {
+                        val normalizedEmail = email.trim()
+                        when {
+                            normalizedEmail.isBlank() -> validationError = emailRequiredMessage
+                            !android.util.Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches() ->
+                                validationError = emailInvalidMessage
+                            password.length < 6 -> validationError = passwordShortMessage
+                            else -> {
+                                onLogin(normalizedEmail, password)
+                                onDismiss()
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = MaterialTheme.shapes.extraLarge
+                ) {
+                    Text(stringResource(R.string.settings_login))
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        onGoogleLogin()
+                        onDismiss()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = MaterialTheme.shapes.extraLarge
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_google_logo),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.settings_login_google))
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        val normalizedEmail = email.trim()
+                        when {
+                            normalizedEmail.isBlank() -> validationError = emailRequiredMessage
+                            !android.util.Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches() ->
+                                validationError = emailInvalidMessage
+                            password.length < 6 -> validationError = passwordShortMessage
+                            else -> {
+                                onRegister(normalizedEmail, password)
+                                onDismiss()
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = MaterialTheme.shapes.extraLarge
+                ) {
+                    Text(stringResource(R.string.settings_register))
+                }
+
+                validationError?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
     }
@@ -1119,6 +1667,7 @@ fun AiConfigDialog(
                     }
                 }
             }
+
         }
     }
 }

@@ -20,6 +20,7 @@ data class UserPreferences(
     @PrimaryKey val id: Int = 0,
     val aiStrategy: AiStrategy = AiStrategy.ADAPTIVE,
     val isScheduledSummaryEnabled: Boolean = false,
+    val isScheduledSummaryPushEnabled: Boolean = true,
     val scheduledHour: Int = 8,
     val scheduledMinute: Int = 0,
     val lastWorkRunTimestamp: Long = 0,

@@ -1,7 +1,17 @@
 package com.andrewwin.sumup.worker
 
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.content.Context
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -21,6 +31,7 @@ import com.andrewwin.sumup.domain.usecase.BuildExtractiveSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
 import com.andrewwin.sumup.domain.usecase.NoArticlesException
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
+import com.andrewwin.sumup.ui.MainActivity
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
@@ -113,6 +124,7 @@ class SummaryWorker @AssistedInject constructor(
             if (articles.isEmpty()) {
                 val message = applicationContext.getString(R.string.summary_worker_no_articles_today)
                 summaryRepository.insertSummary(Summary(content = message, strategy = prefs.aiStrategy))
+                maybeShowScheduledSummaryNotification(prefs)
                 return Result.success()
             }
 
@@ -173,10 +185,12 @@ class SummaryWorker @AssistedInject constructor(
             }
 
             summaryRepository.insertSummary(Summary(content = summaryText, strategy = prefs.aiStrategy))
+            maybeShowScheduledSummaryNotification(prefs)
             Result.success()
         } catch (e: NoArticlesException) {
             val message = applicationContext.getString(R.string.summary_worker_no_articles_today)
             summaryRepository.insertSummary(Summary(content = message, strategy = prefs.aiStrategy))
+            maybeShowScheduledSummaryNotification(prefs)
             Result.success()
         } catch (e: Exception) {
             val prefix = applicationContext.getString(R.string.summary_worker_error_prefix)
@@ -223,6 +237,8 @@ class SummaryWorker @AssistedInject constructor(
         private const val TAG = "SummaryWorker"
         private const val MAX_ARTICLES_FOR_SUMMARIZATION = 15
         private const val MAX_RETRY_ATTEMPTS = 2
+        private const val SUMMARY_CHANNEL_ID = "scheduled_summary_channel"
+        private const val SUMMARY_NOTIFICATION_ID = 1001
     }
 
     private suspend fun appendSourceMetadata(
@@ -293,5 +309,50 @@ class SummaryWorker @AssistedInject constructor(
         } else {
             null
         }
+    }
+
+    private fun maybeShowScheduledSummaryNotification(prefs: com.andrewwin.sumup.data.local.entities.UserPreferences) {
+        if (!prefs.isScheduledSummaryPushEnabled) return
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        createNotificationChannelIfNeeded()
+
+        val intent = Intent(applicationContext, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            applicationContext,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(applicationContext, SUMMARY_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_summary_page)
+            .setContentTitle(applicationContext.getString(R.string.summary_notification_title))
+            .setContentText(applicationContext.getString(R.string.summary_notification_body))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        NotificationManagerCompat.from(applicationContext)
+            .notify(SUMMARY_NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannelIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val channel = NotificationChannel(
+            SUMMARY_CHANNEL_ID,
+            applicationContext.getString(R.string.summary_notification_channel_name),
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = applicationContext.getString(R.string.summary_notification_channel_description)
+        }
+        val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.createNotificationChannel(channel)
     }
 }

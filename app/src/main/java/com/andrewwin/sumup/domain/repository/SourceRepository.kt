@@ -27,4 +27,29 @@ interface SourceRepository {
     )
     suspend fun updateSource(source: Source)
     suspend fun deleteSource(source: Source)
+    suspend fun getGroupsWithSourcesSnapshot(): List<GroupWithSources>
+    suspend fun importGroupsWithSources(
+        groups: List<ImportedSourceGroup>,
+        merge: Boolean
+    )
 }
+
+data class ImportedSourceGroup(
+    val name: String,
+    val isEnabled: Boolean,
+    val isDeletable: Boolean,
+    val sources: List<ImportedSource>
+)
+
+data class ImportedSource(
+    val name: String,
+    val url: String,
+    val type: SourceType,
+    val isEnabled: Boolean,
+    val footerPattern: String?,
+    val titleSelector: String?,
+    val postLinkSelector: String?,
+    val descriptionSelector: String?,
+    val dateSelector: String?,
+    val useHeadlessBrowser: Boolean
+)

@@ -29,7 +29,7 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
         Summary::class,
         UserPreferences::class
     ],
-    version = 30,
+    version = 31,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -62,8 +62,8 @@ abstract class AppDatabase : RoomDatabase() {
                                 "INSERT OR IGNORE INTO source_groups (id, name, isEnabled, isDeletable) VALUES (1, 'Без категорії', 1, 0)"
                             )
                             db.execSQL(
-                                "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveCompressAboveChars, adaptiveExtractiveCompressionPercent, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedExtractive, summaryNewsInFeedCloud, summaryNewsInScheduledExtractive, summaryNewsInScheduledCloud, extractiveSentencesInFeed, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsPerArticle, aiMaxCharsPerFeedArticle, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, appThemeMode, appLanguage) " +
-                                "VALUES (0, 'ADAPTIVE', 0, 8, 0, 0, 0, 0.55, 0.75, 2, 1, 1, 500, 500, 30, 3, 3, 4, 4, 4, 4, 3, 4, 3, 4, 5, 4, 0, 1000, 1000, 12000, '$defaultPrompt', 0, 0, 1, 'SYSTEM', 'UK')"
+                                "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveCompressAboveChars, adaptiveExtractiveCompressionPercent, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedExtractive, summaryNewsInFeedCloud, summaryNewsInScheduledExtractive, summaryNewsInScheduledCloud, extractiveSentencesInFeed, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsPerArticle, aiMaxCharsPerFeedArticle, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, appThemeMode, appLanguage) " +
+                                "VALUES (0, 'ADAPTIVE', 0, 1, 8, 0, 0, 0, 0.55, 0.75, 2, 1, 1, 500, 500, 30, 3, 3, 4, 4, 4, 4, 3, 4, 3, 4, 5, 4, 0, 1000, 1000, 12000, '$defaultPrompt', 0, 0, 1, 'SYSTEM', 'UK')"
                             )
                         }
                     })

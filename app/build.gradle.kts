@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -80,6 +81,11 @@ dependencies {
     implementation(libs.jsoup)
     implementation(libs.coil.compose)
     implementation("com.prof18.rssparser:rssparser:6.1.4")
+    implementation(platform("com.google.firebase:firebase-bom:33.12.0"))
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 
     implementation(libs.onnxruntime.android)
     implementation(libs.onnxruntime.extensions.android)
