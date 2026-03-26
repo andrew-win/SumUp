@@ -6,6 +6,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Share
@@ -27,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -97,7 +99,8 @@ fun SummaryScreen(
                     items = chartData,
                     currentType = chartType,
                     onTypeChange = viewModel::setChartType,
-                    isModelEnabled = isVectorizationEnabled
+                    isModelEnabled = isVectorizationEnabled,
+                    onOpenWebView = onOpenWebView
                 )
             }
 
@@ -149,7 +152,8 @@ fun SummaryChart(
     items: List<SummaryChartItem>,
     currentType: SummaryChartType,
     onTypeChange: (SummaryChartType) -> Unit,
-    isModelEnabled: Boolean
+    isModelEnabled: Boolean,
+    onOpenWebView: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -209,7 +213,8 @@ fun SummaryChart(
                         ChartBar(
                             item = item,
                             maxValue = maxValue,
-                            isLast = index == items.lastIndex
+                            isLast = index == items.lastIndex,
+                            onOpenWebView = onOpenWebView
                         )
                     }
                 }
@@ -243,7 +248,8 @@ fun ChartTypeChip(
 fun ChartBar(
     item: SummaryChartItem,
     maxValue: Float,
-    isLast: Boolean
+    isLast: Boolean,
+    onOpenWebView: (String) -> Unit
 ) {
     val fraction = (item.value / maxValue).coerceIn(0.05f, 1f)
 
@@ -257,6 +263,9 @@ fun ChartBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(enabled = !item.sourceUrl.isNullOrBlank()) {
+                item.sourceUrl?.let { onOpenWebView(normalizeForWebView(it)) }
+            }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -270,13 +279,27 @@ fun ChartBar(
 
         Spacer(Modifier.width(14.dp))
 
-        Text(
-            text = item.headline,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).padding(end = 8.dp)
-        )
+        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+            Text(
+                text = item.headline,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis
+            )
+            item.sourceName?.takeIf { it.isNotBlank() }?.let { sourceName ->
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = sourceName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable(enabled = !item.sourceUrl.isNullOrBlank()) {
+                        item.sourceUrl?.let { onOpenWebView(normalizeForWebView(it)) }
+                    }
+                )
+            }
+        }
 
         Text(
             text = item.displayValue,
@@ -391,6 +414,11 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
 
     val sections = remember(summary.content) { parseSummarySections(summary.content) }
     var isExpanded by rememberSaveable(summary.id) { mutableStateOf(false) }
+    val expandRotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = tween(durationMillis = 220),
+        label = "summaryExpandRotation"
+    )
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -419,60 +447,57 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Top
                 ) {
-                    if (isExpanded && !isError) {
-                        SelectionContainer {
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(end = 8.dp)
-                                    .animateContentSize(),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                sections.forEach { section ->
-                                    Text(
-                                        text = section.body,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        lineHeight = 24.sp
-                                    )
-                                    section.source?.let { source ->
-                                        AssistChip(
-                                            onClick = { onOpenWebView(normalizeForWebView(source.url)) },
-                                            shape = RoundedCornerShape(14.dp),
-                                            label = {
-                                                Text(
-                                                    text = source.name,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            },
-                                            leadingIcon = {
-                                                Icon(
-                                                    imageVector = Icons.Default.Link,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
+                            .animateContentSize(animationSpec = tween(durationMillis = 130))
+                    ) {
+                        if (isExpanded && !isError) {
+                            SelectionContainer {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    sections.forEach { section ->
+                                        Text(
+                                            text = section.body,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            lineHeight = 24.sp
                                         )
+                                        section.source?.let { source ->
+                                            AssistChip(
+                                                onClick = { onOpenWebView(normalizeForWebView(source.url)) },
+                                                shape = RoundedCornerShape(14.dp),
+                                                label = {
+                                                    Text(
+                                                        text = source.name,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Link,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
-                        }
-                    } else {
-                        SelectionContainer {
-                            Text(
-                                text = sections.joinToString("\n\n") { it.body },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (isError) MaterialTheme.colorScheme.error
-                                else MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(end = 8.dp)
-                                    .animateContentSize(),
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis,
-                                lineHeight = 24.sp
-                            )
+                        } else {
+                            SelectionContainer {
+                                Text(
+                                    text = sections.joinToString("\n\n") { it.body },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (isError) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    lineHeight = 24.sp
+                                )
+                            }
                         }
                     }
 
@@ -488,10 +513,11 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
                         )
                     ) {
                         Icon(
-                            if (isExpanded) Icons.Default.KeyboardArrowUp
-                            else Icons.Default.KeyboardArrowDown,
+                            Icons.Default.KeyboardArrowDown,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier
+                                .size(16.dp)
+                                .graphicsLayer { rotationZ = expandRotation }
                         )
                     }
                 }

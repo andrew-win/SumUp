@@ -104,38 +104,40 @@ fun SourcesScreen(
             item {
                 Spacer(modifier = Modifier.height(32.dp))
                 val isModelLoaded by viewModel.isModelLoaded.collectAsState()
+                val isRecommendationsEnabled by viewModel.isRecommendationsEnabled.collectAsState()
                 val suggestedThemes by viewModel.suggestedThemes.collectAsState()
                 val titleTextRes = if (isModelLoaded) {
                     R.string.sources_suggested_themes_title
                 } else {
                     R.string.sources_suggested_themes_hint
                 }
+                if (isRecommendationsEnabled) {
+                    Text(
+                        text = stringResource(titleTextRes),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Normal),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 8.dp).padding(bottom = 12.dp)
+                    )
 
-                Text(
-                    text = stringResource(titleTextRes),
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Normal),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(horizontal = 8.dp).padding(bottom = 12.dp)
-                )
-
-                suggestedThemes.chunked(2).forEach { rowItems ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        rowItems.forEach { suggestion ->
-                            SuggestedThemeItem(
-                                suggestion = suggestion,
-                                modifier = Modifier.weight(1f),
-                                onToggle = { isSubscribed ->
-                                    viewModel.toggleThemeSubscription(suggestion, isSubscribed)
-                                }
-                            )
-                        }
-                        if (rowItems.size == 1) {
-                            Spacer(modifier = Modifier.weight(1f))
+                    suggestedThemes.chunked(2).forEach { rowItems ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowItems.forEach { suggestion ->
+                                SuggestedThemeItem(
+                                    suggestion = suggestion,
+                                    modifier = Modifier.weight(1f),
+                                    onToggle = { isSubscribed ->
+                                        viewModel.toggleThemeSubscription(suggestion, isSubscribed)
+                                    }
+                                )
+                            }
+                            if (rowItems.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
                         }
                     }
                 }

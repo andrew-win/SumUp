@@ -216,6 +216,8 @@
     <string name="settings_custom_summary_prompt">Кастомний промпт</string>
     <string name="settings_feed_media">Показувати медіа у стрічці</string>
     <string name="settings_feed_description">Показувати опис</string>
+    <string name="settings_sources">Джерела</string>
+    <string name="settings_show_recommendations">Показувати рекомендації</string>
     <string name="export_feed_pdf">Експорт стрічки у PDF</string>
     <string name="export_pdf_error">Не вдалося експортувати PDF</string>
     <string name="feed_pdf_file_name">feed-%s.pdf</string>

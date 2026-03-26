@@ -14,10 +14,10 @@ import com.andrewwin.sumup.domain.exception.UnsupportedStrategyException
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.ai.AskQuestionUseCase
 import com.andrewwin.sumup.domain.usecase.ai.SummarizeContentUseCase
 import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
+import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -43,7 +43,7 @@ enum class SavedFilter(@StringRes val labelRes: Int, val savedOnly: Boolean) {
 class FeedViewModel @Inject constructor(
     application: Application,
     private val articleRepository: ArticleRepository,
-    private val refreshArticlesUseCase: RefreshArticlesUseCase,
+    private val refreshFeedUseCase: RefreshFeedUseCase,
     private val getFeedArticlesUseCase: GetFeedArticlesUseCase,
     private val summarizeContentUseCase: SummarizeContentUseCase,
     private val askQuestionUseCase: AskQuestionUseCase,
@@ -144,7 +144,7 @@ class FeedViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            refreshArticlesUseCase()
+            refreshFeedUseCase()
             _isRefreshing.value = false
         }
     }

@@ -43,6 +43,9 @@ import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.ai.SummarizationEngineUseCase
+import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
+import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCaseImpl
+import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCaseImpl
 import dagger.Module
@@ -217,6 +220,20 @@ object AppModule {
     @Singleton
     fun provideRefreshArticlesUseCase(articleRepository: ArticleRepository): RefreshArticlesUseCase =
         RefreshArticlesUseCaseImpl(articleRepository)
+
+    @Provides
+    @Singleton
+    fun provideRefreshFeedUseCase(
+        refreshArticlesUseCase: RefreshArticlesUseCase,
+        getSuggestedThemesUseCase: GetSuggestedThemesUseCase,
+        @ApplicationContext context: Context,
+        dispatcherProvider: com.andrewwin.sumup.domain.coroutines.DispatcherProvider
+    ): RefreshFeedUseCase = RefreshFeedUseCaseImpl(
+        refreshArticlesUseCase = refreshArticlesUseCase,
+        getSuggestedThemesUseCase = getSuggestedThemesUseCase,
+        context = context,
+        dispatcherProvider = dispatcherProvider
+    )
 
     @Provides
     @Singleton

@@ -1055,6 +1055,22 @@ fun SettingsScreen(
                     }
                 }
             }
+            item {
+                SettingsSection(title = stringResource(R.string.settings_sources)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(R.string.settings_show_recommendations),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Switch(
+                            checked = userPreferences.isRecommendationsEnabled,
+                            onCheckedChange = { viewModel.updateRecommendationsEnabled(it) },
+                            modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
+                        )
+                    }
+                }
+            }
 
             item {
                 SettingsSection(title = stringResource(R.string.settings_memory)) {

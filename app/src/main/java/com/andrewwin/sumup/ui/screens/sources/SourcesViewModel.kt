@@ -7,6 +7,7 @@ import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.domain.repository.SourceRepository
+import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
 import com.andrewwin.sumup.domain.usecase.sources.SuggestedTheme
@@ -14,6 +15,7 @@ import com.andrewwin.sumup.domain.usecase.sources.ThemeSuggestion
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -21,7 +23,8 @@ import javax.inject.Inject
 class SourcesViewModel @Inject constructor(
     private val repository: SourceRepository,
     private val getSuggestedThemesUseCase: GetSuggestedThemesUseCase,
-    private val manageModelUseCase: ManageModelUseCase
+    private val manageModelUseCase: ManageModelUseCase,
+    userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
     val uiState: StateFlow<List<GroupWithSources>> = repository.groupsWithSources
@@ -43,10 +46,26 @@ class SourcesViewModel @Inject constructor(
 
     private val _isModelLoaded = MutableStateFlow(false)
     val isModelLoaded: StateFlow<Boolean> = _isModelLoaded.asStateFlow()
+    val isRecommendationsEnabled: StateFlow<Boolean> = userPreferencesRepository.preferences
+        .map { it.isRecommendationsEnabled }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = true
+        )
+    private var suggestedThemesJob: Job? = null
 
     init {
         checkModelStatus()
-        loadSuggestedThemes()
+        viewModelScope.launch {
+            isRecommendationsEnabled.collect { enabled ->
+                if (!enabled) {
+                    _suggestedThemes.value = emptyList()
+                } else {
+                    loadSuggestedThemes()
+                }
+            }
+        }
     }
 
     private fun checkModelStatus() {
@@ -54,7 +73,8 @@ class SourcesViewModel @Inject constructor(
     }
 
     fun loadSuggestedThemes() {
-        viewModelScope.launch {
+        suggestedThemesJob?.cancel()
+        suggestedThemesJob = viewModelScope.launch {
             getSuggestedThemesUseCase()
                 .collect { themes ->
                     _suggestedThemes.value = themes

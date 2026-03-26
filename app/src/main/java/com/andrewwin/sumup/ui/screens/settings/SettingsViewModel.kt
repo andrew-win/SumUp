@@ -275,6 +275,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(isFeedDescriptionEnabled = enabled) } }
     }
 
+    fun updateRecommendationsEnabled(enabled: Boolean) {
+        viewModelScope.launch { updatePreferences { it.copy(isRecommendationsEnabled = enabled) } }
+    }
+
     fun updateAppThemeMode(themeMode: AppThemeMode) {
         viewModelScope.launch { updatePreferences { it.copy(appThemeMode = themeMode) } }
     }
@@ -697,6 +701,7 @@ class SettingsViewModel @Inject constructor(
         put("isCustomSummaryPromptEnabled", isCustomSummaryPromptEnabled)
         put("isFeedMediaEnabled", isFeedMediaEnabled)
         put("isFeedDescriptionEnabled", isFeedDescriptionEnabled)
+        put("isRecommendationsEnabled", isRecommendationsEnabled)
         put("appThemeMode", appThemeMode.name)
         put("appLanguage", appLanguage.name)
     }
@@ -781,6 +786,7 @@ class SettingsViewModel @Inject constructor(
             ),
             isFeedMediaEnabled = optBoolean("isFeedMediaEnabled", defaults.isFeedMediaEnabled),
             isFeedDescriptionEnabled = optBoolean("isFeedDescriptionEnabled", defaults.isFeedDescriptionEnabled),
+            isRecommendationsEnabled = optBoolean("isRecommendationsEnabled", defaults.isRecommendationsEnabled),
             appThemeMode = runCatching { AppThemeMode.valueOf(optString("appThemeMode", defaults.appThemeMode.name)) }
                 .getOrDefault(defaults.appThemeMode),
             appLanguage = runCatching { AppLanguage.valueOf(optString("appLanguage", defaults.appLanguage.name)) }

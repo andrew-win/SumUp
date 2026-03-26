@@ -46,7 +46,7 @@ data class UserPreferences(
     val extractiveSentencesInScheduled: Int = 3,
     val extractiveNewsInScheduled: Int = 4,
     val showLastSummariesCount: Int = 5,
-    val showInfographicNewsCount: Int = 4,
+    val showInfographicNewsCount: Int = 5,
     val aiMaxCharsPerArticle: Int = 1000,
     val aiMaxCharsPerFeedArticle: Int = 1000,
     val aiMaxCharsTotal: Int = 12000,
@@ -54,6 +54,7 @@ data class UserPreferences(
     val isCustomSummaryPromptEnabled: Boolean = false,
     val isFeedMediaEnabled: Boolean = false,
     val isFeedDescriptionEnabled: Boolean = true,
+    val isRecommendationsEnabled: Boolean = true,
     val appThemeMode: AppThemeMode = AppThemeMode.SYSTEM,
     val appLanguage: AppLanguage = AppLanguage.UK
 )

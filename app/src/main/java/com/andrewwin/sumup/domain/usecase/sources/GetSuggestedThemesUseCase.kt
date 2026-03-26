@@ -185,6 +185,12 @@ class GetSuggestedThemesUseCase @Inject constructor(
     }
 
     operator fun invoke(forceRefresh: Boolean = false): Flow<List<ThemeSuggestion>> = flow {
+        val prefsData = userPreferencesRepository.preferences.first()
+        if (!prefsData.isRecommendationsEnabled) {
+            emit(emptyList())
+            return@flow
+        }
+
         val groupsWithSources = sourceRepository.groupsWithSources.first()
         val allSources = groupsWithSources.flatMap { it.sources }
         val allSourcesUrls = allSources.map { it.url }.toSet()
@@ -192,14 +198,14 @@ class GetSuggestedThemesUseCase @Inject constructor(
         val currentSourcesHash = allSourcesUrls.hashCode()
         val sourceTypeMap = allSources.associate { it.id to it.type }
 
-        val lastSavedHash = prefs.getInt("sourcesHash", -1)
         val savedThemeUrls = prefs.getStringSet("savedThemes", null)
         val lastRecommendationAt = prefs.getLong(KEY_LAST_RECOMMENDATION_AT, 0L)
+        val lastFeedRefreshAt = prefs.getLong(KEY_LAST_FEED_REFRESH_AT, 0L)
         val now = System.currentTimeMillis()
-        val shouldRecalculate = forceRefresh ||
-            savedThemeUrls == null ||
-            currentSourcesHash != lastSavedHash ||
-            (now - lastRecommendationAt) >= ONE_DAY_MS
+        val shouldRecalculate = forceRefresh || (
+            (now - lastRecommendationAt) >= ONE_DAY_MS &&
+            lastFeedRefreshAt > lastRecommendationAt
+        )
 
         if (!shouldRecalculate) {
             val cached = SuggestedTheme.entries.map {
@@ -224,8 +230,8 @@ class GetSuggestedThemesUseCase @Inject constructor(
             return@flow
         }
         
-        // If we have a cache and sources haven't changed, and not forcing refresh, return cache
-        if (!forceRefresh && savedThemeUrls != null && currentSourcesHash == lastSavedHash) {
+        // If we have cache and refresh window has not passed, return cache.
+        if (!forceRefresh && savedThemeUrls != null && !shouldRecalculate) {
             val cached = SuggestedTheme.entries.map {
                  ThemeSuggestion(it, score = 10f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) }, isRecommended = savedThemeUrls.contains(it.title)) 
             }.sortedByDescending { if (it.isRecommended) 1 else 0 }
@@ -277,7 +283,6 @@ class GetSuggestedThemesUseCase @Inject constructor(
             return@flow
         }
 
-        val prefsData = userPreferencesRepository.preferences.first()
         val simThreshold = (
             if (hasCloudEmbedding) {
                 prefsData.cloudDeduplicationThreshold - 0.01f
@@ -411,6 +416,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
 
     companion object {
         private const val KEY_LAST_RECOMMENDATION_AT = "lastRecommendationAt"
+        private const val KEY_LAST_FEED_REFRESH_AT = "lastFeedRefreshAt"
         private const val ONE_DAY_MS = 24L * 60 * 60 * 1000
     }
 }

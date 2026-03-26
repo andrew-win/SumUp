@@ -178,6 +178,8 @@
     <string name="settings_custom_summary_prompt">Custom prompt</string>
     <string name="settings_feed_media">Show media in feed</string>
     <string name="settings_feed_description">Show description</string>
+    <string name="settings_sources">Sources</string>
+    <string name="settings_show_recommendations">Show recommendations</string>
     <string name="export_feed_pdf">Export feed to PDF</string>
     <string name="export_pdf_error">Failed to export PDF</string>
     <string name="feed_pdf_file_name">feed-%s.pdf</string>

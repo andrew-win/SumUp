@@ -33,7 +33,9 @@ enum class SummaryChartType {
 data class SummaryChartItem(
     val headline: String,
     val value: Float,
-    val displayValue: String
+    val displayValue: String,
+    val sourceName: String? = null,
+    val sourceUrl: String? = null
 )
 
 @HiltViewModel
@@ -84,7 +86,8 @@ class SummaryViewModel @Inject constructor(
         userPreferences,
         sourceRepository.groupsWithSources
     ) { feedResult, type, prefs, groups ->
-        val sourceTypeMap = groups.flatMap { it.sources }.associate { it.id to it.type }
+        val sourceById = groups.flatMap { it.sources }.associateBy { it.id }
+        val sourceTypeMap = sourceById.mapValues { it.value.type }
         val clusters = feedResult.clusters
         val limit = prefs.showInfographicNewsCount.coerceAtLeast(1)
         
@@ -92,20 +95,26 @@ class SummaryViewModel @Inject constructor(
             SummaryChartType.VIEWS -> {
                 clusters.map { cluster ->
                     val totalViews = cluster.representative.viewCount + cluster.duplicates.sumOf { it.first.viewCount }
+                    val source = sourceById[cluster.representative.sourceId]
                     SummaryChartItem(
                         headline = cluster.representative.title,
                         value = totalViews.toFloat(),
-                        displayValue = formatViews(totalViews)
+                        displayValue = formatViews(totalViews),
+                        sourceName = source?.name,
+                        sourceUrl = cluster.representative.url.takeIf { it.isNotBlank() } ?: source?.url
                     )
                 }.sortedByDescending { it.value }.take(limit)
             }
             SummaryChartType.MENTIONS -> {
                 clusters.map { cluster ->
                     val count = cluster.duplicates.size + 1
+                    val source = sourceById[cluster.representative.sourceId]
                     SummaryChartItem(
                         headline = cluster.representative.title,
                         value = count.toFloat(),
-                        displayValue = count.toString()
+                        displayValue = count.toString(),
+                        sourceName = source?.name,
+                        sourceUrl = cluster.representative.url.takeIf { it.isNotBlank() } ?: source?.url
                     )
                 }.sortedByDescending { it.value }.take(limit)
             }
@@ -113,10 +122,13 @@ class SummaryViewModel @Inject constructor(
                 clusters.map { cluster ->
                     val article = cluster.representative
                     val score = importanceScorer.score(article, sourceTypeMap[article.sourceId] ?: SourceType.RSS)
+                    val source = sourceById[article.sourceId]
                     SummaryChartItem(
                         headline = article.title,
                         value = score,
-                        displayValue = "%.2f".format(score)
+                        displayValue = "%.2f".format(score),
+                        sourceName = source?.name,
+                        sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url
                     )
                 }.sortedByDescending { it.value }.take(limit)
             }
