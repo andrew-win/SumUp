@@ -299,14 +299,19 @@ class SummarizationEngineUseCase @Inject constructor(
         }
         if (metas.isEmpty()) return summaryText
 
-        val sections = summaryText.split(Regex("\\n\\s*\\n")).filter { it.isNotBlank() }
+        val sections = summaryText
+            .split(Regex("\\n\\s*\\n"))
+            .filter { it.isNotBlank() }
+            .map { normalizeSectionSourcePlacement(it) }
         if (sections.isEmpty()) return summaryText
 
         val used = BooleanArray(metas.size)
         var fallbackIndex = 0
         val enrichedSections = sections.map { section ->
             val lines = section.lines().map { it.trimEnd() }
-            if (lines.any { it.startsWith(SummarySourceMeta.PREFIX) }) return@map section
+            if (lines.any { it.startsWith(SummarySourceMeta.PREFIX) }) {
+                return@map normalizeSectionSourcePlacement(section)
+            }
             val titleLine = lines.firstOrNull()?.trim().orEmpty()
             val titleKey = normalizeKey(titleLine.removeSuffix(":"))
             var exactIndex = -1
@@ -323,10 +328,12 @@ class SummarizationEngineUseCase @Inject constructor(
                 while (fallbackIndex < metas.size && used[fallbackIndex]) fallbackIndex++
                 if (fallbackIndex < metas.size) fallbackIndex else -1
             }
-            if (pickedIndex == -1) return@map section
+            if (pickedIndex == -1) return@map normalizeSectionSourcePlacement(section)
             used[pickedIndex] = true
             val meta = metas[pickedIndex]
-            "$section\n${SummarySourceMeta.PREFIX}${meta.sourceName}|${meta.sourceUrl}"
+            normalizeSectionSourcePlacement(
+                "$section\n${SummarySourceMeta.PREFIX}${meta.sourceName}|${meta.sourceUrl}"
+            )
         }
         return enrichedSections.joinToString("\n\n")
     }
@@ -359,10 +366,28 @@ class SummarizationEngineUseCase @Inject constructor(
     }
 
     private fun moveSourceToEndForSingleArticle(summaryText: String): String {
-        val lines = summaryText.lines()
-        val sourceLines = lines.filter { it.startsWith(SummarySourceMeta.PREFIX) }
-        if (sourceLines.isEmpty()) return summaryText
-        val nonSource = lines.filterNot { it.startsWith(SummarySourceMeta.PREFIX) }
-        return (nonSource + sourceLines.distinct()).joinToString("\n").trim()
+        return normalizeSectionSourcePlacement(summaryText)
+    }
+
+    private fun normalizeSectionSourcePlacement(section: String): String {
+        val lines = section.lines().map { it.trimEnd() }
+        if (lines.isEmpty()) return section
+        val sourceLines = lines
+            .filter { it.startsWith(SummarySourceMeta.PREFIX) }
+            .distinct()
+        val contentLines = lines.filterNot { it.startsWith(SummarySourceMeta.PREFIX) }
+        val normalizedContent = contentLines
+            .joinToString("\n")
+            .replace(Regex("\n{3,}"), "\n\n")
+            .trim()
+        if (sourceLines.isEmpty()) return normalizedContent
+        return buildString {
+            append(normalizedContent)
+            append("\n")
+            sourceLines.forEachIndexed { index, src ->
+                if (index > 0) append("\n")
+                append(src)
+            }
+        }.trim()
     }
 }

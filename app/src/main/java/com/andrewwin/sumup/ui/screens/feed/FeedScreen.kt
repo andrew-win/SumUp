@@ -359,35 +359,37 @@ fun FeedScreen(
                                 }
                             } else if (aiResult != null) {
                                 val sections = parseSummarySections(aiResult.orEmpty())
-                                val allSummaryText = sections.joinToString("\n\n") { it.body }
-                                val uniqueSources = sections.mapNotNull { it.source }.distinctBy { "${it.name}|${it.url}" }
                                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     SelectionContainer {
-                                        Text(
-                                            text = allSummaryText,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            lineHeight = 28.sp
-                                        )
-                                    }
-                                    uniqueSources.forEach { source ->
-                                        AssistChip(
-                                            onClick = { onOpenWebView(normalizeForWebView(source.url)) },
-                                            shape = RoundedCornerShape(14.dp),
-                                            label = {
+                                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            sections.forEach { section ->
                                                 Text(
-                                                    source.name,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
+                                                    text = section.body,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    lineHeight = 28.sp
                                                 )
-                                            },
-                                            leadingIcon = {
-                                                Icon(
-                                                    imageVector = Icons.Default.Link,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
+                                                section.source?.let { source ->
+                                                    AssistChip(
+                                                        onClick = { onOpenWebView(normalizeForWebView(source.url)) },
+                                                        shape = RoundedCornerShape(14.dp),
+                                                        label = {
+                                                            Text(
+                                                                source.name,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                        },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Link,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(16.dp)
+                                                            )
+                                                        }
+                                                    )
+                                                }
                                             }
-                                        )
+                                        }
                                     }
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),

@@ -214,11 +214,11 @@ class AiRepositoryImpl @Inject constructor(
 
         parsed.items.forEach { item ->
             val title = sanitizeSectionTitle(item.title ?: parsed.headline ?: DEFAULT_TITLE)
-            val bullets = item.bullets
-                .map { normalizeBulletLine(it) }
-                .filter { it.isNotBlank() }
-                .distinctBy { normalizeComparable(it) }
-                .take(perItemLimit)
+            val bullets = dedupeBullets(
+                rawBullets = item.bullets,
+                title = title,
+                limit = perItemLimit
+            )
             if (bullets.isEmpty()) return@forEach
             rendered += "$title:\n${bullets.joinToString("\n") { "$bulletSymbol $it" }}"
         }
@@ -233,10 +233,7 @@ class AiRepositoryImpl @Inject constructor(
             missing.forEach { (title, body) ->
                 val fallbackBullets = ExtractiveSummarizer
                     .summarize(body, perItemLimit)
-                    .map { normalizeBulletLine(it) }
-                    .filter { it.isNotBlank() }
-                    .distinctBy { normalizeComparable(it) }
-                    .take(perItemLimit)
+                    .let { dedupeBullets(it, sanitizeSectionTitle(title), perItemLimit) }
                 if (fallbackBullets.isNotEmpty()) {
                     rendered += "${sanitizeSectionTitle(title)}:\n${fallbackBullets.joinToString("\n") { "$bulletSymbol $it" }}"
                 }
@@ -339,6 +336,38 @@ class AiRepositoryImpl @Inject constructor(
     private fun isFooterLikeLine(line: String): Boolean {
         val compact = line.lowercase().replace(Regex("\\s+"), " ").trim()
         return FOOTER_PATTERNS.any { it.containsMatchIn(compact) }
+    }
+
+    private fun dedupeBullets(
+        rawBullets: List<String>,
+        title: String,
+        limit: Int
+    ): List<String> {
+        val titleKey = normalizeComparable(title)
+        val result = mutableListOf<String>()
+        val seen = mutableListOf<Set<String>>()
+        for (raw in rawBullets) {
+            val normalized = normalizeBulletLine(raw)
+            if (normalized.isBlank()) continue
+            val key = normalizeComparable(normalized)
+            if (key.isBlank()) continue
+            if (key == titleKey || key.startsWith(titleKey)) continue
+            val tokens = key.split(" ").filter { it.length > 2 }.toSet()
+            if (tokens.isEmpty()) continue
+            val isNearDuplicate = seen.any { jaccardSimilarity(it, tokens) >= 0.8f }
+            if (isNearDuplicate) continue
+            result += normalized
+            seen += tokens
+            if (result.size >= limit) break
+        }
+        return result
+    }
+
+    private fun jaccardSimilarity(a: Set<String>, b: Set<String>): Float {
+        if (a.isEmpty() || b.isEmpty()) return 0f
+        val intersection = a.intersect(b).size.toFloat()
+        val union = a.union(b).size.toFloat().coerceAtLeast(1f)
+        return intersection / union
     }
 
     private fun buildSummaryPrompt(basePrompt: String, strictJsonInstruction: String): String {

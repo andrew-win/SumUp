@@ -33,11 +33,13 @@ class FormatExtractiveSummaryUseCase @Inject constructor(
             if (isTitleDuplicate(onlySentence, normalizedTitle)) {
                 return title.removeSuffix(":").trim()
             }
-            val header = if (index != null) "$index. $title:" else "$title:"
+            val safeTitle = title.removeSuffix(":").trim()
+            val header = if (index != null) "$index. $safeTitle:" else "$safeTitle:"
             return "$header\n$bulletSymbol ${onlySentence.removeSuffix(":").trim()}"
         }
 
-        val header = if (index != null) "$index. $title:" else "$title:"
+        val safeTitle = title.removeSuffix(":").trim()
+        val header = if (index != null) "$index. $safeTitle:" else "$safeTitle:"
         val body = filteredSentences
             .map { it.trim().removeSuffix(":").trim() }
             .filter { it.isNotBlank() }

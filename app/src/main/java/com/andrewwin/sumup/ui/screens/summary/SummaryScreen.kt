@@ -420,8 +420,6 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
                     verticalAlignment = Alignment.Top
                 ) {
                     if (isExpanded && !isError) {
-                        val allSummaryText = sections.joinToString("\n\n") { it.body }
-                        val uniqueSources = sections.mapNotNull { it.source }.distinctBy { "${it.name}|${it.url}" }
                         SelectionContainer {
                             Column(
                                 modifier = Modifier
@@ -430,31 +428,33 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
                                     .animateContentSize(),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Text(
-                                    text = allSummaryText,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    lineHeight = 24.sp
-                                )
-                                uniqueSources.forEach { source ->
-                                    AssistChip(
-                                        onClick = { onOpenWebView(normalizeForWebView(source.url)) },
-                                        shape = RoundedCornerShape(14.dp),
-                                        label = {
-                                            Text(
-                                                text = source.name,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.Link,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
+                                sections.forEach { section ->
+                                    Text(
+                                        text = section.body,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        lineHeight = 24.sp
                                     )
+                                    section.source?.let { source ->
+                                        AssistChip(
+                                            onClick = { onOpenWebView(normalizeForWebView(source.url)) },
+                                            shape = RoundedCornerShape(14.dp),
+                                            label = {
+                                                Text(
+                                                    text = source.name,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.Link,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
