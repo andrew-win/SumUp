@@ -25,10 +25,9 @@ import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.summary.SummarySourceMeta
-import com.andrewwin.sumup.domain.usecase.BuildExtractiveSummaryUseCase
-import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
 import com.andrewwin.sumup.domain.usecase.NoArticlesException
+import com.andrewwin.sumup.domain.usecase.ai.SummaryContext
+import com.andrewwin.sumup.domain.usecase.ai.SummarizationEngineUseCase
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.ui.MainActivity
 import dagger.assisted.Assisted
@@ -47,8 +46,7 @@ class SummaryWorker @AssistedInject constructor(
     private val articleImportanceScorer: ArticleImportanceScorer,
     private val aiModelDao: AiModelDao,
     private val deduplicationService: DeduplicationService,
-    private val formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase,
-    private val buildExtractiveSummaryUseCase: BuildExtractiveSummaryUseCase,
+    private val summarizationEngineUseCase: SummarizationEngineUseCase,
     private val manageModelUseCase: ManageModelUseCase
 ) : CoroutineWorker(context, params) {
 
@@ -123,56 +121,18 @@ class SummaryWorker @AssistedInject constructor(
                 return Result.success()
             }
 
-            val summaryTextRaw = when (prefs.aiStrategy) {
-                AiStrategy.LOCAL -> {
-                    val extractiveTopCount = prefs.summaryNewsInScheduledExtractive.coerceAtLeast(1)
-                    val articlesForExtractive = articles.take(extractiveTopCount)
-                    val fullContentMap = mutableMapOf<String, String>()
-                    for (article in articlesForExtractive) {
-                        val source = articleRepository.getSourceById(article.sourceId)
-                        val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
-                        fullContentMap[formatted.displayTitle] = articleRepository.fetchFullContent(article)
-                    }
-                    buildExtractiveSummary(
-                        headlines = fullContentMap.keys.toList(),
-                        contentMap = fullContentMap,
-                        topCount = extractiveTopCount,
-                        sentencesPerArticle = prefs.summaryItemsPerNewsInScheduled
-                    )
-                }
-                AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> {
-                    val perArticleLimit = prefs.aiMaxCharsPerArticle.coerceAtLeast(200)
-                    val cloudTopCount = prefs.summaryNewsInScheduledCloud.coerceAtLeast(1)
-                    val articlesToSummarize = articles.take(cloudTopCount).take(MAX_ARTICLES_FOR_SUMMARIZATION)
-                    val processedArticles = mutableListOf<com.andrewwin.sumup.data.local.entities.Article>()
-                    
-                    for (article in articlesToSummarize) {
-                        val fullContent = articleRepository.fetchFullContent(article)
-                        val contentToSummarize = fullContent.take(perArticleLimit)
-                        processedArticles.add(article.copy(content = contentToSummarize))
-                    }
-                    
-                    try {
-                        buildCloudSummary(processedArticles, aiRepository, perArticleLimit, prefs.summaryItemsPerNewsInScheduled)
-                    } catch (e: Exception) {
-                        val extractiveTopCount = prefs.summaryNewsInScheduledExtractive.coerceAtLeast(1)
-                        val articlesForExtractive = articles.take(extractiveTopCount)
-                        val fullContentMap = mutableMapOf<String, String>()
-                        for (article in articlesForExtractive) {
-                            val source = articleRepository.getSourceById(article.sourceId)
-                            val formatted = formatArticleHeadlineUseCase(article, source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS)
-                            fullContentMap[formatted.displayTitle] = articleRepository.fetchFullContent(article)
-                        }
-                        buildExtractiveSummary(
-                            headlines = fullContentMap.keys.toList(),
-                            contentMap = fullContentMap,
-                            topCount = extractiveTopCount,
-                            sentencesPerArticle = prefs.summaryItemsPerNewsInScheduled
-                        )
-                    }
-                }
+            val limit = when (prefs.aiStrategy) {
+                AiStrategy.LOCAL -> prefs.summaryNewsInScheduledExtractive.coerceAtLeast(1)
+                AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> prefs.summaryNewsInScheduledCloud.coerceAtLeast(1)
             }
-            val summaryText = appendSourceMetadata(summaryTextRaw, articles)
+            val articlesToSummarize = articles.take(limit).take(MAX_ARTICLES_FOR_SUMMARIZATION)
+            val summaryTextRaw = summarizationEngineUseCase
+                .summarizeArticles(
+                    articles = articlesToSummarize,
+                    context = SummaryContext.ScheduledSummary(articleCount = articlesToSummarize.size)
+                )
+                .getOrThrow()
+            val summaryText = summaryTextRaw
 
             if (summaryText.isBlank()) {
                 val message = applicationContext.getString(R.string.summary_worker_empty_response)
@@ -194,107 +154,12 @@ class SummaryWorker @AssistedInject constructor(
         }
     }
 
-    private suspend fun buildExtractiveSummary(
-        headlines: List<String>,
-        contentMap: Map<String, String>,
-        topCount: Int,
-        sentencesPerArticle: Int
-    ): String = buildExtractiveSummaryUseCase(
-        headlines = headlines,
-        contentMap = contentMap,
-        topCount = topCount,
-        sentencesPerArticle = sentencesPerArticle
-    )
-
-    private suspend fun buildCloudSummary(
-        articles: List<com.andrewwin.sumup.data.local.entities.Article>,
-        aiRepo: AiRepository,
-        perArticleLimit: Int,
-        pointsPerNews: Int
-    ): String {
-        val contentBuilder = StringBuilder()
-        for (article in articles) {
-            val source = articleRepository.getSourceById(article.sourceId)
-            val formatted = formatArticleHeadlineUseCase(
-                article,
-                source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS
-            )
-            val truncated = article.content.take(perArticleLimit)
-            if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
-            contentBuilder.append(
-                applicationContext.getString(R.string.summary_article_format, formatted.displayTitle, truncated)
-            )
-        }
-        return aiRepo.summarize(contentBuilder.toString(), pointsPerNews)
-    }
-
     companion object {
         private const val TAG = "SummaryWorker"
         private const val MAX_ARTICLES_FOR_SUMMARIZATION = 15
         private const val MAX_RETRY_ATTEMPTS = 2
         private const val SUMMARY_CHANNEL_ID = "scheduled_summary_channel"
         private const val SUMMARY_NOTIFICATION_ID = 1001
-    }
-
-    private suspend fun appendSourceMetadata(
-        summaryText: String,
-        orderedArticles: List<com.andrewwin.sumup.data.local.entities.Article>
-    ): String {
-        if (summaryText.isBlank()) return summaryText
-
-        data class SourceMeta(val titleKey: String, val sourceName: String, val sourceUrl: String)
-        val metas = mutableListOf<SourceMeta>()
-        for (article in orderedArticles) {
-            val source = articleRepository.getSourceById(article.sourceId)
-            val sourceName = source?.name?.trim().orEmpty()
-            val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
-            if (sourceName.isBlank() || sourceUrl.isBlank()) continue
-            val formatted = formatArticleHeadlineUseCase(
-                article,
-                source?.type ?: com.andrewwin.sumup.data.local.entities.SourceType.RSS
-            )
-            metas.add(SourceMeta(normalizeKey(formatted.displayTitle), sourceName, sourceUrl))
-        }
-        if (metas.isEmpty()) return summaryText
-
-        val sections = summaryText.split(Regex("\\n\\s*\\n")).filter { it.isNotBlank() }
-        if (sections.isEmpty()) return summaryText
-
-        val used = BooleanArray(metas.size)
-        var fallbackIndex = 0
-        val enrichedSections = sections.map { section ->
-            val lines = section.lines().map { it.trimEnd() }
-            if (lines.any { it.startsWith(SummarySourceMeta.PREFIX) }) return@map section
-            val titleLine = lines.firstOrNull()?.trim().orEmpty()
-            val titleKey = normalizeKey(titleLine.removeSuffix(":"))
-            var exactIndex = -1
-            for (i in metas.indices) {
-                if (used[i]) continue
-                if (metas[i].titleKey == titleKey) {
-                    exactIndex = i
-                    break
-                }
-            }
-            val pickedIndex = if (exactIndex >= 0) {
-                exactIndex
-            } else {
-                while (fallbackIndex < metas.size && used[fallbackIndex]) fallbackIndex++
-                if (fallbackIndex < metas.size) fallbackIndex else -1
-            }
-            if (pickedIndex == -1) return@map section
-            used[pickedIndex] = true
-            val meta = metas[pickedIndex]
-            "$section\n${SummarySourceMeta.PREFIX}${meta.sourceName}|${meta.sourceUrl}"
-        }
-        return enrichedSections.joinToString("\n\n")
-    }
-
-    private fun normalizeKey(value: String): String {
-        return value
-            .lowercase()
-            .replace(Regex("[^\\p{L}\\p{Nd}\\s]"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
     }
 
     private fun resolveModelPath(prefs: com.andrewwin.sumup.data.local.entities.UserPreferences): String? {

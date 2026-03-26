@@ -42,6 +42,7 @@ import com.andrewwin.sumup.domain.usecase.GenerateSummaryUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.ai.SummarizationEngineUseCase
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCaseImpl
 import dagger.Module
@@ -249,16 +250,12 @@ object AppModule {
     @Singleton
     fun provideGenerateSummaryUseCase(
         articleRepository: ArticleRepository,
-        aiRepository: AiRepository,
-        formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase,
-        buildExtractiveSummaryUseCase: BuildExtractiveSummaryUseCase,
-        userPreferencesRepository: UserPreferencesRepository
+        userPreferencesRepository: UserPreferencesRepository,
+        summarizationEngineUseCase: SummarizationEngineUseCase
     ): GenerateSummaryUseCase = GenerateSummaryUseCaseImpl(
-        articleRepository, 
-        aiRepository, 
-        formatArticleHeadlineUseCase, 
-        buildExtractiveSummaryUseCase,
-        userPreferencesRepository
+        articleRepository,
+        userPreferencesRepository,
+        summarizationEngineUseCase
     )
 
     @Provides

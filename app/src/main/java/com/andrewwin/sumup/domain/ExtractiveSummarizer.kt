@@ -8,12 +8,7 @@ object ExtractiveSummarizer {
         if (text.isBlank()) return emptyList()
         val targetCount = n.coerceAtLeast(1)
 
-        val sentences = extractSentences(text, targetCount + 1)
-        val candidateSentences = if (sentences.size > 1) {
-            sentences.drop(1)
-        } else {
-            sentences
-        }
+        val candidateSentences = extractSentences(text, targetCount + 1)
 
         if (candidateSentences.isEmpty()) return emptyList()
 
@@ -109,9 +104,9 @@ object ExtractiveSummarizer {
         return if (union == 0.0) 0.0 else intersection / union
     }
 
-    private val PRIMARY_SENTENCE_SPLIT_REGEX = Regex("(?<=[.!?…])\\s+|\\n+")
-    private val FALLBACK_SENTENCE_SPLIT_REGEX = Regex("(?<=[;:])\\s+|\\n+")
-    private const val MIN_SUMMARY_SENTENCE_LENGTH_CHARS = 45
+    private val PRIMARY_SENTENCE_SPLIT_REGEX = Regex("(?<=[.!?…])\\s+|(?<=[.!?…])(?=[A-ZА-ЯІЇЄҐ])|\\n+")
+    private val FALLBACK_SENTENCE_SPLIT_REGEX = Regex("(?<=[;:])\\s+|(?<=[;:])(?=[A-ZА-ЯІЇЄҐ])|\\n+")
+    private const val MIN_SUMMARY_SENTENCE_LENGTH_CHARS = 20
     private val FOOTER_PATTERNS = listOf(
         Regex("підписатися\\s+на"),
         Regex("подписат(ь|и)ся\\s+на"),

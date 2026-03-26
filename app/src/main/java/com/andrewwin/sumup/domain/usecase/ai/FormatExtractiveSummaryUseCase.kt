@@ -23,6 +23,7 @@ class FormatExtractiveSummaryUseCase @Inject constructor(
         val normalizedTitle = normalizeForCompare(title)
         val filteredSentences = sentences
             .map { it.trim() }
+            .flatMap { splitToSingleSentences(it) }
             .filter { it.isNotBlank() }
             .filterNot { isTitleDuplicate(it, normalizedTitle) }
             .ifEmpty { listOf(sentences.maxBy { it.length }.trim()) }
@@ -59,5 +60,16 @@ class FormatExtractiveSummaryUseCase @Inject constructor(
             .trim()
             .removeSuffix(".")
             .removeSuffix(":")
+    }
+
+    private fun splitToSingleSentences(value: String): List<String> {
+        return value
+            .split(SENTENCE_SPLIT_REGEX)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+    }
+
+    companion object {
+        private val SENTENCE_SPLIT_REGEX = Regex("(?<=[.!?…])\\s+|(?<=[.!?…])(?=[A-ZА-ЯІЇЄҐ])|\\n+")
     }
 }

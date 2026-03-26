@@ -9,6 +9,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -419,21 +420,23 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
                     verticalAlignment = Alignment.Top
                 ) {
                     if (isExpanded && !isError) {
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(end = 8.dp)
-                                .animateContentSize(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            sections.forEachIndexed { index, section ->
+                        val allSummaryText = sections.joinToString("\n\n") { it.body }
+                        val uniqueSources = sections.mapNotNull { it.source }.distinctBy { "${it.name}|${it.url}" }
+                        SelectionContainer {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp)
+                                    .animateContentSize(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
                                 Text(
-                                    text = section.body,
+                                    text = allSummaryText,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurface,
                                     lineHeight = 24.sp
                                 )
-                                section.source?.let { source ->
+                                uniqueSources.forEach { source ->
                                     AssistChip(
                                         onClick = { onOpenWebView(normalizeForWebView(source.url)) },
                                         shape = RoundedCornerShape(14.dp),
@@ -453,25 +456,24 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
                                         }
                                     )
                                 }
-                                if (index != sections.lastIndex) {
-                                    Spacer(Modifier.height(6.dp))
-                                }
                             }
                         }
                     } else {
-                        Text(
-                            text = sections.joinToString("\n\n") { it.body },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (isError) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(end = 8.dp)
-                                .animateContentSize(),
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                            lineHeight = 24.sp
-                        )
+                        SelectionContainer {
+                            Text(
+                                text = sections.joinToString("\n\n") { it.body },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (isError) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp)
+                                    .animateContentSize(),
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                                lineHeight = 24.sp
+                            )
+                        }
                     }
 
                     FilledIconButton(

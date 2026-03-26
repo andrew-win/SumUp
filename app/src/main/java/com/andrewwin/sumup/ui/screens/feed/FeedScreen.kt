@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -88,8 +89,6 @@ fun FeedScreen(
 
     var articleForAi by remember { mutableStateOf<ArticleUiModel?>(null) }
     var isFeedAiActive by remember { mutableStateOf(false) }
-    var isCompareAiActive by remember { mutableStateOf(false) }
-    var clusterForAiCompare by remember { mutableStateOf<ArticleClusterUiModel?>(null) }
     var userQuestion by remember { mutableStateOf("") }
     var expandedImageUrl by remember { mutableStateOf<String?>(null) }
 
@@ -168,8 +167,8 @@ fun FeedScreen(
                 FloatingActionButton(
                     onClick = {
                         isFeedAiActive = true
-                        isCompareAiActive = false
-                        clusterForAiCompare = null
+                        articleForAi = null
+                        viewModel.openCachedFeedSummary()
                     },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -269,18 +268,13 @@ fun FeedScreen(
                             onAiClick = {
                                 articleForAi = it
                                 isFeedAiActive = false
-                                isCompareAiActive = false
-                                clusterForAiCompare = null
-                                viewModel.clearAiResult()
+                                viewModel.openCachedArticleSummary(it.article)
                             },
-                            onCompareClick = {
-                                articleForAi = null
-                                isFeedAiActive = true
-                                isCompareAiActive = true
-                                clusterForAiCompare = cluster
+                            onClusterAiClick = {
+                                articleForAi = cluster.representative
+                                isFeedAiActive = false
                                 userQuestion = ""
-                                viewModel.clearAiResult()
-                                viewModel.compareCluster(cluster)
+                                viewModel.openCachedClusterSummary(cluster)
                             },
                             onToggleSaved = {
                                 val willBeAddedToSaved = !it.article.isFavorite
@@ -307,8 +301,6 @@ fun FeedScreen(
                 onDismissRequest = {
                     articleForAi = null
                     isFeedAiActive = false
-                    isCompareAiActive = false
-                    clusterForAiCompare = null
                     viewModel.clearAiResult()
                     userQuestion = ""
                 },
@@ -335,7 +327,6 @@ fun FeedScreen(
                         ) {
                             Text(
                                 text = when {
-                                    isCompareAiActive -> stringResource(R.string.feed_compare_similar_news)
                                     isFeedAiActive -> stringResource(R.string.ai_summarize_feed)
                                     else -> stringResource(R.string.ai_summarize_article)
                                 },
@@ -345,8 +336,6 @@ fun FeedScreen(
                                 onClick = {
                                     articleForAi = null
                                     isFeedAiActive = false
-                                    isCompareAiActive = false
-                                    clusterForAiCompare = null
                                     viewModel.clearAiResult()
                                     userQuestion = ""
                                 }
@@ -370,33 +359,35 @@ fun FeedScreen(
                                 }
                             } else if (aiResult != null) {
                                 val sections = parseSummarySections(aiResult.orEmpty())
+                                val allSummaryText = sections.joinToString("\n\n") { it.body }
+                                val uniqueSources = sections.mapNotNull { it.source }.distinctBy { "${it.name}|${it.url}" }
                                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    sections.forEach { section ->
+                                    SelectionContainer {
                                         Text(
-                                            text = section.body,
+                                            text = allSummaryText,
                                             style = MaterialTheme.typography.bodyMedium,
                                             lineHeight = 28.sp
                                         )
-                                        section.source?.let { source ->
-                                            AssistChip(
-                                                onClick = { onOpenWebView(normalizeForWebView(source.url)) },
-                                                shape = RoundedCornerShape(14.dp),
-                                                label = {
-                                                    Text(
-                                                        source.name,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Link,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                }
-                                            )
-                                        }
+                                    }
+                                    uniqueSources.forEach { source ->
+                                        AssistChip(
+                                            onClick = { onOpenWebView(normalizeForWebView(source.url)) },
+                                            shape = RoundedCornerShape(14.dp),
+                                            label = {
+                                                Text(
+                                                    source.name,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.Link,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        )
                                     }
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -451,9 +442,7 @@ fun FeedScreen(
                                 shape = MaterialTheme.shapes.large,
                                 trailingIcon = {
                                     IconButton(onClick = {
-                                        if (isCompareAiActive) {
-                                            clusterForAiCompare?.let { viewModel.compareCluster(it) }
-                                        } else if (isFeedAiActive) viewModel.askFeed(userQuestion)
+                                        if (isFeedAiActive) viewModel.askFeed(userQuestion)
                                         else articleForAi?.let { viewModel.askQuestion(it.article, userQuestion) }
                                     }) {
                                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
@@ -466,10 +455,18 @@ fun FeedScreen(
                             Spacer(Modifier.height(12.dp))
                             Button(
                                 onClick = {
-                                    if (isCompareAiActive) {
-                                        clusterForAiCompare?.let { viewModel.compareCluster(it) }
-                                    } else if (isFeedAiActive) viewModel.summarizeFeed()
-                                    else articleForAi?.let { viewModel.summarizeArticle(it.article) }
+                                    if (isFeedAiActive) {
+                                        viewModel.summarizeFeed(forceRefresh = true)
+                                    } else {
+                                        val cluster = articleClusters.firstOrNull { c ->
+                                            c.representative.article.id == articleForAi?.article?.id
+                                        }
+                                        if (cluster != null && cluster.duplicates.isNotEmpty()) {
+                                            viewModel.summarizeCluster(cluster, forceRefresh = true)
+                                        } else {
+                                            articleForAi?.let { viewModel.summarizeArticle(it.article, forceRefresh = true) }
+                                        }
+                                    }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = MaterialTheme.shapes.large,
@@ -479,7 +476,6 @@ fun FeedScreen(
                                 Spacer(Modifier.width(12.dp))
                                 Text(
                                     text = when {
-                                        isCompareAiActive -> stringResource(R.string.feed_compare_similar_news)
                                         isFeedAiActive -> stringResource(R.string.ai_summarize_feed)
                                         else -> stringResource(R.string.ai_summarize_article)
                                     },
@@ -803,7 +799,7 @@ fun ArticleClusterCard(
     onMediaClick: (String) -> Unit,
     onOpenSource: (ArticleUiModel) -> Unit,
     onAiClick: (ArticleUiModel) -> Unit,
-    onCompareClick: () -> Unit,
+    onClusterAiClick: () -> Unit,
     onToggleSaved: (ArticleUiModel) -> Unit,
     isDedupInProgress: Boolean,
     minMentions: Int
@@ -835,9 +831,9 @@ fun ArticleClusterCard(
                     isDescriptionEnabled = isDescriptionEnabled,
                     onMediaClick = onMediaClick,
                     onOpenSource = { onOpenSource(cluster.representative) },
-                    onAiClick = { onAiClick(cluster.representative) },
-                    onCompareClick = onCompareClick,
-                    hasSimilarNews = cluster.duplicates.isNotEmpty(),
+                    onAiClick = {
+                        if (cluster.duplicates.isNotEmpty()) onClusterAiClick() else onAiClick(cluster.representative)
+                    },
                     onToggleSaved = { onToggleSaved(cluster.representative) }
                 )
 
@@ -904,8 +900,6 @@ fun ArticleItem(
     onMediaClick: (String) -> Unit,
     onOpenSource: () -> Unit,
     onAiClick: () -> Unit,
-    onCompareClick: () -> Unit,
-    hasSimilarNews: Boolean,
     onToggleSaved: () -> Unit
 ) {
     val context = LocalContext.current
@@ -987,20 +981,6 @@ fun ArticleItem(
             ActionChip(
                 onClick = onAiClick,
                 icon = { Icon(painterResource(R.drawable.ic_ask_ai), contentDescription = null, modifier = Modifier.size(18.dp)) },
-                modifier = Modifier.weight(1f),
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            ActionChip(
-                onClick = onCompareClick,
-                enabled = hasSimilarNews,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.CompareArrows,
-                        contentDescription = stringResource(R.string.feed_compare_similar_news),
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
                 modifier = Modifier.weight(1f),
                 containerColor = MaterialTheme.colorScheme.surfaceVariant,
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant

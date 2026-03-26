@@ -12,6 +12,7 @@ import com.andrewwin.sumup.domain.exception.NoActiveModelException
 import com.andrewwin.sumup.domain.exception.UnsupportedStrategyException
 import com.andrewwin.sumup.domain.provider.AiPromptProvider
 import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.domain.usecase.ai.AiJsonResponseParser
 import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -90,10 +91,14 @@ class AiRepositoryImpl @Inject constructor(
                 } else {
                     aiPromptProvider.defaultSummaryPrompt()
                 }
-                val strengthenedPrompt = buildSummaryPrompt(prompt)
+                val strengthenedPrompt = buildSummaryPrompt(prompt, aiPromptProvider.strictJsonInstruction())
 
                 val response = aiService.generateResponse(config, strengthenedPrompt, cloudInput)
-                return formatCloudSummary(response, truncatedContent, summaryPointsPerNews)
+                return runCatching {
+                    formatCloudSummary(response, truncatedContent, summaryPointsPerNews)
+                }.getOrElse {
+                    continue
+                }
             } catch (e: com.andrewwin.sumup.domain.exception.AiServiceException) {
                 continue
             } catch (e: Exception) {
@@ -117,7 +122,17 @@ class AiRepositoryImpl @Inject constructor(
 
         for (config in enabledConfigs) {
             try {
-                val prompt = "${aiPromptProvider.questionPromptPrefix()} $question\n\n${aiPromptProvider.questionPromptSuffix()}"
+                val prompt = buildString {
+                    append(aiPromptProvider.questionPromptPrefix())
+                    append(' ')
+                    append(question)
+                    append("\n\n")
+                    append(aiPromptProvider.questionPromptSuffix())
+                    append("\n\n")
+                    append(aiPromptProvider.strictJsonInstruction())
+                    append("\n")
+                    append("Return JSON object with fields: answer (string), statements (array of {text, sources}), sources (array).")
+                }
                 return aiService.generateResponse(config, prompt, content.take(maxTotalChars))
             } catch (e: com.andrewwin.sumup.domain.exception.AiServiceException) {
                 continue
@@ -192,36 +207,46 @@ class AiRepositoryImpl @Inject constructor(
         sourceContent: String,
         pointsPerNews: Int
     ): String {
+        val parsed = AiJsonResponseParser.parseSummary(response)
         val sourceBlocks = parseTitledBlocks(sourceContent)
-        if (sourceBlocks.isEmpty()) {
-            val bullets = response
-                .lines()
+        val rendered = mutableListOf<String>()
+        val perItemLimit = pointsPerNews.coerceAtLeast(1)
+
+        parsed.items.forEach { item ->
+            val title = sanitizeSectionTitle(item.title ?: parsed.headline ?: DEFAULT_TITLE)
+            val bullets = item.bullets
                 .map { normalizeBulletLine(it) }
                 .filter { it.isNotBlank() }
-                .take(pointsPerNews.coerceAtLeast(1))
-            return bullets.joinToString("\n") { "$bulletSymbol $it" }
+                .distinctBy { normalizeComparable(it) }
+                .take(perItemLimit)
+            if (bullets.isEmpty()) return@forEach
+            rendered += "$title:\n${bullets.joinToString("\n") { "$bulletSymbol $it" }}"
         }
 
-        val normalizedResponseLines = response
-            .lines()
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-
-        val sections = sourceBlocks.map { (title, body) ->
-            val cloudPoints = extractPointsForTitle(
-                title = title,
-                lines = normalizedResponseLines,
-                maxPoints = pointsPerNews
-            )
-            val points = if (cloudPoints.isNotEmpty()) {
-                cloudPoints
-            } else {
-                ExtractiveSummarizer.summarize(body, pointsPerNews.coerceAtLeast(1))
+        if (sourceBlocks.isNotEmpty() && rendered.size < sourceBlocks.size) {
+            val existingTitles = rendered.map { section ->
+                normalizeComparable(section.lineSequence().firstOrNull().orEmpty().removeSuffix(":"))
+            }.toSet()
+            val missing = sourceBlocks.filter { (title, _) ->
+                normalizeComparable(title) !in existingTitles
             }
-            buildSection(title, points)
+            missing.forEach { (title, body) ->
+                val fallbackBullets = ExtractiveSummarizer
+                    .summarize(body, perItemLimit)
+                    .map { normalizeBulletLine(it) }
+                    .filter { it.isNotBlank() }
+                    .distinctBy { normalizeComparable(it) }
+                    .take(perItemLimit)
+                if (fallbackBullets.isNotEmpty()) {
+                    rendered += "${sanitizeSectionTitle(title)}:\n${fallbackBullets.joinToString("\n") { "$bulletSymbol $it" }}"
+                }
+            }
         }
 
-        return sections.filter { it.isNotBlank() }.joinToString("\n\n")
+        if (rendered.isEmpty()) {
+            throw IllegalStateException("Cloud summary JSON items are empty after normalization.")
+        }
+        return rendered.joinToString("\n\n")
     }
 
     private fun normalizeBulletLine(line: String): String {
@@ -316,19 +341,28 @@ class AiRepositoryImpl @Inject constructor(
         return FOOTER_PATTERNS.any { it.containsMatchIn(compact) }
     }
 
-    private fun buildSummaryPrompt(basePrompt: String): String {
+    private fun buildSummaryPrompt(basePrompt: String, strictJsonInstruction: String): String {
         val strictRules = """
             |
-            |Формат відповіді суворо:
-            |Заголовок:
-            |• пункт
-            |• пункт
+            |$strictJsonInstruction
             |
-            |Вимоги:
-            |- Не дублюй заголовок у пунктах.
-            |- Не використовуй занадто короткі речення та фрагменти.
-            |- Ігноруй футери/заклики типу "Підписатися на ...", посилання каналів, службові рядки.
-            |- Залишай тільки зміст новини.
+            |Return JSON object only:
+            |{
+            |  "headline": "string",
+            |  "items": [
+            |    {
+            |      "title": "string",
+            |      "bullets": ["point 1", "point 2"],
+            |      "source": "optional source name"
+            |    }
+            |  ]
+            |}
+            |Rules:
+            |- bullets must be concise factual statements.
+            |- use the same language as the source content.
+            |- if the input has multiple article blocks, return one item per block/article.
+            |- avoid duplicated bullets and near-duplicates.
+            |- no markdown or extra prose outside JSON.
         """.trimMargin()
         return "$basePrompt\n\n$strictRules"
     }

@@ -16,7 +16,6 @@ import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.ai.AskQuestionUseCase
-import com.andrewwin.sumup.domain.usecase.ai.CompareArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.ai.SummarizeContentUseCase
 import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
 import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
@@ -47,12 +46,12 @@ class FeedViewModel @Inject constructor(
     private val refreshArticlesUseCase: RefreshArticlesUseCase,
     private val getFeedArticlesUseCase: GetFeedArticlesUseCase,
     private val summarizeContentUseCase: SummarizeContentUseCase,
-    private val compareArticlesUseCase: CompareArticlesUseCase,
     private val askQuestionUseCase: AskQuestionUseCase,
     private val sourceRepository: SourceRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val feedUiModelMapper: FeedUiModelMapper
 ) : AndroidViewModel(application) {
+    private val aiSessionCache = mutableMapOf<String, String>()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -171,22 +170,65 @@ class FeedViewModel @Inject constructor(
         }
     }
 
-    fun summarizeArticle(article: Article) = launchAi { summarizeContentUseCase(article) }
-
     fun summarizeContent(content: String) = launchAi { summarizeContentUseCase(content) }
 
     fun askQuestion(article: Article, question: String) = launchAi { askQuestionUseCase(article, question) }
 
     fun askQuestion(content: String, question: String) = launchAi { askQuestionUseCase(content, question) }
 
-    fun summarizeFeed() {
-        val articles = articleClusters.value.map { it.representative.article }
-        if (articles.isNotEmpty()) launchAi { summarizeContentUseCase(articles) }
+    fun openCachedArticleSummary(article: Article) {
+        _aiResult.value = aiSessionCache["article:${article.id}"]
     }
 
-    fun compareCluster(cluster: ArticleClusterUiModel) {
-        if (cluster.duplicates.isEmpty()) return
-        launchAi { compareArticlesUseCase(cluster) }
+    fun openCachedFeedSummary() {
+        _aiResult.value = aiSessionCache[buildFeedCacheKey()]
+    }
+
+    fun openCachedClusterSummary(cluster: ArticleClusterUiModel) {
+        _aiResult.value = aiSessionCache[buildCompareCacheKey(cluster)]
+    }
+
+    fun summarizeArticle(article: Article, forceRefresh: Boolean = false) {
+        val cacheKey = "article:${article.id}"
+        if (!forceRefresh) {
+            aiSessionCache[cacheKey]?.let {
+                _aiResult.value = it
+                return
+            }
+        }
+        launchAi {
+            summarizeContentUseCase(article).onSuccess { aiSessionCache[cacheKey] = it }
+        }
+    }
+
+    fun summarizeCluster(cluster: ArticleClusterUiModel, forceRefresh: Boolean = false) {
+        val representative = cluster.representative.article
+        val duplicates = cluster.duplicates.map { it.first.article }
+        val cacheKey = buildCompareCacheKey(cluster)
+        if (!forceRefresh) {
+            aiSessionCache[cacheKey]?.let {
+                _aiResult.value = it
+                return
+            }
+        }
+        launchAi {
+            summarizeContentUseCase(representative, duplicates).onSuccess { aiSessionCache[cacheKey] = it }
+        }
+    }
+
+    fun summarizeFeed(forceRefresh: Boolean = false) {
+        val articles = articleClusters.value.map { it.representative.article }
+        if (articles.isEmpty()) return
+        val cacheKey = buildFeedCacheKey()
+        if (!forceRefresh) {
+            aiSessionCache[cacheKey]?.let {
+                _aiResult.value = it
+                return
+            }
+        }
+        launchAi {
+            summarizeContentUseCase(articles).onSuccess { aiSessionCache[cacheKey] = it }
+        }
     }
 
     fun askFeed(question: String) {
@@ -205,6 +247,16 @@ class FeedViewModel @Inject constructor(
             is UnsupportedStrategyException -> context.getString(R.string.error_unsupported_strategy)
             else -> "${context.getString(R.string.ai_error_prefix)} ${e.localizedMessage.orEmpty()}"
         }
+    }
+
+    private fun buildCompareCacheKey(cluster: ArticleClusterUiModel): String {
+        val duplicateIds = cluster.duplicates.map { it.first.article.id }.sorted()
+        return "compare:${cluster.representative.article.id}:${duplicateIds.joinToString(",")}"
+    }
+
+    private fun buildFeedCacheKey(): String {
+        val articleIds = articleClusters.value.map { it.representative.article.id }
+        return "feed:${articleIds.joinToString(",")}"
     }
 
     private data class FeedUiState(
