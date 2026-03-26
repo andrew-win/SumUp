@@ -34,3 +34,9 @@ class SumUpApp : Application(), Configuration.Provider {
             .setWorkerFactory(workerFactory)
             .build()
 }
+
+
+
+
+
+

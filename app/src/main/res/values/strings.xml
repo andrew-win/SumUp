@@ -127,6 +127,10 @@
     <string name="settings_language">Мова</string>
     <string name="settings_language_uk">Українська</string>
     <string name="settings_language_en">English</string>
+    <string name="settings_summary_language">Мова сумаризації</string>
+    <string name="settings_summary_language_original">Оригінал</string>
+    <string name="settings_summary_language_uk">Українська</string>
+    <string name="settings_summary_language_en">English</string>
     <string name="settings_theme">Тема</string>
     <string name="settings_theme_system">Системна</string>
     <string name="settings_theme_light">Світла</string>
@@ -225,7 +229,7 @@
     <string name="feed_pdf_generated">Згенеровано: %s</string>
     <string name="feed_pdf_item_header">%s</string>
     <string name="feed_pdf_item_meta">%1$s · %2$s</string>
-    <string name="summary_prompt_default">Зроби стислий підсумок цієї новини українською мовою:</string>
+    <string name="summary_prompt_default">Зроби стислий підсумок цієї новини:</string>
     <string name="ai_question_prompt_prefix">Дай відповідь на питання:</string>
     <string name="ai_question_prompt_suffix">Базуючись на цьому тексті:</string>
     <string name="provider_gemini">Gemini</string>

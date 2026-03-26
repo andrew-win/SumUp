@@ -101,3 +101,9 @@ class ExtractiveSummarizerImpl : ExtractiveSummarizer {
         return if (magnitudeA == 0.0 || magnitudeB == 0.0) 0.0 else dotProduct / (sqrt(magnitudeA) * sqrt(magnitudeB))
     }
 }
+
+
+
+
+
+

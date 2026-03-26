@@ -17,3 +17,9 @@ data class AiModelConfig(
     val isEnabled: Boolean = true,
     val type: AiModelType = AiModelType.SUMMARY
 )
+
+
+
+
+
+

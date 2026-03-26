@@ -17,30 +17,32 @@ import com.andrewwin.sumup.data.remote.RssParser
 import com.andrewwin.sumup.data.remote.TelegramParser
 import com.andrewwin.sumup.data.remote.WebsiteParser
 import com.andrewwin.sumup.data.remote.YouTubeParser
-import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
+import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
 import com.andrewwin.sumup.data.repository.AiRepositoryImpl
 import com.andrewwin.sumup.data.repository.ArticleRepositoryImpl
 import com.andrewwin.sumup.data.repository.ModelRepositoryImpl
 import com.andrewwin.sumup.data.repository.SourceRepositoryImpl
+import com.andrewwin.sumup.data.repository.SuggestedThemesStateRepositoryImpl
 import com.andrewwin.sumup.data.repository.SummaryRepositoryImpl
 import com.andrewwin.sumup.data.repository.UserPreferencesRepositoryImpl
-import com.andrewwin.sumup.domain.ArticleImportanceScorer
-import com.andrewwin.sumup.domain.DeduplicationService
-import com.andrewwin.sumup.domain.provider.AiPromptProvider
+import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.service.DeduplicationService
+import com.andrewwin.sumup.domain.support.AiPromptProvider
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.ModelRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
+import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.BuildExtractiveSummaryUseCase
-import com.andrewwin.sumup.domain.usecase.CleanArticleTextUseCase
-import com.andrewwin.sumup.domain.usecase.FormatArticleHeadlineUseCase
-import com.andrewwin.sumup.domain.usecase.GenerateSummaryUseCase
-import com.andrewwin.sumup.domain.usecase.GenerateSummaryUseCaseImpl
-import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCase
-import com.andrewwin.sumup.domain.usecase.RefreshArticlesUseCaseImpl
+import com.andrewwin.sumup.domain.usecase.common.BuildExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
+import com.andrewwin.sumup.domain.usecase.common.FormatArticleHeadlineUseCase
+import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCaseImpl
+import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
+import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.ai.SummarizationEngineUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
@@ -196,6 +198,12 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideSuggestedThemesStateRepository(
+        @ApplicationContext context: Context
+    ): SuggestedThemesStateRepository = SuggestedThemesStateRepositoryImpl(context)
+
+    @Provides
+    @Singleton
     fun provideManageModelUseCase(modelRepository: ModelRepository): ManageModelUseCase =
         ManageModelUseCaseImpl(modelRepository)
 
@@ -226,12 +234,12 @@ object AppModule {
     fun provideRefreshFeedUseCase(
         refreshArticlesUseCase: RefreshArticlesUseCase,
         getSuggestedThemesUseCase: GetSuggestedThemesUseCase,
-        @ApplicationContext context: Context,
-        dispatcherProvider: com.andrewwin.sumup.domain.coroutines.DispatcherProvider
+        suggestedThemesStateRepository: SuggestedThemesStateRepository,
+        dispatcherProvider: com.andrewwin.sumup.domain.support.DispatcherProvider
     ): RefreshFeedUseCase = RefreshFeedUseCaseImpl(
         refreshArticlesUseCase = refreshArticlesUseCase,
         getSuggestedThemesUseCase = getSuggestedThemesUseCase,
-        context = context,
+        suggestedThemesStateRepository = suggestedThemesStateRepository,
         dispatcherProvider = dispatcherProvider
     )
 
@@ -247,14 +255,14 @@ object AppModule {
     @Provides
     @Singleton
     fun provideCleanArticleTextUseCase(
-        dispatcherProvider: com.andrewwin.sumup.domain.coroutines.DispatcherProvider
+        dispatcherProvider: com.andrewwin.sumup.domain.support.DispatcherProvider
     ): CleanArticleTextUseCase = CleanArticleTextUseCase(dispatcherProvider)
 
     @Provides
     @Singleton
     fun provideBuildExtractiveSummaryUseCase(
         formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase,
-        dispatcherProvider: com.andrewwin.sumup.domain.coroutines.DispatcherProvider
+        dispatcherProvider: com.andrewwin.sumup.domain.support.DispatcherProvider
     ): BuildExtractiveSummaryUseCase = BuildExtractiveSummaryUseCase(formatExtractiveSummaryUseCase, dispatcherProvider)
 
     @Provides
@@ -287,6 +295,12 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideDispatcherProvider(): com.andrewwin.sumup.domain.coroutines.DispatcherProvider =
+    fun provideDispatcherProvider(): com.andrewwin.sumup.domain.support.DispatcherProvider =
         com.andrewwin.sumup.data.coroutines.AppDispatcherProvider()
 }
+
+
+
+
+
+

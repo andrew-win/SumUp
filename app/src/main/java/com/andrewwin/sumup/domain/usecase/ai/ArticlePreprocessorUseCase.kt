@@ -2,7 +2,7 @@ package com.andrewwin.sumup.domain.usecase.ai
 
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.domain.ExtractiveSummarizer
+import com.andrewwin.sumup.domain.service.ExtractiveSummarizer
 import javax.inject.Inject
 
 class ArticlePreprocessorUseCase @Inject constructor() {
@@ -62,3 +62,12 @@ class ArticlePreprocessorUseCase @Inject constructor() {
         return (sentenceCount * ratio).toInt().coerceAtLeast(1)
     }
 }
+
+
+
+
+
+
+
+
+

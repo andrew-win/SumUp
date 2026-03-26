@@ -16,3 +16,9 @@ class SummaryRepositoryImpl @Inject constructor(
         summaryDao.insertSummary(summary)
     }
 }
+
+
+
+
+
+

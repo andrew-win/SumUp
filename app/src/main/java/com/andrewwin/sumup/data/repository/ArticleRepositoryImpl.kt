@@ -5,9 +5,9 @@ import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
-import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
+import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.usecase.CleanArticleTextUseCase
+import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -134,3 +134,9 @@ class ArticleRepositoryImpl @Inject constructor(
         articleSimilarityDao.deleteAll()
     }
 }
+
+
+
+
+
+

@@ -5,3 +5,9 @@ interface EmbeddingService {
     suspend fun getEmbedding(text: String): FloatArray
     fun close()
 }
+
+
+
+
+
+

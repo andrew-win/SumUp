@@ -4,9 +4,9 @@ import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.domain.ArticleCluster
-import com.andrewwin.sumup.domain.ArticleImportanceScorer
-import com.andrewwin.sumup.domain.DeduplicationService
+import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.service.ArticleCluster
+import com.andrewwin.sumup.domain.service.DeduplicationService
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
@@ -290,3 +290,12 @@ class GetFeedArticlesUseCase @Inject constructor(
         private const val DEDUP_EMIT_EVERY = 32
     }
 }
+
+
+
+
+
+
+
+
+

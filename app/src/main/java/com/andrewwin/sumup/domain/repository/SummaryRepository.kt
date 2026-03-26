@@ -7,3 +7,9 @@ interface SummaryRepository {
     val allSummaries: Flow<List<Summary>>
     suspend fun insertSummary(summary: Summary)
 }
+
+
+
+
+
+

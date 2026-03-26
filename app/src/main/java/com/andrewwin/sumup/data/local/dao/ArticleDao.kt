@@ -140,3 +140,9 @@ data class ArticleEmbedding(
     val id: Long,
     val embedding: ByteArray?
 )
+
+
+
+
+
+

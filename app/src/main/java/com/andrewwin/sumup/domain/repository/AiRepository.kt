@@ -17,3 +17,9 @@ interface AiRepository {
     suspend fun embed(text: String): FloatArray?
     suspend fun hasEnabledEmbeddingConfig(): Boolean
 }
+
+
+
+
+
+

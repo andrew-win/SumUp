@@ -18,65 +18,65 @@ object AiJsonResponseParser {
 
     fun parseSummary(raw: String): SummaryResponseJson {
         val obj = JSONObject(extractJson(raw))
-        val itemsArray = obj.optJSONArray("items") ?: JSONArray()
+        val itemsArray = obj.optJSONArray(AiJsonContract.ITEMS) ?: JSONArray()
         val items = buildList {
             for (i in 0 until itemsArray.length()) {
                 val item = itemsArray.optJSONObject(i) ?: continue
                 add(
                     SummaryItemJson(
-                        title = item.optString("title").ifBlank { null },
-                        bullets = readStringArray(item.opt("bullets")),
-                        source = item.optString("source").ifBlank { null }
+                        title = item.optString(AiJsonContract.TITLE).ifBlank { null },
+                        bullets = readStringArray(item.opt(AiJsonContract.BULLETS)),
+                        source = item.optString(AiJsonContract.SOURCE).ifBlank { null }
                     )
                 )
             }
         }
         return SummaryResponseJson(
-            headline = obj.optString("headline").ifBlank { null },
+            headline = obj.optString(AiJsonContract.HEADLINE).ifBlank { null },
             items = items
         )
     }
 
     fun parseQa(raw: String): QaResponseJson {
         val obj = JSONObject(extractJson(raw))
-        val statementsArray = obj.optJSONArray("statements") ?: JSONArray()
+        val statementsArray = obj.optJSONArray(AiJsonContract.STATEMENTS) ?: JSONArray()
         val statements = buildList {
             for (i in 0 until statementsArray.length()) {
                 val item = statementsArray.optJSONObject(i) ?: continue
-                val text = item.optString("text").trim()
+                val text = item.optString(AiJsonContract.TEXT).trim()
                 if (text.isBlank()) continue
                 add(
                     QaStatementJson(
                         text = text,
-                        sources = readStringArray(item.opt("sources"))
+                        sources = readStringArray(item.opt(AiJsonContract.SOURCES))
                     )
                 )
             }
         }
         return QaResponseJson(
-            answer = obj.optString("answer").ifBlank { null },
-            sources = readStringArray(obj.opt("sources")),
+            answer = obj.optString(AiJsonContract.ANSWER).ifBlank { null },
+            sources = readStringArray(obj.opt(AiJsonContract.SOURCES)),
             statements = statements
         )
     }
 
     fun parseCompare(raw: String): CompareResponseJson {
         val obj = JSONObject(extractJson(raw))
-        val itemsArray = obj.optJSONArray("items") ?: JSONArray()
+        val itemsArray = obj.optJSONArray(AiJsonContract.ITEMS) ?: JSONArray()
         val items = buildList {
             for (i in 0 until itemsArray.length()) {
                 val item = itemsArray.optJSONObject(i) ?: continue
                 add(
                     CompareItemJson(
-                        sourceId = item.opt("source_id")?.toString()?.trim()?.ifBlank { null },
-                        common = readStringArray(item.opt("common")),
-                        different = readStringArray(item.opt("different"))
+                        sourceId = item.opt(AiJsonContract.SOURCE_ID)?.toString()?.trim()?.ifBlank { null },
+                        common = readStringArray(item.opt(AiJsonContract.COMMON)),
+                        different = readStringArray(item.opt(AiJsonContract.DIFFERENT))
                     )
                 )
             }
         }
         return CompareResponseJson(
-            headline = obj.optString("headline").ifBlank { null },
+            headline = obj.optString(AiJsonContract.HEADLINE).ifBlank { null },
             items = items
         )
     }
@@ -94,3 +94,12 @@ object AiJsonResponseParser {
         }
     }
 }
+
+
+
+
+
+
+
+
+

@@ -37,3 +37,9 @@ data class Article(
     @ColumnInfo(name = "embedding", typeAffinity = ColumnInfo.BLOB)
     val embedding: ByteArray? = null
 )
+
+
+
+
+
+

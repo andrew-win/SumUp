@@ -6,7 +6,7 @@ import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.ui.screens.feed.model.ArticleUiModel
+import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.URL
@@ -116,3 +116,9 @@ object PdfExporter {
         }
     }
 }
+
+
+
+
+
+

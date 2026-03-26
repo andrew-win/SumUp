@@ -20,3 +20,9 @@ interface ArticleRepository {
     suspend fun clearEmbeddings()
     suspend fun clearSimilarities()
 }
+
+
+
+
+
+

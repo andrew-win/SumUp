@@ -2,13 +2,13 @@ package com.andrewwin.sumup.domain.usecase.ai
 
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.domain.ExtractiveSummarizer
-import com.andrewwin.sumup.domain.coroutines.DispatcherProvider
+import com.andrewwin.sumup.domain.service.ExtractiveSummarizer
+import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.summary.SummarySourceMeta
-import com.andrewwin.sumup.ui.screens.feed.model.ArticleClusterUiModel
-import com.andrewwin.sumup.ui.screens.feed.model.ArticleUiModel
+import com.andrewwin.sumup.domain.support.SummarySourceMeta
+import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
+import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -271,3 +271,12 @@ class CompareArticlesUseCase @Inject constructor(
         }
     }
 }
+
+
+
+
+
+
+
+
+

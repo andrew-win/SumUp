@@ -32,3 +32,9 @@ data class ArticleSimilarity(
     val score: Float,
     val updatedAt: Long = System.currentTimeMillis()
 )
+
+
+
+
+
+

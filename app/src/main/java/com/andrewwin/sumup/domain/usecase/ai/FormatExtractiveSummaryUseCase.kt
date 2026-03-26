@@ -75,3 +75,12 @@ class FormatExtractiveSummaryUseCase @Inject constructor(
         private val SENTENCE_SPLIT_REGEX = Regex("(?<=[.!?…])\\s+|(?<=[.!?…])(?=[A-ZА-ЯІЇЄҐ])|\\n+")
     }
 }
+
+
+
+
+
+
+
+
+

@@ -17,3 +17,9 @@ interface ArticleSimilarityDao {
     @Query("DELETE FROM article_similarities")
     suspend fun deleteAll()
 }
+
+
+
+
+
+

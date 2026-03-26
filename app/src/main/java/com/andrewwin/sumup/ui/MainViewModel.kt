@@ -17,3 +17,9 @@ class MainViewModel @Inject constructor(
     val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.preferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
 }
+
+
+
+
+
+

@@ -277,3 +277,9 @@ data class TelegramParseResult(
     val articles: List<Article>,
     val debug: List<TelegramParseDebug>
 )
+
+
+
+
+
+

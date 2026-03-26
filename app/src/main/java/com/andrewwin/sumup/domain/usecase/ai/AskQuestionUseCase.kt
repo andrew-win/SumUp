@@ -3,7 +3,7 @@ package com.andrewwin.sumup.domain.usecase.ai
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.summary.SummarySourceMeta
+import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import javax.inject.Inject
 
 class AskQuestionUseCase @Inject constructor(
@@ -57,3 +57,12 @@ class AskQuestionUseCase @Inject constructor(
         return sections.joinToString("\n\n")
     }
 }
+
+
+
+
+
+
+
+
+

@@ -11,3 +11,9 @@ data class Summary(
     val createdAt: Long = System.currentTimeMillis(),
     val isError: Boolean = false
 )
+
+
+
+
+
+

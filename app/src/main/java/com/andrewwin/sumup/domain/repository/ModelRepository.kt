@@ -8,3 +8,9 @@ interface ModelRepository {
     fun isModelExists(): Boolean
     fun getModelPath(): String
 }
+
+
+
+
+
+

@@ -32,3 +32,12 @@ data class QaStatementJson(
     val text: String,
     val sources: List<String> = emptyList()
 )
+
+
+
+
+
+
+
+
+

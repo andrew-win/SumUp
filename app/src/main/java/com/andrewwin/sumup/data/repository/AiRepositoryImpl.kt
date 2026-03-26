@@ -5,13 +5,16 @@ import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
+import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.remote.AiService
-import com.andrewwin.sumup.domain.ExtractiveSummarizer
-import com.andrewwin.sumup.domain.exception.NoActiveModelException
-import com.andrewwin.sumup.domain.exception.UnsupportedStrategyException
-import com.andrewwin.sumup.domain.provider.AiPromptProvider
+import com.andrewwin.sumup.domain.service.ExtractiveSummarizer
+import com.andrewwin.sumup.domain.support.AiServiceException
+import com.andrewwin.sumup.domain.support.NoActiveModelException
+import com.andrewwin.sumup.domain.support.UnsupportedStrategyException
+import com.andrewwin.sumup.domain.support.AiPromptProvider
 import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.domain.usecase.ai.AiJsonContract
 import com.andrewwin.sumup.domain.usecase.ai.AiJsonResponseParser
 import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
 import kotlinx.coroutines.flow.Flow
@@ -46,43 +49,16 @@ class AiRepositoryImpl @Inject constructor(
         val summaryPointsPerNews = pointsPerNews
             ?: (prefs?.summaryItemsPerNewsInScheduled ?: DEFAULT_SUMMARY_POINTS_PER_NEWS)
         val truncatedContent = content.take(maxTotalChars)
-        val adaptiveExtractiveOnlyBelowChars =
-            (prefs?.adaptiveExtractiveOnlyBelowChars ?: DEFAULT_ADAPTIVE_EXTRACTIVE_ONLY_BELOW_CHARS).coerceAtLeast(1)
-        val adaptiveExtractiveCompressAboveChars =
-            (prefs?.adaptiveExtractiveCompressAboveChars ?: DEFAULT_ADAPTIVE_EXTRACTIVE_COMPRESS_ABOVE_CHARS).coerceAtLeast(1)
-        val adaptiveExtractiveCompressionPercent =
-            (prefs?.adaptiveExtractiveCompressionPercent ?: DEFAULT_ADAPTIVE_EXTRACTIVE_COMPRESSION_PERCENT).coerceIn(1, 100)
-
         if (strategy == AiStrategy.LOCAL) {
             return formatExtractiveFallback(truncatedContent, summaryPointsPerNews)
         }
 
         val enabledConfigs = aiModelDao.getEnabledConfigsByType(AiModelType.SUMMARY)
-        if (strategy == AiStrategy.ADAPTIVE && truncatedContent.length < adaptiveExtractiveOnlyBelowChars) {
-            return formatExtractiveFallback(truncatedContent, summaryPointsPerNews)
-        }
         if (enabledConfigs.isEmpty()) {
             return formatExtractiveFallback(truncatedContent, summaryPointsPerNews)
         }
 
-        val cloudInput = if (strategy == AiStrategy.ADAPTIVE) {
-            if (truncatedContent.length > adaptiveExtractiveCompressAboveChars) {
-                val extractiveChars =
-                    (truncatedContent.length * (adaptiveExtractiveCompressionPercent.toFloat() / 100f)).toInt().coerceAtLeast(1)
-                val extractiveSentenceEstimate = estimateSentenceCountByTargetLength(
-                    content = truncatedContent,
-                    targetChars = extractiveChars,
-                    defaultSentenceCount = summaryPointsPerNews
-                )
-                ExtractiveSummarizer
-                    .summarize(truncatedContent, extractiveSentenceEstimate)
-                    .joinToString(" ")
-            } else {
-                truncatedContent
-            }
-        } else {
-            truncatedContent
-        }
+        val cloudInput = truncatedContent
 
         for (config in enabledConfigs) {
             try {
@@ -91,7 +67,11 @@ class AiRepositoryImpl @Inject constructor(
                 } else {
                     aiPromptProvider.defaultSummaryPrompt()
                 }
-                val strengthenedPrompt = buildSummaryPrompt(prompt, aiPromptProvider.strictJsonInstruction())
+                val strengthenedPrompt = buildSummaryPrompt(
+                    basePrompt = prompt,
+                    strictJsonInstruction = aiPromptProvider.strictJsonInstruction(),
+                    summaryLanguage = prefs?.summaryLanguage ?: SummaryLanguage.ORIGINAL
+                )
 
                 val response = aiService.generateResponse(config, strengthenedPrompt, cloudInput)
                 return runCatching {
@@ -99,7 +79,7 @@ class AiRepositoryImpl @Inject constructor(
                 }.getOrElse {
                     continue
                 }
-            } catch (e: com.andrewwin.sumup.domain.exception.AiServiceException) {
+            } catch (e: AiServiceException) {
                 continue
             } catch (e: Exception) {
                 throw e
@@ -134,12 +114,12 @@ class AiRepositoryImpl @Inject constructor(
                     append("Return JSON object with fields: answer (string), statements (array of {text, sources}), sources (array).")
                 }
                 return aiService.generateResponse(config, prompt, content.take(maxTotalChars))
-            } catch (e: com.andrewwin.sumup.domain.exception.AiServiceException) {
+            } catch (e: AiServiceException) {
                 continue
             }
         }
 
-        throw com.andrewwin.sumup.domain.exception.AllAiModelsFailedException()
+        throw com.andrewwin.sumup.domain.support.AllAiModelsFailedException()
     }
 
     override suspend fun embed(text: String): FloatArray? {
@@ -370,25 +350,33 @@ class AiRepositoryImpl @Inject constructor(
         return intersection / union
     }
 
-    private fun buildSummaryPrompt(basePrompt: String, strictJsonInstruction: String): String {
+    private fun buildSummaryPrompt(
+        basePrompt: String,
+        strictJsonInstruction: String,
+        summaryLanguage: SummaryLanguage
+    ): String {
+        val summaryLanguageRule = when (summaryLanguage) {
+            SummaryLanguage.ORIGINAL -> "use the same language as the source content."
+            SummaryLanguage.UK -> "use Ukrainian language for all text."
+            SummaryLanguage.EN -> "use English language for all text."
+        }
         val strictRules = """
-            |
             |$strictJsonInstruction
             |
             |Return JSON object only:
             |{
-            |  "headline": "string",
-            |  "items": [
+            |  "${AiJsonContract.HEADLINE}": "string",
+            |  "${AiJsonContract.ITEMS}": [
             |    {
-            |      "title": "string",
-            |      "bullets": ["point 1", "point 2"],
-            |      "source": "optional source name"
+            |      "${AiJsonContract.TITLE}": "string",
+            |      "${AiJsonContract.BULLETS}": ["point 1", "point 2"],
+            |      "${AiJsonContract.SOURCE}": "optional source name"
             |    }
             |  ]
             |}
             |Rules:
             |- bullets must be concise factual statements.
-            |- use the same language as the source content.
+            |- $summaryLanguageRule
             |- if the input has multiple article blocks, return one item per block/article.
             |- avoid duplicated bullets and near-duplicates.
             |- no markdown or extra prose outside JSON.
@@ -415,3 +403,9 @@ class AiRepositoryImpl @Inject constructor(
         )
     }
 }
+
+
+
+
+
+

@@ -15,6 +15,10 @@ enum class AppLanguage {
     UK, EN
 }
 
+enum class SummaryLanguage {
+    ORIGINAL, UK, EN
+}
+
 @Entity(tableName = "user_preferences")
 data class UserPreferences(
     @PrimaryKey val id: Int = 0,
@@ -56,5 +60,12 @@ data class UserPreferences(
     val isFeedDescriptionEnabled: Boolean = true,
     val isRecommendationsEnabled: Boolean = true,
     val appThemeMode: AppThemeMode = AppThemeMode.SYSTEM,
-    val appLanguage: AppLanguage = AppLanguage.UK
+    val appLanguage: AppLanguage = AppLanguage.UK,
+    val summaryLanguage: SummaryLanguage = SummaryLanguage.ORIGINAL
 )
+
+
+
+
+
+

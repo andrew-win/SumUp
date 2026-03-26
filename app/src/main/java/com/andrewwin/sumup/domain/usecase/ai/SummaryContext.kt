@@ -29,3 +29,12 @@ sealed class SummaryContext {
         is ScheduledSummary -> prefs.extractiveNewsInScheduled.coerceAtLeast(1)
     }
 }
+
+
+
+
+
+
+
+
+

@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.data.coroutines
 
-import com.andrewwin.sumup.domain.coroutines.DispatcherProvider
+import com.andrewwin.sumup.domain.support.DispatcherProvider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import javax.inject.Inject
@@ -12,3 +12,9 @@ class AppDispatcherProvider @Inject constructor() : DispatcherProvider {
     override val default: CoroutineDispatcher = Dispatchers.Default
     override val main: CoroutineDispatcher = Dispatchers.Main
 }
+
+
+
+
+
+

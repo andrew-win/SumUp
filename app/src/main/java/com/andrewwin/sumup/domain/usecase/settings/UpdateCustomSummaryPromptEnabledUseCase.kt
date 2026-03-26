@@ -12,3 +12,12 @@ class UpdateCustomSummaryPromptEnabledUseCase @Inject constructor(
         userPreferencesRepository.updatePreferences(current.copy(isCustomSummaryPromptEnabled = enabled))
     }
 }
+
+
+
+
+
+
+
+
+

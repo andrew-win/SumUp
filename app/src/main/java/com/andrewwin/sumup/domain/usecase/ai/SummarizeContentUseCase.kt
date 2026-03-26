@@ -21,3 +21,12 @@ class SummarizeContentUseCase @Inject constructor(
     suspend operator fun invoke(content: String): Result<String> =
         summarizationEngineUseCase.summarizeRawContent(content)
 }
+
+
+
+
+
+
+
+
+

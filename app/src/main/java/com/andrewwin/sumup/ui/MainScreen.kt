@@ -19,11 +19,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.andrewwin.sumup.ui.screens.feed.FeedScreen
-import com.andrewwin.sumup.ui.screens.settings.SettingsScreen
-import com.andrewwin.sumup.ui.screens.sources.SourcesScreen
-import com.andrewwin.sumup.ui.screens.summary.SummaryScreen
-import com.andrewwin.sumup.ui.screens.webview.WebViewScreen
+import com.andrewwin.sumup.ui.screen.feed.FeedScreen
+import com.andrewwin.sumup.ui.screen.settings.SettingsScreen
+import com.andrewwin.sumup.ui.screen.sources.SourcesScreen
+import com.andrewwin.sumup.ui.screen.summary.SummaryScreen
+import com.andrewwin.sumup.ui.screen.webview.WebViewScreen
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
@@ -116,3 +116,9 @@ fun MainScreen() {
         }
     }
 }
+
+
+
+
+
+

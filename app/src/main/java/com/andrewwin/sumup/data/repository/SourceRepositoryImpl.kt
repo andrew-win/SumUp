@@ -5,11 +5,11 @@ import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
-import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
+import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.repository.ImportedSource
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
-import com.andrewwin.sumup.domain.usecase.CleanArticleTextUseCase
+import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -223,3 +223,9 @@ class SourceRepositoryImpl @Inject constructor(
     private fun normalizeSelector(selector: String?): String? =
         selector?.trim()?.takeIf { it.isNotEmpty() }
 }
+
+
+
+
+
+

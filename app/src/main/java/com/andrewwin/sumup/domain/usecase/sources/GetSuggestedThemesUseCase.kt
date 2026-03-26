@@ -1,18 +1,16 @@
 package com.andrewwin.sumup.domain.usecase.sources
 
-import android.content.Context
-import android.content.SharedPreferences
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceType
-import com.andrewwin.sumup.data.remote.datasource.RemoteArticleDataSource
-import com.andrewwin.sumup.domain.ArticleImportanceScorer
+import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
+import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.EmbeddingService
 import com.andrewwin.sumup.domain.repository.SourceRepository
+import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -177,13 +175,8 @@ class GetSuggestedThemesUseCase @Inject constructor(
     private val manageModelUseCase: ManageModelUseCase,
     private val remoteArticleDataSource: RemoteArticleDataSource,
     private val articleImportanceScorer: ArticleImportanceScorer,
-    @ApplicationContext private val context: Context
+    private val suggestedThemesStateRepository: SuggestedThemesStateRepository
 ) {
-    private val tag = "GetSuggestedThemes"
-    private val prefs: SharedPreferences by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        context.getSharedPreferences("suggested_themes_prefs", Context.MODE_PRIVATE)
-    }
-
     operator fun invoke(forceRefresh: Boolean = false): Flow<List<ThemeSuggestion>> = flow {
         val prefsData = userPreferencesRepository.preferences.first()
         if (!prefsData.isRecommendationsEnabled) {
@@ -198,9 +191,9 @@ class GetSuggestedThemesUseCase @Inject constructor(
         val currentSourcesHash = allSourcesUrls.hashCode()
         val sourceTypeMap = allSources.associate { it.id to it.type }
 
-        val savedThemeUrls = prefs.getStringSet("savedThemes", null)
-        val lastRecommendationAt = prefs.getLong(KEY_LAST_RECOMMENDATION_AT, 0L)
-        val lastFeedRefreshAt = prefs.getLong(KEY_LAST_FEED_REFRESH_AT, 0L)
+        val savedThemeUrls = suggestedThemesStateRepository.getSavedThemeTitles()
+        val lastRecommendationAt = suggestedThemesStateRepository.getLastRecommendationAt()
+        val lastFeedRefreshAt = suggestedThemesStateRepository.getLastFeedRefreshAt()
         val now = System.currentTimeMillis()
         val shouldRecalculate = forceRefresh || (
             (now - lastRecommendationAt) >= ONE_DAY_MS &&
@@ -387,11 +380,11 @@ class GetSuggestedThemesUseCase @Inject constructor(
         val sorted = suggestions.sortedByDescending { it.score }
         val resultList = sorted.map { it.copy(isRecommended = it.score >= 1.5f) }.sortedByDescending { if (it.isRecommended) 1 else 0 }
 
-        prefs.edit()
-             .putInt("sourcesHash", currentSourcesHash)
-             .putStringSet("savedThemes", resultList.filter { it.isRecommended }.map { it.theme.title }.toSet())
-             .putLong(KEY_LAST_RECOMMENDATION_AT, now)
-             .apply()
+        suggestedThemesStateRepository.saveRecommendationState(
+            savedThemeTitles = resultList.filter { it.isRecommended }.map { it.theme.title }.toSet(),
+            sourcesHash = currentSourcesHash,
+            timestamp = now
+        )
 
         emit(resultList)
     }
@@ -414,9 +407,16 @@ class GetSuggestedThemesUseCase @Inject constructor(
         return embeddingService.getEmbedding(text)
     }
 
-    companion object {
-        private const val KEY_LAST_RECOMMENDATION_AT = "lastRecommendationAt"
-        private const val KEY_LAST_FEED_REFRESH_AT = "lastFeedRefreshAt"
+    private companion object {
         private const val ONE_DAY_MS = 24L * 60 * 60 * 1000
     }
 }
+
+
+
+
+
+
+
+
+

@@ -2,9 +2,9 @@ package com.andrewwin.sumup.domain.usecase.ai
 
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.SourceType
-import com.andrewwin.sumup.domain.coroutines.DispatcherProvider
+import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.ui.screens.feed.model.ArticleUiModel
+import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -36,3 +36,12 @@ class AskFeedUseCase @Inject constructor(
         }
     }
 }
+
+
+
+
+
+
+
+
+

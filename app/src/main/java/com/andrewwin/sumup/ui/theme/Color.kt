@@ -13,3 +13,8 @@ val LightBluePrimary = Color(0xFFA8C8FB)
 val SecondaryText = Color(0xFF9098AA)
 val OnSurfaceWhite = Color(0xFFF0F1F5)
 val OutlineColor = Color(0xFF323B4F)
+
+
+
+
+

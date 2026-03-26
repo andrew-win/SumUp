@@ -126,6 +126,10 @@
     <string name="settings_language">Language</string>
     <string name="settings_language_uk">Ukrainian</string>
     <string name="settings_language_en">English</string>
+    <string name="settings_summary_language">Summarization language</string>
+    <string name="settings_summary_language_original">Original</string>
+    <string name="settings_summary_language_uk">Ukrainian</string>
+    <string name="settings_summary_language_en">English</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_system">System</string>
     <string name="settings_theme_light">Light</string>
@@ -187,7 +191,7 @@
     <string name="feed_pdf_generated">Generated: %s</string>
     <string name="feed_pdf_item_header">%s</string>
     <string name="feed_pdf_item_meta">%1$s · %2$s</string>
-    <string name="summary_prompt_default">Create a concise summary of this news in English:</string>
+    <string name="summary_prompt_default">Create a concise summary of this news:</string>
     <string name="ai_question_prompt_prefix">Answer the question:</string>
     <string name="ai_question_prompt_suffix">Based on this text:</string>
     <string name="provider_gemini">Gemini</string>

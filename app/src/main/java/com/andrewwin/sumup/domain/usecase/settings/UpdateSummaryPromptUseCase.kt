@@ -12,3 +12,12 @@ class UpdateSummaryPromptUseCase @Inject constructor(
         userPreferencesRepository.updatePreferences(current.copy(summaryPrompt = prompt))
     }
 }
+
+
+
+
+
+
+
+
+

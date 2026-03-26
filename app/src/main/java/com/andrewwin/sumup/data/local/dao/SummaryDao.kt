@@ -17,3 +17,9 @@ interface SummaryDao {
     @Query("DELETE FROM summaries")
     suspend fun deleteAllSummaries()
 }
+
+
+
+
+
+

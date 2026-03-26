@@ -68,3 +68,9 @@ class EmbeddingServiceImpl : EmbeddingService {
         ortSession = null
     }
 }
+
+
+
+
+
+

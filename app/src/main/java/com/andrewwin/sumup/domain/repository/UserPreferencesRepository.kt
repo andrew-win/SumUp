@@ -7,3 +7,9 @@ interface UserPreferencesRepository {
     val preferences: Flow<UserPreferences>
     suspend fun updatePreferences(preferences: UserPreferences)
 }
+
+
+
+
+
+
