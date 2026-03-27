@@ -217,7 +217,8 @@ class SummaryFallbackPolicy @Inject constructor(
     ): String = formatExtractiveSummaryUseCase.formatItem(
         title = title,
         sentences = ExtractiveSummarizer.summarize(fullContent, sentenceLimit),
-        isScheduledReport = false
+        isScheduledReport = false,
+        maxBullets = sentenceLimit
     )
 }
 

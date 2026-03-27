@@ -30,6 +30,7 @@ import java.util.Locale
 
 @Composable
 fun ScheduledSummarySettingsSection(
+    showTitle: Boolean = true,
     userPreferences: UserPreferences,
     showLastSummariesCount: Float,
     onShowLastSummariesCountChange: (Float) -> Unit,
@@ -41,7 +42,10 @@ fun ScheduledSummarySettingsSection(
     onScheduledPushToggle: (Boolean) -> Unit,
     onPickTime: () -> Unit
 ) {
-    SettingsSection(title = stringResource(R.string.settings_scheduled_summary)) {
+    SettingsSection(
+        title = if (showTitle) stringResource(R.string.settings_scheduled_summary) else "",
+        boxed = true
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -129,10 +133,14 @@ fun ScheduledSummarySettingsSection(
 
 @Composable
 fun SourcesSettingsSection(
+    showTitle: Boolean = true,
     isRecommendationsEnabled: Boolean,
     onRecommendationsToggle: (Boolean) -> Unit
 ) {
-    SettingsSection(title = stringResource(R.string.settings_sources)) {
+    SettingsSection(
+        title = if (showTitle) stringResource(R.string.settings_sources) else "",
+        boxed = true
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 stringResource(R.string.settings_show_recommendations),
@@ -150,11 +158,15 @@ fun SourcesSettingsSection(
 
 @Composable
 fun MemorySettingsSection(
+    showTitle: Boolean = true,
     onClearArticles: () -> Unit,
     onClearEmbeddings: () -> Unit,
     onResetSettings: () -> Unit
 ) {
-    SettingsSection(title = stringResource(R.string.settings_memory)) {
+    SettingsSection(
+        title = if (showTitle) stringResource(R.string.settings_memory) else "",
+        boxed = true
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(
                 onClick = onClearArticles,

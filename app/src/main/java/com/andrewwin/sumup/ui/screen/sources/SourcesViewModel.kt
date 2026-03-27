@@ -13,7 +13,6 @@ import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
 import com.andrewwin.sumup.domain.usecase.sources.SuggestedTheme
 import com.andrewwin.sumup.domain.usecase.sources.ThemeSuggestion
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -28,13 +27,6 @@ class SourcesViewModel @Inject constructor(
 ) : ViewModel() {
 
     val uiState: StateFlow<List<GroupWithSources>> = repository.groupsWithSources
-        .map { groups ->
-            val themeUrls = SuggestedTheme.entries.flatMap { it.sources.map { s -> s.url } }.toSet()
-            groups.map { groupWithSources ->
-                groupWithSources.copy(sources = groupWithSources.sources.filter { it.url !in themeUrls })
-            }
-        }
-        .flowOn(Dispatchers.Default)
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -91,12 +83,25 @@ class SourcesViewModel @Inject constructor(
 
         viewModelScope.launch {
             if (isSubscribed) {
-                val firstGroup = repository.groupsWithSources.firstOrNull()?.firstOrNull()?.group
-                if (firstGroup != null) {
-                    suggestion.theme.sources.forEach { source ->
+                val groupsSnapshot = repository.groupsWithSources.first()
+                val themeGroup = groupsSnapshot.firstOrNull {
+                    it.group.name.equals(suggestion.theme.title, ignoreCase = true)
+                }?.group
+                val groupId = when {
+                    themeGroup != null -> themeGroup.id
+                    else -> {
+                        repository.addGroup(suggestion.theme.title)
+                        repository.groupsWithSources.first()
+                            .firstOrNull { it.group.name.equals(suggestion.theme.title, ignoreCase = true) }
+                            ?.group
+                            ?.id
+                    }
+                }
+                if (groupId != null) {
+                    suggestion.theme.sources.forEachIndexed { index, source ->
                         repository.addSource(
-                            groupId = firstGroup.id,
-                            name = "${suggestion.theme.title} - ${source.url.takeLast(12)}",
+                            groupId = groupId,
+                            name = "${suggestion.theme.title} #${index + 1}",
                             url = source.url,
                             type = source.type
                         )
@@ -104,10 +109,18 @@ class SourcesViewModel @Inject constructor(
                 }
             } else {
                 val groupsWithSources = repository.groupsWithSources.first()
-                suggestion.theme.sources.forEach { ts ->
-                    groupsWithSources.flatMap { it.sources }
-                        .firstOrNull { it.url == ts.url }
-                        ?.let { repository.deleteSource(it) }
+                val themeGroupWithSources = groupsWithSources.firstOrNull {
+                    it.group.name.equals(suggestion.theme.title, ignoreCase = true)
+                }
+                if (themeGroupWithSources != null) {
+                    themeGroupWithSources.sources.forEach { repository.deleteSource(it) }
+                    repository.deleteGroup(themeGroupWithSources.group)
+                } else {
+                    suggestion.theme.sources.forEach { ts ->
+                        groupsWithSources.flatMap { it.sources }
+                            .firstOrNull { it.url == ts.url }
+                            ?.let { repository.deleteSource(it) }
+                    }
                 }
             }
             loadSuggestedThemes()
@@ -129,6 +142,18 @@ class SourcesViewModel @Inject constructor(
     fun deleteGroup(group: SourceGroup) {
         viewModelScope.launch {
             repository.deleteGroup(group)
+            if (SuggestedTheme.entries.any { it.title.equals(group.name, ignoreCase = true) }) {
+                _suggestedThemes.update { themes ->
+                    themes.map { suggestion ->
+                        if (suggestion.theme.title.equals(group.name, ignoreCase = true)) {
+                            suggestion.copy(isSubscribed = false)
+                        } else {
+                            suggestion
+                        }
+                    }
+                }
+                loadSuggestedThemes()
+            }
         }
     }
 

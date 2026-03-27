@@ -96,7 +96,7 @@
     <string name="settings_download_model">Завантажити модель (~130MB)</string>
     <string name="settings_delete_model">Видалити модель</string>
     <string name="settings_profile">Профіль</string>
-    <string name="settings_time_format">%02d:%02d</string>
+    <string name="settings_time_format">%1$02d:%2$02d</string>
     <string name="feed_similar_news">Схожі новини (%d)</string>
     <string name="feed_similarity_score">%d%%</string>
     <string name="feed_searching_similar">Ще шукаємо схожі новини…</string>
@@ -124,7 +124,7 @@
     <string name="settings_adaptive_extractive_compression_percent">Відсоток стиснення: %d%%</string>
     <string name="settings_filtering">Стрічка</string>
     <string name="settings_feed">Стрічка</string>
-    <string name="settings_language">Мова</string>
+    <string name="settings_language">Мова інтерфейсу</string>
     <string name="settings_language_uk">Українська</string>
     <string name="settings_language_en">English</string>
     <string name="settings_summary_language">Мова сумаризації</string>
@@ -203,7 +203,7 @@
     <string name="ellipsis">…</string>
 
     <string name="summary_extractive_intro">Ось головні новини на даний період часу:</string>
-    <string name="summary_extractive_item_header">%d. %s:</string>
+    <string name="summary_extractive_item_header">%1$d. %2$s:</string>
     <string name="summary_article_format">%1$s: %2$s</string>
     <string name="feed_empty_message">Новин не знайдено. Спробуйте оновити стрічку потянувши вниз</string>
     <string name="settings_cloud_summary">Хмарна сумаризація</string>
@@ -255,4 +255,32 @@
     <string name="sources_suggested_themes_hint">Підписуйтесь на теми (для персоналізації треба embedding ШІ-модель):</string>
     <string name="sources_recommended_badge">⭐️ Рекомендовано</string>
     <string name="sources_subscribed">Підписано</string>
+    <string name="settings_group_account">Аккаунт</string>
+    <string name="settings_group_account_desc">Синхронізація, вхід/реєстрація</string>
+    <string name="settings_group_general">Загальні</string>
+    <string name="settings_group_general_desc">Мова, тема</string>
+    <string name="settings_group_api_keys">API-ключі</string>
+    <string name="settings_group_api_keys_desc">Для сумаризації, ембедингів</string>
+    <string name="settings_group_ai_processing">ШІ-обробка</string>
+    <string name="settings_group_ai_processing_desc">Ліміти, стратегія, дедублікація</string>
+    <string name="settings_group_feed">Стрічка</string>
+    <string name="settings_group_feed_desc">Відображення, фільтрація</string>
+    <string name="settings_group_scheduled">Заплановані зведення</string>
+    <string name="settings_group_scheduled_desc">Час, повідомлення</string>
+    <string name="settings_group_recommendations">Рекомендації</string>
+    <string name="settings_group_recommendations_desc">Теми та персоналізація</string>
+    <string name="settings_group_memory">Память</string>
+    <string name="settings_group_memory_desc">Статті, ембедингі, налаштування</string>
+    <string name="validation_name_required">Назва обовязкова</string>
+    <string name="validation_group_name_exists">Група з такою назвою вже існує</string>
+    <string name="validation_source_name_exists">Джерело з такою назвою вже існує</string>
+    <string name="validation_source_url_required">Посилання обовязкове</string>
+    <string name="validation_source_url_exists">Джерело з таким посиланням вже існує</string>
+    <string name="validation_website_selector_required">Для сайту потрібен CSS селектор заголовку</string>
+    <string name="validation_ai_config_name_exists">Конфіг з такою назвою вже існує</string>
+    <string name="validation_api_key_required">API ключ обовязковий</string>
+    <string name="validation_api_key_invalid">API ключ не повинен містити пробіли</string>
+    <string name="validation_api_key_too_short">API ключ занадто короткий</string>
+    <string name="validation_api_key_exists">Такий API ключ вже додано</string>
+    <string name="validation_model_required">Оберіть або введіть модель</string>
 </resources>

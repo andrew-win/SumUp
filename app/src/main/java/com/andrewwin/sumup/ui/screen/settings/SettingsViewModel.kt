@@ -226,6 +226,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { aiRepository.addConfig(config) }
     }
 
+    fun updateAiConfig(config: AiModelConfig) {
+        viewModelScope.launch { aiRepository.updateConfig(config) }
+    }
+
     fun deleteAiConfig(config: AiModelConfig) {
         viewModelScope.launch { aiRepository.deleteConfig(config) }
     }

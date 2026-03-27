@@ -159,9 +159,9 @@ fun FeedScreen(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                     shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier.size(width = 60.dp, height = 52.dp)
+                    modifier = Modifier.size(width = 75.dp, height = 65.dp)
                 ) {
-                    Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(38.dp))
+                    Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(48.dp))
                 }
             }
         }

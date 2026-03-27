@@ -16,7 +16,8 @@ class FormatExtractiveSummaryUseCase @Inject constructor(
         title: String,
         sentences: List<String>,
         isScheduledReport: Boolean,
-        index: Int? = null
+        index: Int? = null,
+        maxBullets: Int? = null
     ): String {
         if (sentences.isEmpty()) return ""
 
@@ -27,6 +28,10 @@ class FormatExtractiveSummaryUseCase @Inject constructor(
             .filter { it.isNotBlank() }
             .filterNot { isTitleDuplicate(it, normalizedTitle) }
             .ifEmpty { listOf(sentences.maxBy { it.length }.trim()) }
+            .let { items ->
+                val limit = maxBullets?.coerceAtLeast(1)
+                if (limit == null) items else items.take(limit)
+            }
 
         if (filteredSentences.size == 1) {
             val onlySentence = filteredSentences.first()

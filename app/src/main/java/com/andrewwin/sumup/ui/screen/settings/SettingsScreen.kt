@@ -1,8 +1,9 @@
-package com.andrewwin.sumup.ui.screen.settings
+﻿package com.andrewwin.sumup.ui.screen.settings
 
 import android.Manifest
 import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -23,6 +24,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -34,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
@@ -89,6 +92,11 @@ fun SettingsScreen(
     var showClearEmbeddingsDialog by remember { mutableStateOf(false) }
     var showResetSettingsDialog by remember { mutableStateOf(false) }
     var showEmailAuthDialog by remember { mutableStateOf(false) }
+    var selectedGroup by rememberSaveable { mutableStateOf<SettingsGroup?>(null) }
+
+    BackHandler(enabled = selectedGroup != null) {
+        selectedGroup = null
+    }
 
     val backupSelection = BackupSelection(
         includeSources = backupSelectionState.includeSources,
@@ -205,15 +213,24 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.nav_settings)) },
+                title = { Text(stringResource(selectedGroup?.titleRes ?: R.string.nav_settings)) },
+                navigationIcon = {
+                    if (selectedGroup != null) {
+                        IconButton(onClick = { selectedGroup = null }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = null)
+                        }
+                    }
+                },
                 actions = {
-                    FilledIconButton(
-                        onClick = {},
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
+                    if (selectedGroup == null) {
+                        FilledIconButton(
+                            onClick = {},
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -226,186 +243,45 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (selectedGroup == null) 14.dp else 10.dp)
         ) {
-            item {
-                SettingsSection(title = stringResource(R.string.settings_sync)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AccountCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(56.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = authUiState.displayName.ifBlank { stringResource(R.string.settings_user_name) },
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Text(
-                                    text = authUiState.email.ifBlank { stringResource(R.string.settings_not_signed_in) },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        BackupOptionRow(
-                            title = stringResource(R.string.settings_sync_enabled),
-                            checked = isCloudSyncEnabled,
-                            onCheckedChange = { enabled ->
-                                viewModel.setCloudSyncEnabled(enabled, backupSelection)
-                            }
-                        )
-                        ExposedDropdownMenuBox(
-                            expanded = syncIntervalExpanded,
-                            onExpandedChange = { syncIntervalExpanded = !syncIntervalExpanded }
-                        ) {
-                            OutlinedTextField(
-                                value = stringResource(R.string.settings_sync_interval_hours, syncIntervalHours),
-                                onValueChange = {},
-                                readOnly = true,
-                                modifier = Modifier
-                                    .menuAnchor()
-                                    .fillMaxWidth(),
-                                label = { Text(stringResource(R.string.settings_sync_interval_label)) },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = syncIntervalExpanded) }
-                            )
-                            ExposedDropdownMenu(
-                                expanded = syncIntervalExpanded,
-                                onDismissRequest = { syncIntervalExpanded = false }
-                            ) {
-                                listOf(1, 3, 6, 12, 24).forEach { hours ->
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.settings_sync_interval_hours, hours)) },
-                                        onClick = {
-                                            syncIntervalExpanded = false
-                                            viewModel.updateSyncIntervalHours(hours)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                        BackupCheckboxRow(
-                            title = stringResource(R.string.settings_backup_sources),
-                            checked = backupSelection.includeSources,
-                            onCheckedChange = {
-                                viewModel.updateBackupSelection(backupSelection.copy(includeSources = it))
-                            }
-                        )
-                        BackupCheckboxRow(
-                            title = stringResource(R.string.settings_backup_subscriptions),
-                            checked = backupSelection.includeSubscriptions,
-                            onCheckedChange = {
-                                viewModel.updateBackupSelection(backupSelection.copy(includeSubscriptions = it))
-                            }
-                        )
-                        BackupCheckboxRow(
-                            title = stringResource(R.string.settings_backup_settings_no_api),
-                            checked = backupSelection.includeSettingsNoApi,
-                            onCheckedChange = {
-                                viewModel.updateBackupSelection(backupSelection.copy(includeSettingsNoApi = it))
-                            }
-                        )
-                        BackupCheckboxRow(
-                            title = stringResource(R.string.settings_backup_api_keys),
-                            checked = backupSelection.includeApiKeys,
-                            onCheckedChange = {
-                                viewModel.updateBackupSelection(backupSelection.copy(includeApiKeys = it))
-                            }
-                        )
-
-                        Button(
-                            onClick = {
-                                if (authUiState.isSignedIn) {
-                                    viewModel.signOut()
-                                } else {
-                                    showEmailAuthDialog = true
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(52.dp),
-                            shape = MaterialTheme.shapes.extraLarge
-                        ) {
-                            Text(
-                                text = if (authUiState.isSignedIn) {
-                                    stringResource(R.string.settings_logout)
-                                } else {
-                                    stringResource(R.string.settings_login_register)
-                                }
-                            )
-                        }
-
-                        if (authUiState.isSignedIn) {
-                            OutlinedButton(
-                                onClick = { viewModel.syncNow(backupSelection) },
-                                enabled = isCloudSyncEnabled && transferState !is TransferState.Working,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(52.dp),
-                                shape = MaterialTheme.shapes.extraLarge
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Sync,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.settings_sync_now))
-                            }
-                        }
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            OutlinedButton(
-                                onClick = {
-                                    importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
-                                },
-                                enabled = transferState !is TransferState.Working,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(52.dp),
-                                shape = MaterialTheme.shapes.extraLarge
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDownward,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.settings_import_button))
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(java.util.Date())
-                                    exportLauncher.launch("sumup-backup-$date.json")
-                                },
-                                enabled = transferState !is TransferState.Working,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(52.dp),
-                                shape = MaterialTheme.shapes.extraLarge
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowUpward,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.settings_export_button))
-                            }
-                        }
-                    }
+            if (selectedGroup == null) {
+                item {
+                    SettingsGroupsPanel(
+                        groups = SettingsGroup.entries.toList(),
+                        onGroupClick = { selectedGroup = it }
+                    )
                 }
+                return@LazyColumn
+            }
+            if (selectedGroup == SettingsGroup.ACCOUNT) item {
+                SettingsAccountGroup(
+                    authUiState = authUiState,
+                    isCloudSyncEnabled = isCloudSyncEnabled,
+                    syncIntervalHours = syncIntervalHours,
+                    backupSelection = backupSelection,
+                    transferState = transferState,
+                    onSyncIntervalSelect = { viewModel.updateSyncIntervalHours(it) },
+                    onSyncEnabledChange = { enabled ->
+                        viewModel.setCloudSyncEnabled(enabled, backupSelection)
+                    },
+                    onBackupSelectionChange = viewModel::updateBackupSelection,
+                    onSignInOutClick = {
+                        if (authUiState.isSignedIn) {
+                            viewModel.signOut()
+                        } else {
+                            showEmailAuthDialog = true
+                        }
+                    },
+                    onSyncNowClick = { viewModel.syncNow(backupSelection) },
+                    onImportClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
+                    onExportClick = { exportLauncher.launch(it) }
+                )
             }
 
-            item {
-                SettingsSection(title = stringResource(R.string.settings_language)) {
+            if (selectedGroup == SettingsGroup.GENERAL) item {
+                SettingsSection(title = stringResource(R.string.settings_language), boxed = true) {
                     val languages = listOf(
                         AppLanguage.UK to R.string.settings_language_uk,
                         AppLanguage.EN to R.string.settings_language_en
@@ -423,8 +299,8 @@ fun SettingsScreen(
                     }
                 }
             }
-            item {
-                SettingsSection(title = stringResource(R.string.settings_summary_language)) {
+            if (selectedGroup == SettingsGroup.GENERAL) item {
+                SettingsSection(title = stringResource(R.string.settings_summary_language), boxed = true) {
                     val summaryLanguages = listOf(
                         SummaryLanguage.ORIGINAL to R.string.settings_summary_language_original,
                         SummaryLanguage.UK to R.string.settings_summary_language_uk,
@@ -448,8 +324,8 @@ fun SettingsScreen(
                     }
                 }
             }
-            item {
-                SettingsSection(title = stringResource(R.string.settings_theme)) {
+            if (selectedGroup == SettingsGroup.GENERAL) item {
+                SettingsSection(title = stringResource(R.string.settings_theme), boxed = true) {
                     val themeModes = listOf(
                         AppThemeMode.SYSTEM to R.string.settings_theme_system,
                         AppThemeMode.LIGHT to R.string.settings_theme_light,
@@ -473,8 +349,8 @@ fun SettingsScreen(
                     }
                 }
             }
-            item {
-                SettingsSection(title = stringResource(R.string.settings_ai_strategy)) {
+            if (selectedGroup == SettingsGroup.AI_PROCESSING) item {
+                SettingsSection(title = stringResource(R.string.settings_ai_strategy), boxed = true) {
                     val strategies = listOf(
                         AiStrategy.LOCAL to R.string.ai_strategy_local,
                         AiStrategy.CLOUD to R.string.ai_strategy_cloud,
@@ -501,9 +377,10 @@ fun SettingsScreen(
                     }
                 }
             }
-            item {
+            if (selectedGroup == SettingsGroup.API_KEYS) item {
                 SettingsSection(
                     title = stringResource(R.string.settings_cloud_summary_api_keys),
+                    boxed = true,
                     trailing = {
                         IconButton(
                             onClick = { showConfigDialog = null to AiModelType.SUMMARY },
@@ -565,9 +442,10 @@ fun SettingsScreen(
                 }
             }
 
-            item {
+            if (selectedGroup == SettingsGroup.API_KEYS) item {
                 SettingsSection(
                     title = stringResource(R.string.settings_cloud_vectorization_api_keys),
+                    boxed = true,
                     trailing = {
                         IconButton(
                             onClick = { showConfigDialog = null to AiModelType.EMBEDDING },
@@ -601,8 +479,8 @@ fun SettingsScreen(
                     }
                 }
             }
-            item {
-                SettingsSection(title = stringResource(R.string.settings_ai_limits)) {
+            if (selectedGroup == SettingsGroup.AI_PROCESSING) item {
+                SettingsSection(title = stringResource(R.string.settings_ai_limits), boxed = true) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Column {
                             Text(
@@ -652,8 +530,8 @@ fun SettingsScreen(
                     }
                 }
             }
-            item {
-                SettingsSection(title = stringResource(R.string.settings_local_summary)) {
+            if (selectedGroup == SettingsGroup.AI_PROCESSING) item {
+                SettingsSection(title = stringResource(R.string.settings_local_summary), boxed = true) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Column {
                             Text(
@@ -718,8 +596,8 @@ fun SettingsScreen(
                     }
                 }
             }
-            item {
-                SettingsSection(title = stringResource(R.string.settings_cloud_summary)) {
+            if (selectedGroup == SettingsGroup.AI_PROCESSING) item {
+                SettingsSection(title = stringResource(R.string.settings_cloud_summary), boxed = true) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Column {
                             Text(
@@ -754,8 +632,8 @@ fun SettingsScreen(
                     }
                 }
             }
-            item {
-                SettingsSection(title = stringResource(R.string.settings_adaptive_summary)) {
+            if (selectedGroup == SettingsGroup.AI_PROCESSING) item {
+                SettingsSection(title = stringResource(R.string.settings_adaptive_summary), boxed = true) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Column {
                             Text(
@@ -814,8 +692,8 @@ fun SettingsScreen(
                     }
                 }
             }
-            item {
-                SettingsSection(title = stringResource(R.string.settings_feed)) {
+            if (selectedGroup == SettingsGroup.FEED) item {
+                SettingsSection(title = stringResource(R.string.settings_feed), boxed = true) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
@@ -982,8 +860,9 @@ fun SettingsScreen(
                     }
                 }
             }
-            item {
+            if (selectedGroup == SettingsGroup.SCHEDULED_SUMMARY) item {
                 ScheduledSummarySettingsSection(
+                    showTitle = false,
                     userPreferences = userPreferences,
                     showLastSummariesCount = showLastSummariesCount,
                     onShowLastSummariesCountChange = { showLastSummariesCount = it },
@@ -1020,15 +899,17 @@ fun SettingsScreen(
                     onPickTime = { showTimePicker = true }
                 )
             }
-            item {
+            if (selectedGroup == SettingsGroup.RECOMMENDATIONS) item {
                 SourcesSettingsSection(
+                    showTitle = false,
                     isRecommendationsEnabled = userPreferences.isRecommendationsEnabled,
                     onRecommendationsToggle = { viewModel.updateRecommendationsEnabled(it) }
                 )
             }
 
-            item {
+            if (selectedGroup == SettingsGroup.MEMORY) item {
                 MemorySettingsSection(
+                    showTitle = false,
                     onClearArticles = { showClearArticlesDialog = true },
                     onClearEmbeddings = { showClearEmbeddingsDialog = true },
                     onResetSettings = { showResetSettingsDialog = true }
@@ -1122,47 +1003,9 @@ fun ConfirmDeleteDialog(
     )
 }
 
-@Composable
-fun SettingsSection(
-    title: String,
-    trailing: @Composable (() -> Unit)? = null,
-    headerContent: @Composable (() -> Unit)? = null,
-    content: @Composable () -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    trailing?.invoke()
-                }
-                HorizontalDivider(
-                    modifier = Modifier.padding(bottom = 12.dp),
-                    thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-                headerContent?.invoke()
-                content()
-            }
-        }
-    }
-}
 
 @Composable
-private fun BackupOptionRow(
+fun BackupOptionRow(
     title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
@@ -1185,7 +1028,7 @@ private fun BackupOptionRow(
 }
 
 @Composable
-private fun BackupCheckboxRow(
+fun BackupCheckboxRow(
     title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit

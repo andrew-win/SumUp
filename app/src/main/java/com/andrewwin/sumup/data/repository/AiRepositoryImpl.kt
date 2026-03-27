@@ -173,7 +173,8 @@ class AiRepositoryImpl @Inject constructor(
                 formatExtractiveSummaryUseCase.formatItem(
                     title = title,
                     sentences = sentences,
-                    isScheduledReport = true
+                    isScheduledReport = true,
+                    maxBullets = pointsPerNews
                 )
             }
         }

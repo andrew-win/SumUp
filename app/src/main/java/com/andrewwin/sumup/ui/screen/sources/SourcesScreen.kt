@@ -83,9 +83,9 @@ fun SourcesScreen(
             FloatingActionButton(
                 onClick = { showAddGroupDialog = true },
                 shape = MaterialTheme.shapes.extraLarge,
-                modifier = Modifier.size(60.dp)
+                modifier = Modifier.size(75.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_group), modifier = Modifier.size(26.dp))
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_group), modifier = Modifier.size(33.dp))
             }
         }
     ) { innerPadding ->
@@ -154,6 +154,7 @@ fun SourcesScreen(
 
         if (showAddGroupDialog) {
             GroupDialog(
+                existingGroupNames = uiState.map { it.group.name },
                 onDismiss = { showAddGroupDialog = false },
                 onConfirm = { viewModel.addGroup(it) }
             )
@@ -162,6 +163,7 @@ fun SourcesScreen(
         editGroup?.let { group ->
             GroupDialog(
                 group = group,
+                existingGroupNames = uiState.map { it.group.name },
                 onDismiss = { editGroup = null },
                 onConfirm = { viewModel.updateGroup(group.copy(name = it)) }
             )
@@ -169,6 +171,8 @@ fun SourcesScreen(
 
         selectedGroupIdForSource?.let { groupId ->
             SourceDialog(
+                existingSources = uiState.flatMap { it.sources },
+                existingSourceNames = uiState.flatMap { it.sources }.map { it.name },
                 onDismiss = { selectedGroupIdForSource = null },
                 onConfirm = { name, url, type, titleSelector, postLinkSelector, descriptionSelector, dateSelector, useHeadlessBrowser ->
                     viewModel.addSource(
@@ -189,6 +193,8 @@ fun SourcesScreen(
         editSource?.let { source ->
             SourceDialog(
                 source = source,
+                existingSources = uiState.flatMap { it.sources },
+                existingSourceNames = uiState.flatMap { it.sources }.map { it.name },
                 onDismiss = { editSource = null },
                 onConfirm = { name, url, type, titleSelector, postLinkSelector, descriptionSelector, dateSelector, useHeadlessBrowser ->
                     viewModel.updateSource(
@@ -457,10 +463,23 @@ fun SourceItem(
 @Composable
 fun GroupDialog(
     group: SourceGroup? = null,
+    existingGroupNames: List<String>,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
     var name by remember(group?.id) { mutableStateOf(group?.name ?: "") }
+    val normalizedName = name.trim()
+    val isDuplicate = remember(normalizedName, existingGroupNames, group?.id) {
+        existingGroupNames.any {
+            it.trim().equals(normalizedName, ignoreCase = true) &&
+                !it.trim().equals(group?.name?.trim().orEmpty(), ignoreCase = true)
+        }
+    }
+    val errorText = when {
+        normalizedName.isBlank() -> stringResource(R.string.validation_name_required)
+        isDuplicate -> stringResource(R.string.validation_group_name_exists)
+        else -> null
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(if (group == null) R.string.add_group else R.string.edit_group)) },
@@ -471,17 +490,24 @@ fun GroupDialog(
                 label = { Text(stringResource(R.string.group_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large
+                shape = MaterialTheme.shapes.large,
+                isError = errorText != null,
+                supportingText = {
+                    if (errorText != null) {
+                        Text(errorText)
+                    }
+                }
             )
         },
         confirmButton = {
             Button(
                 onClick = { 
-                    if (name.isNotBlank()) {
-                        onConfirm(name)
+                    if (errorText == null) {
+                        onConfirm(normalizedName)
                         onDismiss()
                     }
                 },
+                enabled = errorText == null,
                 shape = MaterialTheme.shapes.large
             ) {
                 Text(stringResource(if (group == null) R.string.add else R.string.save))
@@ -499,6 +525,8 @@ fun GroupDialog(
 @Composable
 fun SourceDialog(
     source: Source? = null,
+    existingSources: List<Source>,
+    existingSourceNames: List<String>,
     onDismiss: () -> Unit,
     onConfirm: (String, String, SourceType, String?, String?, String?, String?, Boolean) -> Unit
 ) {
@@ -511,6 +539,30 @@ fun SourceDialog(
     var dateSelector by remember(source?.id) { mutableStateOf(source?.dateSelector ?: "") }
     var useHeadlessBrowser by remember(source?.id) { mutableStateOf(source?.useHeadlessBrowser ?: false) }
     var expanded by remember { mutableStateOf(false) }
+    val normalizedName = name.trim()
+    val normalizedUrl = normalizeSourceUrl(url, type)
+    val isDuplicate = remember(normalizedName, existingSourceNames, source?.id) {
+        existingSourceNames.any {
+            it.trim().equals(normalizedName, ignoreCase = true) &&
+                !it.trim().equals(source?.name?.trim().orEmpty(), ignoreCase = true)
+        }
+    }
+    val isDuplicateUrl = remember(normalizedUrl, type, existingSources, source?.id) {
+        existingSources.any {
+            it.id != source?.id &&
+                it.type == type &&
+                normalizeSourceUrl(it.url, it.type).equals(normalizedUrl, ignoreCase = true)
+        }
+    }
+    val hasRequiredWebsiteSelector = type != SourceType.WEBSITE || titleSelector.isNotBlank()
+    val errorText = when {
+        normalizedName.isBlank() -> stringResource(R.string.validation_name_required)
+        isDuplicate -> stringResource(R.string.validation_source_name_exists)
+        url.isBlank() -> stringResource(R.string.validation_source_url_required)
+        isDuplicateUrl -> stringResource(R.string.validation_source_url_exists)
+        !hasRequiredWebsiteSelector -> stringResource(R.string.validation_website_selector_required)
+        else -> null
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -544,7 +596,8 @@ fun SourceDialog(
                         label = { Text(stringResource(R.string.source_name)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large
+                        shape = MaterialTheme.shapes.large,
+                        isError = errorText != null
                     )
                     OutlinedTextField(
                         value = url,
@@ -675,6 +728,13 @@ fun SourceDialog(
                         }
                     }
                     Spacer(Modifier.height(12.dp))
+                    if (errorText != null) {
+                        Text(
+                            text = errorText,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
 
                 Row(
@@ -692,10 +752,9 @@ fun SourceDialog(
                     }
                     Button(
                         onClick = {
-                            val hasRequiredWebsiteSelector = type != SourceType.WEBSITE || titleSelector.isNotBlank()
-                            if (name.isNotBlank() && url.isNotBlank() && hasRequiredWebsiteSelector) {
+                            if (errorText == null) {
                                 onConfirm(
-                                    name,
+                                    normalizedName,
                                     url,
                                     type,
                                     titleSelector.takeIf { it.isNotBlank() },
@@ -707,6 +766,7 @@ fun SourceDialog(
                                 onDismiss()
                             }
                         },
+                        enabled = errorText == null,
                         modifier = Modifier.weight(1f),
                         shape = MaterialTheme.shapes.large
                     ) {
@@ -715,6 +775,18 @@ fun SourceDialog(
                 }
             }
         }
+    }
+}
+
+private fun normalizeSourceUrl(url: String, type: SourceType): String {
+    val trimmed = url.trim()
+    if (trimmed.isBlank()) return trimmed
+    if (type != SourceType.RSS && type != SourceType.WEBSITE) return trimmed
+    return when {
+        trimmed.startsWith("https://", ignoreCase = true) -> trimmed
+        trimmed.startsWith("http://", ignoreCase = true) -> "https://${trimmed.removePrefix("http://")}"
+        trimmed.startsWith("//") -> "https:$trimmed"
+        else -> "https://$trimmed"
     }
 }
 
