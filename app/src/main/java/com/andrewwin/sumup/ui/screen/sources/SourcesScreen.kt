@@ -120,12 +120,26 @@ fun SourcesScreen(
                     R.string.sources_suggested_themes_hint
                 }
                 if (isRecommendationsEnabled) {
-                    Text(
-                        text = stringResource(titleTextRes),
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Normal),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 8.dp).padding(bottom = 12.dp)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
+                            .padding(bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_recommend),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(titleTextRes),
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Normal),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
 
                     suggestedThemes.chunked(2).forEach { rowItems ->
                         Row(

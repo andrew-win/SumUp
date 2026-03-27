@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">SumUp</string>
     <string name="nav_summary">Summary</string>
+    <string name="summary_infographic_title">Infographic</string>
     <string name="nav_feed">Feed</string>
     <string name="nav_sources">Sources</string>
     <string name="nav_settings">Settings</string>

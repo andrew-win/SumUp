@@ -155,44 +155,28 @@ fun SummaryChart(
     isModelEnabled: Boolean,
     onOpenWebView: (String) -> Unit
 ) {
-    Column(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            ChartTypeChip(
-                selected = currentType == SummaryChartType.VIEWS,
-                onClick = { onTypeChange(SummaryChartType.VIEWS) },
-                label = stringResource(R.string.chart_views)
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = stringResource(R.string.summary_infographic_title),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
             )
-            if (isModelEnabled) {
-                ChartTypeChip(
-                    selected = currentType == SummaryChartType.MENTIONS,
-                    onClick = { onTypeChange(SummaryChartType.MENTIONS) },
-                    label = stringResource(R.string.chart_mentions)
-                )
-            }
-            ChartTypeChip(
-                selected = currentType == SummaryChartType.FACTUALITY,
-                onClick = { onTypeChange(SummaryChartType.FACTUALITY) },
-                label = stringResource(R.string.chart_factuality)
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
             )
-        }
 
-        Spacer(Modifier.height(12.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
             if (items.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -219,6 +203,33 @@ fun SummaryChart(
                     }
                 }
             }
+
+            Spacer(Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ChartTypeChip(
+                    selected = currentType == SummaryChartType.VIEWS,
+                    onClick = { onTypeChange(SummaryChartType.VIEWS) },
+                    label = stringResource(R.string.chart_views)
+                )
+                if (isModelEnabled) {
+                    ChartTypeChip(
+                        selected = currentType == SummaryChartType.MENTIONS,
+                        onClick = { onTypeChange(SummaryChartType.MENTIONS) },
+                        label = stringResource(R.string.chart_mentions)
+                    )
+                }
+                ChartTypeChip(
+                    selected = currentType == SummaryChartType.FACTUALITY,
+                    onClick = { onTypeChange(SummaryChartType.FACTUALITY) },
+                    label = stringResource(R.string.chart_factuality)
+                )
+            }
         }
     }
 }
@@ -237,7 +248,7 @@ fun ChartTypeChip(
         colors = FilterChipDefaults.filterChipColors(
             selectedContainerColor = MaterialTheme.colorScheme.primary,
             selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
             labelColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
         border = null
@@ -252,13 +263,8 @@ fun ChartBar(
     onOpenWebView: (String) -> Unit
 ) {
     val fraction = (item.value / maxValue).coerceIn(0.05f, 1f)
-
-    // Вертикальна смуга: інтенсивність кольору залежить від відносного значення
-    val accentColor = lerp(
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
-        MaterialTheme.colorScheme.primary,
-        fraction
-    )
+    val indicatorAlpha = (0.2f + (fraction * 0.6f)).coerceIn(0.2f, 0.8f)
+    val accentColor = MaterialTheme.colorScheme.primary.copy(alpha = indicatorAlpha)
 
     Row(
         modifier = Modifier
@@ -266,19 +272,9 @@ fun ChartBar(
             .clickable(enabled = !item.sourceUrl.isNullOrBlank()) {
                 item.sourceUrl?.let { onOpenWebView(normalizeForWebView(it)) }
             }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.Top
     ) {
-        Box(
-            modifier = Modifier
-                .width(3.dp)
-                .height(36.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(accentColor)
-        )
-
-        Spacer(Modifier.width(14.dp))
-
         Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
             Text(
                 text = item.headline,
@@ -299,6 +295,22 @@ fun ChartBar(
                     }
                 )
             }
+            Spacer(Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.26f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(fraction.coerceIn(0.08f, 1f))
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(accentColor)
+                )
+            }
         }
 
         Text(
@@ -309,13 +321,6 @@ fun ChartBar(
         )
     }
 
-    if (!isLast) {
-        HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            thickness = 0.5.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-        )
-    }
 }
 
 // ─────────────────────────────────────────────
@@ -337,65 +342,73 @@ fun PrevNextStatusRow(
         formatShortStatusDate(nextScheduledAt)
     }
 
-    Row(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Card(
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = stringResource(R.string.settings_group_scheduled),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(80.dp)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = stringResource(R.string.summary_previous_short),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = previousText,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(80.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = stringResource(R.string.summary_previous_short),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = previousText,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
 
-        Card(
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.summary_next_short),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = nextText,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Medium
-                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(80.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = stringResource(R.string.summary_next_short),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = nextText,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
     }
