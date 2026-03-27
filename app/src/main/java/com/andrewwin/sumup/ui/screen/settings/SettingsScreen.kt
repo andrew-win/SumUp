@@ -1475,6 +1475,14 @@ fun AiConfigDialog(
                             onValueChange = {},
                             readOnly = true,
                             label = { Text(stringResource(R.string.dialog_provider)) },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(provider.iconRes),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedProvider) },
                             modifier = Modifier
                                 .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)

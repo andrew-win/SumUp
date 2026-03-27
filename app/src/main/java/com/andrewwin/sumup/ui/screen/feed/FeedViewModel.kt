@@ -23,6 +23,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 import javax.inject.Inject
 
 enum class DateFilter(@StringRes val labelRes: Int, val hours: Int?) {
@@ -87,7 +88,9 @@ class FeedViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val feedResultFlow = getFeedArticlesUseCase(
-        _searchQuery,
+        _searchQuery
+            .debounce(300.milliseconds)
+            .distinctUntilChanged(),
         _selectedGroupId,
         _dateFilter.map { it.hours },
         _savedFilter.map { it.savedOnly },
@@ -97,7 +100,10 @@ class FeedViewModel @Inject constructor(
             old.isDedupInProgress == new.isDedupInProgress &&
                 old.clusters.size == new.clusters.size &&
                 old.clusters.map { it.representative.id } == new.clusters.map { it.representative.id } &&
-                old.clusters.map { it.duplicates.size } == new.clusters.map { it.duplicates.size }
+                old.clusters.map { it.duplicates.size } == new.clusters.map { it.duplicates.size } &&
+                old.clusters.map { it.representative.isFavorite } == new.clusters.map { it.representative.isFavorite } &&
+                old.clusters.map { cluster -> cluster.duplicates.map { duplicate -> duplicate.first.isFavorite } } ==
+                new.clusters.map { cluster -> cluster.duplicates.map { duplicate -> duplicate.first.isFavorite } }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GetFeedArticlesUseCase.FeedResult(emptyList(), false))
 

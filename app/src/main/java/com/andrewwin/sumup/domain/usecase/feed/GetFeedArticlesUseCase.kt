@@ -85,9 +85,13 @@ class GetFeedArticlesUseCase @Inject constructor(
             }
 
             if (query.isNotBlank()) {
-                processedArticles = processedArticles.filter {
-                    it.title.contains(query, ignoreCase = true) ||
-                            it.content.contains(query, ignoreCase = true)
+                val tokens = tokenizeQuery(query)
+                processedArticles = processedArticles.filter { article ->
+                    matchesQueryWithTokenThreshold(
+                        title = article.title,
+                        content = article.content,
+                        queryTokens = tokens
+                    )
                 }
             }
 
@@ -288,7 +292,36 @@ class GetFeedArticlesUseCase @Inject constructor(
 
     companion object {
         private const val DEDUP_EMIT_EVERY = 32
+        private const val SEARCH_TOKEN_MATCH_RATIO = 0.6f
     }
+
+    private fun matchesQueryWithTokenThreshold(
+        title: String,
+        content: String,
+        queryTokens: List<String>
+    ): Boolean {
+        if (queryTokens.isEmpty()) return true
+        val normalizedText = normalizeForSearch("$title $content")
+        if (normalizedText.isBlank()) return false
+
+        val matchedCount = queryTokens.count { token -> normalizedText.contains(token) }
+        val requiredMatches = kotlin.math.ceil(queryTokens.size * SEARCH_TOKEN_MATCH_RATIO).toInt().coerceAtLeast(1)
+        return matchedCount >= requiredMatches
+    }
+
+    private fun tokenizeQuery(query: String): List<String> =
+        normalizeForSearch(query)
+            .split(" ")
+            .map { it.trim() }
+            .filter { it.length >= 2 }
+            .distinct()
+
+    private fun normalizeForSearch(value: String): String =
+        value
+            .lowercase()
+            .replace(Regex("[\\p{Punct}\\p{S}]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
 }
 
 

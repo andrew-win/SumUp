@@ -19,3 +19,13 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# SLF4J
+-dontwarn org.slf4j.**
+
+# BND annotations
+-dontwarn aQute.bnd.annotation.**
+
+# XML / StAX
+-dontwarn org.codehaus.stax2.**
+-dontwarn javax.xml.stream.**

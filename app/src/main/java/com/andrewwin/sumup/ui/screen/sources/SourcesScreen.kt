@@ -575,6 +575,14 @@ fun SourceDialog(
                             onValueChange = {},
                             readOnly = true,
                             label = { Text(stringResource(R.string.source_type)) },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(type.iconRes),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                             modifier = Modifier
                                 .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)

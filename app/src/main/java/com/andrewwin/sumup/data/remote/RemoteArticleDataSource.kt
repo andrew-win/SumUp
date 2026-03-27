@@ -149,7 +149,8 @@ class RemoteArticleDataSource @Inject constructor(
                     }.getOrElse {
                         transcriptList.findTranscript("uk", "ru", "en")
                     }
-                    val transcriptText = formatYoutubeTranscriptByTiming(transcript.fetch())
+                    val fetched = transcript.fetch()
+                    val transcriptText = formatYoutubeTranscriptByTiming(fetched)
                     return@withContext transcriptText
                 }
 

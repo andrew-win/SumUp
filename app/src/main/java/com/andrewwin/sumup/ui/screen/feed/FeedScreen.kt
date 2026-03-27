@@ -25,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -33,6 +34,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -318,24 +322,59 @@ fun FeedScreen(
 
         // Expanded image dialog
         if (expandedImageUrl != null) {
-            Dialog(onDismissRequest = { expandedImageUrl = null }) {
+            var scale by remember(expandedImageUrl) { mutableStateOf(1f) }
+            var offsetX by remember(expandedImageUrl) { mutableStateOf(0f) }
+            var offsetY by remember(expandedImageUrl) { mutableStateOf(0f) }
+
+            Dialog(
+                onDismissRequest = { expandedImageUrl = null },
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    decorFitsSystemWindows = false
+                )
+            ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.surface)
+                        .fillMaxSize()
+                        .background(Color.Black)
                 ) {
                     AsyncImage(
                         model = expandedImageUrl,
                         contentDescription = null,
-                        modifier = Modifier.fillMaxSize().padding(8.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(expandedImageUrl) {
+                                detectTransformGestures { _: Offset, pan: Offset, zoom: Float, _: Float ->
+                                    val nextScale = (scale * zoom).coerceIn(1f, 5f)
+                                    if (nextScale <= 1f) {
+                                        scale = 1f
+                                        offsetX = 0f
+                                        offsetY = 0f
+                                    } else {
+                                        scale = nextScale
+                                        offsetX += pan.x
+                                        offsetY += pan.y
+                                    }
+                                }
+                            }
+                            .graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                translationX = offsetX,
+                                translationY = offsetY
+                            )
+                            .padding(8.dp),
                         contentScale = ContentScale.Fit
                     )
                     IconButton(
                         onClick = { expandedImageUrl = null },
                         modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = null)
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = null,
+                            tint = Color.White
+                        )
                     }
                 }
             }

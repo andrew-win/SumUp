@@ -61,8 +61,13 @@ class SummarizationEngineUseCase @Inject constructor(
             )
         }
 
+        val contentForAi = when {
+            sourceType == SourceType.YOUTUBE && fullContent.isNotBlank() -> fullContent
+            formatted.displayContent.isNotBlank() -> formatted.displayContent
+            else -> fullContent
+        }
         val prep = preprocessPolicy.preprocess(
-            rawText = if (formatted.displayContent.isNotBlank()) formatted.displayContent else fullContent,
+            rawText = contentForAi,
             prefs = prefs,
             context = context
         )

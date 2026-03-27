@@ -107,7 +107,8 @@ class ArticleRepositoryImpl @Inject constructor(
 
     override suspend fun fetchFullContent(article: Article): String {
         val source = sourceDao.getSourceById(article.sourceId) ?: return article.content
-        val remoteContent = remoteArticleDataSource.fetchFullContent(article.url, source.type) ?: article.content
+        val fetchedRemote = remoteArticleDataSource.fetchFullContent(article.url, source.type)
+        val remoteContent = fetchedRemote ?: article.content
         val mainContent = cleanArticleTextUseCase.extractMainContent(article.url, remoteContent, source.type)
         return cleanArticleTextUseCase(mainContent, source.type, source.footerPattern)
     }
