@@ -1,4 +1,4 @@
-﻿package com.andrewwin.sumup.ui.screen.settings
+package com.andrewwin.sumup.ui.screen.settings
 
 import android.Manifest
 import android.os.Build
@@ -244,12 +244,40 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(if (selectedGroup == null) 14.dp else 10.dp)
+            verticalArrangement = Arrangement.spacedBy(if (selectedGroup == null) 20.dp else 16.dp)
         ) {
             if (selectedGroup == null) {
                 item {
+                    Text(
+                        text = stringResource(R.string.settings_section_account).uppercase(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+                    )
                     SettingsGroupsPanel(
-                        groups = SettingsGroup.entries.toList(),
+                        groups = listOf(SettingsGroup.ACCOUNT),
+                        onGroupClick = { selectedGroup = it }
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = stringResource(R.string.settings_section_content_ai).uppercase(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+                    )
+                    SettingsGroupsPanel(
+                        groups = listOf(SettingsGroup.AI_PROCESSING, SettingsGroup.API_KEYS, SettingsGroup.RECOMMENDATIONS),
+                        onGroupClick = { selectedGroup = it }
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = stringResource(R.string.settings_section_interface).uppercase(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+                    )
+                    SettingsGroupsPanel(
+                        groups = listOf(SettingsGroup.FEED, SettingsGroup.SCHEDULED_SUMMARY, SettingsGroup.GENERAL, SettingsGroup.MEMORY),
                         onGroupClick = { selectedGroup = it }
                     )
                 }

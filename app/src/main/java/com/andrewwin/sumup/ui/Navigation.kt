@@ -5,6 +5,9 @@ import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Feed
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Source
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -37,7 +40,7 @@ sealed class Screen(
     data object Sources : Screen(
         route = "sources",
         resourceId = R.string.nav_sources,
-        icon = NavigationIcon.Vector(Icons.Default.Source)
+        icon = NavigationIcon.Vector(Icons.Default.Folder)
     )
 
     data object Settings : Screen(

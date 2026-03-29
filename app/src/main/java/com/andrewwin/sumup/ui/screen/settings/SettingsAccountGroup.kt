@@ -1,18 +1,12 @@
 package com.andrewwin.sumup.ui.screen.settings
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -22,8 +16,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,35 +55,81 @@ fun SettingsAccountGroup(
     var syncIntervalExpanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SettingsSection(title = "", boxed = true) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp)
+            ) {
+                if (authUiState.isSignedIn) {
                     Icon(
                         imageVector = Icons.Default.AccountCircle,
                         contentDescription = null,
-                        modifier = Modifier.size(56.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.primary
                     )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = authUiState.displayName.ifBlank { stringResource(R.string.settings_user_name) },
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            text = authUiState.email.ifBlank { stringResource(R.string.settings_not_signed_in) },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Text(
+                        text = authUiState.displayName.ifBlank { stringResource(R.string.settings_user_name) },
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Text(
+                        text = authUiState.email.ifBlank { stringResource(R.string.settings_not_signed_in) },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(
+                        onClick = onSignInOutClick,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = MaterialTheme.shapes.large,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
+                    ) {
+                        Text(stringResource(R.string.settings_logout))
+                    }
+                } else {
+                    val stroke = androidx.compose.foundation.BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .border(
+                                border = stroke,
+                                shape = CircleShape
+                            )
+                            .background(Color.Transparent, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(36.dp),
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
-                }
-                Button(
-                    onClick = onSignInOutClick,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = MaterialTheme.shapes.extraLarge
-                ) {
-                    Text(if (authUiState.isSignedIn) stringResource(R.string.settings_logout) else stringResource(R.string.settings_login_register))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = stringResource(R.string.settings_account_login_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = stringResource(R.string.settings_account_login_subtitle),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onSignInOutClick,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = MaterialTheme.shapes.medium,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
+                    ) {
+                        Text(
+                            text = stringResource(R.string.settings_account_login_btn),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
         }
@@ -106,7 +150,8 @@ fun SettingsAccountGroup(
                         readOnly = true,
                         modifier = Modifier.menuAnchor().fillMaxWidth(),
                         label = { Text(stringResource(R.string.settings_sync_interval_label)) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = syncIntervalExpanded) }
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = syncIntervalExpanded) },
+                        shape = MaterialTheme.shapes.large
                     )
                     DropdownMenu(
                         expanded = syncIntervalExpanded,
@@ -145,7 +190,8 @@ fun SettingsAccountGroup(
                         onClick = onSyncNowClick,
                         enabled = isCloudSyncEnabled && transferState !is TransferState.Working,
                         modifier = Modifier.fillMaxWidth().height(52.dp),
-                        shape = MaterialTheme.shapes.extraLarge
+                        shape = MaterialTheme.shapes.extraLarge,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
                     ) {
                         Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))
@@ -157,7 +203,8 @@ fun SettingsAccountGroup(
                         onClick = onImportClick,
                         enabled = transferState !is TransferState.Working,
                         modifier = Modifier.weight(1f).height(52.dp),
-                        shape = MaterialTheme.shapes.extraLarge
+                        shape = MaterialTheme.shapes.extraLarge,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
                     ) {
                         Icon(Icons.Default.ArrowDownward, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))
@@ -170,7 +217,8 @@ fun SettingsAccountGroup(
                         },
                         enabled = transferState !is TransferState.Working,
                         modifier = Modifier.weight(1f).height(52.dp),
-                        shape = MaterialTheme.shapes.extraLarge
+                        shape = MaterialTheme.shapes.extraLarge,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
                     ) {
                         Icon(Icons.Default.ArrowUpward, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))

@@ -2,19 +2,16 @@ package com.andrewwin.sumup.ui.screen.settings
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.VpnKey
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -27,6 +24,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
+import com.andrewwin.sumup.ui.theme.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.filled.ChevronRight
 
 internal sealed class SettingsGroupIcon {
     data class Vector(val imageVector: ImageVector) : SettingsGroupIcon()
@@ -87,23 +89,39 @@ internal fun SettingsGroupsPanel(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surfaceContainer
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
     ) {
-        Column {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
             groups.forEachIndexed { index, group ->
                 SettingsGroupRow(
                     group = group,
                     onClick = { onGroupClick(group) }
                 )
-                if (index < groups.lastIndex) {
-                    HorizontalDivider(
+                if (index < groups.size - 1) {
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.padding(start = 70.dp),
                         thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun getIconColors(group: SettingsGroup): Pair<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color> {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    return when (group) {
+        SettingsGroup.ACCOUNT -> if (isDark) IconBlueDark to IconBgBlueDark else IconBlueLight to IconBgBlueLight
+        SettingsGroup.AI_PROCESSING -> if (isDark) IconOrangeDark to IconBgOrangeDark else IconOrangeLight to IconBgOrangeLight
+        SettingsGroup.API_KEYS -> if (isDark) IconGreenDark to IconBgGreenDark else IconGreenLight to IconBgGreenLight
+        SettingsGroup.RECOMMENDATIONS -> if (isDark) IconPurpleDark to IconBgPurpleDark else IconPurpleLight to IconBgPurpleLight
+        else -> if (isDark) IconGreyDark to IconBgGreyDark else IconGreyLight to IconBgGreyLight
     }
 }
 
@@ -120,24 +138,34 @@ private fun SettingsGroupRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-        when (val icon = group.icon) {
-            is SettingsGroupIcon.Vector -> Icon(
-                imageVector = icon.imageVector,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            is SettingsGroupIcon.Drawable -> Icon(
-                painter = painterResource(icon.resId),
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        val (iconTint, iconBg) = getIconColors(group)
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(iconBg),
+            contentAlignment = Alignment.Center
+        ) {
+            when (val icon = group.icon) {
+                is SettingsGroupIcon.Vector -> Icon(
+                    imageVector = icon.imageVector,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = iconTint
+                )
+                is SettingsGroupIcon.Drawable -> Icon(
+                    painter = painterResource(icon.resId),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = iconTint
+                )
+            }
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = stringResource(group.titleRes),
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = stringResource(group.descriptionRes),
@@ -145,5 +173,11 @@ private fun SettingsGroupRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
     }
 }

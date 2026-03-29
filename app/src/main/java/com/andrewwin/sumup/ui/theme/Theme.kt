@@ -8,37 +8,73 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import com.andrewwin.sumup.data.local.entities.AppThemeMode
 
 private val DarkColorScheme = darkColorScheme(
-    primary = LightBluePrimary,
-    onPrimary = Color(0xFF003062),
-    primaryContainer = Color(0xFF00468B),
-    onPrimaryContainer = ExpressivePrimary,
+    primary = PrimaryBlue,
+    onPrimary = OnPrimaryBlue,
+    primaryContainer = PrimaryContainerBlue,
+    onPrimaryContainer = OnPrimaryContainerBlue,
 
-    background = DarkBackground,
-    onBackground = OnSurfaceWhite,
+    secondary = Secondary80,
+    onSecondary = Secondary30,
+    secondaryContainer = SecondaryContainerDark,
+    onSecondaryContainer = OnSecondaryContainerDark,
 
-    surface = DarkSurface,
-    onSurface = OnSurfaceWhite,
+    background = BackgroundDark,
+    onBackground = OnBackgroundDark,
 
-    surfaceContainerLow = DarkBackground,
-    surfaceContainer = DarkSurface,
-    surfaceContainerHigh = DarkSurfaceVariant,
-    surfaceContainerHighest = Color(0xFF2B344A),
+    surface = SurfaceDark,
+    onSurface = OnBackgroundDark,
+    surfaceVariant = SurfaceVariantDark,
+    onSurfaceVariant = OnSurfaceVariantDark,
 
-    surfaceVariant = Color(0xFF21293A),
-    onSurfaceVariant = SecondaryText,
+    surfaceContainerLow = SurfaceContainerLowDark,
+    surfaceContainer = SurfaceContainerDark,
+    surfaceContainerHigh = SurfaceContainerHighDark,
+    surfaceContainerHighest = SurfaceContainerHighestDark,
 
-    outline = Color(0xFF444D66),
-    outlineVariant = OutlineColor,
+    outline = OutlineDark,
+    outlineVariant = OutlineVariantDark,
 
-    secondaryContainer = Color(0xFF3D4758),
-    onSecondaryContainer = Color(0xFFD9E2F1)
+    error = Error80,
+    onError = Error10,
+    errorContainer = Error40,
+    onErrorContainer = Error90,
 )
 
 private val LightColorScheme = lightColorScheme(
+    primary = PrimaryLight,
+    onPrimary = OnPrimaryLight,
+    primaryContainer = PrimaryContainerLight,
+    onPrimaryContainer = OnPrimaryContainerLight,
+
+    secondary = Secondary30,
+    onSecondary = Neutral100,
+    secondaryContainer = SecondaryContainerLight,
+    onSecondaryContainer = OnSecondaryContainerLight,
+
+    background = BackgroundLight,
+    onBackground = OnBackgroundLight,
+
+    surface = SurfaceLight,
+    onSurface = OnBackgroundLight,
+    surfaceVariant = SurfaceVariantLight,
+    onSurfaceVariant = OnSurfaceVariantLight,
+
+    surfaceContainerLow = SurfaceContainerLowLight,
+    surfaceContainer = SurfaceContainerLight_,
+    surfaceContainerHigh = SurfaceContainerHighLight,
+    surfaceContainerHighest = SurfaceContainerHighestLight,
+
+    outline = OutlineLight,
+    outlineVariant = OutlineVariantLight,
+
+    error = Error40,
+    onError = Neutral100,
+    errorContainer = Error90,
+    onErrorContainer = Error10,
 )
 
 @Composable
@@ -48,21 +84,25 @@ fun SumUpTheme(
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
-        AppThemeMode.SYSTEM -> isSystemInDarkTheme()
+        AppThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
         AppThemeMode.DARK -> true
         AppThemeMode.LIGHT -> false
     }
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
+    }
 
     MaterialTheme(
-      colorScheme = colorScheme,
-      typography = Typography,
-      content = content
+        colorScheme = colorScheme,
+        typography = Typography,
+        shapes = AppShapes,
+        content = content
     )
 }
-
-
-
-
-
-

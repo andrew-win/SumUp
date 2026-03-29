@@ -48,7 +48,6 @@ import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
-import com.andrewwin.sumup.ui.theme.Rubik
 import com.andrewwin.sumup.ui.util.PdfExporter
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -112,8 +111,7 @@ fun FeedScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = stringResource(R.string.nav_feed),
-                        style = MaterialTheme.typography.titleLarge.copy(fontFamily = Rubik)
+                        text = stringResource(R.string.nav_feed)
                     )
                 },
                 actions = {

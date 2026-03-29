@@ -6,32 +6,36 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.Done
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -82,10 +86,12 @@ fun SourcesScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddGroupDialog = true },
-                shape = MaterialTheme.shapes.extraLarge,
-                modifier = Modifier.size(75.dp)
+                shape = RoundedCornerShape(24.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(width = 75.dp, height = 65.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_group), modifier = Modifier.size(33.dp))
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_group), modifier = Modifier.size(48.dp))
             }
         }
     ) { innerPadding ->
@@ -93,7 +99,7 @@ fun SourcesScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 80.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(uiState, key = { it.group.id }) { groupWithSources ->
@@ -110,55 +116,47 @@ fun SourcesScreen(
             }
 
             item {
-                Spacer(modifier = Modifier.height(32.dp))
                 val isModelLoaded by viewModel.isModelLoaded.collectAsState()
                 val isRecommendationsEnabled by viewModel.isRecommendationsEnabled.collectAsState()
                 val suggestedThemes by viewModel.suggestedThemes.collectAsState()
-                val titleTextRes = if (isModelLoaded) {
-                    R.string.sources_suggested_themes_title
-                } else {
-                    R.string.sources_suggested_themes_hint
-                }
+                
                 if (isRecommendationsEnabled) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp)
-                            .padding(bottom = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_recommend),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(titleTextRes),
-                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Normal),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    suggestedThemes.chunked(2).forEach { rowItems ->
+                    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier.padding(start = 4.dp, bottom = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            rowItems.forEach { suggestion ->
-                                SuggestedThemeItem(
-                                    suggestion = suggestion,
-                                    modifier = Modifier.weight(1f),
-                                    onToggle = { isSubscribed ->
-                                        viewModel.toggleThemeSubscription(suggestion, isSubscribed)
-                                    }
-                                )
-                            }
-                            if (rowItems.size == 1) {
-                                Spacer(modifier = Modifier.weight(1f))
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_recommend),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(if (isModelLoaded) R.string.sources_suggested_themes_title else R.string.sources_suggested_themes_hint),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        suggestedThemes.chunked(2).forEach { rowItems ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                rowItems.forEach { suggestion ->
+                                    SuggestedThemeItem(
+                                        suggestion = suggestion,
+                                        modifier = Modifier.weight(1f),
+                                        onToggle = { isSubscribed ->
+                                            viewModel.toggleThemeSubscription(suggestion, isSubscribed)
+                                        }
+                                    )
+                                }
+                                if (rowItems.size == 1) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
                             }
                         }
                     }
@@ -243,134 +241,141 @@ fun GroupCard(
     var isExpanded by rememberSaveable(groupWithSources.group.id) { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { isExpanded = !isExpanded }
-            .padding(vertical = 8.dp),
-        shape = MaterialTheme.shapes.extraLarge,
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+        Column {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Outlined.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(
+                    imageVector = Icons.Outlined.Folder,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
+                )
                 Spacer(Modifier.width(12.dp))
                 Text(
                     text = groupWithSources.group.name,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(
-                    onClick = { isExpanded = !isExpanded }
-                ) {
-                    Icon(
-                        if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
                 
-                Box {
-                    var showDropdown by rememberSaveable(groupWithSources.group.id) { mutableStateOf(false) }
-                    IconButton(onClick = { showDropdown = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = null, modifier = Modifier.size(24.dp))
-                    }
-                    DropdownMenu(
-                        expanded = showDropdown,
-                        onDismissRequest = { showDropdown = false },
-                        shape = MaterialTheme.shapes.large,
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ) {
-                        DropdownMenuItem(
-                            text = { 
-                                Text(
-                                    stringResource(R.string.status_enabled),
-                                    style = MaterialTheme.typography.bodyMedium
-                                ) 
-                            },
-                            trailingIcon = {
-                                Switch(
-                                    checked = groupWithSources.group.isEnabled,
-                                    onCheckedChange = { onToggleGroup(it) },
-                                    modifier = Modifier.scale(0.7f).padding(start = 8.dp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box {
+                        var showDropdown by remember { mutableStateOf(false) }
+                        IconButton(
+                            onClick = { showDropdown = true },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(Icons.Default.MoreVert, contentDescription = null, modifier = Modifier.size(20.dp))
+                        }
+                        DropdownMenu(
+                            expanded = showDropdown,
+                            onDismissRequest = { showDropdown = false },
+                            shape = MaterialTheme.shapes.large,
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.status_enabled)) },
+                                trailingIcon = {
+                                    Switch(
+                                        checked = groupWithSources.group.isEnabled,
+                                        onCheckedChange = { onToggleGroup(it) },
+                                        modifier = Modifier.scale(0.7f)
+                                    )
+                                },
+                                onClick = { onToggleGroup(!groupWithSources.group.isEnabled) }
+                            )
+                            if (groupWithSources.group.isDeletable) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.edit_group)) },
+                                    trailingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                    onClick = { onEditGroup(groupWithSources.group); showDropdown = false }
                                 )
-                            },
-                            onClick = { onToggleGroup(!groupWithSources.group.isEnabled) }
-                        )
-
-                        if (groupWithSources.group.isDeletable) {
-                            DropdownMenuItem(
-                                text = { 
-                                    Text(
-                                        stringResource(R.string.edit_group),
-                                        style = MaterialTheme.typography.bodyMedium
-                                    ) 
-                                },
-                                trailingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                onClick = { onEditGroup(groupWithSources.group); showDropdown = false }
-                            )
-                            DropdownMenuItem(
-                                text = { 
-                                    Text(
-                                        stringResource(R.string.delete),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.error
-                                    ) 
-                                },
-                                trailingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) },
-                                onClick = { onDeleteGroup(groupWithSources.group); showDropdown = false }
-                            )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
+                                    trailingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) },
+                                    onClick = { onDeleteGroup(groupWithSources.group); showDropdown = false }
+                                )
+                            }
                         }
                     }
+                    
+                    Spacer(Modifier.width(4.dp))
+                    
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
 
             AnimatedVisibility(
                 visible = isExpanded,
-                enter = expandVertically(animationSpec = tween(durationMillis = 200)) + fadeIn(animationSpec = tween(durationMillis = 200)),
-                exit = shrinkVertically(animationSpec = tween(durationMillis = 200)) + fadeOut(animationSpec = tween(durationMillis = 200))
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
             ) {
-                Column {
+                Column(modifier = Modifier.padding(bottom = 12.dp)) {
                     HorizontalDivider(
-                        modifier = Modifier.padding(top = 8.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp),
                         thickness = 0.5.dp,
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
 
-                    groupWithSources.sources.forEach { source ->
-                        SourceItem(
-                            source = source,
-                            isGroupEnabled = groupWithSources.group.isEnabled,
-                            onToggle = { onToggleSource(it) },
-                            onEdit = { onEditSource(it) },
-                            onDelete = { onDeleteSource(it) }
+                    if (groupWithSources.sources.isEmpty()) {
+                        Text(
+                            text = "Немає джерел у цій групі",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(16.dp)
                         )
+                    } else {
+                        groupWithSources.sources.forEach { source ->
+                            SourceItem(
+                                source = source,
+                                isGroupEnabled = groupWithSources.group.isEnabled,
+                                onToggle = { onToggleSource(it) },
+                                onEdit = { onEditSource(it) },
+                                onDelete = { onDeleteSource(it) }
+                            )
+                        }
                     }
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(8.dp))
+                    
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = stringResource(R.string.sources_count, groupWithSources.sources.size),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
                         
                         FilledTonalButton(
                             onClick = onAddSource,
                             enabled = groupWithSources.group.isEnabled,
-                            shape = MaterialTheme.shapes.large,
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            shape = MaterialTheme.shapes.medium,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                             modifier = Modifier.height(32.dp),
                             colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
                                 contentColor = MaterialTheme.colorScheme.primary
                             )
                         ) {
@@ -393,20 +398,10 @@ fun SourceItem(
     onEdit: (Source) -> Unit,
     onDelete: (Source) -> Unit
 ) {
-    val painter = when (source.type) {
-        SourceType.TELEGRAM -> painterResource(R.drawable.ic_telegram_source)
-        SourceType.RSS -> painterResource(R.drawable.ic_rss_source)
-        SourceType.YOUTUBE -> painterResource(R.drawable.ic_youtube_source)
-        SourceType.WEBSITE -> painterResource(R.drawable.ic_usual_website_source)
-    }
-
     val displayUrl = remember(source.url, source.type) {
         when (source.type) {
-            SourceType.RSS -> {
-                source.url.removePrefix("https://")
-                    .removePrefix("http://")
-                    .removePrefix("www.")
-                    .substringBefore("/")
+            SourceType.RSS, SourceType.WEBSITE -> {
+                source.url.removePrefix("https://").removePrefix("http://").removePrefix("www.").substringBefore("/")
             }
             SourceType.TELEGRAM -> {
                 val handle = source.url.substringAfterLast("/").removePrefix("@")
@@ -416,37 +411,32 @@ fun SourceItem(
                 val id = source.url.substringAfterLast("/")
                 if (id.isNotEmpty()) "id=${id.take(7)}…" else source.url
             }
-            SourceType.WEBSITE -> {
-                source.url.removePrefix("https://")
-                    .removePrefix("http://")
-                    .removePrefix("www.")
-                    .substringBefore("/")
-            }
         }
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
             .alpha(if (isGroupEnabled) 1f else 0.5f),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            painter = painter,
+            painter = painterResource(source.type.iconRes),
             contentDescription = null,
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.secondary
         )
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = source.name, 
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Normal
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = displayUrl,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
             )
@@ -455,21 +445,13 @@ fun SourceItem(
             checked = source.isEnabled,
             onCheckedChange = { onToggle(source.copy(isEnabled = it)) },
             enabled = isGroupEnabled,
-            modifier = Modifier.scale(0.75f)
+            modifier = Modifier.scale(0.7f)
         )
-        IconButton(
-            onClick = { onEdit(source) }, 
-            enabled = isGroupEnabled,
-            modifier = Modifier.size(32.dp)
-        ) {
-            Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+        IconButton(onClick = { onEdit(source) }, enabled = isGroupEnabled, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        IconButton(
-            onClick = { onDelete(source) }, 
-            enabled = isGroupEnabled,
-            modifier = Modifier.size(32.dp)
-        ) {
-            Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+        IconButton(onClick = { onDelete(source) }, enabled = isGroupEnabled, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
         }
     }
 }
@@ -506,11 +488,7 @@ fun GroupDialog(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.large,
                 isError = errorText != null,
-                supportingText = {
-                    if (errorText != null) {
-                        Text(errorText)
-                    }
-                }
+                supportingText = { if (errorText != null) Text(errorText) }
             )
         },
         confirmButton = {
@@ -602,7 +580,7 @@ fun SourceDialog(
                         .weight(1f)
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     OutlinedTextField(
                         value = name,
@@ -617,11 +595,7 @@ fun SourceDialog(
                         value = url,
                         onValueChange = { url = it },
                         label = {
-                            val labelRes = if (type == SourceType.WEBSITE) {
-                                R.string.source_url_website
-                            } else {
-                                R.string.source_url
-                            }
+                            val labelRes = if (type == SourceType.WEBSITE) R.string.source_url_website else R.string.source_url
                             Text(stringResource(labelRes))
                         },
                         singleLine = true,
@@ -680,13 +654,6 @@ fun SourceDialog(
                                     },
                                     onClick = {
                                         type = entry
-                                        if (entry != SourceType.WEBSITE) {
-                                            titleSelector = ""
-                                            postLinkSelector = ""
-                                            descriptionSelector = ""
-                                            dateSelector = ""
-                                            useHeadlessBrowser = false
-                                        }
                                         expanded = false
                                     }
                                 )
@@ -698,7 +665,6 @@ fun SourceDialog(
                             value = titleSelector,
                             onValueChange = { titleSelector = it },
                             label = { Text(stringResource(R.string.website_title_selector)) },
-                            singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             shape = MaterialTheme.shapes.large
                         )
@@ -706,7 +672,6 @@ fun SourceDialog(
                             value = postLinkSelector,
                             onValueChange = { postLinkSelector = it },
                             label = { Text(stringResource(R.string.website_post_link_selector_optional)) },
-                            singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             shape = MaterialTheme.shapes.large
                         )
@@ -714,7 +679,6 @@ fun SourceDialog(
                             value = descriptionSelector,
                             onValueChange = { descriptionSelector = it },
                             label = { Text(stringResource(R.string.website_description_selector_optional)) },
-                            singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             shape = MaterialTheme.shapes.large
                         )
@@ -722,7 +686,6 @@ fun SourceDialog(
                             value = dateSelector,
                             onValueChange = { dateSelector = it },
                             label = { Text(stringResource(R.string.website_date_selector_optional)) },
-                            singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             shape = MaterialTheme.shapes.large
                         )
@@ -731,52 +694,26 @@ fun SourceDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(
-                                text = stringResource(R.string.website_use_headless_browser),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Switch(
-                                checked = useHeadlessBrowser,
-                                onCheckedChange = { useHeadlessBrowser = it }
-                            )
+                            Text(text = stringResource(R.string.website_use_headless_browser), style = MaterialTheme.typography.bodyMedium)
+                            Switch(checked = useHeadlessBrowser, onCheckedChange = { useHeadlessBrowser = it })
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
                     if (errorText != null) {
-                        Text(
-                            text = errorText,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                        Text(text = errorText, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                 }
 
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.large
-                    ) {
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.large) {
                         Text(stringResource(R.string.cancel))
                     }
                     Button(
                         onClick = {
                             if (errorText == null) {
-                                onConfirm(
-                                    normalizedName,
-                                    url,
-                                    type,
-                                    titleSelector.takeIf { it.isNotBlank() },
-                                    postLinkSelector.takeIf { it.isNotBlank() },
-                                    descriptionSelector.takeIf { it.isNotBlank() },
-                                    dateSelector.takeIf { it.isNotBlank() },
-                                    useHeadlessBrowser
-                                )
+                                onConfirm(normalizedName, url, type, titleSelector.takeIf { it.isNotBlank() }, postLinkSelector.takeIf { it.isNotBlank() }, descriptionSelector.takeIf { it.isNotBlank() }, dateSelector.takeIf { it.isNotBlank() }, useHeadlessBrowser)
                                 onDismiss()
                             }
                         },
@@ -794,8 +731,7 @@ fun SourceDialog(
 
 private fun normalizeSourceUrl(url: String, type: SourceType): String {
     val trimmed = url.trim()
-    if (trimmed.isBlank()) return trimmed
-    if (type != SourceType.RSS && type != SourceType.WEBSITE) return trimmed
+    if (trimmed.isBlank() || (type != SourceType.RSS && type != SourceType.WEBSITE)) return trimmed
     return when {
         trimmed.startsWith("https://", ignoreCase = true) -> trimmed
         trimmed.startsWith("http://", ignoreCase = true) -> "https://${trimmed.removePrefix("http://")}"
@@ -813,68 +749,44 @@ fun SuggestedThemeItem(
     val targetSubscribedState = !suggestion.isSubscribed
     Surface(
         onClick = { onToggle(targetSubscribedState) },
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = modifier
-            .padding(vertical = 6.dp)
-            .heightIn(min = 72.dp)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
+        modifier = modifier.padding(vertical = 4.dp).heightIn(min = 72.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.Center
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onToggle(targetSubscribedState) },
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = suggestion.theme.title,
                     style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Normal,
+                    fontWeight = if (suggestion.isSubscribed) FontWeight.Bold else FontWeight.Medium,
+                    color = if (suggestion.isSubscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                     maxLines = 2
                 )
                 Icon(
-                    imageVector = if (suggestion.isSubscribed) Icons.Outlined.Done else Icons.Default.Add,
+                    imageVector = if (suggestion.isSubscribed) Icons.Default.CheckCircle else Icons.Default.AddCircleOutline,
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = if (suggestion.isSubscribed) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
+                    modifier = Modifier.size(20.dp),
+                    tint = if (suggestion.isSubscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-
-            if (suggestion.isSubscribed) {
+            if (suggestion.isRecommended && !suggestion.isSubscribed) {
+                Spacer(Modifier.height(4.dp))
                 Text(
-                    text = stringResource(R.string.sources_subscribed),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    text = stringResource(R.string.sources_recommended_badge).uppercase(),
+                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Black
                 )
             }
-
-            if (suggestion.isRecommended) {
-                    Text(
-                        text = stringResource(R.string.sources_recommended_badge),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                    )
-                }
         }
     }
 }
-
-
-
-
-
-
-
-

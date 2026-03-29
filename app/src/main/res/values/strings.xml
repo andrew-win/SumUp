@@ -256,7 +256,18 @@
     <string name="sources_suggested_themes_hint">Підписуйтесь на теми (для персоналізації треба embedding ШІ-модель):</string>
     <string name="sources_recommended_badge">⭐️ Рекомендовано</string>
     <string name="sources_subscribed">Підписано</string>
-    <string name="settings_group_account">Аккаунт</string>
+
+    <string name="settings_section_account">Акаунт</string>
+    <string name="settings_section_content_ai">Контент і AI</string>
+    <string name="settings_section_interface">Інтерфейс</string>
+    <string name="settings_account_login_title">Увійдіть, щоб зберегти\nналаштування</string>
+    <string name="settings_account_login_subtitle">Ваші джерела, підписки та API-ключі\nбудуть доступні на всіх пристроях</string>
+    <string name="settings_account_login_btn">Увійти або зареєструватись</string>
+    <string name="settings_account_status_backup">Збереження\nналаштувань</string>
+    <string name="settings_account_status_sync">Синхронізація\nміж\nпристроями</string>
+    <string name="settings_account_status_keys">API-ключі\nзавжди\nпід рукою</string>
+
+    <string name="settings_group_account">Акаунт</string>
     <string name="settings_group_account_desc">Синхронізація, вхід/реєстрація</string>
     <string name="settings_group_general">Загальні</string>
     <string name="settings_group_general_desc">Мова, тема</string>

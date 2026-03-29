@@ -2,6 +2,8 @@ package com.andrewwin.sumup.ui.screen.feed
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -64,7 +65,6 @@ import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
-import com.andrewwin.sumup.ui.theme.Rubik
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -98,7 +98,7 @@ fun FeedFilters(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 4.dp)
+            .padding(bottom = 8.dp)
     ) {
         Row(
             modifier = Modifier
@@ -111,14 +111,19 @@ fun FeedFilters(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
                 modifier = Modifier.weight(1f).height(56.dp),
-                shape = CircleShape,
-                placeholder = { Text(stringResource(R.string.search_placeholder)) },
+                shape = MaterialTheme.shapes.extraLarge,
+                placeholder = { 
+                    Text(
+                        stringResource(R.string.search_placeholder),
+                        style = MaterialTheme.typography.bodyLarge
+                    ) 
+                },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true,
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    disabledContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                     disabledIndicatorColor = Color.Transparent
@@ -132,107 +137,105 @@ fun FeedFilters(
                 Icon(
                     imageVector = Icons.Outlined.PictureAsPdf,
                     contentDescription = stringResource(R.string.export_feed_pdf),
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(28.dp),
+                    tint = if (isExportEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                 )
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = stringResource(R.string.filter_label),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            FilterMenuChip(
+                icon = Icons.Filled.Today,
+                label = stringResource(dateFilter.labelRes),
+                onClick = { showDateMenu = true }
             )
-            Spacer(Modifier.width(12.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                Box {
-                    Row(
-                        modifier = Modifier.clickable { showDateMenu = true },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(3.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Today,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(stringResource(dateFilter.labelRes), color = MaterialTheme.colorScheme.onSurface)
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    DropdownMenu(expanded = showDateMenu, onDismissRequest = { showDateMenu = false }) {
-                        DateFilter.entries.forEach { filter ->
-                            DropdownMenuItem(
-                                text = { Text(stringResource(filter.labelRes)) },
-                                onClick = { onDateFilterChange(filter); showDateMenu = false }
-                            )
-                        }
-                    }
-                }
-                Box {
-                    Row(
-                        modifier = Modifier.clickable { showSavedMenu = true },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Bookmark,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(stringResource(savedFilter.labelRes), color = MaterialTheme.colorScheme.onSurface)
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    DropdownMenu(expanded = showSavedMenu, onDismissRequest = { showSavedMenu = false }) {
-                        SavedFilter.entries.forEach { filter ->
-                            DropdownMenuItem(
-                                text = { Text(stringResource(filter.labelRes)) },
-                                onClick = { onSavedFilterChange(filter); showSavedMenu = false }
-                            )
-                        }
-                    }
-                }
-                Box {
-                    val groupName = remember(selectedGroupId, groups) {
-                        groups.find { it.id == selectedGroupId }?.name
-                    } ?: stringResource(R.string.filter_group)
-                    Row(
-                        modifier = Modifier.clickable { showGroupMenu = true },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Folder,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(groupName, color = MaterialTheme.colorScheme.onSurface)
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    DropdownMenu(expanded = showGroupMenu, onDismissRequest = { showGroupMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.all_groups)) },
-                            onClick = { onGroupSelect(null); showGroupMenu = false }
-                        )
-                        groups.forEach { group ->
-                            DropdownMenuItem(
-                                text = { Text(group.name) },
-                                onClick = { onGroupSelect(group.id); showGroupMenu = false }
-                            )
-                        }
-                    }
+            FilterMenuChip(
+                icon = Icons.Filled.Bookmark,
+                label = stringResource(savedFilter.labelRes),
+                onClick = { showSavedMenu = true }
+            )
+            val groupName = remember(selectedGroupId, groups) {
+                groups.find { it.id == selectedGroupId }?.name
+            } ?: stringResource(R.string.filter_group)
+            FilterMenuChip(
+                icon = Icons.Filled.Folder,
+                label = groupName,
+                onClick = { showGroupMenu = true }
+            )
+
+            DropdownMenu(expanded = showDateMenu, onDismissRequest = { showDateMenu = false }) {
+                DateFilter.entries.forEach { filter ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(filter.labelRes)) },
+                        onClick = { onDateFilterChange(filter); showDateMenu = false }
+                    )
                 }
             }
+            DropdownMenu(expanded = showSavedMenu, onDismissRequest = { showSavedMenu = false }) {
+                SavedFilter.entries.forEach { filter ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(filter.labelRes)) },
+                        onClick = { onSavedFilterChange(filter); showSavedMenu = false }
+                    )
+                }
+            }
+            DropdownMenu(expanded = showGroupMenu, onDismissRequest = { showGroupMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.all_groups)) },
+                    onClick = { onGroupSelect(null); showGroupMenu = false }
+                )
+                groups.forEach { group ->
+                    DropdownMenuItem(
+                        text = { Text(group.name) },
+                        onClick = { onGroupSelect(group.id); showGroupMenu = false }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterMenuChip(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
+        modifier = Modifier.height(32.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Icon(
+                Icons.Default.ArrowDropDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
+            )
         }
     }
 }
@@ -251,23 +254,25 @@ fun ArticleClusterCard(
     minMentions: Int
 ) {
     val publishedAt = cluster.representative.article.publishedAt
+    val formattedDate = formatClusterDate(publishedAt)
 
-    Column {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = formatClusterDate(publishedAt),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
+            text = formattedDate,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
         )
 
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { onOpenSource(cluster.representative) },
-            shape = RoundedCornerShape(20.dp),
+            shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer
             ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column {
@@ -289,15 +294,15 @@ fun ArticleClusterCard(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
 
-                    Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 14.dp)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Surface(
-                            shape = RoundedCornerShape(20.dp),
+                            shape = MaterialTheme.shapes.small,
                             color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.padding(bottom = 8.dp)
+                            modifier = Modifier.padding(bottom = 12.dp)
                         ) {
                             Text(
                                 text = stringResource(R.string.feed_similar_news, cluster.duplicates.size),
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
@@ -322,7 +327,7 @@ fun ArticleClusterCard(
                                 Spacer(Modifier.width(10.dp))
                                 Text(
                                     text = stringResource(R.string.feed_searching_similar),
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -355,16 +360,66 @@ fun ArticleItem(
                 uiModel.sourceType == SourceType.WEBSITE)
     }
 
-    Column(modifier = Modifier.padding(16.dp)) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    uiModel.sourceName?.let { src ->
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                        )
+                        Text(
+                            text = src,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (uiModel.sourceName != null && uiModel.groupName != null) {
+                        Text(
+                            "•",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                    }
+                    uiModel.groupName?.let { grp ->
+                        Text(
+                            text = grp,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = uiModel.displayTitle,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 22.sp
+                    ),
+                    maxLines = 5,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
             if (shouldShowMedia && mediaUrl != null) {
                 Box(
                     modifier = Modifier
-                        .size(width = 72.dp, height = 56.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(width = 80.dp, height = 80.dp)
+                        .clip(MaterialTheme.shapes.medium)
                         .clickable { onMediaClick(mediaUrl) }
                 ) {
                     AsyncImage(
@@ -375,75 +430,58 @@ fun ArticleItem(
                     )
                 }
             }
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    uiModel.groupName?.let { SourceChip(label = it) }
-                    uiModel.sourceName?.let { SourceChip(label = it) }
-                }
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = uiModel.displayTitle,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontFamily = Rubik,
-                        fontWeight = FontWeight.SemiBold,
-                        lineHeight = 20.sp
-                    ),
-                    maxLines = 6,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
         }
 
         val hasDescription = isDescriptionEnabled && uiModel.displayContent.isNotBlank()
         if (hasDescription) {
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             Text(
                 text = uiModel.displayContent,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 19.sp,
-                maxLines = 5,
+                lineHeight = 20.sp,
+                maxLines = 4,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(Modifier.height(16.dp))
-        } else {
-            Spacer(Modifier.height(10.dp))
         }
+
+        Spacer(Modifier.height(8.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.End
         ) {
-            ActionChip(
-                onClick = onAiClick,
-                icon = { Icon(painterResource(R.drawable.ic_ask_ai), contentDescription = null, modifier = Modifier.size(18.dp)) },
-                modifier = Modifier.weight(1f),
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            ActionChip(
-                onClick = onToggleSaved,
-                icon = {
-                    val bookmarkIcon = if (uiModel.article.isFavorite) {
-                        Icons.Default.Bookmark
-                    } else {
-                        Icons.Outlined.BookmarkBorder
-                    }
-                    Icon(bookmarkIcon, contentDescription = null, modifier = Modifier.size(18.dp))
-                },
-                modifier = Modifier.weight(1f),
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            ActionChip(
-                onClick = { shareArticleLink(context = context, articleUrl = uiModel.article.url) },
-                icon = { Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                modifier = Modifier.weight(1f),
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            IconButton(onClick = onAiClick) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_ask_ai),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(onClick = onToggleSaved) {
+                val bookmarkIcon = if (uiModel.article.isFavorite) {
+                    Icons.Default.Bookmark
+                } else {
+                    Icons.Outlined.BookmarkBorder
+                }
+                val tint = if (uiModel.article.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                Icon(
+                    imageVector = bookmarkIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = tint
+                )
+            }
+            IconButton(onClick = { shareArticleLink(context = context, articleUrl = uiModel.article.url) }) {
+                Icon(
+                    imageVector = Icons.Outlined.Share,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -476,21 +514,22 @@ fun DuplicateItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(MaterialTheme.shapes.medium)
             .clickable { onOpenSource() }
-            .padding(vertical = 4.dp),
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
+            shape = MaterialTheme.shapes.small,
             color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.width(44.dp).height(28.dp)
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
+            modifier = Modifier.width(48.dp).height(28.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = stringResource(R.string.feed_similarity_score, scoreInt),
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                    text = "${scoreInt}%",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -500,98 +539,28 @@ fun DuplicateItem(
             Text(
                 text = uiModel.displayTitle,
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = Rubik,
                     fontWeight = FontWeight.Medium,
-                    lineHeight = 17.sp
+                    lineHeight = 18.sp
                 ),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             uiModel.sourceName?.let { src ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.padding(top = 3.dp)
-                ) {
-                    Text(
-                        text = src,
-                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 10.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                Text(
+                    text = src,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
             }
         }
 
         Icon(
             imageVector = Icons.Default.ChevronRight,
             contentDescription = null,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         )
     }
 }
-
-@Composable
-private fun SourceChip(label: String) {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceVariant
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-@Composable
-private fun ActionChip(
-    onClick: () -> Unit,
-    icon: @Composable () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    label: String? = null,
-    containerColor: Color,
-    contentColor: Color
-) {
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(20.dp),
-        color = containerColor,
-        modifier = modifier
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            CompositionLocalProvider(LocalContentColor provides contentColor) {
-                icon()
-                if (label != null) {
-                    Spacer(Modifier.width(5.dp))
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                        color = contentColor
-                    )
-                }
-            }
-        }
-    }
-}
-
-
-
-
-
-
-

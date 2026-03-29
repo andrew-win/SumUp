@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,11 +16,14 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.*
@@ -29,7 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -90,21 +94,9 @@ fun SummaryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(top = 0.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Блок 1: Список новин (графік)
-            item {
-                SummaryChart(
-                    items = chartData,
-                    currentType = chartType,
-                    onTypeChange = viewModel::setChartType,
-                    isModelEnabled = isVectorizationEnabled,
-                    onOpenWebView = onOpenWebView
-                )
-            }
-
-            // Блок 2: Статус-рядок "Попереднє / Наступне" — місток між списком і зведенням
             item {
                 PrevNextStatusRow(
                     previousSummaryAt = lastSummary?.createdAt,
@@ -118,22 +110,27 @@ fun SummaryScreen(
                 )
             }
 
-            // Блок 3: Поточне зведення (якщо є)
+            item {
+                SummaryChart(
+                    items = chartData,
+                    currentType = chartType,
+                    onTypeChange = viewModel::setChartType,
+                    isModelEnabled = isVectorizationEnabled,
+                    onOpenWebView = onOpenWebView
+                )
+            }
+
             if (todaySummary != null) {
                 item {
+                    SectionHeader(stringResource(R.string.summary_today_title), Icons.Default.History)
+                    Spacer(Modifier.height(8.dp))
                     SummaryCard(summary = todaySummary, onOpenWebView = onOpenWebView)
                 }
             }
 
-            // Блок 4: Історія
             if (olderSummaries.isNotEmpty()) {
                 item {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.summary_history_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
+                    SectionHeader(stringResource(R.string.summary_history_title), Icons.Default.History)
                 }
                 items(olderSummaries, key = { it.id }) { summary ->
                     SummaryCard(summary = summary, onOpenWebView = onOpenWebView)
@@ -143,9 +140,26 @@ fun SummaryScreen(
     }
 }
 
-// ─────────────────────────────────────────────
-// Графік — суцільна картка з роздільниками
-// ─────────────────────────────────────────────
+@Composable
+private fun SectionHeader(text: String, icon: ImageVector) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(start = 4.dp, top = 8.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
 
 @Composable
 fun SummaryChart(
@@ -155,80 +169,77 @@ fun SummaryChart(
     isModelEnabled: Boolean,
     onOpenWebView: (String) -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = stringResource(R.string.summary_infographic_title),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
-            )
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                thickness = 0.5.dp,
-                color = MaterialTheme.colorScheme.outlineVariant
-            )
-
-            if (items.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        stringResource(R.string.no_articles_prefix),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                val maxValue = items.maxOfOrNull { it.value }?.takeIf { it > 0 } ?: 1f
-                Column {
-                    items.forEachIndexed { index, item ->
-                        ChartBar(
-                            item = item,
-                            maxValue = maxValue,
-                            isLast = index == items.lastIndex,
-                            onOpenWebView = onOpenWebView
+    Column(modifier = Modifier.fillMaxWidth()) {
+        SectionHeader(stringResource(R.string.summary_infographic_title), Icons.Default.BarChart)
+        Spacer(Modifier.height(12.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (items.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            stringResource(R.string.no_articles_prefix),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                } else {
+                    val maxValue = items.maxOfOrNull { it.value }?.takeIf { it > 0 } ?: 1f
+                    Column {
+                        items.forEachIndexed { index, item ->
+                            ChartBar(
+                                item = item,
+                                index = index,
+                                maxValue = maxValue,
+                                onOpenWebView = onOpenWebView
+                            )
+                            if (index != items.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 20.dp),
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                    }
                 }
-            }
 
-            Spacer(Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ChartTypeChip(
-                    selected = currentType == SummaryChartType.VIEWS,
-                    onClick = { onTypeChange(SummaryChartType.VIEWS) },
-                    label = stringResource(R.string.chart_views)
-                )
-                if (isModelEnabled) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     ChartTypeChip(
-                        selected = currentType == SummaryChartType.MENTIONS,
-                        onClick = { onTypeChange(SummaryChartType.MENTIONS) },
-                        label = stringResource(R.string.chart_mentions)
+                        selected = currentType == SummaryChartType.VIEWS,
+                        onClick = { onTypeChange(SummaryChartType.VIEWS) },
+                        label = stringResource(R.string.chart_views)
+                    )
+                    if (isModelEnabled) {
+                        ChartTypeChip(
+                            selected = currentType == SummaryChartType.MENTIONS,
+                            onClick = { onTypeChange(SummaryChartType.MENTIONS) },
+                            label = stringResource(R.string.chart_mentions)
+                        )
+                    }
+                    ChartTypeChip(
+                        selected = currentType == SummaryChartType.FACTUALITY,
+                        onClick = { onTypeChange(SummaryChartType.FACTUALITY) },
+                        label = stringResource(R.string.chart_factuality)
                     )
                 }
-                ChartTypeChip(
-                    selected = currentType == SummaryChartType.FACTUALITY,
-                    onClick = { onTypeChange(SummaryChartType.FACTUALITY) },
-                    label = stringResource(R.string.chart_factuality)
-                )
             }
         }
     }
@@ -243,28 +254,26 @@ fun ChartTypeChip(
     FilterChip(
         selected = selected,
         onClick = onClick,
-        label = { Text(label, style = MaterialTheme.typography.labelMedium) },
+        label = { Text(label) },
         shape = CircleShape,
         colors = FilterChipDefaults.filterChipColors(
             selectedContainerColor = MaterialTheme.colorScheme.primary,
             selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
             labelColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
-        border = null
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
     )
 }
 
 @Composable
 fun ChartBar(
     item: SummaryChartItem,
+    index: Int,
     maxValue: Float,
-    isLast: Boolean,
     onOpenWebView: (String) -> Unit
 ) {
     val fraction = (item.value / maxValue).coerceIn(0.05f, 1f)
-    val indicatorAlpha = (0.2f + (fraction * 0.6f)).coerceIn(0.2f, 0.8f)
-    val accentColor = MaterialTheme.colorScheme.primary.copy(alpha = indicatorAlpha)
 
     Row(
         modifier = Modifier
@@ -272,61 +281,61 @@ fun ChartBar(
             .clickable(enabled = !item.sourceUrl.isNullOrBlank()) {
                 item.sourceUrl?.let { onOpenWebView(normalizeForWebView(it)) }
             }
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.Top
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+        Text(
+            text = "${index + 1}",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Black,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.055f),
+            modifier = Modifier.width(32.dp)
+        )
+        
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = item.headline,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 4,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
-            item.sourceName?.takeIf { it.isNotBlank() }?.let { sourceName ->
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = sourceName,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.clickable(enabled = !item.sourceUrl.isNullOrBlank()) {
-                        item.sourceUrl?.let { onOpenWebView(normalizeForWebView(it)) }
-                    }
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(5.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.26f))
+            
+            Spacer(Modifier.height(10.dp))
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(fraction.coerceIn(0.08f, 1f))
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(accentColor)
+                        .weight(1f)
+                        .height(6.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(fraction)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                }
+                
+                Spacer(Modifier.width(12.dp))
+                
+                Text(
+                    text = item.displayValue,
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
-
-        Text(
-            text = item.displayValue,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary
-        )
     }
-
 }
-
-// ─────────────────────────────────────────────
-// Статус-рядок: Попереднє | Наступне
-// Місток між списком новин і картою зведення
-// ─────────────────────────────────────────────
 
 @Composable
 fun PrevNextStatusRow(
@@ -334,89 +343,73 @@ fun PrevNextStatusRow(
     isScheduledEnabled: Boolean,
     nextScheduledAt: Long?
 ) {
-    val previousText = previousSummaryAt?.let { formatShortStatusDate(it) }
-        ?: stringResource(R.string.summary_not_ready)
-    val nextText = if (!isScheduledEnabled || nextScheduledAt == null) {
-        stringResource(R.string.summary_scheduling_disabled)
+    val statusLabel = if (isScheduledEnabled && nextScheduledAt != null) {
+        stringResource(R.string.summary_next_short)
     } else {
-        formatShortStatusDate(nextScheduledAt)
+        stringResource(R.string.summary_previous_short)
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = stringResource(R.string.settings_group_scheduled),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-            )
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                thickness = 0.5.dp,
-                color = MaterialTheme.colorScheme.outlineVariant
-            )
+    val statusTuple = if (isScheduledEnabled && nextScheduledAt != null) {
+        formatStatusTimeAndDate(nextScheduledAt)
+    } else {
+        previousSummaryAt?.let { formatStatusTimeAndDate(it) } ?: Pair(stringResource(R.string.summary_not_ready), "")
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        SectionHeader("Статус", Icons.Default.CalendarToday)
+        Spacer(Modifier.height(12.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(
+                Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .height(80.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                )
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(R.string.summary_previous_short),
+                        text = statusLabel,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = previousText,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(80.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = stringResource(R.string.summary_next_short),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = nextText,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = statusTuple.first,
+                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (statusTuple.second.isNotEmpty()) {
+                            Text(
+                                text = statusTuple.second,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 3.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
-
-// ─────────────────────────────────────────────
-// Карта зведення
-// ─────────────────────────────────────────────
 
 @Composable
 fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
@@ -433,11 +426,11 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
         label = "summaryExpandRotation"
     )
 
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
         Text(
             text = dateFormat.format(Date(summary.createdAt)),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
         )
 
@@ -448,13 +441,14 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
             shape = MaterialTheme.shapes.extraLarge,
             colors = CardDefaults.cardColors(
                 containerColor = if (isError)
-                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
                 else
                     MaterialTheme.colorScheme.surfaceContainer
             ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+            Column(modifier = Modifier.padding(20.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -463,38 +457,44 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(end = 8.dp)
                             .animateContentSize(animationSpec = tween(durationMillis = 130))
                     ) {
                         if (isExpanded && !isError) {
                             SelectionContainer {
-                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                     sections.forEach { section ->
-                                        Text(
-                                            text = section.body,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            lineHeight = 24.sp
-                                        )
-                                        section.source?.let { source ->
-                                            AssistChip(
-                                                onClick = { onOpenWebView(normalizeForWebView(source.url)) },
-                                                shape = RoundedCornerShape(14.dp),
-                                                label = {
-                                                    Text(
-                                                        text = source.name,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Link,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                }
+                                        Column {
+                                            Text(
+                                                text = section.body,
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                lineHeight = 26.sp
                                             )
+                                            section.source?.let { source ->
+                                                Spacer(Modifier.height(8.dp))
+                                                AssistChip(
+                                                    onClick = { onOpenWebView(normalizeForWebView(source.url)) },
+                                                    shape = MaterialTheme.shapes.medium,
+                                                    label = {
+                                                        Text(
+                                                            text = source.name,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Link,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    },
+                                                    colors = AssistChipDefaults.assistChipColors(
+                                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                                    ),
+                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -503,39 +503,37 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
                             SelectionContainer {
                                 Text(
                                     text = sections.joinToString("\n\n") { it.body },
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.bodyLarge,
                                     color = if (isError) MaterialTheme.colorScheme.error
                                     else MaterialTheme.colorScheme.onSurface,
                                     maxLines = 3,
                                     overflow = TextOverflow.Ellipsis,
-                                    lineHeight = 24.sp
+                                    lineHeight = 26.sp
                                 )
                             }
                         }
                     }
 
-                    FilledIconButton(
+                    Surface(
                         onClick = { isExpanded = !isExpanded },
-                        modifier = Modifier
-                            .size(30.dp)
-                            .offset(x = 6.dp, y = (-6).dp),
+                        modifier = Modifier.padding(start = 12.dp),
                         shape = CircleShape,
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
                     ) {
                         Icon(
                             Icons.Default.KeyboardArrowDown,
                             contentDescription = null,
                             modifier = Modifier
-                                .size(16.dp)
-                                .graphicsLayer { rotationZ = expandRotation }
+                                .size(28.dp)
+                                .padding(4.dp)
+                                .graphicsLayer { rotationZ = expandRotation },
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(16.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -543,7 +541,7 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         IconButton(
                             onClick = {
@@ -554,28 +552,24 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
                                     Toast.LENGTH_SHORT
                                 ).show()
                             },
-                            modifier = Modifier.size(30.dp),
-                            colors = IconButtonDefaults.iconButtonColors(
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            modifier = Modifier.size(24.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.ContentCopy,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         IconButton(
                             onClick = { shareSummaryText(context, summary.content) },
-                            modifier = Modifier.size(30.dp),
-                            colors = IconButtonDefaults.iconButtonColors(
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            modifier = Modifier.size(24.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Share,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -585,23 +579,27 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
                         AiStrategy.LOCAL -> stringResource(R.string.ai_strategy_local)
                         AiStrategy.ADAPTIVE -> stringResource(R.string.ai_strategy_adaptive)
                     }
-                    Text(
-                        text = if (isError) stringResource(R.string.summary_system_notice)
-                        else strategyLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (isError) MaterialTheme.colorScheme.error
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Normal
-                    )
+                    Surface(
+                        shape = MaterialTheme.shapes.extraSmall,
+                        color = if (isError) MaterialTheme.colorScheme.error.copy(alpha = 0.05f) 
+                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
+                        border = BorderStroke(1.dp, (if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary).copy(alpha = 0.05f))
+                    ) {
+                        Text(
+                            text = if (isError) stringResource(R.string.summary_system_notice)
+                            else strategyLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isError) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                 }
             }
         }
     }
 }
-
-// ─────────────────────────────────────────────
-// Утиліти
-// ─────────────────────────────────────────────
 
 private fun isSameDay(t1: Long, t2: Long): Boolean {
     val cal1 = Calendar.getInstance().apply { timeInMillis = t1 }
@@ -624,11 +622,11 @@ private fun getNextScheduledTimeMillis(hour: Int, minute: Int): Long {
     return next.timeInMillis
 }
 
-// We use a private lazy formatter for non-composable utility if needed, 
-// or just create it when formatting a single value since it's not a hot loop for status.
-private fun formatShortStatusDate(timestamp: Long): String {
-    val format = SimpleDateFormat("HH:mm, dd MMM", Locale("uk", "UA"))
-    return format.format(Date(timestamp))
+private fun formatStatusTimeAndDate(timestamp: Long): Pair<String, String> {
+    val timeFormat = SimpleDateFormat("HH:mm", Locale("uk", "UA"))
+    val dateFormat = SimpleDateFormat("dd MMM", Locale("uk", "UA"))
+    val date = Date(timestamp)
+    return Pair(timeFormat.format(date), dateFormat.format(date))
 }
 
 private fun shareSummaryText(
@@ -712,10 +710,3 @@ private fun normalizeForWebView(url: String): String {
     }
     return trimmed
 }
-
-
-
-
-
-
-
