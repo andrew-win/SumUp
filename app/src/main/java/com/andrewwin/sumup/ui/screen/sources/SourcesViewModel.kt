@@ -16,6 +16,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
 @HiltViewModel
@@ -35,6 +37,7 @@ class SourcesViewModel @Inject constructor(
 
     private val _suggestedThemes = MutableStateFlow<List<ThemeSuggestion>>(emptyList())
     val suggestedThemes: StateFlow<List<ThemeSuggestion>> = _suggestedThemes.asStateFlow()
+    private val pendingSubscriptionOverrides = mutableMapOf<String, Boolean>()
 
     private val _isModelLoaded = MutableStateFlow(false)
     val isModelLoaded: StateFlow<Boolean> = _isModelLoaded.asStateFlow()
@@ -46,6 +49,7 @@ class SourcesViewModel @Inject constructor(
             initialValue = true
         )
     private var suggestedThemesJob: Job? = null
+    private val subscriptionMutex = Mutex()
 
     init {
         checkModelStatus()
@@ -69,12 +73,39 @@ class SourcesViewModel @Inject constructor(
         suggestedThemesJob = viewModelScope.launch {
             getSuggestedThemesUseCase()
                 .collect { themes ->
-                    _suggestedThemes.value = themes
+                    _suggestedThemes.value = applyPendingOverrides(themes)
                 }
         }
     }
 
+    private fun applyPendingOverrides(themes: List<ThemeSuggestion>): List<ThemeSuggestion> {
+        if (pendingSubscriptionOverrides.isEmpty()) return themes
+
+        val matchedOverrides = mutableListOf<String>()
+        val mapped = themes.map { suggestion ->
+            val key = suggestion.theme.title.trim().lowercase()
+            val pending = pendingSubscriptionOverrides[key] ?: return@map suggestion
+            if (suggestion.isSubscribed == pending) {
+                matchedOverrides += key
+                suggestion
+            } else {
+                suggestion.copy(isSubscribed = pending)
+            }
+        }
+        matchedOverrides.forEach { pendingSubscriptionOverrides.remove(it) }
+        return mapped
+    }
+
+    private fun setPendingOverride(themeTitle: String, isSubscribed: Boolean) {
+        pendingSubscriptionOverrides[themeTitle.trim().lowercase()] = isSubscribed
+    }
+
+    private fun clearPendingOverride(themeTitle: String) {
+        pendingSubscriptionOverrides.remove(themeTitle.trim().lowercase())
+    }
+
     fun toggleThemeSubscription(suggestion: ThemeSuggestion, isSubscribed: Boolean) {
+        setPendingOverride(suggestion.theme.title, isSubscribed)
         _suggestedThemes.update { themes ->
             themes.map { current ->
                 if (current.theme == suggestion.theme) current.copy(isSubscribed = isSubscribed) else current
@@ -82,48 +113,66 @@ class SourcesViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            if (isSubscribed) {
-                val groupsSnapshot = repository.groupsWithSources.first()
-                val themeGroup = groupsSnapshot.firstOrNull {
-                    it.group.name.equals(suggestion.theme.title, ignoreCase = true)
-                }?.group
-                val groupId = when {
-                    themeGroup != null -> themeGroup.id
-                    else -> {
-                        repository.addGroup(suggestion.theme.title)
-                        repository.groupsWithSources.first()
-                            .firstOrNull { it.group.name.equals(suggestion.theme.title, ignoreCase = true) }
-                            ?.group
-                            ?.id
+            val applied = runCatching {
+                subscriptionMutex.withLock {
+                    if (isSubscribed) {
+                        val groupsSnapshot = repository.groupsWithSources.first()
+                        val themeGroup = groupsSnapshot.firstOrNull {
+                            it.group.name.equals(suggestion.theme.title, ignoreCase = true)
+                        }?.group
+                        val groupId = when {
+                            themeGroup != null -> themeGroup.id
+                            else -> {
+                                repository.addGroup(suggestion.theme.title)
+                                repository.groupsWithSources.first()
+                                    .firstOrNull { it.group.name.equals(suggestion.theme.title, ignoreCase = true) }
+                                    ?.group
+                                    ?.id
+                            }
+                        }
+                        if (groupId != null) {
+                            suggestion.theme.sources.forEachIndexed { index, source ->
+                                repository.addSource(
+                                    groupId = groupId,
+                                    name = "${suggestion.theme.title} #${index + 1}",
+                                    url = source.url,
+                                    type = source.type,
+                                    detectFooterPattern = false
+                                )
+                            }
+                        }
+                    } else {
+                        val groupsWithSources = repository.groupsWithSources.first()
+                        val themeGroupWithSources = groupsWithSources.firstOrNull {
+                            it.group.name.equals(suggestion.theme.title, ignoreCase = true)
+                        }
+                        if (themeGroupWithSources != null) {
+                            themeGroupWithSources.sources.forEach { repository.deleteSource(it) }
+                            repository.deleteGroup(themeGroupWithSources.group)
+                        } else {
+                            suggestion.theme.sources.forEach { ts ->
+                                groupsWithSources.flatMap { it.sources }
+                                    .firstOrNull { it.url == ts.url }
+                                    ?.let { repository.deleteSource(it) }
+                            }
+                        }
                     }
                 }
-                if (groupId != null) {
-                    suggestion.theme.sources.forEachIndexed { index, source ->
-                        repository.addSource(
-                            groupId = groupId,
-                            name = "${suggestion.theme.title} #${index + 1}",
-                            url = source.url,
-                            type = source.type
-                        )
-                    }
-                }
-            } else {
-                val groupsWithSources = repository.groupsWithSources.first()
-                val themeGroupWithSources = groupsWithSources.firstOrNull {
-                    it.group.name.equals(suggestion.theme.title, ignoreCase = true)
-                }
-                if (themeGroupWithSources != null) {
-                    themeGroupWithSources.sources.forEach { repository.deleteSource(it) }
-                    repository.deleteGroup(themeGroupWithSources.group)
-                } else {
-                    suggestion.theme.sources.forEach { ts ->
-                        groupsWithSources.flatMap { it.sources }
-                            .firstOrNull { it.url == ts.url }
-                            ?.let { repository.deleteSource(it) }
+            }.isSuccess
+
+            if (!applied) {
+                clearPendingOverride(suggestion.theme.title)
+                // Rollback optimistic UI state on failure to avoid stuck toggles.
+                _suggestedThemes.update { themes ->
+                    themes.map { current ->
+                        if (current.theme == suggestion.theme) {
+                            current.copy(isSubscribed = !isSubscribed)
+                        } else {
+                            current
+                        }
                     }
                 }
             }
-            loadSuggestedThemes()
         }
     }
 
@@ -152,7 +201,6 @@ class SourcesViewModel @Inject constructor(
                         }
                     }
                 }
-                loadSuggestedThemes()
             }
         }
     }

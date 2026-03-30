@@ -30,6 +30,8 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -450,36 +452,75 @@ fun ArticleItem(
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            IconButton(onClick = onAiClick) {
+            Button(
+                onClick = onAiClick,
+                modifier = Modifier.weight(1f).height(40.dp),
+                shape = MaterialTheme.shapes.large,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_ask_ai),
-                    contentDescription = null,
+                    contentDescription = "Summarize",
                     modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
-            IconButton(onClick = onToggleSaved) {
+            Button(
+                onClick = onToggleSaved,
+                modifier = Modifier.weight(1f).height(40.dp),
+                shape = MaterialTheme.shapes.large,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (uiModel.article.isFavorite) {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
+                    contentColor = if (uiModel.article.isFavorite) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            ) {
                 val bookmarkIcon = if (uiModel.article.isFavorite) {
                     Icons.Default.Bookmark
                 } else {
                     Icons.Outlined.BookmarkBorder
                 }
-                val tint = if (uiModel.article.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                val tint = if (uiModel.article.isFavorite) {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
                 Icon(
                     imageVector = bookmarkIcon,
-                    contentDescription = null,
+                    contentDescription = "Bookmark",
                     modifier = Modifier.size(20.dp),
                     tint = tint
                 )
             }
-            IconButton(onClick = { shareArticleLink(context = context, articleUrl = uiModel.article.url) }) {
+            Button(
+                onClick = { shareArticleLink(context = context, articleUrl = uiModel.article.url) },
+                modifier = Modifier.weight(1f).height(40.dp),
+                shape = MaterialTheme.shapes.large,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            ) {
                 Icon(
                     imageVector = Icons.Outlined.Share,
-                    contentDescription = null,
+                    contentDescription = "Share",
                     modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onTertiaryContainer
                 )
             }
         }

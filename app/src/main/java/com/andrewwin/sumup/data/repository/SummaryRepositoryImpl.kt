@@ -15,6 +15,15 @@ class SummaryRepositoryImpl @Inject constructor(
     override suspend fun insertSummary(summary: Summary) {
         summaryDao.insertSummary(summary)
     }
+
+    override suspend fun deleteSummaryById(summaryId: Long) {
+        summaryDao.deleteSummaryById(summaryId)
+    }
+
+    override suspend fun deleteSummariesByIds(summaryIds: List<Long>) {
+        if (summaryIds.isEmpty()) return
+        summaryDao.deleteSummariesByIds(summaryIds)
+    }
 }
 
 

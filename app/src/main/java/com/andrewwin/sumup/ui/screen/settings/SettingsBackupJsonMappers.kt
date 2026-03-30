@@ -28,7 +28,8 @@ internal fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
     put("cloudDeduplicationThreshold", cloudDeduplicationThreshold.toDouble())
     put("minMentions", minMentions)
     put("isHideSingleNewsEnabled", isHideSingleNewsEnabled)
-    put("modelPath", modelPath)
+    // Do not sync local absolute paths between devices.
+    put("modelPath", JSONObject.NULL)
     put("isImportanceFilterEnabled", isImportanceFilterEnabled)
     put("isAdaptiveExtractivePreprocessingEnabled", isAdaptiveExtractivePreprocessingEnabled)
     put("adaptiveExtractiveOnlyBelowChars", adaptiveExtractiveOnlyBelowChars)
@@ -84,7 +85,8 @@ internal fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
         ).toFloat(),
         minMentions = optInt("minMentions", defaults.minMentions),
         isHideSingleNewsEnabled = optBoolean("isHideSingleNewsEnabled", defaults.isHideSingleNewsEnabled),
-        modelPath = optString("modelPath", defaults.modelPath ?: "").takeIf { it.isNotBlank() },
+        // Ignore imported modelPath because it's device-specific.
+        modelPath = null,
         isImportanceFilterEnabled = optBoolean("isImportanceFilterEnabled", defaults.isImportanceFilterEnabled),
         isAdaptiveExtractivePreprocessingEnabled = optBoolean(
             "isAdaptiveExtractivePreprocessingEnabled",

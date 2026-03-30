@@ -11,6 +11,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,6 +26,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.*
@@ -69,19 +72,42 @@ fun SummaryScreen(
             .take(userPreferences.showLastSummariesCount.coerceAtLeast(1))
     }
     val lastSummary = remember(summaries) { summaries.firstOrNull() }
+    val selectedSummaryIds = remember { mutableStateListOf<Long>() }
+    val isSelectionMode = selectedSummaryIds.isNotEmpty()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.nav_summary)) },
+                title = {
+                    if (isSelectionMode) {
+                        Text("Вибрано: ${selectedSummaryIds.size}")
+                    } else {
+                        Text(stringResource(R.string.nav_summary))
+                    }
+                },
                 actions = {
-                    FilledIconButton(
-                        onClick = {},
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
+                    if (isSelectionMode) {
+                        FilledIconButton(
+                            onClick = {
+                                viewModel.deleteSummaries(selectedSummaryIds.toList())
+                                selectedSummaryIds.clear()
+                            },
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        ) {
+                            Icon(Icons.Outlined.Delete, contentDescription = "Delete selected summaries")
+                        }
+                    } else {
+                        FilledIconButton(
+                            onClick = {},
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -124,7 +150,25 @@ fun SummaryScreen(
                 item {
                     SectionHeader(stringResource(R.string.summary_today_title), Icons.Default.History)
                     Spacer(Modifier.height(8.dp))
-                    SummaryCard(summary = todaySummary, onOpenWebView = onOpenWebView)
+                    SummaryCard(
+                        summary = todaySummary,
+                        onOpenWebView = onOpenWebView,
+                        isSelected = selectedSummaryIds.contains(todaySummary.id),
+                        isSelectionMode = isSelectionMode,
+                        onDelete = { viewModel.deleteSummary(todaySummary.id) },
+                        onLongSelect = {
+                            if (!selectedSummaryIds.contains(todaySummary.id)) {
+                                selectedSummaryIds.add(todaySummary.id)
+                            }
+                        },
+                        onToggleSelect = {
+                            if (selectedSummaryIds.contains(todaySummary.id)) {
+                                selectedSummaryIds.remove(todaySummary.id)
+                            } else {
+                                selectedSummaryIds.add(todaySummary.id)
+                            }
+                        }
+                    )
                 }
             }
 
@@ -133,7 +177,25 @@ fun SummaryScreen(
                     SectionHeader(stringResource(R.string.summary_history_title), Icons.Default.History)
                 }
                 items(olderSummaries, key = { it.id }) { summary ->
-                    SummaryCard(summary = summary, onOpenWebView = onOpenWebView)
+                    SummaryCard(
+                        summary = summary,
+                        onOpenWebView = onOpenWebView,
+                        isSelected = selectedSummaryIds.contains(summary.id),
+                        isSelectionMode = isSelectionMode,
+                        onDelete = { viewModel.deleteSummary(summary.id) },
+                        onLongSelect = {
+                            if (!selectedSummaryIds.contains(summary.id)) {
+                                selectedSummaryIds.add(summary.id)
+                            }
+                        },
+                        onToggleSelect = {
+                            if (selectedSummaryIds.contains(summary.id)) {
+                                selectedSummaryIds.remove(summary.id)
+                            } else {
+                                selectedSummaryIds.add(summary.id)
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -288,7 +350,7 @@ fun ChartBar(
             text = "${index + 1}",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Black,
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.055f),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
             modifier = Modifier.width(32.dp)
         )
         
@@ -411,8 +473,17 @@ fun PrevNextStatusRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
+fun SummaryCard(
+    summary: Summary,
+    onOpenWebView: (String) -> Unit,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
+    onDelete: () -> Unit,
+    onLongSelect: () -> Unit,
+    onToggleSelect: () -> Unit
+) {
     val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
     val isError = summary.content.startsWith(stringResource(R.string.error_prefix)) ||
             summary.content.startsWith(stringResource(R.string.no_articles_prefix))
@@ -437,15 +508,25 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { isExpanded = !isExpanded },
+                .combinedClickable(
+                    onClick = {
+                        if (isSelectionMode) onToggleSelect() else isExpanded = !isExpanded
+                    },
+                    onLongClick = onLongSelect
+                ),
             shape = MaterialTheme.shapes.extraLarge,
             colors = CardDefaults.cardColors(
-                containerColor = if (isError)
-                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
-                else
-                    MaterialTheme.colorScheme.surfaceContainer
+                containerColor = when {
+                    isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                    isError -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
+                    else -> MaterialTheme.colorScheme.surfaceContainer
+                }
             ),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
+            border = BorderStroke(
+                1.dp,
+                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)
+            ),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
@@ -570,6 +651,17 @@ fun SummaryCard(summary: Summary, onOpenWebView: (String) -> Unit) {
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Delete,
+                                contentDescription = "Delete summary",
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.error
                             )
                         }
                     }

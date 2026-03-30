@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
@@ -53,12 +55,14 @@ private val SourceType.iconRes: Int
         SourceType.WEBSITE -> R.drawable.ic_usual_website_source
     }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SourcesScreen(
     viewModel: SourcesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val selectedGroupIds = remember { mutableStateListOf<Long>() }
+    val isSelectionMode = selectedGroupIds.isNotEmpty()
     var showAddGroupDialog by remember { mutableStateOf(false) }
     var editGroup by remember { mutableStateOf<SourceGroup?>(null) }
     var editSource by remember { mutableStateOf<Source?>(null) }
@@ -67,15 +71,39 @@ fun SourcesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.nav_sources)) },
+                title = {
+                    if (isSelectionMode) {
+                        Text("Вибрано: ${selectedGroupIds.size}")
+                    } else {
+                        Text(stringResource(R.string.nav_sources))
+                    }
+                },
                 actions = {
-                    FilledIconButton(
-                        onClick = {},
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
+                    if (isSelectionMode) {
+                        FilledIconButton(
+                            onClick = {
+                                val selected = uiState
+                                    .map { it.group }
+                                    .filter { selectedGroupIds.contains(it.id) }
+                                selected.forEach { viewModel.deleteGroup(it) }
+                                selectedGroupIds.clear()
+                            },
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        ) {
+                            Icon(Icons.Outlined.Delete, contentDescription = "Delete selected groups")
+                        }
+                    } else {
+                        FilledIconButton(
+                            onClick = {},
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -105,6 +133,16 @@ fun SourcesScreen(
             items(uiState, key = { it.group.id }) { groupWithSources ->
                 GroupCard(
                     groupWithSources = groupWithSources,
+                    isSelected = selectedGroupIds.contains(groupWithSources.group.id),
+                    isSelectionMode = isSelectionMode,
+                    onLongSelectGroup = {
+                        val id = groupWithSources.group.id
+                        if (!selectedGroupIds.contains(id)) selectedGroupIds.add(id)
+                    },
+                    onToggleSelectGroup = {
+                        val id = groupWithSources.group.id
+                        if (selectedGroupIds.contains(id)) selectedGroupIds.remove(id) else selectedGroupIds.add(id)
+                    },
                     onAddSource = { selectedGroupIdForSource = groupWithSources.group.id },
                     onToggleGroup = { viewModel.toggleGroup(groupWithSources.group, it) },
                     onEditGroup = { editGroup = it },
@@ -227,9 +265,14 @@ fun SourcesScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GroupCard(
     groupWithSources: GroupWithSources,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
+    onLongSelectGroup: () -> Unit,
+    onToggleSelectGroup: () -> Unit,
     onAddSource: () -> Unit,
     onToggleGroup: (Boolean) -> Unit,
     onEditGroup: (SourceGroup) -> Unit,
@@ -244,16 +287,29 @@ fun GroupCard(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = if (isSelected) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+            } else {
+                MaterialTheme.colorScheme.surfaceContainer
+            }
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { isExpanded = !isExpanded }
+                    .combinedClickable(
+                        onClick = {
+                            if (isSelectionMode) onToggleSelectGroup() else isExpanded = !isExpanded
+                        },
+                        onLongClick = onLongSelectGroup
+                    )
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -324,8 +380,8 @@ fun GroupCard(
 
             AnimatedVisibility(
                 visible = isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                enter = expandVertically(animationSpec = tween(220)) + fadeIn(animationSpec = tween(180)),
+                exit = shrinkVertically(animationSpec = tween(180)) + fadeOut(animationSpec = tween(120))
             ) {
                 Column(modifier = Modifier.padding(bottom = 12.dp)) {
                     HorizontalDivider(

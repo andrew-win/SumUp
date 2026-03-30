@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.Crossfade
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
@@ -106,8 +108,8 @@ fun SettingsScreen(
     )
 
     val webClientId = remember(context) {
-        val id = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
-        if (id != 0) context.getString(id) else ""
+        // Use direct resource reference so resource shrinker keeps this value in release builds.
+        runCatching { context.getString(R.string.default_web_client_id) }.getOrDefault("")
     }
     val googleSignInClient = remember(context, webClientId) {
         val builder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -142,14 +144,33 @@ fun SettingsScreen(
     val googleAuthLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode != android.app.Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        if (result.resultCode != android.app.Activity.RESULT_OK) {
+            Toast.makeText(context, "Google вхід скасовано або не завершено", Toast.LENGTH_SHORT).show()
+            return@rememberLauncherForActivityResult
+        }
         val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        val account = runCatching { task.getResult(ApiException::class.java) }.getOrNull()
+        var signInError: ApiException? = null
+        val account = runCatching { task.getResult(ApiException::class.java) }
+            .onFailure { throwable ->
+                if (throwable is ApiException) {
+                    signInError = throwable
+                }
+            }
+            .getOrNull()
         val token = account?.idToken
+        val statusCode = signInError?.statusCode
         if (!token.isNullOrBlank()) {
             viewModel.signInWithGoogleIdToken(token)
         } else {
-            Toast.makeText(context, "Немає Google token. Додайте google-services.json", Toast.LENGTH_SHORT).show()
+            val reason = when {
+                webClientId.isBlank() ->
+                    "Не знайдено default_web_client_id. Перевірте google-services.json для цього build variant."
+                statusCode != null ->
+                    "Google вхід не повернув токен (statusCode=$statusCode). Перевірте SHA/package/OAuth Web client ID."
+                else ->
+                    "Google вхід не повернув idToken. Перевірте web client ID, SHA та package name."
+            }
+            Toast.makeText(context, reason, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -239,51 +260,58 @@ fun SettingsScreen(
             )
         }
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(if (selectedGroup == null) 20.dp else 16.dp)
-        ) {
-            if (selectedGroup == null) {
-                item {
-                    Text(
-                        text = stringResource(R.string.settings_section_account).uppercase(),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
-                    )
-                    SettingsGroupsPanel(
-                        groups = listOf(SettingsGroup.ACCOUNT),
-                        onGroupClick = { selectedGroup = it }
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = stringResource(R.string.settings_section_content_ai).uppercase(),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
-                    )
-                    SettingsGroupsPanel(
-                        groups = listOf(SettingsGroup.AI_PROCESSING, SettingsGroup.API_KEYS, SettingsGroup.RECOMMENDATIONS),
-                        onGroupClick = { selectedGroup = it }
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = stringResource(R.string.settings_section_interface).uppercase(),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
-                    )
-                    SettingsGroupsPanel(
-                        groups = listOf(SettingsGroup.FEED, SettingsGroup.SCHEDULED_SUMMARY, SettingsGroup.GENERAL, SettingsGroup.MEMORY),
-                        onGroupClick = { selectedGroup = it }
-                    )
+        Crossfade(targetState = selectedGroup, label = "settingsGroupTransition") { activeGroup ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .animateContentSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(if (activeGroup == null) 20.dp else 16.dp)
+            ) {
+                if (activeGroup == null) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.settings_section_account).uppercase(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+                        )
+                        SettingsGroupsPanel(
+                            groups = listOf(SettingsGroup.ACCOUNT),
+                            onGroupClick = { selectedGroup = it }
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = stringResource(R.string.settings_section_content_ai).uppercase(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+                        )
+                        SettingsGroupsPanel(
+                            groups = listOf(SettingsGroup.AI_PROCESSING, SettingsGroup.API_KEYS, SettingsGroup.RECOMMENDATIONS),
+                            onGroupClick = { selectedGroup = it }
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = stringResource(R.string.settings_section_interface).uppercase(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+                        )
+                        SettingsGroupsPanel(
+                            groups = listOf(
+                                SettingsGroup.FEED,
+                                SettingsGroup.SCHEDULED_SUMMARY,
+                                SettingsGroup.GENERAL,
+                                SettingsGroup.MEMORY
+                            ),
+                            onGroupClick = { selectedGroup = it }
+                        )
+                    }
+                    return@LazyColumn
                 }
-                return@LazyColumn
-            }
-            if (selectedGroup == SettingsGroup.ACCOUNT) item {
+            if (activeGroup == SettingsGroup.ACCOUNT) item {
                 SettingsAccountGroup(
                     authUiState = authUiState,
                     isCloudSyncEnabled = isCloudSyncEnabled,
@@ -308,7 +336,7 @@ fun SettingsScreen(
                 )
             }
 
-            if (selectedGroup == SettingsGroup.GENERAL) item {
+            if (activeGroup == SettingsGroup.GENERAL) item {
                 SettingsSection(title = stringResource(R.string.settings_language), boxed = true) {
                     val languages = listOf(
                         AppLanguage.UK to R.string.settings_language_uk,
@@ -327,7 +355,7 @@ fun SettingsScreen(
                     }
                 }
             }
-            if (selectedGroup == SettingsGroup.GENERAL) item {
+            if (activeGroup == SettingsGroup.GENERAL) item {
                 SettingsSection(title = stringResource(R.string.settings_summary_language), boxed = true) {
                     val summaryLanguages = listOf(
                         SummaryLanguage.ORIGINAL to R.string.settings_summary_language_original,
@@ -352,7 +380,7 @@ fun SettingsScreen(
                     }
                 }
             }
-            if (selectedGroup == SettingsGroup.GENERAL) item {
+            if (activeGroup == SettingsGroup.GENERAL) item {
                 SettingsSection(title = stringResource(R.string.settings_theme), boxed = true) {
                     val themeModes = listOf(
                         AppThemeMode.SYSTEM to R.string.settings_theme_system,
@@ -377,7 +405,7 @@ fun SettingsScreen(
                     }
                 }
             }
-            if (selectedGroup == SettingsGroup.AI_PROCESSING) item {
+            if (activeGroup == SettingsGroup.AI_PROCESSING) item {
                 SettingsSection(title = stringResource(R.string.settings_ai_strategy), boxed = true) {
                     val strategies = listOf(
                         AiStrategy.LOCAL to R.string.ai_strategy_local,
@@ -405,7 +433,7 @@ fun SettingsScreen(
                     }
                 }
             }
-            if (selectedGroup == SettingsGroup.API_KEYS) item {
+            if (activeGroup == SettingsGroup.API_KEYS) item {
                 SettingsSection(
                     title = stringResource(R.string.settings_cloud_summary_api_keys),
                     boxed = true,
@@ -470,7 +498,7 @@ fun SettingsScreen(
                 }
             }
 
-            if (selectedGroup == SettingsGroup.API_KEYS) item {
+            if (activeGroup == SettingsGroup.API_KEYS) item {
                 SettingsSection(
                     title = stringResource(R.string.settings_cloud_vectorization_api_keys),
                     boxed = true,
@@ -507,7 +535,7 @@ fun SettingsScreen(
                     }
                 }
             }
-            if (selectedGroup == SettingsGroup.AI_PROCESSING) item {
+            if (activeGroup == SettingsGroup.AI_PROCESSING) item {
                 SettingsSection(title = stringResource(R.string.settings_ai_limits), boxed = true) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Column {
@@ -558,7 +586,7 @@ fun SettingsScreen(
                     }
                 }
             }
-            if (selectedGroup == SettingsGroup.AI_PROCESSING) item {
+            if (activeGroup == SettingsGroup.AI_PROCESSING) item {
                 SettingsSection(title = stringResource(R.string.settings_local_summary), boxed = true) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Column {
@@ -624,7 +652,7 @@ fun SettingsScreen(
                     }
                 }
             }
-            if (selectedGroup == SettingsGroup.AI_PROCESSING) item {
+            if (activeGroup == SettingsGroup.AI_PROCESSING) item {
                 SettingsSection(title = stringResource(R.string.settings_cloud_summary), boxed = true) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Column {
@@ -720,7 +748,7 @@ fun SettingsScreen(
                     }
                 }
             }
-            if (selectedGroup == SettingsGroup.FEED) item {
+            if (activeGroup == SettingsGroup.FEED) item {
                 SettingsSection(title = stringResource(R.string.settings_feed), boxed = true) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -877,7 +905,10 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth().height(52.dp),
                             shape = MaterialTheme.shapes.extraLarge,
                             colors = if (isModelReady) 
-                                ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                                ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                )
                             else ButtonDefaults.buttonColors()
                         ) {
                             Text(
@@ -888,7 +919,7 @@ fun SettingsScreen(
                     }
                 }
             }
-            if (selectedGroup == SettingsGroup.SCHEDULED_SUMMARY) item {
+            if (activeGroup == SettingsGroup.SCHEDULED_SUMMARY) item {
                 ScheduledSummarySettingsSection(
                     showTitle = false,
                     userPreferences = userPreferences,
@@ -927,7 +958,7 @@ fun SettingsScreen(
                     onPickTime = { showTimePicker = true }
                 )
             }
-            if (selectedGroup == SettingsGroup.RECOMMENDATIONS) item {
+            if (activeGroup == SettingsGroup.RECOMMENDATIONS) item {
                 SourcesSettingsSection(
                     showTitle = false,
                     isRecommendationsEnabled = userPreferences.isRecommendationsEnabled,
@@ -935,7 +966,7 @@ fun SettingsScreen(
                 )
             }
 
-            if (selectedGroup == SettingsGroup.MEMORY) item {
+            if (activeGroup == SettingsGroup.MEMORY) item {
                 MemorySettingsSection(
                     showTitle = false,
                     onClearArticles = { showClearArticlesDialog = true },
@@ -943,7 +974,7 @@ fun SettingsScreen(
                     onResetSettings = { showResetSettingsDialog = true }
                 )
             }
-
+            }
         }
 
         showConfigDialog?.let { (config, type) ->

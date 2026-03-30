@@ -14,6 +14,12 @@ interface SummaryDao {
     @Insert
     suspend fun insertSummary(summary: Summary)
 
+    @Query("DELETE FROM summaries WHERE id = :summaryId")
+    suspend fun deleteSummaryById(summaryId: Long)
+
+    @Query("DELETE FROM summaries WHERE id IN (:summaryIds)")
+    suspend fun deleteSummariesByIds(summaryIds: List<Long>)
+
     @Query("DELETE FROM summaries")
     suspend fun deleteAllSummaries()
 }

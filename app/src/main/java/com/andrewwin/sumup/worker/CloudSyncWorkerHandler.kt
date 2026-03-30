@@ -7,6 +7,7 @@ import androidx.work.ListenableWorker
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.usecase.settings.ScheduleSummaryUseCase
 import com.andrewwin.sumup.ui.screen.settings.BackupSelection
 import com.andrewwin.sumup.ui.screen.settings.toAiConfigsFromBackup
 import com.andrewwin.sumup.ui.screen.settings.toBackupJson
@@ -25,7 +26,8 @@ class CloudSyncWorkerHandler @Inject constructor(
     @ApplicationContext private val context: Context,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val aiRepository: AiRepository,
-    private val sourceRepository: SourceRepository
+    private val sourceRepository: SourceRepository,
+    private val scheduleSummaryUseCase: ScheduleSummaryUseCase
 ) {
     suspend fun execute(): ListenableWorker.Result {
         val syncPrefs = context.getSharedPreferences(WorkerContracts.SYNC_PREFS, 0)
@@ -137,6 +139,11 @@ class CloudSyncWorkerHandler @Inject constructor(
                 com.andrewwin.sumup.data.local.entities.AppLanguage.EN -> "en"
             }
             AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
+            scheduleSummaryUseCase(
+                importedPrefs.isScheduledSummaryEnabled,
+                importedPrefs.scheduledHour,
+                importedPrefs.scheduledMinute
+            )
         }
 
         if (selection.includeApiKeys) {

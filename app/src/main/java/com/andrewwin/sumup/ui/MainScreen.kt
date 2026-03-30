@@ -2,6 +2,9 @@ package com.andrewwin.sumup.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -80,6 +83,18 @@ fun MainScreen() {
             NavHost(
                 navController = navController,
                 startDestination = Screen.Summary.route,
+                enterTransition = {
+                    fadeIn(animationSpec = tween(120))
+                },
+                exitTransition = {
+                    fadeOut(animationSpec = tween(90))
+                },
+                popEnterTransition = {
+                    fadeIn(animationSpec = tween(110))
+                },
+                popExitTransition = {
+                    fadeOut(animationSpec = tween(80))
+                }
             ) {
         composable(Screen.Summary.route) {
             SummaryScreen(

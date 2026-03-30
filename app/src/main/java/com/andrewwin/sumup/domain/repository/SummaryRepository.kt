@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.Flow
 interface SummaryRepository {
     val allSummaries: Flow<List<Summary>>
     suspend fun insertSummary(summary: Summary)
+    suspend fun deleteSummaryById(summaryId: Long)
+    suspend fun deleteSummariesByIds(summaryIds: List<Long>)
 }
 
 

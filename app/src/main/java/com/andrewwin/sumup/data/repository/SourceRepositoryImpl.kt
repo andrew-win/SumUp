@@ -63,7 +63,8 @@ class SourceRepositoryImpl @Inject constructor(
         postLinkSelector: String?,
         descriptionSelector: String?,
         dateSelector: String?,
-        useHeadlessBrowser: Boolean
+        useHeadlessBrowser: Boolean,
+        detectFooterPattern: Boolean
     ) {
         val normalizedName = name.trim()
         val normalizedUrl = normalizeUrl(url, type)
@@ -88,6 +89,8 @@ class SourceRepositoryImpl @Inject constructor(
         )
         val insertedId = sourceDao.insertSource(sourceToInsert)
         if (insertedId <= 0L) return
+
+        if (!detectFooterPattern) return
 
         val footerPattern = try {
             val sampleArticles = remoteArticleDataSource.fetchArticles(

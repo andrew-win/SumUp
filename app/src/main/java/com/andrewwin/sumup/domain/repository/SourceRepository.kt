@@ -23,7 +23,8 @@ interface SourceRepository {
         postLinkSelector: String? = null,
         descriptionSelector: String? = null,
         dateSelector: String? = null,
-        useHeadlessBrowser: Boolean = false
+        useHeadlessBrowser: Boolean = false,
+        detectFooterPattern: Boolean = true
     )
     suspend fun updateSource(source: Source)
     suspend fun deleteSource(source: Source)

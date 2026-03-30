@@ -1,6 +1,9 @@
 package com.andrewwin.sumup.ui.screen.settings
 
 import android.app.Application
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
@@ -14,6 +17,7 @@ import androidx.work.WorkManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.tasks.await
 import com.andrewwin.sumup.domain.usecase.settings.ScheduleSummaryUseCase
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
@@ -473,7 +477,18 @@ class SettingsViewModel @Inject constructor(
             }.onSuccess {
                 _transferState.value = TransferState.Success("Синхронізацію завершено")
             }.onFailure { e ->
-                _transferState.value = TransferState.Error(e.localizedMessage ?: "Помилка синхронізації")
+                val message = when ((e as? FirebaseFirestoreException)?.code) {
+                    FirebaseFirestoreException.Code.UNAVAILABLE ->
+                        if (hasInternetConnection()) {
+                            "Є мережа, але Firebase тимчасово недоступний (UNAVAILABLE). Перевірте дату/час, VPN/Proxy та доступ до Google Firebase."
+                        } else {
+                            "Немає інтернету. Синхронізація буде доступна після відновлення мережі."
+                        }
+                    FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+                        "Немає доступу до хмарної синхронізації. Перевірте вхід у акаунт."
+                    else -> e.localizedMessage ?: "Помилка синхронізації"
+                }
+                _transferState.value = TransferState.Error(message)
             }
         }
     }
@@ -670,6 +685,14 @@ class SettingsViewModel @Inject constructor(
     private suspend fun updatePreferences(transform: (UserPreferences) -> UserPreferences) {
         val current = userPreferencesRepository.preferences.first()
         userPreferencesRepository.updatePreferences(transform(current))
+    }
+
+    private fun hasInternetConnection(): Boolean {
+        val connectivityManager = getApplication<Application>()
+            .getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     companion object {

@@ -177,6 +177,18 @@ class SummaryViewModel @Inject constructor(
         workManager.enqueue(request)
     }
 
+    fun deleteSummary(summaryId: Long) {
+        viewModelScope.launch {
+            summaryRepository.deleteSummaryById(summaryId)
+        }
+    }
+
+    fun deleteSummaries(summaryIds: List<Long>) {
+        viewModelScope.launch {
+            summaryRepository.deleteSummariesByIds(summaryIds)
+        }
+    }
+
     companion object {
         private const val SCHEDULED_SUMMARY_WORK_NAME = "scheduled_summary"
     }

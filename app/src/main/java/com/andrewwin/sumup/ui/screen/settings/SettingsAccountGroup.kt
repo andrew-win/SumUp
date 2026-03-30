@@ -15,7 +15,8 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -76,11 +77,14 @@ fun SettingsAccountGroup(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    OutlinedButton(
+                    Button(
                         onClick = onSignInOutClick,
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = MaterialTheme.shapes.large,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
                     ) {
                         Text(stringResource(R.string.settings_logout))
                     }
@@ -119,15 +123,18 @@ fun SettingsAccountGroup(
                             textAlign = TextAlign.Center
                         )
                     }
-                    OutlinedButton(
+                    Button(
                         onClick = onSignInOutClick,
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = MaterialTheme.shapes.medium,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     ) {
                         Text(
                             text = stringResource(R.string.settings_account_login_btn),
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
                 }
@@ -186,12 +193,15 @@ fun SettingsAccountGroup(
                     onCheckedChange = { onBackupSelectionChange(backupSelection.copy(includeApiKeys = it)) }
                 )
                 if (authUiState.isSignedIn) {
-                    OutlinedButton(
+                    Button(
                         onClick = onSyncNowClick,
                         enabled = isCloudSyncEnabled && transferState !is TransferState.Working,
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                         shape = MaterialTheme.shapes.extraLarge,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
                     ) {
                         Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))
@@ -199,18 +209,21 @@ fun SettingsAccountGroup(
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(
+                    Button(
                         onClick = onImportClick,
                         enabled = transferState !is TransferState.Working,
                         modifier = Modifier.weight(1f).height(52.dp),
                         shape = MaterialTheme.shapes.extraLarge,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
                     ) {
                         Icon(Icons.Default.ArrowDownward, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))
                         Text(stringResource(R.string.settings_import_button))
                     }
-                    OutlinedButton(
+                    Button(
                         onClick = {
                             val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
                             onExportClick("sumup-backup-$date.json")
@@ -218,7 +231,10 @@ fun SettingsAccountGroup(
                         enabled = transferState !is TransferState.Working,
                         modifier = Modifier.weight(1f).height(52.dp),
                         shape = MaterialTheme.shapes.extraLarge,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     ) {
                         Icon(Icons.Default.ArrowUpward, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))

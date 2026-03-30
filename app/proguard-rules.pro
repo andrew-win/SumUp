@@ -29,3 +29,8 @@
 # XML / StAX
 -dontwarn org.codehaus.stax2.**
 -dontwarn javax.xml.stream.**
+
+# ONNX Runtime JNI bridge relies on exact Java class names/signatures.
+# Keep runtime and extensions APIs from being obfuscated/stripped in release.
+-keep class ai.onnxruntime.** { *; }
+-keep class ai.onnxruntime.extensions.** { *; }
