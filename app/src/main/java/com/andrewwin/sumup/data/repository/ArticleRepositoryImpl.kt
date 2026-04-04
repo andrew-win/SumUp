@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.data.repository
 
+import android.database.sqlite.SQLiteConstraintException
 import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
@@ -118,7 +119,25 @@ class ArticleRepositoryImpl @Inject constructor(
 
     override suspend fun upsertSimilarities(items: List<ArticleSimilarity>) {
         if (items.isEmpty()) return
-        articleSimilarityDao.upsertSimilarities(items)
+
+        val relatedIds = items.asSequence()
+            .flatMap { sequenceOf(it.representativeId, it.articleId) }
+            .toSet()
+        if (relatedIds.isEmpty()) return
+
+        val existingIds = articleDao.getExistingArticleIds(relatedIds.toList()).toHashSet()
+        if (existingIds.isEmpty()) return
+
+        val validItems = items.filter { similarity ->
+            similarity.representativeId in existingIds && similarity.articleId in existingIds
+        }
+        if (validItems.isEmpty()) return
+
+        try {
+            articleSimilarityDao.upsertSimilarities(validItems)
+        } catch (_: SQLiteConstraintException) {
+            // Race condition guard: one of related articles could be deleted between validation and insert.
+        }
     }
 
     override suspend fun clearAllArticles() {

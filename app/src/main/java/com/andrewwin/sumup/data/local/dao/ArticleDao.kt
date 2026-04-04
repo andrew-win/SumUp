@@ -117,6 +117,9 @@ interface ArticleDao {
     @Query("SELECT id, embedding FROM articles WHERE id IN (:ids)")
     suspend fun getEmbeddingsByIds(ids: List<Long>): List<ArticleEmbedding>
 
+    @Query("SELECT id FROM articles WHERE id IN (:ids)")
+    suspend fun getExistingArticleIds(ids: List<Long>): List<Long>
+
     @Delete
     suspend fun deleteArticle(article: Article)
 
