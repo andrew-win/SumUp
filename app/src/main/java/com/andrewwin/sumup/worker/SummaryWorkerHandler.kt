@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import androidx.work.ListenableWorker
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
+import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
@@ -60,9 +61,10 @@ class SummaryWorkerHandler @Inject constructor(
             val hasCloudEmbedding = aiRepository.hasEnabledEmbeddingConfig()
             val resolvedModelPath = resolveModelPath(prefs)
             val hasLocalEmbedding = resolvedModelPath?.let { deduplicationService.initialize(it) } ?: false
-            val canDeduplicate = when (prefs.aiStrategy) {
-                AiStrategy.LOCAL -> hasLocalEmbedding
-                AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> hasCloudEmbedding || hasLocalEmbedding
+            val canDeduplicate = when (prefs.deduplicationStrategy) {
+                DeduplicationStrategy.LOCAL -> hasLocalEmbedding
+                DeduplicationStrategy.CLOUD -> hasCloudEmbedding
+                DeduplicationStrategy.ADAPTIVE -> hasCloudEmbedding || hasLocalEmbedding
             }
 
             var filteredArticles = recentArticles
@@ -78,9 +80,10 @@ class SummaryWorkerHandler @Inject constructor(
                 if (!prefs.isDeduplicationEnabled || filteredArticles.size < 2 || !canDeduplicate) {
                     filteredArticles.map { ArticleCluster(it, emptyList()) }
                 } else {
-                    val dedupThreshold = when (prefs.aiStrategy) {
-                        AiStrategy.LOCAL -> prefs.localDeduplicationThreshold
-                        AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> if (hasCloudEmbedding) {
+                    val dedupThreshold = when (prefs.deduplicationStrategy) {
+                        DeduplicationStrategy.LOCAL -> prefs.localDeduplicationThreshold
+                        DeduplicationStrategy.CLOUD -> prefs.cloudDeduplicationThreshold
+                        DeduplicationStrategy.ADAPTIVE -> if (hasCloudEmbedding) {
                             prefs.cloudDeduplicationThreshold
                         } else {
                             prefs.localDeduplicationThreshold

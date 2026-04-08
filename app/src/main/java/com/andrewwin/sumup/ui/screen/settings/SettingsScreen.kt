@@ -48,6 +48,7 @@ import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.AppThemeMode
+import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -95,9 +96,17 @@ fun SettingsScreen(
     var showResetSettingsDialog by remember { mutableStateOf(false) }
     var showEmailAuthDialog by remember { mutableStateOf(false) }
     var selectedGroup by rememberSaveable { mutableStateOf<SettingsGroup?>(null) }
+    var isHelpMode by rememberSaveable { mutableStateOf(false) }
+    var helpDescription by remember { mutableStateOf<String?>(null) }
 
     BackHandler(enabled = selectedGroup != null) {
         selectedGroup = null
+    }
+
+    LaunchedEffect(selectedGroup) {
+        if (selectedGroup != null && isHelpMode) {
+            isHelpMode = false
+        }
     }
 
     val backupSelection = BackupSelection(
@@ -216,12 +225,8 @@ fun SettingsScreen(
     var aiMaxCharsPerArticle by rememberSaveable(userPreferences.aiMaxCharsPerArticle) { mutableStateOf(userPreferences.aiMaxCharsPerArticle.toFloat()) }
     var aiMaxCharsPerFeedArticle by rememberSaveable(userPreferences.aiMaxCharsPerFeedArticle) { mutableStateOf(userPreferences.aiMaxCharsPerFeedArticle.toFloat()) }
     var aiMaxCharsTotal by rememberSaveable(userPreferences.aiMaxCharsTotal) { mutableStateOf(userPreferences.aiMaxCharsTotal.toFloat()) }
-    var summaryItemsPerNewsInFeed by rememberSaveable(userPreferences.summaryItemsPerNewsInFeed) { mutableStateOf(userPreferences.summaryItemsPerNewsInFeed.toFloat()) }
-    var summaryItemsPerNewsInScheduled by rememberSaveable(userPreferences.summaryItemsPerNewsInScheduled) { mutableStateOf(userPreferences.summaryItemsPerNewsInScheduled.toFloat()) }
     var summaryNewsInFeedExtractive by rememberSaveable(userPreferences.summaryNewsInFeedExtractive) { mutableStateOf(userPreferences.summaryNewsInFeedExtractive.toFloat()) }
-    var summaryNewsInFeedCloud by rememberSaveable(userPreferences.summaryNewsInFeedCloud) { mutableStateOf(userPreferences.summaryNewsInFeedCloud.toFloat()) }
     var summaryNewsInScheduledExtractive by rememberSaveable(userPreferences.summaryNewsInScheduledExtractive) { mutableStateOf(userPreferences.summaryNewsInScheduledExtractive.toFloat()) }
-    var summaryNewsInScheduledCloud by rememberSaveable(userPreferences.summaryNewsInScheduledCloud) { mutableStateOf(userPreferences.summaryNewsInScheduledCloud.toFloat()) }
     var showLastSummariesCount by rememberSaveable(userPreferences.showLastSummariesCount) { mutableStateOf(userPreferences.showLastSummariesCount.toFloat()) }
     var showInfographicNewsCount by rememberSaveable(userPreferences.showInfographicNewsCount) { mutableStateOf(userPreferences.showInfographicNewsCount.toFloat()) }
     var localDeduplicationThreshold by rememberSaveable(userPreferences.localDeduplicationThreshold) { mutableStateOf(userPreferences.localDeduplicationThreshold) }
@@ -245,12 +250,16 @@ fun SettingsScreen(
                 actions = {
                     if (selectedGroup == null) {
                         FilledIconButton(
-                            onClick = {},
+                            onClick = { isHelpMode = !isHelpMode },
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         ) {
-                            Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
+                            if (isHelpMode) {
+                                Icon(Icons.Default.Close, contentDescription = "Вимкнути підказки")
+                            } else {
+                                Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = "Увімкнути підказки")
+                            }
                         }
                     }
                 },
@@ -279,7 +288,11 @@ fun SettingsScreen(
                         )
                         SettingsGroupsPanel(
                             groups = listOf(SettingsGroup.ACCOUNT),
-                            onGroupClick = { selectedGroup = it }
+                            isHelpMode = isHelpMode,
+                            onGroupClick = { selectedGroup = it },
+                            onHelpRequest = { group ->
+                                helpDescription = settingsGroupHelpDescription(group)
+                            }
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
@@ -290,7 +303,11 @@ fun SettingsScreen(
                         )
                         SettingsGroupsPanel(
                             groups = listOf(SettingsGroup.AI_PROCESSING, SettingsGroup.API_KEYS, SettingsGroup.RECOMMENDATIONS),
-                            onGroupClick = { selectedGroup = it }
+                            isHelpMode = isHelpMode,
+                            onGroupClick = { selectedGroup = it },
+                            onHelpRequest = { group ->
+                                helpDescription = settingsGroupHelpDescription(group)
+                            }
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
@@ -306,7 +323,11 @@ fun SettingsScreen(
                                 SettingsGroup.GENERAL,
                                 SettingsGroup.MEMORY
                             ),
-                            onGroupClick = { selectedGroup = it }
+                            isHelpMode = isHelpMode,
+                            onGroupClick = { selectedGroup = it },
+                            onHelpRequest = { group ->
+                                helpDescription = settingsGroupHelpDescription(group)
+                            }
                         )
                     }
                     return@LazyColumn
@@ -591,36 +612,6 @@ fun SettingsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Column {
                             Text(
-                                stringResource(R.string.settings_summary_items_per_news_feed, summaryItemsPerNewsInFeed.toInt()),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Slider(
-                                value = summaryItemsPerNewsInFeed,
-                                onValueChange = { summaryItemsPerNewsInFeed = it },
-                                onValueChangeFinished = {
-                                    viewModel.updateSummaryItemsPerNewsInFeed(summaryItemsPerNewsInFeed.toInt())
-                                },
-                                valueRange = 1f..10f,
-                                steps = 8
-                            )
-                        }
-                        Column {
-                            Text(
-                                stringResource(R.string.settings_summary_items_per_news_scheduled, summaryItemsPerNewsInScheduled.toInt()),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Slider(
-                                value = summaryItemsPerNewsInScheduled,
-                                onValueChange = { summaryItemsPerNewsInScheduled = it },
-                                onValueChangeFinished = {
-                                    viewModel.updateSummaryItemsPerNewsInScheduled(summaryItemsPerNewsInScheduled.toInt())
-                                },
-                                valueRange = 1f..10f,
-                                steps = 8
-                            )
-                        }
-                        Column {
-                            Text(
                                 stringResource(R.string.settings_summary_news_feed_extractive, summaryNewsInFeedExtractive.toInt()),
                                 style = MaterialTheme.typography.bodyLarge
                             )
@@ -653,37 +644,29 @@ fun SettingsScreen(
                 }
             }
             if (activeGroup == SettingsGroup.AI_PROCESSING) item {
-                SettingsSection(title = stringResource(R.string.settings_cloud_summary), boxed = true) {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Column {
-                            Text(
-                                stringResource(R.string.settings_summary_news_feed_cloud, summaryNewsInFeedCloud.toInt()),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Slider(
-                                value = summaryNewsInFeedCloud,
-                                onValueChange = { summaryNewsInFeedCloud = it },
-                                onValueChangeFinished = {
-                                    viewModel.updateSummaryNewsInFeedCloud(summaryNewsInFeedCloud.toInt())
-                                },
-                                valueRange = 1f..20f,
-                                steps = 18
-                            )
-                        }
-                        Column {
-                            Text(
-                                stringResource(R.string.settings_summary_news_scheduled_cloud, summaryNewsInScheduledCloud.toInt()),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Slider(
-                                value = summaryNewsInScheduledCloud,
-                                onValueChange = { summaryNewsInScheduledCloud = it },
-                                onValueChangeFinished = {
-                                    viewModel.updateSummaryNewsInScheduledCloud(summaryNewsInScheduledCloud.toInt())
-                                },
-                                valueRange = 1f..20f,
-                                steps = 18
-                            )
+                SettingsSection(title = stringResource(R.string.settings_deduplication_strategy), boxed = true) {
+                    val strategies = listOf(
+                        DeduplicationStrategy.LOCAL to R.string.ai_strategy_local,
+                        DeduplicationStrategy.CLOUD to R.string.ai_strategy_cloud,
+                        DeduplicationStrategy.ADAPTIVE to R.string.ai_strategy_adaptive
+                    )
+
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        strategies.forEachIndexed { index, (strategy, labelRes) ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = strategies.size),
+                                onClick = { viewModel.updateDeduplicationStrategy(strategy) },
+                                selected = userPreferences.deduplicationStrategy == strategy
+                            ) {
+                                Text(
+                                    text = stringResource(labelRes),
+                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
@@ -773,6 +756,19 @@ fun SettingsScreen(
                             Switch(
                                 checked = userPreferences.isFeedDescriptionEnabled,
                                 onCheckedChange = { viewModel.updateFeedDescriptionEnabled(it) },
+                                modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stringResource(R.string.settings_feed_summary_use_full_text),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Switch(
+                                checked = userPreferences.isFeedSummaryUseFullTextEnabled,
+                                onCheckedChange = { viewModel.updateFeedSummaryUseFullTextEnabled(it) },
                                 modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
                             )
                         }
@@ -977,6 +973,19 @@ fun SettingsScreen(
             }
         }
 
+        if (helpDescription != null) {
+            AlertDialog(
+                onDismissRequest = { helpDescription = null },
+                title = { Text("Пояснення групи налаштувань") },
+                text = { Text(helpDescription.orEmpty()) },
+                confirmButton = {
+                    TextButton(onClick = { helpDescription = null }) {
+                        Text("OK")
+                    }
+                }
+            )
+        }
+
         showConfigDialog?.let { (config, type) ->
             AiConfigDialog(
                 viewModel = viewModel,
@@ -1036,6 +1045,43 @@ fun SettingsScreen(
                 }
             )
         }
+    }
+}
+
+private fun settingsGroupHelpDescription(group: SettingsGroup): String {
+    return when (group) {
+        SettingsGroup.ACCOUNT ->
+            "Акаунт: вхід/вихід, хмарна синхронізація та перенос даних. " +
+                "Тут зберігаються параметри резервного копіювання, імпорту/експорту і ручного sync, " +
+                "щоб мати однакові налаштування та джерела на кількох пристроях."
+
+        SettingsGroup.AI_PROCESSING ->
+            "ШІ обробка: логіка формування зведень (стратегія, ліміти, дедуплікація, довжина і фільтри). " +
+                "Ця група визначає якість/швидкість обробки і те, скільки контенту ШІ бере в аналіз."
+
+        SettingsGroup.API_KEYS ->
+            "API ключі: підключення провайдерів ШІ та вибір моделей для summary/embedding задач. " +
+                "Тут додаються ключі, керується їх активність і перевіряється доступність моделей."
+
+        SettingsGroup.RECOMMENDATIONS ->
+            "Рекомендації: налаштування тематичних підписок і пов'язаних сценаріїв персоналізації контенту. " +
+                "Допомагає швидко включати релевантні теми без ручного пошуку кожного джерела."
+
+        SettingsGroup.FEED ->
+            "Стрічка: параметри відображення новин у feed (медіа, описи, кількість елементів і поведінка карток). " +
+                "Впливає на те, наскільки компактно або детально виглядає щоденний перегляд новин."
+
+        SettingsGroup.SCHEDULED_SUMMARY ->
+            "Заплановані зведення: час автогенерації, push-сповіщення та параметри регулярного запуску. " +
+                "Дозволяє отримувати зведення автоматично в заданий час без ручного запуску."
+
+        SettingsGroup.GENERAL ->
+            "Загальні: мова застосунку, мова зведень, тема та інші базові глобальні параметри. " +
+                "Це загальна поведінка інтерфейсу, яка застосовується до всіх екранів."
+
+        SettingsGroup.MEMORY ->
+            "Памʼять: сервісні дії з локальними даними (очищення, скидання, технічне обслуговування сховища). " +
+                "Використовуйте обережно, бо деякі операції можуть видаляти кеш або накопичену історію."
     }
 }
 

@@ -7,11 +7,13 @@ import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.dao.GroupWithSources
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.support.NoActiveModelException
 import com.andrewwin.sumup.domain.support.UnsupportedStrategyException
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.ai.AskQuestionUseCase
@@ -48,6 +50,7 @@ class FeedViewModel @Inject constructor(
     private val getFeedArticlesUseCase: GetFeedArticlesUseCase,
     private val summarizeContentUseCase: SummarizeContentUseCase,
     private val askQuestionUseCase: AskQuestionUseCase,
+    private val aiRepository: AiRepository,
     private val sourceRepository: SourceRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val feedUiModelMapper: FeedUiModelMapper
@@ -77,6 +80,10 @@ class FeedViewModel @Inject constructor(
 
     val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.preferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
+
+    val activeSummaryModelName: StateFlow<String?> = aiRepository.getConfigsByType(AiModelType.SUMMARY)
+        .map { configs -> configs.firstOrNull { it.isEnabled }?.modelName?.takeIf { it.isNotBlank() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val groupsWithSources: StateFlow<List<GroupWithSources>> = sourceRepository.groupsWithSources
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

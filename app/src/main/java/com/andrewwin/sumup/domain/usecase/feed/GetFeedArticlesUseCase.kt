@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.domain.usecase.feed
 
-import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
@@ -140,9 +140,10 @@ class GetFeedArticlesUseCase @Inject constructor(
                             ?.let { path -> deduplicationService.initialize(path) }
                             ?: false
 
-                        val canDeduplicate = when (state.prefs.aiStrategy) {
-                            AiStrategy.LOCAL -> hasLocalEmbedding
-                            AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> hasCloudEmbedding || hasLocalEmbedding
+                        val canDeduplicate = when (state.prefs.deduplicationStrategy) {
+                            DeduplicationStrategy.LOCAL -> hasLocalEmbedding
+                            DeduplicationStrategy.CLOUD -> hasCloudEmbedding
+                            DeduplicationStrategy.ADAPTIVE -> hasCloudEmbedding || hasLocalEmbedding
                         }
                         if (!canDeduplicate) {
                             emit(FeedResult(initial, false))
@@ -150,9 +151,10 @@ class GetFeedArticlesUseCase @Inject constructor(
                         }
 
                         var lastClusters: List<ArticleCluster>? = null
-                        val deduplicationThreshold = when (state.prefs.aiStrategy) {
-                            AiStrategy.LOCAL -> state.prefs.localDeduplicationThreshold
-                            AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> if (hasCloudEmbedding) {
+                        val deduplicationThreshold = when (state.prefs.deduplicationStrategy) {
+                            DeduplicationStrategy.LOCAL -> state.prefs.localDeduplicationThreshold
+                            DeduplicationStrategy.CLOUD -> state.prefs.cloudDeduplicationThreshold
+                            DeduplicationStrategy.ADAPTIVE -> if (hasCloudEmbedding) {
                                 state.prefs.cloudDeduplicationThreshold
                             } else {
                                 state.prefs.localDeduplicationThreshold

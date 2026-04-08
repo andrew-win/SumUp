@@ -85,7 +85,9 @@ internal enum class SettingsGroup(
 @Composable
 internal fun SettingsGroupsPanel(
     groups: List<SettingsGroup>,
-    onGroupClick: (SettingsGroup) -> Unit
+    isHelpMode: Boolean = false,
+    onGroupClick: (SettingsGroup) -> Unit,
+    onHelpRequest: (SettingsGroup) -> Unit = {}
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -99,7 +101,9 @@ internal fun SettingsGroupsPanel(
             groups.forEachIndexed { index, group ->
                 SettingsGroupRow(
                     group = group,
-                    onClick = { onGroupClick(group) }
+                    onClick = {
+                        if (isHelpMode) onHelpRequest(group) else onGroupClick(group)
+                    }
                 )
                 if (index < groups.size - 1) {
                     androidx.compose.material3.HorizontalDivider(

@@ -30,7 +30,7 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
         Summary::class,
         UserPreferences::class
     ],
-    version = 32,
+    version = 34,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -53,7 +53,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "sumup_database"
                 )
                     .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                    .addMigrations(MIGRATION_31_32)
+                    .addMigrations(MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34)
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
@@ -64,8 +64,8 @@ abstract class AppDatabase : RoomDatabase() {
                                 "INSERT OR IGNORE INTO source_groups (id, name, isEnabled, isDeletable) VALUES (1, 'Без категорії', 1, 0)"
                             )
                             db.execSQL(
-                                "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveCompressAboveChars, adaptiveExtractiveCompressionPercent, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedExtractive, summaryNewsInFeedCloud, summaryNewsInScheduledExtractive, summaryNewsInScheduledCloud, extractiveSentencesInFeed, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsPerArticle, aiMaxCharsPerFeedArticle, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, appThemeMode, appLanguage, summaryLanguage) " +
-                                "VALUES (0, 'ADAPTIVE', 0, 1, 8, 0, 0, 0, 0.55, 0.75, 2, 1, 1, 500, 500, 30, 3, 3, 4, 4, 4, 4, 3, 4, 3, 4, 5, 4, 0, 1000, 1000, 12000, '$defaultPrompt', 0, 0, 1, 'SYSTEM', 'UK', 'ORIGINAL')"
+                                "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveCompressAboveChars, adaptiveExtractiveCompressionPercent, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedExtractive, summaryNewsInFeedCloud, summaryNewsInScheduledExtractive, summaryNewsInScheduledCloud, extractiveSentencesInFeed, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsPerArticle, aiMaxCharsPerFeedArticle, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, appThemeMode, appLanguage, summaryLanguage) " +
+                                "VALUES (0, 'ADAPTIVE', 0, 1, 8, 0, 0, 0, 'ADAPTIVE', 0.55, 0.75, 2, 1, 1, 500, 500, 30, 3, 3, 4, 4, 4, 4, 3, 4, 3, 4, 5, 4, 0, 1000, 1000, 12000, '$defaultPrompt', 0, 0, 1, 0, 'SYSTEM', 'UK', 'ORIGINAL')"
                             )
                         }
                     })
@@ -79,6 +79,22 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "ALTER TABLE user_preferences ADD COLUMN summaryLanguage TEXT NOT NULL DEFAULT 'ORIGINAL'"
+                )
+            }
+        }
+
+        private val MIGRATION_32_33 = object : Migration(32, 33) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE user_preferences ADD COLUMN deduplicationStrategy TEXT NOT NULL DEFAULT 'ADAPTIVE'"
+                )
+            }
+        }
+
+        private val MIGRATION_33_34 = object : Migration(33, 34) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE user_preferences ADD COLUMN isFeedSummaryUseFullTextEnabled INTEGER NOT NULL DEFAULT 0"
                 )
             }
         }

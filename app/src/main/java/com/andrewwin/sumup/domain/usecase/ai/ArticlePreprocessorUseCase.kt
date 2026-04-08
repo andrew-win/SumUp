@@ -32,14 +32,23 @@ class ArticlePreprocessorUseCase @Inject constructor() {
         context: SummaryContext
     ): Output {
         if (text.isBlank()) return Output(textForCloud = "")
+        if (!prefs.isAdaptiveExtractivePreprocessingEnabled) {
+            return Output(textForCloud = text)
+        }
 
-        val sentenceLimit = context.extractiveSentencesLimit(prefs)
-        val baseExtractive = ExtractiveSummarizer.summarize(text, sentenceLimit)
-        if (baseExtractive.size <= sentenceLimit) {
+        val onlyExtractiveThreshold = prefs.adaptiveExtractiveOnlyBelowChars.coerceAtLeast(200)
+        if (text.length <= onlyExtractiveThreshold) {
+            val shortSentenceLimit = context.extractiveSentencesLimit(prefs).coerceAtLeast(1)
+            val compact = ExtractiveSummarizer.summarize(text, shortSentenceLimit).joinToString(" ")
             return Output(
-                textForCloud = baseExtractive.joinToString(" "),
-                finalExtractiveText = baseExtractive.joinToString(" ")
+                textForCloud = compact,
+                finalExtractiveText = compact
             )
+        }
+
+        val compressAboveThreshold = prefs.adaptiveExtractiveCompressAboveChars.coerceAtLeast(onlyExtractiveThreshold)
+        if (text.length <= compressAboveThreshold) {
+            return Output(textForCloud = text)
         }
 
         val targetChars = (text.length * (prefs.adaptiveExtractiveCompressionPercent.coerceIn(1, 100) / 100f))

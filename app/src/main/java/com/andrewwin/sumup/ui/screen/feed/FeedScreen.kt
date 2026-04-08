@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -69,6 +70,7 @@ fun FeedScreen(
     val isAiLoading by viewModel.isAiLoading.collectAsState()
     val isDedupInProgress by viewModel.isDedupInProgress.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
+    val activeSummaryModelName by viewModel.activeSummaryModelName.collectAsState()
     val groups by viewModel.groups.collectAsState()
     val context = LocalContext.current
 
@@ -76,6 +78,8 @@ fun FeedScreen(
     var isFeedAiActive by remember { mutableStateOf(false) }
     var userQuestion by remember { mutableStateOf("") }
     var expandedImageUrl by remember { mutableStateOf<String?>(null) }
+    var isHelpMode by rememberSaveable { mutableStateOf(false) }
+    var helpDescription by remember { mutableStateOf<String?>(null) }
 
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -116,12 +120,16 @@ fun FeedScreen(
                 },
                 actions = {
                     FilledIconButton(
-                        onClick = {},
+                        onClick = { isHelpMode = !isHelpMode },
                         colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant
                         )
                     ) {
-                        Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
+                        if (isHelpMode) {
+                            Icon(Icons.Default.Close, contentDescription = "Вимкнути підказки")
+                        } else {
+                            Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = "Увімкнути підказки")
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -150,9 +158,15 @@ fun FeedScreen(
                 }
                 FloatingActionButton(
                     onClick = {
-                        isFeedAiActive = true
-                        articleForAi = null
-                        viewModel.openCachedFeedSummary()
+                        if (isHelpMode) {
+                            helpDescription = "Кнопка AI-асистента стрічки (робот): відкриває узагальнення по всій поточній стрічці. " +
+                                "Асистент враховує активні фільтри, тому відповідь формується саме по видимій вибірці новин. " +
+                                "У вікні можна ставити уточнюючі запитання, перегенерувати зведення або перейти до джерел."
+                        } else {
+                            isFeedAiActive = true
+                            articleForAi = null
+                            viewModel.openCachedFeedSummary()
+                        }
                     },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -178,23 +192,32 @@ fun FeedScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 item {
-                    FeedFilters(
-                        searchQuery = searchQuery,
-                        onSearchQueryChange = viewModel::onSearchQueryChange,
-                        dateFilter = dateFilter,
-                        onDateFilterChange = viewModel::setDateFilter,
-                        savedFilter = savedFilter,
-                        onSavedFilterChange = viewModel::setSavedFilter,
-                        selectedGroupId = selectedGroupId,
-                        onGroupSelect = viewModel::selectGroup,
-                        groups = groups,
-                        onExportPdf = {
-                            val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                            val name = context.getString(R.string.feed_pdf_file_name, date)
-                            exportLauncher.launch(name)
-                        },
-                        isExportEnabled = articleClusters.isNotEmpty()
-                    )
+                    HelpOverlayTarget(
+                        isEnabled = isHelpMode,
+                        description = "Фільтри стрічки: тут задаються параметри того, що потрапляє у список нижче. " +
+                            "Пошук працює по заголовках/контенту, фільтр дати обмежує період, а перемикач збережених показує лише обрані матеріали. " +
+                            "Вибір групи дозволяє звузити стрічку до конкретного набору джерел. " +
+                            "Кнопка PDF експортує поточну відфільтровану стрічку у файл, тобто у PDF потрапляють саме ті елементи, які зараз на екрані.",
+                        onShowDescription = { helpDescription = it }
+                    ) {
+                        FeedFilters(
+                            searchQuery = searchQuery,
+                            onSearchQueryChange = viewModel::onSearchQueryChange,
+                            dateFilter = dateFilter,
+                            onDateFilterChange = viewModel::setDateFilter,
+                            savedFilter = savedFilter,
+                            onSavedFilterChange = viewModel::setSavedFilter,
+                            selectedGroupId = selectedGroupId,
+                            onGroupSelect = viewModel::selectGroup,
+                            groups = groups,
+                            onExportPdf = {
+                                val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                                val name = context.getString(R.string.feed_pdf_file_name, date)
+                                exportLauncher.launch(name)
+                            },
+                            isExportEnabled = articleClusters.isNotEmpty()
+                        )
+                    }
                 }
 
                 val showLoading = userPreferences.isDeduplicationEnabled &&
@@ -203,18 +226,50 @@ fun FeedScreen(
 
                 if (showLoading) {
                     item {
-                        Box(
-                            modifier = Modifier
-                                .fillParentMaxHeight(0.7f)
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
+                        HelpOverlayTarget(
+                            isEnabled = isHelpMode,
+                            description = "Стан обробки: застосунок зараз групує схожі новини та прибирає дублікати. " +
+                                "Після завершення тут з'явиться фінальний список карток без повторів.",
+                            onShowDescription = { helpDescription = it }
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                                Spacer(Modifier.height(12.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillParentMaxHeight(0.7f)
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                    Spacer(Modifier.height(12.dp))
+                                    Text(
+                                        text = stringResource(R.string.feed_searching_similar),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        lineHeight = 24.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else if (articleClusters.isEmpty()) {
+                    item {
+                        HelpOverlayTarget(
+                            isEnabled = isHelpMode,
+                            description = "Порожня стрічка: немає елементів, що відповідають поточним фільтрам/підпискам. " +
+                                "Спробуйте оновлення, зміну дати, групи або вимкнення фільтра збережених.",
+                            onShowDescription = { helpDescription = it }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillParentMaxHeight(0.7f)
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Text(
-                                    text = stringResource(R.string.feed_searching_similar),
+                                    text = stringResource(R.string.feed_empty_message),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center,
@@ -223,62 +278,65 @@ fun FeedScreen(
                             }
                         }
                     }
-                } else if (articleClusters.isEmpty()) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillParentMaxHeight(0.7f)
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = stringResource(R.string.feed_empty_message),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                                lineHeight = 24.sp
-                            )
-                        }
-                    }
                 } else {
                     items(articleClusters, key = { it.representative.article.id }) { cluster ->
-                        ArticleClusterCard(
-                            cluster = cluster,
-                            isMediaEnabled = userPreferences.isFeedMediaEnabled,
-                            isDescriptionEnabled = userPreferences.isFeedDescriptionEnabled,
-                            onMediaClick = { expandedImageUrl = it },
-                            onOpenSource = { onOpenWebView(it.article.url) },
-                            onAiClick = {
-                                articleForAi = it
-                                isFeedAiActive = false
-                                viewModel.openCachedArticleSummary(it.article)
-                            },
-                            onClusterAiClick = {
-                                articleForAi = cluster.representative
-                                isFeedAiActive = false
-                                userQuestion = ""
-                                viewModel.openCachedClusterSummary(cluster)
-                            },
-                            onToggleSaved = {
-                                val willBeAddedToSaved = !it.article.isFavorite
-                                viewModel.toggleSaved(it.article)
-                                if (willBeAddedToSaved) {
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(R.string.feed_added_to_saved),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            },
-                            isDedupInProgress = isDedupInProgress,
-                            minMentions = userPreferences.minMentions
-                        )
+                        HelpOverlayTarget(
+                            isEnabled = isHelpMode,
+                            description = "Картка новини: основна сутність стрічки. " +
+                                "З картки можна відкрити оригінальне джерело, запустити AI-аналіз для конкретної новини або кластера, " +
+                                "додати у збережені, переглянути медіа та взаємодіяти з дублікатами (якщо вони знайдені).",
+                            onShowDescription = { helpDescription = it }
+                        ) {
+                            ArticleClusterCard(
+                                cluster = cluster,
+                                isMediaEnabled = userPreferences.isFeedMediaEnabled,
+                                isDescriptionEnabled = userPreferences.isFeedDescriptionEnabled,
+                                onMediaClick = { expandedImageUrl = it },
+                                onOpenSource = { onOpenWebView(it.article.url) },
+                                onAiClick = {
+                                    articleForAi = it
+                                    isFeedAiActive = false
+                                    viewModel.openCachedArticleSummary(it.article)
+                                },
+                                onClusterAiClick = {
+                                    articleForAi = cluster.representative
+                                    isFeedAiActive = false
+                                    userQuestion = ""
+                                    viewModel.openCachedClusterSummary(cluster)
+                                },
+                                onToggleSaved = {
+                                    val willBeAddedToSaved = !it.article.isFavorite
+                                    viewModel.toggleSaved(it.article)
+                                    if (willBeAddedToSaved) {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.feed_added_to_saved),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                },
+                                isDedupInProgress = isDedupInProgress,
+                                minMentions = userPreferences.minMentions
+                            )
+                        }
                     }
                 }
             }
         }
 
+        if (helpDescription != null) {
+            AlertDialog(
+                onDismissRequest = { helpDescription = null },
+                title = { Text("Пояснення блоку") },
+                text = { Text(helpDescription.orEmpty()) },
+                confirmButton = {
+                    TextButton(onClick = { helpDescription = null }) {
+                        Text("OK")
+                    }
+                }
+            )
+        }
+        
         if (articleForAi != null || isFeedAiActive) {
             FeedAiDialog(
                 context = context,
@@ -288,6 +346,7 @@ fun FeedScreen(
                 aiResult = aiResult,
                 isAiLoading = isAiLoading,
                 aiStrategy = userPreferences.aiStrategy,
+                activeSummaryModelName = activeSummaryModelName,
                 userQuestion = userQuestion,
                 onQuestionChange = { userQuestion = it },
                 onDismiss = {
@@ -376,6 +435,27 @@ fun FeedScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun HelpOverlayTarget(
+    isEnabled: Boolean,
+    description: String,
+    onShowDescription: (String) -> Unit,
+    content: @Composable () -> Unit
+) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        content()
+        if (isEnabled) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(MaterialTheme.shapes.large)
+                    .background(Color.Gray.copy(alpha = 0.45f))
+                    .clickable { onShowDescription(description) }
+            )
         }
     }
 }

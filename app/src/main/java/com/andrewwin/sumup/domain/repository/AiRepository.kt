@@ -14,6 +14,7 @@ interface AiRepository {
     suspend fun deleteConfig(config: AiModelConfig)
     suspend fun summarize(content: String, pointsPerNews: Int? = null): String
     suspend fun askQuestion(content: String, question: String): String
+    suspend fun askWithPrompt(content: String, prompt: String): String
     suspend fun embed(text: String): FloatArray?
     suspend fun hasEnabledEmbeddingConfig(): Boolean
 }

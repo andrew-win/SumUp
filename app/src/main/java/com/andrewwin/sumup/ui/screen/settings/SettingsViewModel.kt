@@ -26,6 +26,7 @@ import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.AppThemeMode
+import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.repository.AiRepository
@@ -196,6 +197,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(isDeduplicationEnabled = enabled) } }
     }
 
+    fun updateDeduplicationStrategy(strategy: DeduplicationStrategy) {
+        viewModelScope.launch { updatePreferences { it.copy(deduplicationStrategy = strategy) } }
+    }
+
     private fun updateThreshold(transform: (UserPreferences) -> UserPreferences) {
         viewModelScope.launch {
             articleRepository.clearSimilarities()
@@ -282,6 +287,10 @@ class SettingsViewModel @Inject constructor(
 
     fun updateFeedDescriptionEnabled(enabled: Boolean) {
         viewModelScope.launch { updatePreferences { it.copy(isFeedDescriptionEnabled = enabled) } }
+    }
+
+    fun updateFeedSummaryUseFullTextEnabled(enabled: Boolean) {
+        viewModelScope.launch { updatePreferences { it.copy(isFeedSummaryUseFullTextEnabled = enabled) } }
     }
 
     fun updateRecommendationsEnabled(enabled: Boolean) {

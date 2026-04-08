@@ -50,6 +50,7 @@
     <string name="summary_cloud_type">Хмарна сумаризація</string>
     <string name="summary_system_notice">Системне сповіщення</string>
     <string name="settings_ai_strategy">Стратегія використання ШІ</string>
+    <string name="settings_deduplication_strategy">Стратегія дедублікації</string>
     <string name="ai_strategy_cloud">Хмарна</string>
     <string name="ai_strategy_local">Локальна</string>
     <string name="ai_strategy_adaptive">Адаптивна</string>
@@ -221,6 +222,7 @@
     <string name="settings_custom_summary_prompt">Кастомний промпт</string>
     <string name="settings_feed_media">Показувати медіа у стрічці</string>
     <string name="settings_feed_description">Показувати опис</string>
+    <string name="settings_feed_summary_use_full_text">Повні тексти замість анотацій для підсумку стрічки</string>
     <string name="settings_sources">Джерела</string>
     <string name="settings_show_recommendations">Показувати рекомендації</string>
     <string name="export_feed_pdf">Експорт стрічки у PDF</string>
@@ -230,9 +232,10 @@
     <string name="feed_pdf_generated">Згенеровано: %s</string>
     <string name="feed_pdf_item_header">%s</string>
     <string name="feed_pdf_item_meta">%1$s · %2$s</string>
-    <string name="summary_prompt_default">Зроби стислий підсумок цієї новини:</string>
+    <string name="summary_prompt_default">Підготуй короткий професійний брифінг по суті: лише ключові факти, наслідки та що важливо відстежувати далі. Без вступів і води.</string>
     <string name="ai_question_prompt_prefix">Дай відповідь на питання:</string>
     <string name="ai_question_prompt_suffix">Базуючись на цьому тексті:</string>
+    <string name="ai_question_input_placeholder">Введіть ваше питання...</string>
     <string name="provider_gemini">Gemini</string>
     <string name="provider_groq">Groq</string>
     <string name="provider_openrouter">OpenRouter</string>

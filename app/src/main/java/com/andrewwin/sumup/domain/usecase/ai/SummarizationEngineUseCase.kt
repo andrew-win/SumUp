@@ -84,7 +84,7 @@ class SummarizationEngineUseCase @Inject constructor(
 
         val cloudInput = "${formatted.displayTitle}: ${prep.textForCloud}"
         val cloud = try {
-            cloudCallPolicy.summarize(content = cloudInput, pointsPerNews = context.pointsPerNews(prefs))
+            cloudCallPolicy.summarize(content = cloudInput)
         } catch (_: Exception) {
             fallbackPolicy.singleArticleFallback(
                 title = formatted.displayTitle,
@@ -109,11 +109,11 @@ class SummarizationEngineUseCase @Inject constructor(
             )
         }
 
-        val cloudArticles = articles.take(context.cloudNewsLimit(prefs))
+        val cloudArticles = articles
         val cloudInput = buildCloudInput(cloudArticles, context, prefs)
 
         val raw = try {
-            cloudCallPolicy.summarize(content = cloudInput, pointsPerNews = context.pointsPerNews(prefs))
+            cloudCallPolicy.summarize(content = cloudInput)
         } catch (_: Exception) {
             val fallbackArticles = articles.take(context.extractiveNewsLimit(prefs))
             return@runCatching renderPolicy.appendSourceMetadata(
@@ -126,8 +126,7 @@ class SummarizationEngineUseCase @Inject constructor(
     }
 
     suspend fun summarizeRawContent(content: String): Result<String> = runCatching {
-        val prefs = userPreferencesRepository.preferences.first()
-        cloudCallPolicy.summarize(content = content, pointsPerNews = prefs.summaryItemsPerNewsInFeed)
+        cloudCallPolicy.summarize(content = content)
     }
 
     private suspend fun buildCloudInput(
@@ -144,8 +143,8 @@ class SummarizationEngineUseCase @Inject constructor(
             val source = articleRepository.getSourceById(article.sourceId)
             val sourceType = source?.type ?: SourceType.RSS
             val formatted = formatArticleHeadlineUseCase(article, sourceType)
-            val fullContent = articleRepository.fetchFullContent(article)
-            val prepared = preprocessPolicy.preprocess(fullContent, prefs, context)
+            val contentForSummary = resolveArticleContentForSummary(article, context, prefs)
+            val prepared = preprocessPolicy.preprocess(contentForSummary, prefs, context)
             val content = prepared.textForCloud.take(remaining)
             remaining -= content.length
             chunks += "${formatted.displayTitle}: $content"
@@ -164,7 +163,7 @@ class SummarizationEngineUseCase @Inject constructor(
             val source = articleRepository.getSourceById(article.sourceId)
             val sourceType = source?.type ?: SourceType.RSS
             val formatted = formatArticleHeadlineUseCase(article, sourceType)
-            contentMap[formatted.displayTitle] = articleRepository.fetchFullContent(article)
+            contentMap[formatted.displayTitle] = resolveArticleContentForSummary(article, context, prefs)
         }
         return buildExtractiveSummaryUseCase(
             headlines = contentMap.keys.toList(),
@@ -190,6 +189,9 @@ class SummarizationEngineUseCase @Inject constructor(
             AiPromptRules.compareJsonPrompt(languageRule).trimIndent()
         )
         val parsed = parsePolicy.parseCompare(raw)
+        if (parsed.items.isEmpty()) {
+            throw IllegalStateException("Cloud compare JSON has empty items")
+        }
         return renderPolicy.renderCloudCompare(parsed, articles)
     }
 
@@ -220,6 +222,18 @@ class SummarizationEngineUseCase @Inject constructor(
             }
         }
         return blocks.joinToString("\n\n")
+    }
+
+    private suspend fun resolveArticleContentForSummary(
+        article: Article,
+        context: SummaryContext,
+        prefs: UserPreferences
+    ): String {
+        return if (context is SummaryContext.Feed && !prefs.isFeedSummaryUseFullTextEnabled) {
+            article.content.ifBlank { articleRepository.fetchFullContent(article) }
+        } else {
+            articleRepository.fetchFullContent(article)
+        }
     }
 
 }

@@ -6,6 +6,7 @@ import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.AppThemeMode
+import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
@@ -24,6 +25,7 @@ internal fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
     put("scheduledMinute", scheduledMinute)
     put("lastWorkRunTimestamp", lastWorkRunTimestamp)
     put("isDeduplicationEnabled", isDeduplicationEnabled)
+    put("deduplicationStrategy", deduplicationStrategy.name)
     put("localDeduplicationThreshold", localDeduplicationThreshold.toDouble())
     put("cloudDeduplicationThreshold", cloudDeduplicationThreshold.toDouble())
     put("minMentions", minMentions)
@@ -54,6 +56,7 @@ internal fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
     put("isCustomSummaryPromptEnabled", isCustomSummaryPromptEnabled)
     put("isFeedMediaEnabled", isFeedMediaEnabled)
     put("isFeedDescriptionEnabled", isFeedDescriptionEnabled)
+    put("isFeedSummaryUseFullTextEnabled", isFeedSummaryUseFullTextEnabled)
     put("isRecommendationsEnabled", isRecommendationsEnabled)
     put("appThemeMode", appThemeMode.name)
     put("appLanguage", appLanguage.name)
@@ -75,6 +78,11 @@ internal fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
         scheduledMinute = optInt("scheduledMinute", defaults.scheduledMinute),
         lastWorkRunTimestamp = optLong("lastWorkRunTimestamp", defaults.lastWorkRunTimestamp),
         isDeduplicationEnabled = optBoolean("isDeduplicationEnabled", defaults.isDeduplicationEnabled),
+        deduplicationStrategy = runCatching {
+            DeduplicationStrategy.valueOf(
+                optString("deduplicationStrategy", defaults.deduplicationStrategy.name)
+            )
+        }.getOrDefault(defaults.deduplicationStrategy),
         localDeduplicationThreshold = optDouble(
             "localDeduplicationThreshold",
             defaults.localDeduplicationThreshold.toDouble()
@@ -141,6 +149,10 @@ internal fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
         ),
         isFeedMediaEnabled = optBoolean("isFeedMediaEnabled", defaults.isFeedMediaEnabled),
         isFeedDescriptionEnabled = optBoolean("isFeedDescriptionEnabled", defaults.isFeedDescriptionEnabled),
+        isFeedSummaryUseFullTextEnabled = optBoolean(
+            "isFeedSummaryUseFullTextEnabled",
+            defaults.isFeedSummaryUseFullTextEnabled
+        ),
         isRecommendationsEnabled = optBoolean("isRecommendationsEnabled", defaults.isRecommendationsEnabled),
         appThemeMode = runCatching { AppThemeMode.valueOf(optString("appThemeMode", defaults.appThemeMode.name)) }
             .getOrDefault(defaults.appThemeMode),

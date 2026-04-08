@@ -7,6 +7,10 @@ enum class AiStrategy {
     CLOUD, LOCAL, ADAPTIVE
 }
 
+enum class DeduplicationStrategy {
+    CLOUD, LOCAL, ADAPTIVE
+}
+
 enum class AppThemeMode {
     SYSTEM, LIGHT, DARK
 }
@@ -29,6 +33,7 @@ data class UserPreferences(
     val scheduledMinute: Int = 0,
     val lastWorkRunTimestamp: Long = 0,
     val isDeduplicationEnabled: Boolean = false,
+    val deduplicationStrategy: DeduplicationStrategy = DeduplicationStrategy.ADAPTIVE,
     val localDeduplicationThreshold: Float = 0.55f,
     val cloudDeduplicationThreshold: Float = 0.75f,
     val minMentions: Int = 2,
@@ -58,6 +63,7 @@ data class UserPreferences(
     val isCustomSummaryPromptEnabled: Boolean = false,
     val isFeedMediaEnabled: Boolean = false,
     val isFeedDescriptionEnabled: Boolean = true,
+    val isFeedSummaryUseFullTextEnabled: Boolean = false,
     val isRecommendationsEnabled: Boolean = true,
     val appThemeMode: AppThemeMode = AppThemeMode.SYSTEM,
     val appLanguage: AppLanguage = AppLanguage.UK,

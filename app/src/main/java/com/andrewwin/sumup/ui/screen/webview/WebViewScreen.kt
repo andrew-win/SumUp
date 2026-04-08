@@ -1,9 +1,14 @@
 package com.andrewwin.sumup.ui.screen.webview
 
 import android.view.ViewGroup
+import android.webkit.CookieManager
+import android.webkit.WebResourceResponse
 import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import java.io.ByteArrayInputStream
+import java.util.Locale
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -29,6 +34,7 @@ fun WebViewScreen(
     var isLoading by remember { mutableStateOf(true) }
     var webView: WebView? by remember { mutableStateOf(null) }
     var title by remember { mutableStateOf("") }
+    val cookieManager = remember { CookieManager.getInstance() }
 
     Scaffold(
         topBar = {
@@ -80,9 +86,17 @@ fun WebViewScreen(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
+                        setLayerType(WebView.LAYER_TYPE_HARDWARE, null)
+                        cookieManager.setAcceptCookie(true)
+                        cookieManager.setAcceptThirdPartyCookies(this, true)
                         webViewClient = object : WebViewClient() {
                             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                                 isLoading = true
+                                settings.blockNetworkImage = true
+                            }
+
+                            override fun onPageCommitVisible(view: WebView?, url: String?) {
+                                settings.blockNetworkImage = false
                             }
 
                             override fun onPageFinished(view: WebView?, url: String?) {
@@ -93,9 +107,38 @@ fun WebViewScreen(
                             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                                 return false
                             }
+
+                            override fun shouldInterceptRequest(
+                                view: WebView?,
+                                request: WebResourceRequest?
+                            ): WebResourceResponse? {
+                                if (shouldBlockRequest(request)) {
+                                    return EMPTY_WEB_RESPONSE
+                                }
+                                return super.shouldInterceptRequest(view, request)
+                            }
                         }
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
+                        with(settings) {
+                            javaScriptEnabled = true
+                            domStorageEnabled = true
+
+                            cacheMode = WebSettings.LOAD_DEFAULT
+                            setSupportZoom(false)
+                            builtInZoomControls = false
+                            displayZoomControls = false
+
+                            loadsImagesAutomatically = true
+                            blockNetworkImage = false
+                            mediaPlaybackRequiresUserGesture = true
+
+                            allowFileAccess = false
+                            allowContentAccess = false
+                            setGeolocationEnabled(false)
+                            javaScriptCanOpenWindowsAutomatically = false
+                            setSupportMultipleWindows(false)
+
+                            offscreenPreRaster = false
+                        }
                         loadUrl(url)
                         webView = this
                     }
@@ -116,6 +159,36 @@ fun WebViewScreen(
         }
     }
 }
+
+private fun shouldBlockRequest(request: WebResourceRequest?): Boolean {
+    val host = request?.url?.host?.lowercase(Locale.ROOT) ?: return false
+    return TRACKER_AND_AD_HOST_KEYWORDS.any { keyword -> host.contains(keyword) }
+}
+
+private val TRACKER_AND_AD_HOST_KEYWORDS = listOf(
+    "doubleclick.net",
+    "googlesyndication.com",
+    "googleadservices.com",
+    "adservice.google.com",
+    "adnxs.com",
+    "taboola.com",
+    "outbrain.com",
+    "criteo.com",
+    "adsrvr.org",
+    "scorecardresearch.com",
+    "hotjar.com",
+    "mixpanel.com",
+    "segment.io",
+    "facebook.net",
+    "analytics",
+    "tracker"
+)
+
+private val EMPTY_WEB_RESPONSE = WebResourceResponse(
+    "text/plain",
+    "utf-8",
+    ByteArrayInputStream(ByteArray(0))
+)
 
 
 

@@ -74,6 +74,10 @@ class SummaryViewModel @Inject constructor(
         prefs.modelPath != null || embeddingConfigs.any { it.isEnabled }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val activeSummaryModelName: StateFlow<String?> = aiRepository.getConfigsByType(AiModelType.SUMMARY)
+        .map { configs -> configs.firstOrNull { it.isEnabled }?.modelName?.takeIf { it.isNotBlank() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     val chartData: StateFlow<List<SummaryChartItem>> = combine(
         getFeedArticlesUseCase(
             searchQueryFlow = flowOf(""),

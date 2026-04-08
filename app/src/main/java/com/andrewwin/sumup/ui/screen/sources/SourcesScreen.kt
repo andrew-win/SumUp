@@ -67,6 +67,14 @@ fun SourcesScreen(
     var editGroup by remember { mutableStateOf<SourceGroup?>(null) }
     var editSource by remember { mutableStateOf<Source?>(null) }
     var selectedGroupIdForSource by remember { mutableStateOf<Long?>(null) }
+    var isHelpMode by rememberSaveable { mutableStateOf(false) }
+    var helpDescription by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(isSelectionMode) {
+        if (isSelectionMode && isHelpMode) {
+            isHelpMode = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -97,12 +105,16 @@ fun SourcesScreen(
                         }
                     } else {
                         FilledIconButton(
-                            onClick = {},
+                            onClick = { isHelpMode = !isHelpMode },
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         ) {
-                            Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
+                            if (isHelpMode) {
+                                Icon(Icons.Default.Close, contentDescription = "Вимкнути підказки")
+                            } else {
+                                Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = "Увімкнути підказки")
+                            }
                         }
                     }
                 },
@@ -113,7 +125,16 @@ fun SourcesScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showAddGroupDialog = true },
+                onClick = {
+                    if (isHelpMode) {
+                        helpDescription = "Кнопка '+' додає нову папку (групу) джерел. " +
+                            "Група використовується для логічного розділення підписок за темами або задачами. " +
+                            "Наприклад: 'Україна', 'Технології', 'Крипта'. " +
+                            "Після створення папки в неї додаються конкретні джерела: RSS, Telegram, YouTube або сайт."
+                    } else {
+                        showAddGroupDialog = true
+                    }
+                },
                 shape = RoundedCornerShape(24.dp),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -131,26 +152,34 @@ fun SourcesScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(uiState, key = { it.group.id }) { groupWithSources ->
-                GroupCard(
-                    groupWithSources = groupWithSources,
-                    isSelected = selectedGroupIds.contains(groupWithSources.group.id),
-                    isSelectionMode = isSelectionMode,
-                    onLongSelectGroup = {
-                        val id = groupWithSources.group.id
-                        if (!selectedGroupIds.contains(id)) selectedGroupIds.add(id)
-                    },
-                    onToggleSelectGroup = {
-                        val id = groupWithSources.group.id
-                        if (selectedGroupIds.contains(id)) selectedGroupIds.remove(id) else selectedGroupIds.add(id)
-                    },
-                    onAddSource = { selectedGroupIdForSource = groupWithSources.group.id },
-                    onToggleGroup = { viewModel.toggleGroup(groupWithSources.group, it) },
-                    onEditGroup = { editGroup = it },
-                    onDeleteGroup = { viewModel.deleteGroup(it) },
-                    onToggleSource = { viewModel.updateSource(it) },
-                    onEditSource = { editSource = it },
-                    onDeleteSource = { viewModel.deleteSource(it) }
-                )
+                HelpOverlayTarget(
+                    isEnabled = isHelpMode,
+                    description = "Група джерел (папка): контейнер для підписок. " +
+                        "Усередині можна вмикати/вимикати всю групу або окремі джерела, редагувати назву і склад. " +
+                        "Коли групу вимкнено, її джерела не беруть участі у формуванні стрічки.",
+                    onShowDescription = { helpDescription = it }
+                ) {
+                    GroupCard(
+                        groupWithSources = groupWithSources,
+                        isSelected = selectedGroupIds.contains(groupWithSources.group.id),
+                        isSelectionMode = isSelectionMode,
+                        onLongSelectGroup = {
+                            val id = groupWithSources.group.id
+                            if (!selectedGroupIds.contains(id)) selectedGroupIds.add(id)
+                        },
+                        onToggleSelectGroup = {
+                            val id = groupWithSources.group.id
+                            if (selectedGroupIds.contains(id)) selectedGroupIds.remove(id) else selectedGroupIds.add(id)
+                        },
+                        onAddSource = { selectedGroupIdForSource = groupWithSources.group.id },
+                        onToggleGroup = { viewModel.toggleGroup(groupWithSources.group, it) },
+                        onEditGroup = { editGroup = it },
+                        onDeleteGroup = { viewModel.deleteGroup(it) },
+                        onToggleSource = { viewModel.updateSource(it) },
+                        onEditSource = { editSource = it },
+                        onDeleteSource = { viewModel.deleteSource(it) }
+                    )
+                }
             }
 
             item {
@@ -159,47 +188,68 @@ fun SourcesScreen(
                 val suggestedThemes by viewModel.suggestedThemes.collectAsState()
                 
                 if (isRecommendationsEnabled) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                        Row(
-                            modifier = Modifier.padding(start = 4.dp, bottom = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_recommend),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = stringResource(if (isModelLoaded) R.string.sources_suggested_themes_title else R.string.sources_suggested_themes_hint),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        suggestedThemes.chunked(2).forEach { rowItems ->
+                    HelpOverlayTarget(
+                        isEnabled = isHelpMode,
+                        description = "Рекомендовані теми: швидкий спосіб додати готові тематичні підписки. " +
+                            "При підписці застосунок додає джерела у структурованому вигляді як окремі папки/групи, " +
+                            "щоб їх можна було незалежно фільтрувати у стрічці та гнучко керувати ввімкненням.",
+                        onShowDescription = { helpDescription = it }
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                modifier = Modifier.padding(start = 4.dp, bottom = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                rowItems.forEach { suggestion ->
-                                    SuggestedThemeItem(
-                                        suggestion = suggestion,
-                                        modifier = Modifier.weight(1f),
-                                        onToggle = { isSubscribed ->
-                                            viewModel.toggleThemeSubscription(suggestion, isSubscribed)
-                                        }
-                                    )
-                                }
-                                if (rowItems.size == 1) {
-                                    Spacer(modifier = Modifier.weight(1f))
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_recommend),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = stringResource(if (isModelLoaded) R.string.sources_suggested_themes_title else R.string.sources_suggested_themes_hint),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            suggestedThemes.chunked(2).forEach { rowItems ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    rowItems.forEach { suggestion ->
+                                        SuggestedThemeItem(
+                                            suggestion = suggestion,
+                                            modifier = Modifier.weight(1f),
+                                            onToggle = { isSubscribed ->
+                                                viewModel.toggleThemeSubscription(suggestion, isSubscribed)
+                                            }
+                                        )
+                                    }
+                                    if (rowItems.size == 1) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
                                 }
                             }
                         }
-                    }
+                    }                
                 }
             }
+        }
+
+        if (helpDescription != null) {
+            AlertDialog(
+                onDismissRequest = { helpDescription = null },
+                title = { Text("Пояснення блоку") },
+                text = { Text(helpDescription.orEmpty()) },
+                confirmButton = {
+                    TextButton(onClick = { helpDescription = null }) {
+                        Text("OK")
+                    }
+                }
+            )
         }
 
         if (showAddGroupDialog) {
@@ -223,6 +273,7 @@ fun SourcesScreen(
             SourceDialog(
                 existingSources = uiState.flatMap { it.sources },
                 existingSourceNames = uiState.flatMap { it.sources }.map { it.name },
+                showDetailedHelp = isHelpMode,
                 onDismiss = { selectedGroupIdForSource = null },
                 onConfirm = { name, url, type, titleSelector, postLinkSelector, descriptionSelector, dateSelector, useHeadlessBrowser ->
                     viewModel.addSource(
@@ -245,6 +296,7 @@ fun SourcesScreen(
                 source = source,
                 existingSources = uiState.flatMap { it.sources },
                 existingSourceNames = uiState.flatMap { it.sources }.map { it.name },
+                showDetailedHelp = isHelpMode,
                 onDismiss = { editSource = null },
                 onConfirm = { name, url, type, titleSelector, postLinkSelector, descriptionSelector, dateSelector, useHeadlessBrowser ->
                     viewModel.updateSource(
@@ -260,6 +312,27 @@ fun SourcesScreen(
                         )
                     )
                 }
+            )
+        }
+    }
+}
+
+@Composable
+private fun HelpOverlayTarget(
+    isEnabled: Boolean,
+    description: String,
+    onShowDescription: (String) -> Unit,
+    content: @Composable () -> Unit
+) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        content()
+        if (isEnabled) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(MaterialTheme.shapes.large)
+                    .background(Color.Gray.copy(alpha = 0.45f))
+                    .clickable { onShowDescription(description) }
             )
         }
     }
@@ -575,6 +648,7 @@ fun SourceDialog(
     source: Source? = null,
     existingSources: List<Source>,
     existingSourceNames: List<String>,
+    showDetailedHelp: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: (String, String, SourceType, String?, String?, String?, String?, Boolean) -> Unit
 ) {
@@ -638,6 +712,42 @@ fun SourceDialog(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    if (showDetailedHelp) {
+                        Surface(
+                            shape = MaterialTheme.shapes.large,
+                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = "Як правильно додавати джерело",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "1. Назва: коротка і зрозуміла (це підпис у стрічці та списках).",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Text(
+                                    text = "2. URL: посилання на RSS/канал/сайт. Для сайтів бажано головну сторінку або сторінку розділу.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Text(
+                                    text = "3. Тип джерела: визначає, як парсер читає контент (RSS/Telegram/YouTube/Website).",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Text(
+                                    text = "4. Для Website: селектор заголовка обов'язковий; інші селектори покращують точність і структуру.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Text(
+                                    text = "5. Підписки організовуються по папках (групах), щоб їх можна було окремо вмикати та фільтрувати.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },

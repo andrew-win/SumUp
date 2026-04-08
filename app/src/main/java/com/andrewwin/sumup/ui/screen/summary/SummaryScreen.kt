@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Link
@@ -35,6 +36,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -59,6 +61,7 @@ fun SummaryScreen(
 ) {
     val summaries by viewModel.summaries.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
+    val activeSummaryModelName by viewModel.activeSummaryModelName.collectAsState()
     val chartData by viewModel.chartData.collectAsState()
     val chartType by viewModel.chartType.collectAsState()
     val isVectorizationEnabled by viewModel.isVectorizationEnabled.collectAsState()
@@ -74,6 +77,14 @@ fun SummaryScreen(
     val lastSummary = remember(summaries) { summaries.firstOrNull() }
     val selectedSummaryIds = remember { mutableStateListOf<Long>() }
     val isSelectionMode = selectedSummaryIds.isNotEmpty()
+    var isHelpMode by rememberSaveable { mutableStateOf(false) }
+    var helpDescription by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(isSelectionMode) {
+        if (isSelectionMode && isHelpMode) {
+            isHelpMode = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -101,12 +112,16 @@ fun SummaryScreen(
                         }
                     } else {
                         FilledIconButton(
-                            onClick = {},
+                            onClick = { isHelpMode = !isHelpMode },
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         ) {
-                            Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null)
+                            if (isHelpMode) {
+                                Icon(Icons.Default.Close, contentDescription = "Вимкнути підказки")
+                            } else {
+                                Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = "Увімкнути підказки")
+                            }
                         }
                     }
                 },
@@ -124,51 +139,70 @@ fun SummaryScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             item {
-                PrevNextStatusRow(
-                    previousSummaryAt = lastSummary?.createdAt,
-                    isScheduledEnabled = userPreferences.isScheduledSummaryEnabled,
-                    nextScheduledAt = if (userPreferences.isScheduledSummaryEnabled) {
-                        getNextScheduledTimeMillis(
-                            userPreferences.scheduledHour,
-                            userPreferences.scheduledMinute
-                        )
-                    } else null
-                )
+                HelpOverlayTarget(
+                    isEnabled = isHelpMode,
+                    description = "Статус: показує час останнього зведення або коли заплановано наступне.",
+                    onShowDescription = { helpDescription = it }
+                ) {
+                    PrevNextStatusRow(
+                        previousSummaryAt = lastSummary?.createdAt,
+                        isScheduledEnabled = userPreferences.isScheduledSummaryEnabled,
+                        nextScheduledAt = if (userPreferences.isScheduledSummaryEnabled) {
+                            getNextScheduledTimeMillis(
+                                userPreferences.scheduledHour,
+                                userPreferences.scheduledMinute
+                            )
+                        } else null
+                    )
+                }
             }
 
             item {
-                SummaryChart(
-                    items = chartData,
-                    currentType = chartType,
-                    onTypeChange = viewModel::setChartType,
-                    isModelEnabled = isVectorizationEnabled,
-                    onOpenWebView = onOpenWebView
-                )
+                HelpOverlayTarget(
+                    isEnabled = isHelpMode,
+                    description = "Інфографіка: ключові новини та метрики. Натисни на рядок, щоб відкрити джерело.",
+                    onShowDescription = { helpDescription = it }
+                ) {
+                    SummaryChart(
+                        items = chartData,
+                        currentType = chartType,
+                        onTypeChange = viewModel::setChartType,
+                        isModelEnabled = isVectorizationEnabled,
+                        onOpenWebView = onOpenWebView
+                    )
+                }
             }
 
             if (todaySummary != null) {
                 item {
-                    SectionHeader(stringResource(R.string.summary_today_title), Icons.Default.History)
-                    Spacer(Modifier.height(8.dp))
-                    SummaryCard(
-                        summary = todaySummary,
-                        onOpenWebView = onOpenWebView,
-                        isSelected = selectedSummaryIds.contains(todaySummary.id),
-                        isSelectionMode = isSelectionMode,
-                        onDelete = { viewModel.deleteSummary(todaySummary.id) },
-                        onLongSelect = {
-                            if (!selectedSummaryIds.contains(todaySummary.id)) {
-                                selectedSummaryIds.add(todaySummary.id)
+                    HelpOverlayTarget(
+                        isEnabled = isHelpMode,
+                        description = "Сьогоднішнє зведення: останній підсумок за поточний день з діями копіювання, поширення та видалення.",
+                        onShowDescription = { helpDescription = it }
+                    ) {
+                        SectionHeader(stringResource(R.string.summary_today_title), Icons.Default.History)
+                        Spacer(Modifier.height(8.dp))
+                        SummaryCard(
+                            summary = todaySummary,
+                            activeSummaryModelName = activeSummaryModelName,
+                            onOpenWebView = onOpenWebView,
+                            isSelected = selectedSummaryIds.contains(todaySummary.id),
+                            isSelectionMode = isSelectionMode,
+                            onDelete = { viewModel.deleteSummary(todaySummary.id) },
+                            onLongSelect = {
+                                if (!selectedSummaryIds.contains(todaySummary.id)) {
+                                    selectedSummaryIds.add(todaySummary.id)
+                                }
+                            },
+                            onToggleSelect = {
+                                if (selectedSummaryIds.contains(todaySummary.id)) {
+                                    selectedSummaryIds.remove(todaySummary.id)
+                                } else {
+                                    selectedSummaryIds.add(todaySummary.id)
+                                }
                             }
-                        },
-                        onToggleSelect = {
-                            if (selectedSummaryIds.contains(todaySummary.id)) {
-                                selectedSummaryIds.remove(todaySummary.id)
-                            } else {
-                                selectedSummaryIds.add(todaySummary.id)
-                            }
-                        }
-                    )
+                        )
+                    }
                 }
             }
 
@@ -177,26 +211,69 @@ fun SummaryScreen(
                     SectionHeader(stringResource(R.string.summary_history_title), Icons.Default.History)
                 }
                 items(olderSummaries, key = { it.id }) { summary ->
-                    SummaryCard(
-                        summary = summary,
-                        onOpenWebView = onOpenWebView,
-                        isSelected = selectedSummaryIds.contains(summary.id),
-                        isSelectionMode = isSelectionMode,
-                        onDelete = { viewModel.deleteSummary(summary.id) },
-                        onLongSelect = {
-                            if (!selectedSummaryIds.contains(summary.id)) {
-                                selectedSummaryIds.add(summary.id)
+                    HelpOverlayTarget(
+                        isEnabled = isHelpMode,
+                        description = "Історія зведень: попередні підсумки. Натисни, щоб розгорнути або згорнути.",
+                        onShowDescription = { helpDescription = it }
+                    ) {
+                        SummaryCard(
+                            summary = summary,
+                            activeSummaryModelName = activeSummaryModelName,
+                            onOpenWebView = onOpenWebView,
+                            isSelected = selectedSummaryIds.contains(summary.id),
+                            isSelectionMode = isSelectionMode,
+                            onDelete = { viewModel.deleteSummary(summary.id) },
+                            onLongSelect = {
+                                if (!selectedSummaryIds.contains(summary.id)) {
+                                    selectedSummaryIds.add(summary.id)
+                                }
+                            },
+                            onToggleSelect = {
+                                if (selectedSummaryIds.contains(summary.id)) {
+                                    selectedSummaryIds.remove(summary.id)
+                                } else {
+                                    selectedSummaryIds.add(summary.id)
+                                }
                             }
-                        },
-                        onToggleSelect = {
-                            if (selectedSummaryIds.contains(summary.id)) {
-                                selectedSummaryIds.remove(summary.id)
-                            } else {
-                                selectedSummaryIds.add(summary.id)
-                            }
-                        }
-                    )
+                        )
+                    }
                 }
+            }
+        }
+
+        if (helpDescription != null) {
+            AlertDialog(
+                onDismissRequest = { helpDescription = null },
+                title = { Text("Пояснення блоку") },
+                text = { Text(helpDescription.orEmpty()) },
+                confirmButton = {
+                    TextButton(onClick = { helpDescription = null }) {
+                        Text("OK")
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun HelpOverlayTarget(
+    isEnabled: Boolean,
+    description: String,
+    onShowDescription: (String) -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth(), content = content)
+            if (isEnabled) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(MaterialTheme.shapes.large)
+                        .background(Color.Gray.copy(alpha = 0.45f))
+                        .clickable { onShowDescription(description) }
+                )
             }
         }
     }
@@ -477,6 +554,7 @@ fun PrevNextStatusRow(
 @Composable
 fun SummaryCard(
     summary: Summary,
+    activeSummaryModelName: String?,
     onOpenWebView: (String) -> Unit,
     isSelected: Boolean,
     isSelectionMode: Boolean,
@@ -615,6 +693,14 @@ fun SummaryCard(
                 }
 
                 Spacer(Modifier.height(16.dp))
+                if (summary.strategy != AiStrategy.LOCAL && !activeSummaryModelName.isNullOrBlank()) {
+                    Text(
+                        text = "Модель: $activeSummaryModelName",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
