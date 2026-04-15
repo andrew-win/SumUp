@@ -23,6 +23,7 @@ import com.andrewwin.sumup.domain.service.DeduplicationService
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
+import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.common.NoArticlesException
 import com.andrewwin.sumup.domain.usecase.ai.SummaryContext
@@ -39,6 +40,7 @@ class SummaryWorkerHandler @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val aiRepository: AiRepository,
     private val summaryRepository: SummaryRepository,
+    private val summaryScheduler: SummaryScheduler,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val articleImportanceScorer: ArticleImportanceScorer,
     private val deduplicationService: DeduplicationService,
@@ -52,8 +54,9 @@ class SummaryWorkerHandler @Inject constructor(
             prefs.copy(lastWorkRunTimestamp = System.currentTimeMillis())
         )
 
-        return try {
-            articleRepository.refreshArticles()
+        val result = try {
+            // Do not fail the scheduled run only because online refresh is temporarily unavailable.
+            runCatching { articleRepository.refreshArticles() }
 
             val dayTimestamp = System.currentTimeMillis() - 24 * 60 * 60 * 1000
             val recentArticles = articleRepository.getEnabledArticlesSince(dayTimestamp)
@@ -111,29 +114,29 @@ class SummaryWorkerHandler @Inject constructor(
                 val message = context.getString(R.string.summary_worker_no_articles_today)
                 summaryRepository.insertSummary(Summary(content = message, strategy = prefs.aiStrategy))
                 maybeShowScheduledSummaryNotification(prefs)
-                return ListenableWorker.Result.success()
-            }
+                ListenableWorker.Result.success()
+            } else {
+                val limit = when (prefs.aiStrategy) {
+                    AiStrategy.LOCAL -> prefs.summaryNewsInScheduledExtractive.coerceAtLeast(1)
+                    AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> prefs.summaryNewsInScheduledCloud.coerceAtLeast(1)
+                }
+                val articlesToSummarize = articles.take(limit).take(WorkerContracts.MAX_ARTICLES_FOR_SUMMARIZATION)
+                val summaryText = summarizationEngineUseCase
+                    .summarizeArticles(
+                        articles = articlesToSummarize,
+                        context = SummaryContext.ScheduledSummary(articleCount = articlesToSummarize.size)
+                    )
+                    .getOrThrow()
 
-            val limit = when (prefs.aiStrategy) {
-                AiStrategy.LOCAL -> prefs.summaryNewsInScheduledExtractive.coerceAtLeast(1)
-                AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> prefs.summaryNewsInScheduledCloud.coerceAtLeast(1)
-            }
-            val articlesToSummarize = articles.take(limit).take(WorkerContracts.MAX_ARTICLES_FOR_SUMMARIZATION)
-            val summaryText = summarizationEngineUseCase
-                .summarizeArticles(
-                    articles = articlesToSummarize,
-                    context = SummaryContext.ScheduledSummary(articleCount = articlesToSummarize.size)
-                )
-                .getOrThrow()
+                if (summaryText.isBlank()) {
+                    val message = context.getString(R.string.summary_worker_empty_response)
+                    throw IllegalStateException(message)
+                }
 
-            if (summaryText.isBlank()) {
-                val message = context.getString(R.string.summary_worker_empty_response)
-                throw IllegalStateException(message)
+                summaryRepository.insertSummary(Summary(content = summaryText, strategy = prefs.aiStrategy))
+                maybeShowScheduledSummaryNotification(prefs)
+                ListenableWorker.Result.success()
             }
-
-            summaryRepository.insertSummary(Summary(content = summaryText, strategy = prefs.aiStrategy))
-            maybeShowScheduledSummaryNotification(prefs)
-            ListenableWorker.Result.success()
         } catch (e: NoArticlesException) {
             val message = context.getString(R.string.summary_worker_no_articles_today)
             summaryRepository.insertSummary(Summary(content = message, strategy = prefs.aiStrategy))
@@ -148,6 +151,15 @@ class SummaryWorkerHandler @Inject constructor(
                 ListenableWorker.Result.failure()
             }
         }
+        if (result !is ListenableWorker.Result.Retry) {
+            val latestPrefs = userPreferencesRepository.preferences.first()
+            if (latestPrefs.isScheduledSummaryEnabled) {
+                summaryScheduler.schedule(latestPrefs.scheduledHour, latestPrefs.scheduledMinute)
+            } else {
+                summaryScheduler.cancel()
+            }
+        }
+        return result
     }
 
     private fun resolveModelPath(prefs: com.andrewwin.sumup.data.local.entities.UserPreferences): String? {

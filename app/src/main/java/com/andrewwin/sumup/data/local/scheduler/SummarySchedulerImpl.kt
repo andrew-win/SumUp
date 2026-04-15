@@ -2,9 +2,9 @@ package com.andrewwin.sumup.data.local.scheduler
 
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
-import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.worker.SummaryWorker
@@ -30,18 +30,17 @@ class SummarySchedulerImpl @Inject constructor(
 
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
-            .setRequiresBatteryNotLow(true)
             .build()
 
-        val request = PeriodicWorkRequestBuilder<SummaryWorker>(24, TimeUnit.HOURS)
+        val request = OneTimeWorkRequestBuilder<SummaryWorker>()
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, BACKOFF_DELAY_MINUTES, TimeUnit.MINUTES)
+            .setBackoffCriteria(BackoffPolicy.LINEAR, BACKOFF_DELAY_MINUTES, TimeUnit.MINUTES)
             .build()
 
-        workManager.enqueueUniquePeriodicWork(
+        workManager.enqueueUniqueWork(
             SCHEDULED_SUMMARY_WORK_NAME,
-            ExistingPeriodicWorkPolicy.REPLACE,
+            ExistingWorkPolicy.REPLACE,
             request
         )
     }
@@ -52,7 +51,7 @@ class SummarySchedulerImpl @Inject constructor(
 
     companion object {
         private const val SCHEDULED_SUMMARY_WORK_NAME = "scheduled_summary"
-        private const val BACKOFF_DELAY_MINUTES = 30L
+        private const val BACKOFF_DELAY_MINUTES = 10L
     }
 }
 
