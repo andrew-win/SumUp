@@ -2,13 +2,10 @@ package com.andrewwin.sumup.ui.screen.webview
 
 import android.view.ViewGroup
 import android.webkit.CookieManager
-import android.webkit.WebResourceResponse
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import java.io.ByteArrayInputStream
-import java.util.Locale
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -107,16 +104,6 @@ fun WebViewScreen(
                             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                                 return false
                             }
-
-                            override fun shouldInterceptRequest(
-                                view: WebView?,
-                                request: WebResourceRequest?
-                            ): WebResourceResponse? {
-                                if (shouldBlockRequest(request)) {
-                                    return EMPTY_WEB_RESPONSE
-                                }
-                                return super.shouldInterceptRequest(view, request)
-                            }
                         }
                         with(settings) {
                             javaScriptEnabled = true
@@ -159,37 +146,6 @@ fun WebViewScreen(
         }
     }
 }
-
-private fun shouldBlockRequest(request: WebResourceRequest?): Boolean {
-    val host = request?.url?.host?.lowercase(Locale.ROOT) ?: return false
-    return TRACKER_AND_AD_HOST_KEYWORDS.any { keyword -> host.contains(keyword) }
-}
-
-private val TRACKER_AND_AD_HOST_KEYWORDS = listOf(
-    "doubleclick.net",
-    "googlesyndication.com",
-    "googleadservices.com",
-    "adservice.google.com",
-    "adnxs.com",
-    "taboola.com",
-    "outbrain.com",
-    "criteo.com",
-    "adsrvr.org",
-    "scorecardresearch.com",
-    "hotjar.com",
-    "mixpanel.com",
-    "segment.io",
-    "facebook.net",
-    "analytics",
-    "tracker"
-)
-
-private val EMPTY_WEB_RESPONSE = WebResourceResponse(
-    "text/plain",
-    "utf-8",
-    ByteArrayInputStream(ByteArray(0))
-)
-
 
 
 

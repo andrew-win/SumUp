@@ -20,10 +20,11 @@ class TelegramParser {
             val key = buildKey(element)
             val parts = partsByKey.getOrPut(key) { MessageParts() }
 
-            val messageClone = element.clone()
-            messageClone.select(".tgme_widget_message_reply").remove()
-            val text = messageClone
-                .selectFirst(".tgme_widget_message_text")
+            val text = element
+                .select(".tgme_widget_message_text")
+                .firstOrNull { candidate ->
+                    candidate.parents().none { it.hasClass("tgme_widget_message_reply") }
+                }
                 ?.wholeText()
                 ?.trim()
                 .orEmpty()
@@ -247,19 +248,20 @@ class TelegramParser {
 }
 
 private fun extractMediaUrl(element: org.jsoup.nodes.Element): String? {
-    val clone = element.clone()
-    clone.select(".tgme_widget_message_reply").remove()
-
-    val mediaElement = clone.selectFirst(
-        ".tgme_widget_message_photo_wrap, .tgme_widget_message_video_thumb, .tgme_widget_message_media"
-    )
+    val mediaElement = element
+        .select(".tgme_widget_message_photo_wrap, .tgme_widget_message_video_thumb, .tgme_widget_message_media")
+        .firstOrNull { candidate ->
+            candidate.parents().none { it.hasClass("tgme_widget_message_reply") }
+        }
     val style = mediaElement?.attr("style").orEmpty()
     val styleUrl = Regex("url\\(['\\\"]?(.*?)['\\\"]?\\)").find(style)?.groups?.get(1)?.value
     if (!styleUrl.isNullOrBlank()) return styleUrl
 
-    val img = clone.selectFirst(
-        ".tgme_widget_message_photo_wrap img, .tgme_widget_message_video_thumb img, .tgme_widget_message_media img"
-    )
+    val img = element
+        .select(".tgme_widget_message_photo_wrap img, .tgme_widget_message_video_thumb img, .tgme_widget_message_media img")
+        .firstOrNull { candidate ->
+            candidate.parents().none { it.hasClass("tgme_widget_message_reply") }
+        }
     val src = img?.attr("src").orEmpty()
     return src.ifBlank { null }
 }

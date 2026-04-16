@@ -32,8 +32,11 @@ class RefreshFeedUseCaseImpl @Inject constructor(
             if (result.isSuccess) {
                 lastRefreshAt = now
                 suggestedThemesStateRepository.setLastFeedRefreshAt(now)
-                // Also refresh recommendations since we have new articles
-                runCatching { getSuggestedThemesUseCase(forceRefresh = false).collect() }
+                val lastRecommendationAt = suggestedThemesStateRepository.getLastRecommendationAt()
+                val shouldRefreshSuggestedThemes = (now - lastRecommendationAt) >= SUGGESTED_THEMES_REFRESH_INTERVAL_MS
+                if (shouldRefreshSuggestedThemes) {
+                    runCatching { getSuggestedThemesUseCase(forceRefresh = false).collect() }
+                }
             }
 
             result
@@ -42,6 +45,7 @@ class RefreshFeedUseCaseImpl @Inject constructor(
 
     companion object {
         private const val MIN_REFRESH_INTERVAL_MS = 5_000L
+        private const val SUGGESTED_THEMES_REFRESH_INTERVAL_MS = 24L * 60 * 60 * 1000
     }
 }
 

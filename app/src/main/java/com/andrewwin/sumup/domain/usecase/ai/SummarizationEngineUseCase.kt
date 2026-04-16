@@ -56,8 +56,9 @@ class SummarizationEngineUseCase @Inject constructor(
                 fullContent = fullContent,
                 sentenceLimit = context.extractiveSentencesLimit(prefs)
             )
+            val withoutDuplicatedTitle = stripLeadingTitleFromSingleArticleSummary(local, formatted.displayTitle)
             return@runCatching renderPolicy.moveSourceToEndForSingleArticle(
-                renderPolicy.appendSourceMetadata(local, listOf(representative))
+                renderPolicy.appendSourceMetadata(withoutDuplicatedTitle, listOf(representative))
             )
         }
 
@@ -77,8 +78,9 @@ class SummarizationEngineUseCase @Inject constructor(
                 fullContent = it,
                 sentenceLimit = context.extractiveSentencesLimit(prefs)
             )
+            val withoutDuplicatedTitle = stripLeadingTitleFromSingleArticleSummary(local, formatted.displayTitle)
             return@runCatching renderPolicy.moveSourceToEndForSingleArticle(
-                renderPolicy.appendSourceMetadata(local, listOf(representative))
+                renderPolicy.appendSourceMetadata(withoutDuplicatedTitle, listOf(representative))
             )
         }
 
@@ -92,8 +94,9 @@ class SummarizationEngineUseCase @Inject constructor(
                 sentenceLimit = context.extractiveSentencesLimit(prefs)
             )
         }
+        val withoutDuplicatedTitle = stripLeadingTitleFromSingleArticleSummary(cloud, formatted.displayTitle)
         renderPolicy.moveSourceToEndForSingleArticle(
-            renderPolicy.appendSourceMetadata(cloud, listOf(representative))
+            renderPolicy.appendSourceMetadata(withoutDuplicatedTitle, listOf(representative))
         )
     }
 
@@ -234,6 +237,44 @@ class SummarizationEngineUseCase @Inject constructor(
         } else {
             articleRepository.fetchFullContent(article)
         }
+    }
+
+    private fun stripLeadingTitleFromSingleArticleSummary(summary: String, title: String): String {
+        if (summary.isBlank() || title.isBlank()) return summary
+        val trimmed = summary.trim()
+        val normalizedTitle = normalizeForCompare(title)
+        if (normalizedTitle.isBlank()) return trimmed
+
+        val lines = trimmed.lines()
+        if (lines.isEmpty()) return trimmed
+
+        val firstLine = lines.first().trim()
+        val firstLineNormalized = normalizeForCompare(
+            firstLine
+                .removePrefix("*")
+                .removeSuffix("*")
+                .removePrefix("**")
+                .removeSuffix("**")
+                .replace(Regex("^\\d+[.)]\\s*"), "")
+        )
+
+        if (firstLineNormalized == normalizedTitle) {
+            return lines.drop(1).joinToString("\n").trim()
+        }
+
+        val titlePrefixPattern = Regex(
+            "^\\s*(?:\\*\\*?)?\\Q${title.trim().removeSuffix(":")}\\E(?:\\*\\*?)?\\s*:\\s*",
+            RegexOption.IGNORE_CASE
+        )
+        return trimmed.replaceFirst(titlePrefixPattern, "").trim()
+    }
+
+    private fun normalizeForCompare(value: String): String {
+        return value.lowercase()
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .removeSuffix(":")
+            .removeSuffix(".")
     }
 
 }
