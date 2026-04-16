@@ -88,20 +88,31 @@ fun SourcesScreen(
                 },
                 actions = {
                     if (isSelectionMode) {
-                        FilledIconButton(
-                            onClick = {
-                                val selected = uiState
-                                    .map { it.group }
-                                    .filter { selectedGroupIds.contains(it.id) }
-                                selected.forEach { viewModel.deleteGroup(it) }
-                                selectedGroupIds.clear()
-                            },
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        ) {
-                            Icon(Icons.Outlined.Delete, contentDescription = "Delete selected groups")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilledIconButton(
+                                onClick = { selectedGroupIds.clear() },
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Exit selection mode")
+                            }
+                            FilledIconButton(
+                                onClick = {
+                                    val selected = uiState
+                                        .map { it.group }
+                                        .filter { selectedGroupIds.contains(it.id) }
+                                    selected.forEach { viewModel.deleteGroup(it) }
+                                    selectedGroupIds.clear()
+                                },
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            ) {
+                                Icon(Icons.Outlined.Delete, contentDescription = "Delete selected groups")
+                            }
                         }
                     } else {
                         FilledIconButton(

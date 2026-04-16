@@ -30,6 +30,8 @@ class GetFeedArticlesUseCase @Inject constructor(
     private val manageModelUseCase: ManageModelUseCase
 ) {
     private val tag = "GetFeedArticles"
+    private var lastDedupInputKey: String? = null
+    private var lastDedupClusters: List<ArticleCluster>? = null
 
     operator fun invoke(
         searchQueryFlow: Flow<String>,
@@ -128,6 +130,14 @@ class GetFeedArticlesUseCase @Inject constructor(
                         val initial = applyMinMentionsFilter(initialClusters, state.prefs)
                         val shouldRunDedup = state.shouldDedup && state.articles.size >= 2
 
+                        val dedupInputKey = buildDedupInputKey(state.articles, state.prefs)
+                        val cachedClusters = lastDedupClusters
+                        if (shouldRunDedup && dedupInputKey == lastDedupInputKey && cachedClusters != null) {
+                            val rebound = rebindClustersWithLatestArticles(cachedClusters, state.articles)
+                            emit(FeedResult(applyMinMentionsFilter(rebound, state.prefs), false))
+                            return@coroutineScope
+                        }
+
                         emit(FeedResult(initial, shouldRunDedup))
 
                         if (!shouldRunDedup) return@coroutineScope
@@ -174,6 +184,8 @@ class GetFeedArticlesUseCase @Inject constructor(
                             }
 
                         lastClusters?.let { final ->
+                            lastDedupInputKey = dedupInputKey
+                            lastDedupClusters = final
                             val filteredFinal = applyMinMentionsFilter(final, state.prefs)
                             emit(FeedResult(filteredFinal, false))
                         }
@@ -262,6 +274,48 @@ class GetFeedArticlesUseCase @Inject constructor(
         remaining.forEach { clusters.add(ArticleCluster(it, emptyList())) }
 
         return clusters.sortedByDescending { it.representative.publishedAt }
+    }
+
+    private fun rebindClustersWithLatestArticles(
+        clusters: List<ArticleCluster>,
+        latestArticles: List<Article>
+    ): List<ArticleCluster> {
+        val articleById = latestArticles.associateBy { it.id }
+        return clusters.map { cluster ->
+            val representative = articleById[cluster.representative.id] ?: cluster.representative
+            val duplicates = cluster.duplicates.mapNotNull { (article, score) ->
+                val updated = articleById[article.id] ?: article
+                updated to score
+            }
+            ArticleCluster(representative, duplicates)
+        }
+    }
+
+    private fun buildDedupInputKey(
+        articles: List<Article>,
+        prefs: UserPreferences
+    ): String {
+        val articlePart = articles
+            .sortedBy { it.id }
+            .joinToString("|") { article ->
+                listOf(
+                    article.id.toString(),
+                    article.sourceId.toString(),
+                    article.publishedAt.toString(),
+                    article.url,
+                    article.title,
+                    article.content
+                ).joinToString("::")
+            }
+        val prefsPart = listOf(
+            prefs.isDeduplicationEnabled.toString(),
+            prefs.deduplicationStrategy.name,
+            prefs.localDeduplicationThreshold.toString(),
+            prefs.cloudDeduplicationThreshold.toString(),
+            prefs.minMentions.toString(),
+            prefs.isHideSingleNewsEnabled.toString()
+        ).joinToString("::")
+        return "$prefsPart##$articlePart"
     }
 
     data class FeedPipelineState(

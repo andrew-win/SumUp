@@ -21,6 +21,7 @@ import com.andrewwin.sumup.domain.usecase.ai.SummarizeContentUseCase
 import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
+import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -56,6 +57,7 @@ class FeedViewModel @Inject constructor(
     private val feedUiModelMapper: FeedUiModelMapper
 ) : AndroidViewModel(application) {
     private val aiSessionCache = FeedAiSessionCache()
+    private val favoriteOverrides = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -116,13 +118,15 @@ class FeedViewModel @Inject constructor(
 
     private val feedUiState: StateFlow<FeedUiState> = combine(
         feedResultFlow,
-        groupsWithSources
-    ) { feed, groupsList ->
-        val clusters = feedUiModelMapper.map(
+        groupsWithSources,
+        favoriteOverrides
+    ) { feed, groupsList, overrides ->
+        val mappedClusters = feedUiModelMapper.map(
             clusters = feed.clusters,
             groupsWithSources = groupsList,
             ellipsis = getApplication<Application>().getString(R.string.ellipsis)
         )
+        val clusters = applyFavoriteOverrides(mappedClusters, overrides)
 
         FeedUiState(
             clusters = clusters,
@@ -169,9 +173,42 @@ class FeedViewModel @Inject constructor(
     fun clearAiResult() { _aiResult.value = null }
 
     fun toggleSaved(article: Article) {
-        viewModelScope.launch {
-            articleRepository.updateArticle(article.copy(isFavorite = !article.isFavorite))
+        val newFavorite = !article.isFavorite
+        favoriteOverrides.update { current ->
+            current + (article.id to newFavorite)
         }
+        viewModelScope.launch {
+            runCatching {
+                articleRepository.updateArticle(article.copy(isFavorite = newFavorite))
+            }.onFailure {
+                favoriteOverrides.update { current ->
+                    current - article.id
+                }
+            }
+        }
+    }
+
+    private fun applyFavoriteOverrides(
+        clusters: List<ArticleClusterUiModel>,
+        overrides: Map<Long, Boolean>
+    ): List<ArticleClusterUiModel> {
+        if (overrides.isEmpty()) return clusters
+        return clusters.map { cluster ->
+            val representative = applyFavoriteOverride(cluster.representative, overrides)
+            val duplicates = cluster.duplicates.map { (articleUi, score) ->
+                applyFavoriteOverride(articleUi, overrides) to score
+            }
+            cluster.copy(representative = representative, duplicates = duplicates)
+        }
+    }
+
+    private fun applyFavoriteOverride(
+        uiModel: ArticleUiModel,
+        overrides: Map<Long, Boolean>
+    ): ArticleUiModel {
+        val override = overrides[uiModel.article.id] ?: return uiModel
+        if (uiModel.article.isFavorite == override) return uiModel
+        return uiModel.copy(article = uiModel.article.copy(isFavorite = override))
     }
 
     private fun launchAi(block: suspend () -> Result<String>) {

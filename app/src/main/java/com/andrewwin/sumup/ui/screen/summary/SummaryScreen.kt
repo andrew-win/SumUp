@@ -6,8 +6,13 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +22,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
@@ -27,6 +33,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Share
@@ -52,6 +59,7 @@ import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,6 +87,16 @@ fun SummaryScreen(
     val isSelectionMode = selectedSummaryIds.isNotEmpty()
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
+    var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
+    val tabs = listOf("Статистика", "Заплановані")
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val showBackToTop by remember {
+        derivedStateOf {
+            selectedTabIndex == 1 &&
+                (listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 100)
+        }
+    }
 
     LaunchedEffect(isSelectionMode) {
         if (isSelectionMode && isHelpMode) {
@@ -98,17 +116,28 @@ fun SummaryScreen(
                 },
                 actions = {
                     if (isSelectionMode) {
-                        FilledIconButton(
-                            onClick = {
-                                viewModel.deleteSummaries(selectedSummaryIds.toList())
-                                selectedSummaryIds.clear()
-                            },
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        ) {
-                            Icon(Icons.Outlined.Delete, contentDescription = "Delete selected summaries")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilledIconButton(
+                                onClick = { selectedSummaryIds.clear() },
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Exit selection mode")
+                            }
+                            FilledIconButton(
+                                onClick = {
+                                    viewModel.deleteSummaries(selectedSummaryIds.toList())
+                                    selectedSummaryIds.clear()
+                                },
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            ) {
+                                Icon(Icons.Outlined.Delete, contentDescription = "Delete selected summaries")
+                            }
                         }
                     } else {
                         FilledIconButton(
@@ -129,9 +158,26 @@ fun SummaryScreen(
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
+        },
+        floatingActionButton = {
+            AnimatedVisibility(
+                visible = showBackToTop,
+                enter = fadeIn() + scaleIn(),
+                exit = fadeOut() + scaleOut()
+            ) {
+                SmallFloatingActionButton(
+                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    shape = CircleShape
+                ) {
+                    Icon(Icons.Default.ArrowUpward, contentDescription = stringResource(R.string.back_to_top))
+                }
+            }
         }
     ) { innerPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
@@ -139,66 +185,25 @@ fun SummaryScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             item {
-                HelpOverlayTarget(
-                    isEnabled = isHelpMode,
-                    description = "Статус: показує час останнього зведення або коли заплановано наступне.",
-                    onShowDescription = { helpDescription = it }
+                TabRow(
+                    selectedTabIndex = selectedTabIndex,
+                    containerColor = Color.Transparent
                 ) {
-                    PrevNextStatusRow(
-                        previousSummaryAt = lastSummary?.createdAt,
-                        isScheduledEnabled = userPreferences.isScheduledSummaryEnabled,
-                        nextScheduledAt = if (userPreferences.isScheduledSummaryEnabled) {
-                            getNextScheduledTimeMillis(
-                                userPreferences.scheduledHour,
-                                userPreferences.scheduledMinute
-                            )
-                        } else null
-                    )
-                }
-            }
-
-            item {
-                HelpOverlayTarget(
-                    isEnabled = isHelpMode,
-                    description = "Інфографіка: ключові новини та метрики. Натисни на рядок, щоб відкрити джерело.",
-                    onShowDescription = { helpDescription = it }
-                ) {
-                    SummaryChart(
-                        items = chartData,
-                        currentType = chartType,
-                        onTypeChange = viewModel::setChartType,
-                        isModelEnabled = isVectorizationEnabled,
-                        onOpenWebView = onOpenWebView
-                    )
-                }
-            }
-
-            if (todaySummary != null) {
-                item {
-                    HelpOverlayTarget(
-                        isEnabled = isHelpMode,
-                        description = "Сьогоднішнє зведення: останній підсумок за поточний день з діями копіювання, поширення та видалення.",
-                        onShowDescription = { helpDescription = it }
-                    ) {
-                        SectionHeader(stringResource(R.string.summary_today_title), Icons.Default.History)
-                        Spacer(Modifier.height(8.dp))
-                        SummaryCard(
-                            summary = todaySummary,
-                            activeSummaryModelName = activeSummaryModelName,
-                            onOpenWebView = onOpenWebView,
-                            isSelected = selectedSummaryIds.contains(todaySummary.id),
-                            isSelectionMode = isSelectionMode,
-                            onDelete = { viewModel.deleteSummary(todaySummary.id) },
-                            onLongSelect = {
-                                if (!selectedSummaryIds.contains(todaySummary.id)) {
-                                    selectedSummaryIds.add(todaySummary.id)
-                                }
-                            },
-                            onToggleSelect = {
-                                if (selectedSummaryIds.contains(todaySummary.id)) {
-                                    selectedSummaryIds.remove(todaySummary.id)
-                                } else {
-                                    selectedSummaryIds.add(todaySummary.id)
+                    tabs.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTabIndex == index,
+                            onClick = { selectedTabIndex = index },
+                            text = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (index == 0) Icons.Default.BarChart else Icons.Default.Schedule,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(title)
                                 }
                             }
                         )
@@ -206,36 +211,103 @@ fun SummaryScreen(
                 }
             }
 
-            if (olderSummaries.isNotEmpty()) {
+            if (selectedTabIndex == 0) {
                 item {
-                    SectionHeader(stringResource(R.string.summary_history_title), Icons.Default.History)
-                }
-                items(olderSummaries, key = { it.id }) { summary ->
                     HelpOverlayTarget(
                         isEnabled = isHelpMode,
-                        description = "Історія зведень: попередні підсумки. Натисни, щоб розгорнути або згорнути.",
+                        description = "Інфографіка: ключові новини та метрики. Натисни на рядок, щоб відкрити джерело.",
                         onShowDescription = { helpDescription = it }
                     ) {
-                        SummaryCard(
-                            summary = summary,
-                            activeSummaryModelName = activeSummaryModelName,
-                            onOpenWebView = onOpenWebView,
-                            isSelected = selectedSummaryIds.contains(summary.id),
-                            isSelectionMode = isSelectionMode,
-                            onDelete = { viewModel.deleteSummary(summary.id) },
-                            onLongSelect = {
-                                if (!selectedSummaryIds.contains(summary.id)) {
-                                    selectedSummaryIds.add(summary.id)
-                                }
-                            },
-                            onToggleSelect = {
-                                if (selectedSummaryIds.contains(summary.id)) {
-                                    selectedSummaryIds.remove(summary.id)
-                                } else {
-                                    selectedSummaryIds.add(summary.id)
-                                }
-                            }
+                        SummaryChart(
+                            items = chartData,
+                            currentType = chartType,
+                            onTypeChange = viewModel::setChartType,
+                            isModelEnabled = isVectorizationEnabled,
+                            onOpenWebView = onOpenWebView
                         )
+                    }
+                }
+            }
+
+            if (selectedTabIndex == 1) {
+                item {
+                    HelpOverlayTarget(
+                        isEnabled = isHelpMode,
+                        description = "Статус: показує час останнього зведення або коли заплановано наступне.",
+                        onShowDescription = { helpDescription = it }
+                    ) {
+                        PrevNextStatusRow(
+                            previousSummaryAt = lastSummary?.createdAt,
+                            isScheduledEnabled = userPreferences.isScheduledSummaryEnabled,
+                            nextScheduledAt = if (userPreferences.isScheduledSummaryEnabled) {
+                                getNextScheduledTimeMillis(
+                                    userPreferences.scheduledHour,
+                                    userPreferences.scheduledMinute
+                                )
+                            } else null
+                        )
+                    }
+                }
+
+                if (todaySummary != null) {
+                    item {
+                        HelpOverlayTarget(
+                            isEnabled = isHelpMode,
+                            description = "Сьогоднішнє зведення: останній підсумок за поточний день з діями копіювання, поширення та видалення.",
+                            onShowDescription = { helpDescription = it }
+                        ) {
+                            SummaryCard(
+                                summary = todaySummary,
+                                activeSummaryModelName = activeSummaryModelName,
+                                onOpenWebView = onOpenWebView,
+                                isSelected = selectedSummaryIds.contains(todaySummary.id),
+                                isSelectionMode = isSelectionMode,
+                                onDelete = { viewModel.deleteSummary(todaySummary.id) },
+                                onLongSelect = {
+                                    if (!selectedSummaryIds.contains(todaySummary.id)) {
+                                        selectedSummaryIds.add(todaySummary.id)
+                                    }
+                                },
+                                onToggleSelect = {
+                                    if (selectedSummaryIds.contains(todaySummary.id)) {
+                                        selectedSummaryIds.remove(todaySummary.id)
+                                    } else {
+                                        selectedSummaryIds.add(todaySummary.id)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (olderSummaries.isNotEmpty()) {
+                    items(olderSummaries, key = { it.id }) { summary ->
+                        HelpOverlayTarget(
+                            isEnabled = isHelpMode,
+                            description = "Історія зведень: попередні підсумки. Натисни, щоб розгорнути або згорнути.",
+                            onShowDescription = { helpDescription = it }
+                        ) {
+                            SummaryCard(
+                                summary = summary,
+                                activeSummaryModelName = activeSummaryModelName,
+                                onOpenWebView = onOpenWebView,
+                                isSelected = selectedSummaryIds.contains(summary.id),
+                                isSelectionMode = isSelectionMode,
+                                onDelete = { viewModel.deleteSummary(summary.id) },
+                                onLongSelect = {
+                                    if (!selectedSummaryIds.contains(summary.id)) {
+                                        selectedSummaryIds.add(summary.id)
+                                    }
+                                },
+                                onToggleSelect = {
+                                    if (selectedSummaryIds.contains(summary.id)) {
+                                        selectedSummaryIds.remove(summary.id)
+                                    } else {
+                                        selectedSummaryIds.add(summary.id)
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -309,8 +381,6 @@ fun SummaryChart(
     onOpenWebView: (String) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        SectionHeader(stringResource(R.string.summary_infographic_title), Icons.Default.BarChart)
-        Spacer(Modifier.height(12.dp))
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
@@ -495,8 +565,6 @@ fun PrevNextStatusRow(
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        SectionHeader("Статус", Icons.Default.CalendarToday)
-        Spacer(Modifier.height(12.dp))
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.large,
