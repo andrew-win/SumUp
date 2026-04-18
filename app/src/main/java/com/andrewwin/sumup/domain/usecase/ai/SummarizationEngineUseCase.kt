@@ -149,9 +149,14 @@ class SummarizationEngineUseCase @Inject constructor(
         )
 
         if (prefs.aiStrategy == AiStrategy.LOCAL) {
-            val extractiveArticles = articles.take(context.extractiveNewsLimit(prefs))
-            DebugTrace.d("summary_engine", "branch=local extractiveArticles=${extractiveArticles.size}")
-            return@runCatching buildMultiArticleFallbackSummary(extractiveArticles, context, prefs)
+            val localArticles = articles.take(LOCAL_MULTI_ARTICLE_NEWS_LIMIT)
+            DebugTrace.d("summary_engine", "branch=local localArticles=${localArticles.size}")
+            return@runCatching buildMultiArticleFallbackSummary(
+                articles = localArticles,
+                context = context,
+                prefs = prefs,
+                plainList = true
+            )
         }
 
         val cloudArticles = articles
@@ -161,9 +166,14 @@ class SummarizationEngineUseCase @Inject constructor(
         val raw = try {
             cloudCallPolicy.summarize(content = cloudInput)
         } catch (e: Exception) {
-            DebugTrace.e("summary_engine", "cloud summarize failed, falling back to local themed summary", e)
-            val fallbackArticles = articles.take(context.extractiveNewsLimit(prefs))
-            return@runCatching buildMultiArticleFallbackSummary(fallbackArticles, context, prefs)
+            DebugTrace.e("summary_engine", "cloud summarize failed, falling back to local plain list summary", e)
+            val fallbackArticles = articles.take(LOCAL_MULTI_ARTICLE_NEWS_LIMIT)
+            return@runCatching buildMultiArticleFallbackSummary(
+                articles = fallbackArticles,
+                context = context,
+                prefs = prefs,
+                plainList = true
+            )
         }
 
         renderPolicy.appendSourceMetadata(raw, cloudArticles).also {
@@ -233,13 +243,18 @@ class SummarizationEngineUseCase @Inject constructor(
     private suspend fun buildMultiArticleFallbackSummary(
         articles: List<Article>,
         context: SummaryContext,
-        prefs: UserPreferences
+        prefs: UserPreferences,
+        plainList: Boolean = false
     ): String {
         if (articles.size <= 1) {
             return renderPolicy.appendSourceMetadata(
                 buildExtractiveSummary(articles, context, prefs),
                 articles
             )
+        }
+
+        if (plainList) {
+            return buildMultiArticlePlainListSummary(articles, context, prefs)
         }
 
         data class FallbackItem(
@@ -303,6 +318,43 @@ class SummarizationEngineUseCase @Inject constructor(
             DebugTrace.d(
                 "summary_engine",
                 "buildMultiArticleFallbackSummary themes=${groupsToRender.size} preview=${DebugTrace.preview(it)}"
+            )
+        }
+    }
+
+    private suspend fun buildMultiArticlePlainListSummary(
+        articles: List<Article>,
+        context: SummaryContext,
+        prefs: UserPreferences
+    ): String {
+        val prepared = articles.map { article ->
+            val source = articleRepository.getSourceById(article.sourceId)
+            val sourceType = source?.type ?: SourceType.RSS
+            val formatted = formatArticleHeadlineUseCase(article, sourceType)
+            Triple(
+                compactFallbackTitle(formatted.displayTitle.ifBlank { article.title.ifBlank { "Новина" } }),
+                source?.name?.ifBlank { "Джерело" } ?: "Джерело",
+                article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
+            )
+        }
+
+        return prepared.joinToString("\n") { (title, sourceName, sourceUrl) ->
+            buildString {
+                append(FALLBACK_ITEM_MARKER)
+                append(' ')
+                append(title)
+                if (sourceUrl.isNotBlank()) {
+                    append("\n")
+                    append(SummarySourceMeta.PREFIX)
+                    append(sourceName)
+                    append('|')
+                    append(sourceUrl)
+                }
+            }
+        }.also {
+            DebugTrace.d(
+                "summary_engine",
+                "buildMultiArticlePlainListSummary items=${prepared.size} preview=${DebugTrace.preview(it)}"
             )
         }
     }
@@ -457,6 +509,7 @@ class SummarizationEngineUseCase @Inject constructor(
         const val MAX_FALLBACK_THEMES = 5
         const val MAX_FALLBACK_TITLE_CHARS = 90
         const val FALLBACK_ITEM_MARKER = "—"
+        const val LOCAL_MULTI_ARTICLE_NEWS_LIMIT = 8
 
         val GENERIC_FALLBACK_THEME = FallbackThemeDefinition(
             key = "generic",

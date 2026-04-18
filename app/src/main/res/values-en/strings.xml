@@ -109,7 +109,7 @@
     <string name="error_all_ai_models_failed">All available AI models failed to respond. Try again later.</string>
     <string name="error_unsupported_strategy">Local summarization does not support Q&amp;A</string>
     <string name="error_no_articles">No new articles for summarization.</string>
-    <string name="settings_importance_filter">Importance</string>
+    <string name="settings_importance_filter">Informativeness</string>
     <string name="settings_enable_importance_filter">Hide low-information items</string>
     <string name="settings_summary">Summarization</string>
     <string name="settings_summary_items_per_news_feed">Points per news in feed: %d</string>
@@ -209,8 +209,8 @@
     <string name="summary_copied">Summary copied</string>
     <string name="ai_result_copied">Answer copied</string>
     <string name="chart_views">Views</string>
-    <string name="chart_mentions">Mentions</string>
-    <string name="chart_factuality">Importance</string>
+    <string name="chart_mentions">Similar</string>
+    <string name="chart_factuality">Informativeness</string>
     <string name="chart_top_news">Top news</string>
 
     <string name="sources_suggested_themes_title">Subscribe to themes:</string>

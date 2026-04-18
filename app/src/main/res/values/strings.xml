@@ -110,7 +110,7 @@
     <string name="error_all_ai_models_failed">Всі доступні ШІ моделі не відповіли. Спробуйте пізніше.</string>
     <string name="error_unsupported_strategy">Локальна сумаризація не підтримує запитання</string>
     <string name="error_no_articles">Немає нових статей для сумаризації.</string>
-    <string name="settings_importance_filter">Важливість</string>
+    <string name="settings_importance_filter">Інформативність</string>
     <string name="settings_enable_importance_filter">Приховувати малоінформативні</string>
     <string name="settings_summary">Сумаризація</string>
     <string name="settings_local_summary">Локальна сумаризація</string>
@@ -251,8 +251,8 @@
     <string name="ai_result_copied">Відповідь скопійовано</string>
 
     <string name="chart_views">Перегляди</string>
-    <string name="chart_mentions">Згадки</string>
-    <string name="chart_factuality">Важливість</string>
+    <string name="chart_mentions">Схожі</string>
+    <string name="chart_factuality">Інформативність</string>
     <string name="chart_top_news">Топ новин</string>
 
     <string name="sources_suggested_themes_title">Підписуйтесь на теми:</string>

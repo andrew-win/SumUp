@@ -36,7 +36,8 @@ data class SummaryChartItem(
     val value: Float,
     val displayValue: String,
     val sourceName: String? = null,
-    val sourceUrl: String? = null
+    val sourceUrl: String? = null,
+    val isValueUnavailable: Boolean = false
 )
 
 @HiltViewModel
@@ -99,14 +100,22 @@ class SummaryViewModel @Inject constructor(
         when (type) {
             SummaryChartType.VIEWS -> {
                 clusters.map { cluster ->
-                    val totalViews = cluster.representative.viewCount + cluster.duplicates.sumOf { it.first.viewCount }
+                    val clusterArticles = listOf(cluster.representative) + cluster.duplicates.map { it.first }
+                    val hasKnownViews = clusterArticles.any {
+                        (sourceTypeMap[it.sourceId] ?: SourceType.RSS) != SourceType.RSS && it.viewCount > 0
+                    }
+                    val totalViews = clusterArticles.sumOf { article ->
+                        val sourceType = sourceTypeMap[article.sourceId] ?: SourceType.RSS
+                        if (sourceType == SourceType.RSS) 0L else article.viewCount.coerceAtLeast(0L)
+                    }
                     val source = sourceById[cluster.representative.sourceId]
                     SummaryChartItem(
                         headline = cluster.representative.title,
                         value = totalViews.toFloat(),
-                        displayValue = formatViews(totalViews),
+                        displayValue = if (hasKnownViews) "${formatViews(totalViews)} перегл." else "н/д",
                         sourceName = source?.name,
-                        sourceUrl = cluster.representative.url.takeIf { it.isNotBlank() } ?: source?.url
+                        sourceUrl = cluster.representative.url.takeIf { it.isNotBlank() } ?: source?.url,
+                        isValueUnavailable = !hasKnownViews
                     )
                 }.sortedByDescending { it.value }.take(limit)
             }
@@ -117,7 +126,7 @@ class SummaryViewModel @Inject constructor(
                     SummaryChartItem(
                         headline = cluster.representative.title,
                         value = count.toFloat(),
-                        displayValue = count.toString(),
+                        displayValue = "$count схож.",
                         sourceName = source?.name,
                         sourceUrl = cluster.representative.url.takeIf { it.isNotBlank() } ?: source?.url
                     )
@@ -131,7 +140,7 @@ class SummaryViewModel @Inject constructor(
                     SummaryChartItem(
                         headline = article.title,
                         value = score,
-                        displayValue = "%.2f".format(score),
+                        displayValue = if (score in 0f..1f) "%.0f%%".format(score * 100f) else "%.2f".format(score),
                         sourceName = source?.name,
                         sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url
                     )

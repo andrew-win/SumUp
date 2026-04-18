@@ -18,6 +18,10 @@ sealed interface SummaryBlockUi {
         val heading: String,
         val items: List<ThemeItem>
     ) : SummaryBlockUi
+
+    data class PlainList(
+        val items: List<ThemeItem>
+    ) : SummaryBlockUi
 }
 
 data class ThemeItem(
@@ -35,13 +39,14 @@ fun parseSummaryBlocks(raw: String): List<SummaryBlockUi> {
         .split(Regex("\\n\\s*\\n"))
         .map { it.trim() }
         .filter { it.isNotBlank() }
-        .mapNotNull { block -> parseThemeBlock(block) ?: parseSectionBlock(block) }
+        .mapNotNull { block -> parseThemeBlock(block) ?: parsePlainListBlock(block) ?: parseSectionBlock(block) }
         .also { blocks ->
             val themeCount = blocks.count { it is SummaryBlockUi.Theme }
             val sectionCount = blocks.count { it is SummaryBlockUi.Section }
+            val listCount = blocks.count { it is SummaryBlockUi.PlainList }
             DebugTrace.d(
                 "summary_parser",
-                "parseSummaryBlocks themes=$themeCount sections=$sectionCount preview=${DebugTrace.preview(raw, 280)}"
+                "parseSummaryBlocks themes=$themeCount sections=$sectionCount lists=$listCount preview=${DebugTrace.preview(raw, 280)}"
             )
         }
 }
@@ -116,6 +121,30 @@ private fun parseSectionBlock(block: String): SummaryBlockUi.Section? {
     val body = bodyLines.joinToString("\n").replace(SourceMetaInlineRegex, "").trim()
     if (body.isBlank()) return null
     return SummaryBlockUi.Section(body = body, source = source)
+}
+
+private fun parsePlainListBlock(block: String): SummaryBlockUi.PlainList? {
+    val lines = block.lines().map { it.trimEnd() }.filter { it.isNotBlank() }
+    if (lines.isEmpty()) return null
+    if (!lines.first().trim().startsWith(ThemeItemMarker)) return null
+
+    val items = mutableListOf<ThemeItem>()
+    var index = 0
+    while (index < lines.size) {
+        val line = lines[index].trim()
+        if (!line.startsWith(ThemeItemMarker)) return null
+        val text = line.removePrefix(ThemeItemMarker).trim()
+        if (text.isBlank()) return null
+        var source: SummarySourceLinkUi? = null
+        if (index + 1 < lines.size) {
+            source = parseSourceMeta(lines[index + 1].trim())
+            if (source != null) index++
+        }
+        items += ThemeItem(marker = ThemeItemMarker, text = text, source = source)
+        index++
+    }
+
+    return items.takeIf { it.isNotEmpty() }?.let { SummaryBlockUi.PlainList(it) }
 }
 
 private fun parseSourceMeta(line: String): SummarySourceLinkUi? {

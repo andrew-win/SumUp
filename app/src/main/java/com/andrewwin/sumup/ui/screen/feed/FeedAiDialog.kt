@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -144,7 +145,10 @@ fun FeedAiDialog(
                                     text = summaryTitle,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp)
                                 )
                             }
                             if (compareBlocks != null) {
@@ -159,89 +163,25 @@ fun FeedAiDialog(
                                     onOpenWebView = onOpenWebView
                                 )
                             }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        if (aiStrategy != AiStrategy.LOCAL && !activeSummaryModelName.isNullOrBlank()) {
-                                            Text(
-                                                text = "Модель: $activeSummaryModelName",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        } else {
-                                            Spacer(Modifier)
-                                        }
-                                        Surface(
-                                            shape = MaterialTheme.shapes.extraSmall,
-                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
-                                            border = BorderStroke(
-                                                1.dp,
-                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
-                                            )
-                                        ) {
-                                            Text(
-                                                text = when (aiStrategy) {
-                                                    AiStrategy.CLOUD -> context.getString(R.string.ai_strategy_cloud)
-                                                    AiStrategy.LOCAL -> context.getString(R.string.ai_strategy_local)
-                                                    AiStrategy.ADAPTIVE -> context.getString(R.string.ai_strategy_adaptive)
-                                                },
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(Modifier.height(12.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Start
-                                    ) {
-                                        IconButton(
-                                            onClick = {
-                                                copyTextToClipboard(context, aiResult)
-                                                Toast.makeText(
-                                                    context,
-                                                    context.getString(R.string.ai_result_copied),
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                            },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.ContentCopy,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                        IconButton(
-                                            onClick = {
-                                                shareText(
-                                                    context = context,
-                                                    text = aiResult,
-                                                    chooserTitle = context.getString(R.string.summary_share_chooser_title)
-                                                )
-                                            },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Share,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
+                            SummaryMetaRow(
+                                modelName = activeSummaryModelName,
+                                aiStrategy = aiStrategy,
+                                onCopy = {
+                                    copyTextToClipboard(context, aiResult)
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.ai_result_copied),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                onShare = {
+                                    shareText(
+                                        context = context,
+                                        text = aiResult,
+                                        chooserTitle = context.getString(R.string.summary_share_chooser_title)
+                                    )
                                 }
-                            }
+                            )
                         }
                     }
                 }
@@ -295,30 +235,27 @@ private fun SingleSummaryCard(
     blocks: List<SummaryBlockUi>,
     onOpenWebView: (String) -> Unit
 ) {
-    Surface(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            blocks.forEach { block ->
-                when (block) {
-                    is SummaryBlockUi.Section -> LegacySummarySectionView(
-                        text = block.body,
-                        sourceName = block.source?.name,
-                        sourceUrl = block.source?.url,
-                        onOpenWebView = onOpenWebView
-                    )
-                    is SummaryBlockUi.Theme -> ThemeSummarySectionView(
-                        heading = block.heading,
-                        items = block.items,
-                        onOpenWebView = onOpenWebView
-                    )
-                }
+        blocks.forEach { block ->
+        when (block) {
+            is SummaryBlockUi.Section -> LegacySummarySectionView(
+                text = block.body,
+                sourceName = block.source?.name,
+                sourceUrl = block.source?.url,
+                onOpenWebView = onOpenWebView
+            )
+            is SummaryBlockUi.PlainList -> PlainListSummarySectionView(
+                items = block.items,
+                onOpenWebView = onOpenWebView
+            )
+            is SummaryBlockUi.Theme -> ThemeSummarySectionView(
+                heading = block.heading,
+                items = block.items,
+                onOpenWebView = onOpenWebView
+            )
             }
         }
     }
@@ -350,6 +287,69 @@ private data class CompareBlocksUi(val common: List<CompareItemUi>, val differen
 private val CompareBulletRegex = Regex("""^[•—-]\s*(.*?):\s*(.*?)\s*\((https?://[^)]+)\)\s*$""")
 private const val InlineSourceChipMaxWidthDp = 92
 private const val InlineSourceAnnotationTag = "summary_source"
+
+@Composable
+private fun SummaryMetaRow(
+    modelName: String?,
+    aiStrategy: AiStrategy,
+    onCopy: () -> Unit,
+    onShare: () -> Unit
+) {
+    val compactModel = modelName
+        ?.substringAfter('/', modelName)
+        ?.takeIf { it.isNotBlank() }
+    val metaText = buildString {
+        append(
+            when (aiStrategy) {
+                AiStrategy.CLOUD -> "Хмарна"
+                AiStrategy.LOCAL -> "Локальна"
+                AiStrategy.ADAPTIVE -> "Адаптивна"
+            }
+        )
+        if (aiStrategy != AiStrategy.LOCAL && compactModel != null) {
+            append(", ")
+            append(compactModel)
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = metaText,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(Modifier.width(6.dp))
+        IconButton(
+            onClick = onCopy,
+            modifier = Modifier.size(28.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.ContentCopy,
+                contentDescription = null,
+                modifier = Modifier.size(17.dp)
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        IconButton(
+            onClick = onShare,
+            modifier = Modifier.size(28.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Share,
+                contentDescription = null,
+                modifier = Modifier.size(17.dp)
+            )
+        }
+    }
+}
 
 private fun parseCompareBlocks(raw: String): CompareBlocksUi? {
     val lines = raw.lines().map { it.trim() }
@@ -448,14 +448,55 @@ private fun LegacySummarySectionView(
     sourceUrl: String?,
     onOpenWebView: (String) -> Unit
 ) {
-    InlineSummaryRow(
-        text = text,
-        sourceName = sourceName,
-        sourceUrl = sourceUrl,
-        onOpenWebView = onOpenWebView,
-        textStyle = MaterialTheme.typography.bodyMedium,
-        lineHeight = 26.sp
-    )
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            InlineSummaryRow(
+                text = text,
+                sourceName = sourceName,
+                sourceUrl = sourceUrl,
+                onOpenWebView = onOpenWebView,
+                textStyle = MaterialTheme.typography.bodyMedium,
+                lineHeight = 24.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlainListSummarySectionView(
+    items: List<ThemeItem>,
+    onOpenWebView: (String) -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items.forEach { item ->
+                InlineSummaryRow(
+                    text = "${item.marker} ${item.text}",
+                    sourceName = item.source?.name,
+                    sourceUrl = item.source?.url,
+                    onOpenWebView = onOpenWebView,
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    lineHeight = 23.sp
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -464,22 +505,32 @@ private fun ThemeSummarySectionView(
     items: List<ThemeItem>,
     onOpenWebView: (String) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = heading,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        items.forEach { item ->
-            InlineSummaryRow(
-                text = "${item.marker} ${item.text}",
-                sourceName = item.source?.name,
-                sourceUrl = item.source?.url,
-                onOpenWebView = onOpenWebView,
-                textStyle = MaterialTheme.typography.bodyMedium,
-                lineHeight = 24.sp
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = heading,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
+            items.forEach { item ->
+                InlineSummaryRow(
+                    text = "${item.marker} ${item.text}",
+                    sourceName = item.source?.name,
+                    sourceUrl = item.source?.url,
+                    onOpenWebView = onOpenWebView,
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    lineHeight = 23.sp
+                )
+            }
         }
     }
 }
