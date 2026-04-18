@@ -43,8 +43,11 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.filled.Search
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.*
@@ -77,6 +80,7 @@ import com.andrewwin.sumup.ui.util.ThemeItem
 import com.andrewwin.sumup.ui.util.cleanSummaryTextForSharing
 import com.andrewwin.sumup.ui.util.normalizeSummaryUrlForWebView
 import com.andrewwin.sumup.ui.util.parseSummaryBlocks
+import com.andrewwin.sumup.ui.util.PdfExporter
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.launch
@@ -102,6 +106,7 @@ fun SummaryScreen(
     viewModel: SummaryViewModel = hiltViewModel(),
     onOpenWebView: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
     val summaries by viewModel.summaries.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
     val activeSummaryModelName by viewModel.activeSummaryModelName.collectAsState()
@@ -145,6 +150,30 @@ fun SummaryScreen(
             !isHistoryScreen &&
                 selectedTabIndex == 1 &&
                 (listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 100)
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val summariesToExport = when {
+            isHistoryScreen -> historySummaries
+            selectedTabIndex == 0 && lastSummary != null -> listOf(lastSummary)
+            else -> emptyList()
+        }
+        if (summariesToExport.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            val result = PdfExporter.exportSummariesToPdf(
+                context = context,
+                summaries = summariesToExport,
+                uri = uri
+            )
+            if (result.isFailure) {
+                Toast
+                    .makeText(context, context.getString(R.string.export_pdf_error), Toast.LENGTH_SHORT)
+                    .show()
+            }
         }
     }
 
@@ -202,16 +231,32 @@ fun SummaryScreen(
                             Icon(Icons.Default.Close, contentDescription = "Закрити історію")
                         }
                     } else {
-                        FilledIconButton(
-                            onClick = { isHelpMode = !isHelpMode },
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        ) {
-                            if (isHelpMode) {
-                                Icon(Icons.Default.Close, contentDescription = "Вимкнути підказки")
-                            } else {
-                                Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = "Увімкнути підказки")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (selectedTabIndex == 0 && lastSummary != null) {
+                                FilledIconButton(
+                                    onClick = {
+                                        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                                        val name = context.getString(R.string.summary_pdf_file_name, date)
+                                        exportLauncher.launch(name)
+                                    },
+                                    colors = IconButtonDefaults.filledIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                ) {
+                                    Icon(Icons.Outlined.PictureAsPdf, contentDescription = stringResource(R.string.export_feed_pdf))
+                                }
+                            }
+                            FilledIconButton(
+                                onClick = { isHelpMode = !isHelpMode },
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                if (isHelpMode) {
+                                    Icon(Icons.Default.Close, contentDescription = "Вимкнути підказки")
+                                } else {
+                                    Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = "Увімкнути підказки")
+                                }
                             }
                         }
                     }
@@ -269,6 +314,12 @@ fun SummaryScreen(
                     onDateFilterChange = { historyDateFilter = it },
                     savedFilter = historySavedFilter,
                     onSavedFilterChange = { historySavedFilter = it },
+                    onExportPdf = {
+                        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                        val name = context.getString(R.string.summary_pdf_file_name, date)
+                        exportLauncher.launch(name)
+                    },
+                    isExportEnabled = historySummaries.isNotEmpty(),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
                 HistorySummaryList(
@@ -480,6 +531,8 @@ private fun HistorySummaryFilters(
     onDateFilterChange: (HistoryDateFilter) -> Unit,
     savedFilter: HistorySavedFilter,
     onSavedFilterChange: (HistorySavedFilter) -> Unit,
+    onExportPdf: () -> Unit,
+    isExportEnabled: Boolean,
     modifier: Modifier = Modifier
 ) {
     var showDateMenu by remember { mutableStateOf(false) }
@@ -488,30 +541,48 @@ private fun HistorySummaryFilters(
     Column(
         modifier = modifier.fillMaxWidth()
     ) {
-        TextField(
-            value = searchQuery,
-            onValueChange = onSearchQueryChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            shape = MaterialTheme.shapes.extraLarge,
-            placeholder = {
-                Text(
-                    text = "Шукайте зведення тут...",
-                    style = MaterialTheme.typography.bodyLarge
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(56.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                placeholder = {
+                    Text(
+                        text = "Шукайте зведення тут...",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
                 )
-            },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            singleLine = true,
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                disabledIndicatorColor = Color.Transparent
             )
-        )
+            IconButton(
+                onClick = onExportPdf,
+                enabled = isExportEnabled,
+                modifier = Modifier.size(56.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.PictureAsPdf,
+                    contentDescription = stringResource(R.string.export_feed_pdf),
+                    modifier = Modifier.size(28.dp),
+                    tint = if (isExportEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                )
+            }
+        }
 
         Spacer(Modifier.height(16.dp))
 

@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import com.andrewwin.sumup.R
+import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -105,6 +106,89 @@ object PdfExporter {
                     drawWrapped(article.displayContent, textPaint)
                 }
                 y += lineHeight
+                if (y > pageHeight - margin) newPage()
+            }
+
+            document.finishPage(page)
+            context.contentResolver.openOutputStream(uri)?.use { out ->
+                document.writeTo(out)
+            }
+            document.close()
+        }
+    }
+
+    suspend fun exportSummariesToPdf(
+        context: Context,
+        summaries: List<Summary>,
+        uri: Uri
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val document = PdfDocument()
+            val pageWidth = 595
+            val pageHeight = 842
+            val margin = 32f
+            val titlePaint = Paint().apply {
+                textSize = 18f
+                isFakeBoldText = true
+            }
+            val textPaint = Paint().apply {
+                textSize = 12f
+            }
+            val subtitlePaint = Paint().apply {
+                textSize = 10f
+            }
+
+            var pageNumber = 1
+            var page = document.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
+            var canvas = page.canvas
+            var y = margin
+
+            val dateFormat = SimpleDateFormat("HH:mm, dd MMMM yyyy", Locale("uk", "UA"))
+            val nowText = dateFormat.format(Date())
+            val title = context.getString(R.string.summary_pdf_title)
+            val generated = context.getString(R.string.summary_pdf_generated, nowText)
+
+            canvas.drawText(title, margin, y, titlePaint)
+            y += titlePaint.fontSpacing + 6f
+            canvas.drawText(generated, margin, y, subtitlePaint)
+            y += subtitlePaint.fontSpacing + 12f
+
+            fun newPage() {
+                document.finishPage(page)
+                pageNumber += 1
+                page = document.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
+                canvas = page.canvas
+                y = margin
+            }
+
+            fun drawWrapped(text: String, paint: Paint) {
+                val normalized = text.replace('\n', ' ')
+                var start = 0
+                while (start < normalized.length) {
+                    val count = paint.breakText(normalized, start, normalized.length, true, pageWidth - margin * 2, null)
+                    canvas.drawText(normalized, start, start + count, margin, y, paint)
+                    y += paint.fontSpacing
+                    if (y > pageHeight - margin) newPage()
+                    start += count
+                }
+            }
+
+            summaries.forEachIndexed { index, summary ->
+                val summaryDate = dateFormat.format(Date(summary.createdAt))
+                val header = context.getString(R.string.summary_pdf_item_header, index + 1)
+                val meta = context.getString(
+                    R.string.summary_pdf_item_meta,
+                    summaryDate,
+                    when (summary.strategy) {
+                        com.andrewwin.sumup.data.local.entities.AiStrategy.CLOUD -> context.getString(R.string.ai_strategy_cloud)
+                        com.andrewwin.sumup.data.local.entities.AiStrategy.LOCAL -> context.getString(R.string.ai_strategy_local)
+                        com.andrewwin.sumup.data.local.entities.AiStrategy.ADAPTIVE -> context.getString(R.string.ai_strategy_adaptive)
+                    }
+                )
+                drawWrapped(header, titlePaint)
+                drawWrapped(meta, subtitlePaint)
+                drawWrapped(cleanSummaryTextForSharing(summary.content), textPaint)
+                y += textPaint.fontSpacing
                 if (y > pageHeight - margin) newPage()
             }
 

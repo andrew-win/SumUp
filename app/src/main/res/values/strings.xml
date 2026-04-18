@@ -232,6 +232,11 @@
     <string name="feed_pdf_generated">Згенеровано: %s</string>
     <string name="feed_pdf_item_header">%s</string>
     <string name="feed_pdf_item_meta">%1$s · %2$s</string>
+    <string name="summary_pdf_title">Зведення</string>
+    <string name="summary_pdf_generated">Згенеровано: %s</string>
+    <string name="summary_pdf_file_name">summaries-%s.pdf</string>
+    <string name="summary_pdf_item_header">Зведення #%1$d</string>
+    <string name="summary_pdf_item_meta">%1$s · %2$s</string>
     <string name="summary_prompt_default">Задача: структуризувати новини за ключовими темами для зведення по всій стрічці або запланованого дайджесту. Визнач найважливіші широкі теми, відбери найцінніші новини в кожній темі, сформулюй короткі різні заголовки та прив’яжи кожну новину до найкращого джерела.</string>
     <string name="ai_question_prompt_prefix">Дай відповідь на питання:</string>
     <string name="ai_question_prompt_suffix">Базуючись на цьому тексті:</string>
