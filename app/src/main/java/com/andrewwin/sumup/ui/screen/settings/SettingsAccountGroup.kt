@@ -21,7 +21,6 @@ import androidx.compose.material3.Text
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -54,6 +53,10 @@ fun SettingsAccountGroup(
     onExportClick: (String) -> Unit
 ) {
     var syncIntervalExpanded by remember { mutableStateOf(false) }
+    val unifiedButtonColors = ButtonDefaults.buttonColors(
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SettingsSection(title = "", boxed = true) {
             Column(
@@ -81,26 +84,25 @@ fun SettingsAccountGroup(
                         onClick = onSignInOutClick,
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = MaterialTheme.shapes.large,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer
-                        )
+                        colors = unifiedButtonColors
                     ) {
                         Text(stringResource(R.string.settings_logout))
                     }
                 } else {
-                    val stroke = androidx.compose.foundation.BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)
-                    )
                     Box(
                         modifier = Modifier
                             .size(72.dp)
                             .border(
-                                border = stroke,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                                ),
                                 shape = CircleShape
                             )
-                            .background(Color.Transparent, CircleShape),
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                shape = CircleShape
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -127,10 +129,7 @@ fun SettingsAccountGroup(
                         onClick = onSignInOutClick,
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = MaterialTheme.shapes.medium,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                        colors = unifiedButtonColors
                     ) {
                         Text(
                             text = stringResource(R.string.settings_account_login_btn),
@@ -198,10 +197,7 @@ fun SettingsAccountGroup(
                         enabled = isCloudSyncEnabled && transferState !is TransferState.Working,
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                         shape = MaterialTheme.shapes.extraLarge,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
+                        colors = unifiedButtonColors
                     ) {
                         Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))
@@ -214,10 +210,7 @@ fun SettingsAccountGroup(
                         enabled = transferState !is TransferState.Working,
                         modifier = Modifier.weight(1f).height(52.dp),
                         shape = MaterialTheme.shapes.extraLarge,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
+                        colors = unifiedButtonColors
                     ) {
                         Icon(Icons.Default.ArrowDownward, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))
@@ -231,10 +224,7 @@ fun SettingsAccountGroup(
                         enabled = transferState !is TransferState.Working,
                         modifier = Modifier.weight(1f).height(52.dp),
                         shape = MaterialTheme.shapes.extraLarge,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                        colors = unifiedButtonColors
                     ) {
                         Icon(Icons.Default.ArrowUpward, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))

@@ -154,8 +154,10 @@
     <string name="settings_memory">Memory</string>
     <string name="settings_clear_articles">Clear articles</string>
     <string name="settings_clear_embeddings">Clear embeddings</string>
+    <string name="settings_clear_scheduled_summaries">Clear scheduled summaries</string>
     <string name="settings_clear_articles_confirm">Delete all feed articles? Sources will stay.</string>
     <string name="settings_clear_embeddings_confirm">Delete all embeddings? This will also clear similarity cache.</string>
+    <string name="settings_clear_scheduled_summaries_confirm">Delete all saved scheduled summaries?</string>
     <string name="filter_date_all">All</string>
     <string name="filter_date_1h">1h</string>
     <string name="filter_date_3h">3h</string>

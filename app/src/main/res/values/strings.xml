@@ -156,9 +156,11 @@
     <string name="settings_memory">Пам\'ять</string>
     <string name="settings_clear_articles">Очистити статті</string>
     <string name="settings_clear_embeddings">Очистити ембедінги</string>
+    <string name="settings_clear_scheduled_summaries">Очистити заплановані зведення</string>
     <string name="settings_reset_settings">Скинути налаштування</string>
     <string name="settings_clear_articles_confirm">Видалити всі статті зі стрічки? Це не видалить джерела.</string>
     <string name="settings_clear_embeddings_confirm">Видалити всі ембедінги? Це також очистить кеш схожостей.</string>
+    <string name="settings_clear_scheduled_summaries_confirm">Видалити всі збережені заплановані зведення?</string>
     <string name="settings_reset_settings_confirm">Скинути всі налаштування до значень за замовчуванням?</string>
     <string name="settings_export_import">Експорт/імпорт</string>
     <string name="settings_sync">Синхронізація</string>

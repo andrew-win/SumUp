@@ -20,7 +20,10 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -63,10 +66,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.window.Dialog
@@ -98,6 +104,11 @@ private enum class HistoryDateFilter(val label: String, val hours: Int?) {
 private enum class HistorySavedFilter(val label: String, val favoritesOnly: Boolean) {
     ALL("Усі", false),
     FAVORITES("Обране", true)
+}
+
+private enum class SummarySourceStyle {
+    TextLink,
+    InlineChip
 }
 private const val InlineSourceAnnotationTag = "summary_source"
 
@@ -937,12 +948,16 @@ fun SummaryChart(
                 }
             }
         } else {
+            val chartMaxValue = items
+                .maxOfOrNull { if (it.isValueUnavailable) 0f else it.value }
+                ?.coerceAtLeast(1f)
+                ?: 1f
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items.forEachIndexed { index, item ->
                     ChartBar(
                         item = item,
                         index = index,
-                        maxValue = 1f,
+                        maxValue = chartMaxValue,
                         onOpenWebView = onOpenWebView
                     )
                 }
@@ -979,12 +994,9 @@ fun ChartBar(
     maxValue: Float,
     onOpenWebView: (String) -> Unit
 ) {
-    val rankColor = when (index) {
-        0 -> Color(0xFFFFC857)
-        1 -> Color(0xFFB8B9FF)
-        2 -> Color(0xFF65F0B5)
-        else -> MaterialTheme.colorScheme.primary
-    }
+    val accentColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.82f)
+    val badgeBackground = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    val normalizedValue = if (item.isValueUnavailable) 0f else (item.value / maxValue).coerceIn(0f, 1f)
 
     Surface(
         modifier = Modifier
@@ -1004,14 +1016,14 @@ fun ChartBar(
                 modifier = Modifier
                     .size(width = 42.dp, height = 36.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(rankColor.copy(alpha = 0.14f)),
+                    .background(badgeBackground),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "${index + 1}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = rankColor
+                    color = accentColor
                 )
             }
 
@@ -1026,7 +1038,7 @@ fun ChartBar(
                         text = item.headline,
                         style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
                         color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2,
+                        maxLines = 3,
                         overflow = TextOverflow.Ellipsis
                     )
 
@@ -1042,7 +1054,7 @@ fun ChartBar(
                             color = if (item.isValueUnavailable) {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             } else {
-                                MaterialTheme.colorScheme.primary
+                                accentColor
                             }
                         )
                         item.sourceName?.takeIf { it.isNotBlank() }?.let { sourceName ->
@@ -1054,6 +1066,24 @@ fun ChartBar(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(normalizedValue)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(accentColor)
+                        )
                     }
                 }
             }
@@ -1161,7 +1191,7 @@ private fun LatestScheduledSummaryView(
             ) {
                 Text(
                     text = summary.content,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
                 )
@@ -1173,16 +1203,25 @@ private fun LatestScheduledSummaryView(
                         text = block.body,
                         sourceName = block.source?.name,
                         sourceUrl = block.source?.url,
-                        onOpenWebView = onOpenWebView
+                        onOpenWebView = onOpenWebView,
+                        sourceStyle = SummarySourceStyle.InlineChip,
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        lineHeight = 26.sp
                     )
                     is SummaryBlockUi.PlainList -> SummaryPlainListBlock(
                         items = block.items,
-                        onOpenWebView = onOpenWebView
+                        onOpenWebView = onOpenWebView,
+                        sourceStyle = SummarySourceStyle.InlineChip,
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        lineHeight = 26.sp
                     )
                     is SummaryBlockUi.Theme -> SummaryThemeBlock(
                         heading = block.heading,
                         items = block.items,
-                        onOpenWebView = onOpenWebView
+                        onOpenWebView = onOpenWebView,
+                        sourceStyle = SummarySourceStyle.InlineChip,
+                        itemTextStyle = MaterialTheme.typography.bodyLarge,
+                        itemLineHeight = 26.sp
                     )
                 }
             }
@@ -1549,7 +1588,10 @@ private fun SummaryLegacyBlock(
     text: String,
     sourceName: String?,
     sourceUrl: String?,
-    onOpenWebView: (String) -> Unit
+    onOpenWebView: (String) -> Unit,
+    sourceStyle: SummarySourceStyle = SummarySourceStyle.InlineChip,
+    textStyle: TextStyle = MaterialTheme.typography.bodyLarge,
+    lineHeight: TextUnit = 26.sp
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1566,8 +1608,9 @@ private fun SummaryLegacyBlock(
                 sourceName = sourceName,
                 sourceUrl = sourceUrl,
                 onOpenWebView = onOpenWebView,
-                textStyle = MaterialTheme.typography.bodyMedium,
-                lineHeight = 24.sp
+                textStyle = textStyle,
+                lineHeight = lineHeight,
+                sourceStyle = sourceStyle
             )
         }
     }
@@ -1577,7 +1620,10 @@ private fun SummaryLegacyBlock(
 private fun SummaryThemeBlock(
     heading: String,
     items: List<ThemeItem>,
-    onOpenWebView: (String) -> Unit
+    onOpenWebView: (String) -> Unit,
+    sourceStyle: SummarySourceStyle = SummarySourceStyle.InlineChip,
+    itemTextStyle: TextStyle = MaterialTheme.typography.bodyLarge,
+    itemLineHeight: TextUnit = 26.sp
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1601,8 +1647,9 @@ private fun SummaryThemeBlock(
                     sourceName = item.source?.name,
                     sourceUrl = item.source?.url,
                     onOpenWebView = onOpenWebView,
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                    lineHeight = 23.sp
+                    textStyle = itemTextStyle,
+                    lineHeight = itemLineHeight,
+                    sourceStyle = sourceStyle
                 )
             }
         }
@@ -1612,7 +1659,10 @@ private fun SummaryThemeBlock(
 @Composable
 private fun SummaryPlainListBlock(
     items: List<ThemeItem>,
-    onOpenWebView: (String) -> Unit
+    onOpenWebView: (String) -> Unit,
+    sourceStyle: SummarySourceStyle = SummarySourceStyle.InlineChip,
+    textStyle: TextStyle = MaterialTheme.typography.bodyLarge,
+    lineHeight: TextUnit = 26.sp
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1630,8 +1680,9 @@ private fun SummaryPlainListBlock(
                     sourceName = item.source?.name,
                     sourceUrl = item.source?.url,
                     onOpenWebView = onOpenWebView,
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                    lineHeight = 23.sp
+                    textStyle = textStyle,
+                    lineHeight = lineHeight,
+                    sourceStyle = sourceStyle
                 )
             }
         }
@@ -1645,36 +1696,95 @@ private fun InlineSummaryRow(
     sourceUrl: String?,
     onOpenWebView: (String) -> Unit,
     textStyle: TextStyle,
-    lineHeight: TextUnit
+    lineHeight: TextUnit,
+    sourceStyle: SummarySourceStyle = SummarySourceStyle.InlineChip
 ) {
     val effectiveStyle = textStyle.copy(lineHeight = lineHeight)
-    val annotated = buildAnnotatedString {
-        append(text)
-        if (!sourceName.isNullOrBlank() && !sourceUrl.isNullOrBlank()) {
+    if (
+        sourceStyle == SummarySourceStyle.InlineChip &&
+        !sourceName.isNullOrBlank() &&
+        !sourceUrl.isNullOrBlank()
+    ) {
+        val inlineId = "summary_inline_chip"
+        val annotated = buildAnnotatedString {
+            append(text)
             append(" ")
-            pushStringAnnotation(tag = InlineSourceAnnotationTag, annotation = sourceUrl)
-            pushStyle(
-                SpanStyle(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.86f),
-                    fontSize = 12.sp
-                )
+            appendInlineContent(inlineId, "[source]")
+        }
+        val chipWidthEm = ((sourceName.length.coerceAtMost(18) + 5) * 0.58f).em
+        BasicText(
+            text = annotated,
+            style = effectiveStyle.copy(color = MaterialTheme.colorScheme.onSurface),
+            modifier = Modifier.fillMaxWidth(),
+            inlineContent = mapOf(
+                inlineId to InlineTextContent(
+                    Placeholder(
+                        width = chipWidthEm,
+                        height = 1.55.em,
+                        placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
+                    )
+                ) {
+                    Surface(
+                        onClick = { onOpenWebView(normalizeSummaryUrlForWebView(sourceUrl)) },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        border = BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Link,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = sourceName,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
             )
-            append("[")
-            append(sourceName)
-            append("]")
-            pop()
-            pop()
+        )
+    } else {
+        val annotated = buildAnnotatedString {
+            append(text)
+            if (!sourceName.isNullOrBlank() && !sourceUrl.isNullOrBlank()) {
+                append(" ")
+                pushStringAnnotation(tag = InlineSourceAnnotationTag, annotation = sourceUrl)
+                pushStyle(
+                    SpanStyle(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.86f),
+                        fontSize = 12.sp
+                    )
+                )
+                append("[")
+                append(sourceName)
+                append("]")
+                pop()
+                pop()
+            }
         }
+        ClickableText(
+            text = annotated,
+            style = effectiveStyle.copy(color = MaterialTheme.colorScheme.onSurface),
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { offset ->
+                annotated
+                    .getStringAnnotations(tag = InlineSourceAnnotationTag, start = offset, end = offset)
+                    .firstOrNull()
+                    ?.let { onOpenWebView(normalizeSummaryUrlForWebView(it.item)) }
+            }
+        )
     }
-    ClickableText(
-        text = annotated,
-        style = effectiveStyle.copy(color = MaterialTheme.colorScheme.onSurface),
-        modifier = Modifier.fillMaxWidth(),
-        onClick = { offset ->
-            annotated
-                .getStringAnnotations(tag = InlineSourceAnnotationTag, start = offset, end = offset)
-                .firstOrNull()
-                ?.let { onOpenWebView(normalizeSummaryUrlForWebView(it.item)) }
-        }
-    )
 }

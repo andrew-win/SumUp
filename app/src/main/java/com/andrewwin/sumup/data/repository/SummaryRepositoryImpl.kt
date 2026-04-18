@@ -25,6 +25,10 @@ class SummaryRepositoryImpl @Inject constructor(
         summaryDao.deleteSummariesByIds(summaryIds)
     }
 
+    override suspend fun deleteAllSummaries() {
+        summaryDao.deleteAllSummaries()
+    }
+
     override suspend fun setFavorite(summaryId: Long, isFavorite: Boolean) {
         summaryDao.setFavorite(summaryId, isFavorite)
     }

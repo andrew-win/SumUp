@@ -161,6 +161,7 @@ fun MemorySettingsSection(
     showTitle: Boolean = true,
     onClearArticles: () -> Unit,
     onClearEmbeddings: () -> Unit,
+    onClearScheduledSummaries: () -> Unit,
     onResetSettings: () -> Unit
 ) {
     SettingsSection(
@@ -173,8 +174,8 @@ fun MemorySettingsSection(
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = MaterialTheme.shapes.extraLarge,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                 )
             ) {
                 Text(
@@ -199,12 +200,27 @@ fun MemorySettingsSection(
             }
 
             Button(
+                onClick = onClearScheduledSummaries,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_clear_scheduled_summaries),
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+
+            Button(
                 onClick = onResetSettings,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = MaterialTheme.shapes.extraLarge,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                 )
             ) {
                 Text(
@@ -215,7 +231,6 @@ fun MemorySettingsSection(
         }
     }
 }
-
 
 
 

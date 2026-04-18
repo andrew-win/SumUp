@@ -23,7 +23,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -49,10 +52,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.window.Dialog
@@ -288,6 +294,11 @@ private val CompareBulletRegex = Regex("""^[•—-]\s*(.*?):\s*(.*?)\s*\((https
 private const val InlineSourceChipMaxWidthDp = 92
 private const val InlineSourceAnnotationTag = "summary_source"
 
+private enum class FeedSummarySourceStyle {
+    TextLink,
+    InlineChip
+}
+
 @Composable
 private fun SummaryMetaRow(
     modelName: String?,
@@ -432,8 +443,8 @@ private fun CompareBlockCard(
                         sourceName = item.sourceName,
                         sourceUrl = item.url,
                         onOpenWebView = onOpenWebView,
-                        textStyle = MaterialTheme.typography.bodyMedium,
-                        lineHeight = 24.sp
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        lineHeight = 26.sp
                     )
                 }
             }
@@ -463,8 +474,8 @@ private fun LegacySummarySectionView(
                 sourceName = sourceName,
                 sourceUrl = sourceUrl,
                 onOpenWebView = onOpenWebView,
-                textStyle = MaterialTheme.typography.bodyMedium,
-                lineHeight = 24.sp
+                textStyle = MaterialTheme.typography.bodyLarge,
+                lineHeight = 26.sp
             )
         }
     }
@@ -491,8 +502,8 @@ private fun PlainListSummarySectionView(
                     sourceName = item.source?.name,
                     sourceUrl = item.source?.url,
                     onOpenWebView = onOpenWebView,
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                    lineHeight = 23.sp
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    lineHeight = 26.sp
                 )
             }
         }
@@ -527,8 +538,8 @@ private fun ThemeSummarySectionView(
                     sourceName = item.source?.name,
                     sourceUrl = item.source?.url,
                     onOpenWebView = onOpenWebView,
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                    lineHeight = 23.sp
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    lineHeight = 26.sp
                 )
             }
         }
@@ -542,36 +553,95 @@ private fun InlineSummaryRow(
     sourceUrl: String?,
     onOpenWebView: (String) -> Unit,
     textStyle: TextStyle,
-    lineHeight: TextUnit
+    lineHeight: TextUnit,
+    sourceStyle: FeedSummarySourceStyle = FeedSummarySourceStyle.InlineChip
 ) {
     val effectiveStyle = textStyle.copy(lineHeight = lineHeight)
-    val annotated = buildAnnotatedString {
-        append(text)
-        if (!sourceName.isNullOrBlank() && !sourceUrl.isNullOrBlank()) {
+    if (
+        sourceStyle == FeedSummarySourceStyle.InlineChip &&
+        !sourceName.isNullOrBlank() &&
+        !sourceUrl.isNullOrBlank()
+    ) {
+        val inlineId = "feed_summary_inline_chip"
+        val annotated = buildAnnotatedString {
+            append(text)
             append(" ")
-            pushStringAnnotation(tag = InlineSourceAnnotationTag, annotation = sourceUrl)
-            pushStyle(
-                SpanStyle(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.86f),
-                    fontSize = 12.sp
-                )
+            appendInlineContent(inlineId, "[source]")
+        }
+        val chipWidthEm = ((sourceName.length.coerceAtMost(18) + 5) * 0.58f).em
+        BasicText(
+            text = annotated,
+            style = effectiveStyle.copy(color = MaterialTheme.colorScheme.onSurface),
+            modifier = Modifier.fillMaxWidth(),
+            inlineContent = mapOf(
+                inlineId to InlineTextContent(
+                    Placeholder(
+                        width = chipWidthEm,
+                        height = 1.55.em,
+                        placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
+                    )
+                ) {
+                    Surface(
+                        onClick = { onOpenWebView(normalizeSummaryUrlForWebView(sourceUrl)) },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        border = BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Link,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = sourceName,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
             )
-            append("[")
-            append(sourceName)
-            append("]")
-            pop()
-            pop()
+        )
+    } else {
+        val annotated = buildAnnotatedString {
+            append(text)
+            if (!sourceName.isNullOrBlank() && !sourceUrl.isNullOrBlank()) {
+                append(" ")
+                pushStringAnnotation(tag = InlineSourceAnnotationTag, annotation = sourceUrl)
+                pushStyle(
+                    SpanStyle(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.86f),
+                        fontSize = 12.sp
+                    )
+                )
+                append("[")
+                append(sourceName)
+                append("]")
+                pop()
+                pop()
+            }
         }
+        ClickableText(
+            text = annotated,
+            style = effectiveStyle.copy(color = MaterialTheme.colorScheme.onSurface),
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { offset ->
+                annotated
+                    .getStringAnnotations(tag = InlineSourceAnnotationTag, start = offset, end = offset)
+                    .firstOrNull()
+                    ?.let { onOpenWebView(normalizeSummaryUrlForWebView(it.item)) }
+            }
+        )
     }
-    ClickableText(
-        text = annotated,
-        style = effectiveStyle.copy(color = MaterialTheme.colorScheme.onSurface),
-        modifier = Modifier.fillMaxWidth(),
-        onClick = { offset ->
-            annotated
-                .getStringAnnotations(tag = InlineSourceAnnotationTag, start = offset, end = offset)
-                .firstOrNull()
-                ?.let { onOpenWebView(normalizeSummaryUrlForWebView(it.item)) }
-        }
-    )
 }

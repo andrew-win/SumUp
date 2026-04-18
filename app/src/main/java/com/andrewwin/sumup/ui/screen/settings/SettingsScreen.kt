@@ -93,6 +93,7 @@ fun SettingsScreen(
     
     var showClearArticlesDialog by remember { mutableStateOf(false) }
     var showClearEmbeddingsDialog by remember { mutableStateOf(false) }
+    var showClearScheduledSummariesDialog by remember { mutableStateOf(false) }
     var showResetSettingsDialog by remember { mutableStateOf(false) }
     var showEmailAuthDialog by remember { mutableStateOf(false) }
     var selectedGroup by rememberSaveable { mutableStateOf<SettingsGroup?>(null) }
@@ -281,8 +282,8 @@ fun SettingsScreen(
                 if (activeGroup == null) {
                     item {
                         Text(
-                            text = stringResource(R.string.settings_section_account).uppercase(),
-                            style = MaterialTheme.typography.labelMedium,
+                            text = stringResource(R.string.settings_section_account),
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Normal),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
                         )
@@ -296,8 +297,8 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = stringResource(R.string.settings_section_content_ai).uppercase(),
-                            style = MaterialTheme.typography.labelMedium,
+                            text = stringResource(R.string.settings_section_content_ai),
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Normal),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
                         )
@@ -311,8 +312,8 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = stringResource(R.string.settings_section_interface).uppercase(),
-                            style = MaterialTheme.typography.labelMedium,
+                            text = stringResource(R.string.settings_section_interface),
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Normal),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
                         )
@@ -488,33 +489,6 @@ fun SettingsScreen(
                                 )
                             }
                         }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                stringResource(R.string.settings_custom_summary_prompt),
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Switch(
-                                checked = userPreferences.isCustomSummaryPromptEnabled,
-                                onCheckedChange = { viewModel.updateCustomSummaryPromptEnabled(it) },
-                                modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
-                            )
-                        }
-
-                        if (userPreferences.isCustomSummaryPromptEnabled) {
-                            OutlinedTextField(
-                                value = summaryPrompt,
-                                onValueChange = {
-                                    summaryPrompt = it
-                                    viewModel.updateSummaryPrompt(it)
-                                },
-                                label = { Text(stringResource(R.string.settings_summary_prompt)) },
-                                placeholder = { Text(stringResource(R.string.settings_summary_prompt_hint)) },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = MaterialTheme.shapes.large
-                            )
-                        }
                     }
                 }
             }
@@ -667,6 +641,38 @@ fun SettingsScreen(
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
+                        }
+                    }
+                }
+            }
+            if (activeGroup == SettingsGroup.AI_PROCESSING) item {
+                SettingsSection(title = stringResource(R.string.settings_custom_summary_prompt), boxed = true) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stringResource(R.string.settings_custom_summary_prompt),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Switch(
+                                checked = userPreferences.isCustomSummaryPromptEnabled,
+                                onCheckedChange = { viewModel.updateCustomSummaryPromptEnabled(it) },
+                                modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
+                            )
+                        }
+
+                        if (userPreferences.isCustomSummaryPromptEnabled) {
+                            OutlinedTextField(
+                                value = summaryPrompt,
+                                onValueChange = {
+                                    summaryPrompt = it
+                                    viewModel.updateSummaryPrompt(it)
+                                },
+                                label = { Text(stringResource(R.string.settings_summary_prompt)) },
+                                placeholder = { Text(stringResource(R.string.settings_summary_prompt_hint)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.large
+                            )
                         }
                     }
                 }
@@ -967,6 +973,7 @@ fun SettingsScreen(
                     showTitle = false,
                     onClearArticles = { showClearArticlesDialog = true },
                     onClearEmbeddings = { showClearEmbeddingsDialog = true },
+                    onClearScheduledSummaries = { showClearScheduledSummariesDialog = true },
                     onResetSettings = { showResetSettingsDialog = true }
                 )
             }
@@ -1020,6 +1027,15 @@ fun SettingsScreen(
                 text = stringResource(R.string.settings_clear_embeddings_confirm),
                 onConfirm = { viewModel.clearEmbeddings() },
                 onDismiss = { showClearEmbeddingsDialog = false }
+            )
+        }
+
+        if (showClearScheduledSummariesDialog) {
+            ConfirmDeleteDialog(
+                title = stringResource(R.string.settings_clear_scheduled_summaries),
+                text = stringResource(R.string.settings_clear_scheduled_summaries_confirm),
+                onConfirm = { viewModel.clearScheduledSummaries() },
+                onDismiss = { showClearScheduledSummariesDialog = false }
             )
         }
 

@@ -25,10 +25,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.ui.theme.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.material.icons.filled.ChevronRight
 
 internal sealed class SettingsGroupIcon {
     data class Vector(val imageVector: ImageVector) : SettingsGroupIcon()
@@ -120,13 +116,7 @@ internal fun SettingsGroupsPanel(
 @Composable
 private fun getIconColors(group: SettingsGroup): Pair<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color> {
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    return when (group) {
-        SettingsGroup.ACCOUNT -> if (isDark) IconBlueDark to IconBgBlueDark else IconBlueLight to IconBgBlueLight
-        SettingsGroup.AI_PROCESSING -> if (isDark) IconOrangeDark to IconBgOrangeDark else IconOrangeLight to IconBgOrangeLight
-        SettingsGroup.API_KEYS -> if (isDark) IconGreenDark to IconBgGreenDark else IconGreenLight to IconBgGreenLight
-        SettingsGroup.RECOMMENDATIONS -> if (isDark) IconPurpleDark to IconBgPurpleDark else IconPurpleLight to IconBgPurpleLight
-        else -> if (isDark) IconGreyDark to IconBgGreyDark else IconGreyLight to IconBgGreyLight
-    }
+    return if (isDark) IconBlueDark to IconBgBlueDark else IconBlueLight to IconBgBlueLight
 }
 
 @Composable
@@ -177,11 +167,5 @@ private fun SettingsGroupRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Icon(
-            imageVector = Icons.Default.ChevronRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp)
-        )
     }
 }

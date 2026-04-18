@@ -34,6 +34,7 @@ import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.ImportedSource
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
+import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.settings.UpdateCustomSummaryPromptEnabledUseCase
@@ -87,6 +88,7 @@ class SettingsViewModel @Inject constructor(
     private val aiRepository: AiRepository,
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
+    private val summaryRepository: SummaryRepository,
     private val manageModelUseCase: ManageModelUseCase,
     private val scheduleSummaryUseCase: ScheduleSummaryUseCase,
     private val updateSummaryPromptUseCase: UpdateSummaryPromptUseCase,
@@ -365,6 +367,12 @@ class SettingsViewModel @Inject constructor(
     fun clearEmbeddings() {
         viewModelScope.launch {
             articleRepository.clearEmbeddings()
+        }
+    }
+
+    fun clearScheduledSummaries() {
+        viewModelScope.launch {
+            summaryRepository.deleteAllSummaries()
         }
     }
 
