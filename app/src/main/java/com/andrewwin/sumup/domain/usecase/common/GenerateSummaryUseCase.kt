@@ -1,7 +1,5 @@
 package com.andrewwin.sumup.domain.usecase.common
 
-import com.andrewwin.sumup.data.local.entities.AiStrategy
-import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.usecase.ai.SummaryContext
 import com.andrewwin.sumup.domain.usecase.ai.SummarizationEngineUseCase
 import kotlinx.coroutines.flow.first
@@ -12,28 +10,23 @@ interface GenerateSummaryUseCase {
 }
 
 class GenerateSummaryUseCaseImpl @Inject constructor(
-    private val articleRepository: ArticleRepository,
+    private val collectScheduledSummaryArticlesUseCase: CollectScheduledSummaryArticlesUseCase,
     private val userPreferencesRepository: com.andrewwin.sumup.domain.repository.UserPreferencesRepository,
     private val summarizationEngineUseCase: SummarizationEngineUseCase
 ) : GenerateSummaryUseCase {
 
     override suspend fun invoke(): String {
-        val articles = articleRepository.getEnabledArticlesOnce()
+        val articles = collectScheduledSummaryArticlesUseCase()
 
         if (articles.isEmpty()) {
             throw NoArticlesException()
         }
 
         val prefs = userPreferencesRepository.preferences.first()
-        val limit = when (prefs.aiStrategy) {
-            AiStrategy.LOCAL -> prefs.summaryNewsInScheduledExtractive.coerceAtLeast(1)
-            AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> prefs.summaryNewsInScheduledCloud.coerceAtLeast(1)
-        }
-        val articlesToSummarize = articles.take(limit)
         return summarizationEngineUseCase
             .summarizeArticles(
-                articles = articlesToSummarize,
-                context = SummaryContext.ScheduledSummary(articleCount = articlesToSummarize.size)
+                articles = articles,
+                context = SummaryContext.ScheduledSummary(articleCount = articles.size)
             )
             .getOrThrow()
     }

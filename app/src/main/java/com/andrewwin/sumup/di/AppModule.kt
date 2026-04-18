@@ -38,6 +38,7 @@ import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.common.BuildExtractiveSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
+import com.andrewwin.sumup.domain.usecase.common.CollectScheduledSummaryArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.common.FormatArticleHeadlineUseCase
 import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCaseImpl
@@ -279,11 +280,11 @@ object AppModule {
     @Provides
     @Singleton
     fun provideGenerateSummaryUseCase(
-        articleRepository: ArticleRepository,
+        collectScheduledSummaryArticlesUseCase: CollectScheduledSummaryArticlesUseCase,
         userPreferencesRepository: UserPreferencesRepository,
         summarizationEngineUseCase: SummarizationEngineUseCase
     ): GenerateSummaryUseCase = GenerateSummaryUseCaseImpl(
-        articleRepository,
+        collectScheduledSummaryArticlesUseCase,
         userPreferencesRepository,
         summarizationEngineUseCase
     )
