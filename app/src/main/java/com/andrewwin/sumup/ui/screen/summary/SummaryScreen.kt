@@ -19,11 +19,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.BarChart
@@ -37,6 +39,8 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -48,18 +52,29 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Summary
-import com.andrewwin.sumup.domain.support.SummarySourceMeta
+import com.andrewwin.sumup.ui.util.SummaryBlockUi
+import com.andrewwin.sumup.ui.util.ThemeItem
+import com.andrewwin.sumup.ui.util.cleanSummaryTextForSharing
+import com.andrewwin.sumup.ui.util.normalizeSummaryUrlForWebView
+import com.andrewwin.sumup.ui.util.parseSummaryBlocks
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.launch
+
+private const val InlineSourceChipMaxWidthDp = 92
+private const val InlineSourceAnnotationTag = "summary_source"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -488,7 +503,7 @@ fun ChartBar(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(enabled = !item.sourceUrl.isNullOrBlank()) {
-                item.sourceUrl?.let { onOpenWebView(normalizeForWebView(it)) }
+                item.sourceUrl?.let { onOpenWebView(normalizeSummaryUrlForWebView(it)) }
             }
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -635,7 +650,7 @@ fun SummaryCard(
             summary.content.startsWith(stringResource(R.string.no_articles_prefix))
     val context = LocalContext.current
 
-    val sections = remember(summary.content) { parseSummarySections(summary.content) }
+    val blocks = remember(summary.content) { parseSummaryBlocks(summary.content) }
     var isExpanded by rememberSaveable(summary.id) { mutableStateOf(false) }
     val expandRotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
@@ -675,75 +690,40 @@ fun SummaryCard(
             ),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
-                ) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Box(modifier = Modifier.fillMaxWidth()) {
                     Box(
                         modifier = Modifier
-                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(end = 44.dp, top = if (isExpanded) 4.dp else 0.dp)
                             .animateContentSize(animationSpec = tween(durationMillis = 130))
                     ) {
                         if (isExpanded && !isError) {
-                            SelectionContainer {
-                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    sections.forEach { section ->
-                                        Column {
-                                            Text(
-                                                text = section.body,
-                                                style = MaterialTheme.typography.bodyLarge,
-                                                color = MaterialTheme.colorScheme.onSurface,
-                                                lineHeight = 26.sp
-                                            )
-                                            section.source?.let { source ->
-                                                Spacer(Modifier.height(8.dp))
-                                                AssistChip(
-                                                    onClick = { onOpenWebView(normalizeForWebView(source.url)) },
-                                                    shape = MaterialTheme.shapes.medium,
-                                                    label = {
-                                                        Text(
-                                                            text = source.name,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
-                                                        )
-                                                    },
-                                                    leadingIcon = {
-                                                        Icon(
-                                                            imageVector = Icons.Default.Link,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(16.dp)
-                                                        )
-                                                    },
-                                                    colors = AssistChipDefaults.assistChipColors(
-                                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                                                    ),
-                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
-                                                )
-                                            }
-                                        }
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                blocks.forEach { block ->
+                                    when (block) {
+                                        is SummaryBlockUi.Section -> SummaryLegacyBlock(
+                                            text = block.body,
+                                            sourceName = block.source?.name,
+                                            sourceUrl = block.source?.url,
+                                            onOpenWebView = onOpenWebView
+                                        )
+                                        is SummaryBlockUi.Theme -> SummaryThemeBlock(
+                                            heading = block.heading,
+                                            items = block.items,
+                                            onOpenWebView = onOpenWebView
+                                        )
                                     }
                                 }
                             }
                         } else {
-                            SelectionContainer {
-                                Text(
-                                    text = sections.joinToString("\n\n") { it.body },
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = if (isError) MaterialTheme.colorScheme.error
-                                    else MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis,
-                                    lineHeight = 26.sp
-                                )
-                            }
+                            SummaryCollapsedPreview(blocks = blocks, isError = isError)
                         }
                     }
 
                     Surface(
                         onClick = { isExpanded = !isExpanded },
-                        modifier = Modifier.padding(start = 12.dp),
+                        modifier = Modifier.align(Alignment.TopEnd),
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
@@ -847,6 +827,44 @@ fun SummaryCard(
     }
 }
 
+@Composable
+private fun SummaryCollapsedPreview(
+    blocks: List<SummaryBlockUi>,
+    isError: Boolean
+) {
+    val previewText = remember(blocks) {
+        buildAnnotatedString {
+            blocks.forEachIndexed { blockIndex, block ->
+                if (blockIndex > 0) append("\n\n")
+                when (block) {
+                    is SummaryBlockUi.Section -> append(block.body)
+                    is SummaryBlockUi.Theme -> {
+                        pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
+                        append(block.heading)
+                        pop()
+                        block.items.take(2).forEach { item ->
+                            append("\n")
+                            append(item.marker)
+                            append(' ')
+                            append(item.text)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    SelectionContainer {
+        Text(
+            text = previewText,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            maxLines = 4,
+            overflow = TextOverflow.Ellipsis,
+            lineHeight = 26.sp
+        )
+    }
+}
+
 private fun isSameDay(t1: Long, t2: Long): Boolean {
     val cal1 = Calendar.getInstance().apply { timeInMillis = t1 }
     val cal2 = Calendar.getInstance().apply { timeInMillis = t2 }
@@ -879,7 +897,7 @@ private fun shareSummaryText(
     context: Context,
     summaryText: String
 ) {
-    val cleaned = cleanSummaryText(summaryText)
+    val cleaned = cleanSummaryTextForSharing(summaryText)
     if (cleaned.isBlank()) return
     val shareIntent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
@@ -897,62 +915,90 @@ private fun copySummaryText(
     summaryText: String
 ) {
     val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val clip = ClipData.newPlainText("summary_text", cleanSummaryText(summaryText))
+    val clip = ClipData.newPlainText("summary_text", cleanSummaryTextForSharing(summaryText))
     clipboardManager.setPrimaryClip(clip)
 }
 
-private fun cleanSummaryText(raw: String): String {
-    return raw
-        .lines()
-        .filterNot { it.trim().startsWith(SummarySourceMeta.PREFIX) }
-        .joinToString("\n")
+@Composable
+private fun SummaryLegacyBlock(
+    text: String,
+    sourceName: String?,
+    sourceUrl: String?,
+    onOpenWebView: (String) -> Unit
+) {
+    InlineSummaryRow(
+        text = text,
+        sourceName = sourceName,
+        sourceUrl = sourceUrl,
+        onOpenWebView = onOpenWebView,
+        textStyle = MaterialTheme.typography.bodyLarge,
+        lineHeight = 26.sp
+    )
 }
 
-private data class SourceMetaUi(val name: String, val url: String)
-private data class SummarySection(val body: String, val source: SourceMetaUi?)
-
-private fun parseSummarySections(raw: String): List<SummarySection> {
-    val blocks = raw
-        .split(Regex("\\n\\s*\\n"))
-        .map { it.trim() }
-        .filter { it.isNotBlank() }
-
-    return blocks.map { block ->
-        val lines = block.lines().map { it.trimEnd() }.filter { it.isNotBlank() }
-        val source = lines.lastOrNull()?.let { parseSourceMeta(it.trim()) }
-        val bodyLines = if (source != null) lines.dropLast(1) else lines
-        SummarySection(body = bodyLines.joinToString("\n"), source = source)
+@Composable
+private fun SummaryThemeBlock(
+    heading: String,
+    items: List<ThemeItem>,
+    onOpenWebView: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = heading,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        items.forEach { item ->
+            InlineSummaryRow(
+                text = "${item.marker} ${item.text}",
+                sourceName = item.source?.name,
+                sourceUrl = item.source?.url,
+                onOpenWebView = onOpenWebView,
+                textStyle = MaterialTheme.typography.bodyLarge,
+                lineHeight = 26.sp
+            )
+        }
     }
 }
 
-private fun parseSourceMeta(line: String): SourceMetaUi? {
-    if (!line.startsWith(SummarySourceMeta.PREFIX)) return null
-    val payload = line.removePrefix(SummarySourceMeta.PREFIX)
-    val separator = payload.lastIndexOf('|')
-    if (separator <= 0 || separator >= payload.lastIndex) return null
-    val name = payload.substring(0, separator).trim()
-    val url = payload.substring(separator + 1).trim()
-    if (name.isBlank() || url.isBlank()) return null
-    return SourceMetaUi(name, url)
-}
-
-private fun normalizeForWebView(url: String): String {
-    val trimmed = url.trim()
-    if (!trimmed.contains("t.me/")) return trimmed
-    val marker = "t.me/"
-    val idx = trimmed.indexOf(marker)
-    if (idx == -1) return trimmed
-    val prefix = trimmed.substring(0, idx + marker.length)
-    var path = trimmed.substring(idx + marker.length).trimStart('/')
-    if (path.startsWith("s/")) return "$prefix$path"
-    if (path.startsWith("c/")) return "$prefix$path"
-    val segments = path.split("/").filter { it.isNotBlank() }
-    if (segments.size >= 2) {
-        path = "s/${segments[0]}/${segments[1]}"
-        return "$prefix$path"
+@Composable
+private fun InlineSummaryRow(
+    text: String,
+    sourceName: String?,
+    sourceUrl: String?,
+    onOpenWebView: (String) -> Unit,
+    textStyle: TextStyle,
+    lineHeight: TextUnit
+) {
+    val effectiveStyle = textStyle.copy(lineHeight = lineHeight)
+    val annotated = buildAnnotatedString {
+        append(text)
+        if (!sourceName.isNullOrBlank() && !sourceUrl.isNullOrBlank()) {
+            append(" ")
+            pushStringAnnotation(tag = InlineSourceAnnotationTag, annotation = sourceUrl)
+            pushStyle(
+                SpanStyle(
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.86f),
+                    fontSize = 12.sp
+                )
+            )
+            append("[")
+            append(sourceName)
+            append("]")
+            pop()
+            pop()
+        }
     }
-    if (segments.size == 1) {
-        return "$prefix" + "s/${segments[0]}"
-    }
-    return trimmed
+    ClickableText(
+        text = annotated,
+        style = effectiveStyle.copy(color = MaterialTheme.colorScheme.onSurface),
+        modifier = Modifier.fillMaxWidth(),
+        onClick = { offset ->
+            annotated
+                .getStringAnnotations(tag = InlineSourceAnnotationTag, start = offset, end = offset)
+                .firstOrNull()
+                ?.let { onOpenWebView(normalizeSummaryUrlForWebView(it.item)) }
+        }
+    )
 }

@@ -10,6 +10,7 @@ import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
+import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.support.NoActiveModelException
 import com.andrewwin.sumup.domain.support.UnsupportedStrategyException
 import com.andrewwin.sumup.domain.repository.ArticleRepository
@@ -215,7 +216,9 @@ class FeedViewModel @Inject constructor(
         viewModelScope.launch {
             _isAiLoading.value = true
             _aiResult.value = null
+            DebugTrace.d("feed_ai", "launchAi start")
             _aiResult.value = block().getOrElse { localizeError(it) }
+            DebugTrace.d("feed_ai", "launchAi result preview=${DebugTrace.preview(_aiResult.value)}")
             _isAiLoading.value = false
         }
     }
@@ -227,10 +230,12 @@ class FeedViewModel @Inject constructor(
     fun askQuestion(content: String, question: String) = launchAi { askQuestionUseCase(content, question) }
 
     fun openCachedArticleSummary(article: Article) {
+        DebugTrace.d("feed_ai", "openCachedArticleSummary articleId=${article.id} title=${DebugTrace.preview(article.title, 120)}")
         _aiResult.value = aiSessionCache.getArticleSummary(article.id)
     }
 
     fun openCachedFeedSummary() {
+        DebugTrace.d("feed_ai", "openCachedFeedSummary ids=${currentFeedArticleIds().joinToString(",")}")
         _aiResult.value = aiSessionCache.getFeedSummary(currentFeedArticleIds())
     }
 
@@ -239,14 +244,22 @@ class FeedViewModel @Inject constructor(
     }
 
     fun summarizeArticle(article: Article, forceRefresh: Boolean = false) {
+        DebugTrace.d(
+            "feed_ai",
+            "summarizeArticle forceRefresh=$forceRefresh articleId=${article.id} title=${DebugTrace.preview(article.title, 120)} contentChars=${article.content.length} strategy=${userPreferences.value.aiStrategy}"
+        )
         if (!forceRefresh) {
             aiSessionCache.getArticleSummary(article.id)?.let {
                 _aiResult.value = it
+                DebugTrace.d("feed_ai", "summarizeArticle servedFromCache=true articleId=${article.id}")
                 return
             }
         }
         launchAi {
-            summarizeContentUseCase(article).onSuccess { aiSessionCache.putArticleSummary(article.id, it) }
+            summarizeContentUseCase(article).onSuccess {
+                DebugTrace.d("feed_ai", "summarizeArticle freshResult articleId=${article.id} preview=${DebugTrace.preview(it)}")
+                aiSessionCache.putArticleSummary(article.id, it)
+            }
         }
     }
 
@@ -269,14 +282,22 @@ class FeedViewModel @Inject constructor(
         val articles = articleClusters.value.map { it.representative.article }
         if (articles.isEmpty()) return
         val articleIds = currentFeedArticleIds()
+        DebugTrace.d(
+            "feed_ai",
+            "summarizeFeed forceRefresh=$forceRefresh articles=${articles.size} ids=${articleIds.joinToString(",")} strategy=${userPreferences.value.aiStrategy}"
+        )
         if (!forceRefresh) {
             aiSessionCache.getFeedSummary(articleIds)?.let {
                 _aiResult.value = it
+                DebugTrace.d("feed_ai", "summarizeFeed servedFromCache=true")
                 return
             }
         }
         launchAi {
-            summarizeContentUseCase(articles).onSuccess { aiSessionCache.putFeedSummary(articleIds, it) }
+            summarizeContentUseCase(articles).onSuccess {
+                DebugTrace.d("feed_ai", "summarizeFeed freshResult preview=${DebugTrace.preview(it)}")
+                aiSessionCache.putFeedSummary(articleIds, it)
+            }
         }
     }
 

@@ -3,10 +3,13 @@ package com.andrewwin.sumup.domain.usecase.ai
 object AiJsonContract {
     const val HEADLINE = "headline"
     const val ITEMS = "items"
+    const val THEMES = "themes"
     const val TITLE = "title"
     const val BULLETS = "bullets"
     const val SOURCE = "source"
+    const val SOURCE_URL = "source_url"
     const val SOURCE_ID = "source_id"
+    const val EMOJIS = "emojis"
     const val COMMON = "common"
     const val DIFFERENT = "different"
     const val ANSWER = "answer"

@@ -2,13 +2,26 @@ package com.andrewwin.sumup.domain.usecase.ai
 
 data class SummaryResponseJson(
     val headline: String? = null,
-    val items: List<SummaryItemJson> = emptyList()
+    val items: List<SummaryItemJson> = emptyList(),
+    val themes: List<SummaryThemeJson> = emptyList()
 )
 
 data class SummaryItemJson(
     val title: String? = null,
     val bullets: List<String> = emptyList(),
-    val source: String? = null
+    val source: String? = null,
+    val sourceId: String? = null
+)
+
+data class SummaryThemeJson(
+    val title: String? = null,
+    val emojis: List<String> = emptyList(),
+    val items: List<SummaryThemeItemJson> = emptyList()
+)
+
+data class SummaryThemeItemJson(
+    val title: String? = null,
+    val sourceId: String? = null
 )
 
 data class CompareResponseJson(

@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -44,17 +46,25 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
-import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
+import com.andrewwin.sumup.ui.util.SummaryBlockUi
+import com.andrewwin.sumup.ui.util.ThemeItem
+import com.andrewwin.sumup.ui.util.cleanSummaryTextForSharing
+import com.andrewwin.sumup.ui.util.normalizeSummaryUrlForWebView
+import com.andrewwin.sumup.ui.util.parseSummaryBlocks
 
 @Composable
 fun FeedAiDialog(
@@ -127,7 +137,7 @@ fun FeedAiDialog(
                         }
                     } else if (aiResult != null) {
                         val compareBlocks = parseCompareBlocks(aiResult)
-                        val sections = parseSummarySections(aiResult)
+                        val blocks = parseSummaryBlocks(aiResult)
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             if (!summaryTitle.isNullOrBlank()) {
                                 Text(
@@ -145,7 +155,7 @@ fun FeedAiDialog(
                                 )
                             } else {
                                 SingleSummaryCard(
-                                    sections = sections,
+                                    blocks = blocks,
                                     onOpenWebView = onOpenWebView
                                 )
                             }
@@ -282,7 +292,7 @@ fun FeedAiDialog(
 
 @Composable
 private fun SingleSummaryCard(
-    sections: List<SummarySection>,
+    blocks: List<SummaryBlockUi>,
     onOpenWebView: (String) -> Unit
 ) {
     Surface(
@@ -291,45 +301,23 @@ private fun SingleSummaryCard(
         color = MaterialTheme.colorScheme.surfaceContainer,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
     ) {
-        SelectionContainer {
-            Column(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                sections.forEach { section ->
-                    Text(
-                        text = section.body,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = 26.sp
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            blocks.forEach { block ->
+                when (block) {
+                    is SummaryBlockUi.Section -> LegacySummarySectionView(
+                        text = block.body,
+                        sourceName = block.source?.name,
+                        sourceUrl = block.source?.url,
+                        onOpenWebView = onOpenWebView
                     )
-                    section.source?.let { source ->
-                        AssistChip(
-                            onClick = { onOpenWebView(normalizeForWebView(source.url)) },
-                            shape = MaterialTheme.shapes.medium,
-                            label = {
-                                Text(
-                                    source.name,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Link,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            },
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                            ),
-                            border = BorderStroke(
-                                1.dp,
-                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                            )
-                        )
-                    }
+                    is SummaryBlockUi.Theme -> ThemeSummarySectionView(
+                        heading = block.heading,
+                        items = block.items,
+                        onOpenWebView = onOpenWebView
+                    )
                 }
             }
         }
@@ -337,7 +325,7 @@ private fun SingleSummaryCard(
 }
 
 private fun copyTextToClipboard(context: Context, text: String) {
-    val cleaned = cleanSummaryText(text)
+    val cleaned = cleanSummaryTextForSharing(text)
     if (cleaned.isBlank()) return
     val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboardManager.setPrimaryClip(ClipData.newPlainText("ai_result_text", cleaned))
@@ -348,7 +336,7 @@ private fun shareText(
     text: String,
     chooserTitle: String
 ) {
-    val cleaned = cleanSummaryText(text)
+    val cleaned = cleanSummaryTextForSharing(text)
     if (cleaned.isBlank()) return
     val shareIntent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
@@ -357,13 +345,11 @@ private fun shareText(
     context.startActivity(Intent.createChooser(shareIntent, chooserTitle))
 }
 
-private data class SourceMetaUi(val name: String, val url: String)
-private data class SummarySection(val body: String, val source: SourceMetaUi?)
 private data class CompareItemUi(val sourceName: String, val text: String, val url: String?)
 private data class CompareBlocksUi(val common: List<CompareItemUi>, val different: List<CompareItemUi>)
-
-private val SourceMetaInlineRegex = Regex("${Regex.escape(SummarySourceMeta.PREFIX)}[^\\n]*")
-private val CompareBulletRegex = Regex("""^•\s*(.*?):\s*(.*?)\s*\((https?://[^)]+)\)\s*$""")
+private val CompareBulletRegex = Regex("""^[•—-]\s*(.*?):\s*(.*?)\s*\((https?://[^)]+)\)\s*$""")
+private const val InlineSourceChipMaxWidthDp = 92
+private const val InlineSourceAnnotationTag = "summary_source"
 
 private fun parseCompareBlocks(raw: String): CompareBlocksUi? {
     val lines = raw.lines().map { it.trim() }
@@ -375,7 +361,7 @@ private fun parseCompareBlocks(raw: String): CompareBlocksUi? {
 
     fun parseRange(from: Int, toExclusive: Int): List<CompareItemUi> {
         return lines.subList(from, toExclusive)
-            .filter { it.startsWith("•") }
+            .filter { it.startsWith("•") || it.startsWith("—") || it.startsWith("-") }
             .mapNotNull { line ->
                 val match = CompareBulletRegex.find(line)
                 if (match != null) {
@@ -384,7 +370,7 @@ private fun parseCompareBlocks(raw: String): CompareBlocksUi? {
                     val url = match.groupValues[3].trim().takeIf { it.isNotBlank() }
                     CompareItemUi(sourceName = source, text = text, url = url)
                 } else {
-                    val text = line.removePrefix("•").trim()
+                    val text = line.removePrefix("•").removePrefix("—").removePrefix("-").trim()
                     if (text.isBlank()) null else CompareItemUi("Джерело", text, null)
                 }
             }
@@ -421,7 +407,7 @@ private fun CompareBlockCard(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
@@ -441,103 +427,100 @@ private fun CompareBlockCard(
                 )
             } else {
                 items.forEach { item ->
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "• ${item.text}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            lineHeight = 24.sp
-                        )
-                        item.url?.let { url ->
-                            AssistChip(
-                                onClick = { onOpenWebView(normalizeForWebView(url)) },
-                                shape = MaterialTheme.shapes.medium,
-                                label = {
-                                    Text(
-                                        item.sourceName,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Link,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                },
-                                colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                                ),
-                                border = BorderStroke(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                                )
-                            )
-                        }
-                    }
+                    InlineSummaryRow(
+                        text = "— ${item.text}",
+                        sourceName = item.sourceName,
+                        sourceUrl = item.url,
+                        onOpenWebView = onOpenWebView,
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        lineHeight = 24.sp
+                    )
                 }
             }
         }
     }
 }
 
-private fun parseSummarySections(raw: String): List<SummarySection> {
-    val normalizedRaw = raw.replace(Regex("\\s*${Regex.escape(SummarySourceMeta.PREFIX)}"), "\n${SummarySourceMeta.PREFIX}")
-    return normalizedRaw
-        .split(Regex("\\n\\s*\\n"))
-        .map { it.trim() }
-        .filter { it.isNotBlank() }
-        .mapNotNull { block ->
-            val lines = block.lines().map { it.trimEnd() }.filter { it.isNotBlank() }
-            if (lines.isEmpty()) return@mapNotNull null
-            val source = lines.lastOrNull()?.let { parseSourceMeta(it.trim()) }
-            val bodyLines = if (source != null) lines.dropLast(1) else lines
-            val body = bodyLines.joinToString("\n").replace(SourceMetaInlineRegex, "").trim()
-            if (body.isBlank()) return@mapNotNull null
-            SummarySection(body = body, source = source)
+@Composable
+private fun LegacySummarySectionView(
+    text: String,
+    sourceName: String?,
+    sourceUrl: String?,
+    onOpenWebView: (String) -> Unit
+) {
+    InlineSummaryRow(
+        text = text,
+        sourceName = sourceName,
+        sourceUrl = sourceUrl,
+        onOpenWebView = onOpenWebView,
+        textStyle = MaterialTheme.typography.bodyMedium,
+        lineHeight = 26.sp
+    )
+}
+
+@Composable
+private fun ThemeSummarySectionView(
+    heading: String,
+    items: List<ThemeItem>,
+    onOpenWebView: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = heading,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        items.forEach { item ->
+            InlineSummaryRow(
+                text = "${item.marker} ${item.text}",
+                sourceName = item.source?.name,
+                sourceUrl = item.source?.url,
+                onOpenWebView = onOpenWebView,
+                textStyle = MaterialTheme.typography.bodyMedium,
+                lineHeight = 24.sp
+            )
         }
-}
-
-private fun parseSourceMeta(line: String): SourceMetaUi? {
-    if (!line.startsWith(SummarySourceMeta.PREFIX)) return null
-    val payload = line.removePrefix(SummarySourceMeta.PREFIX)
-    val separator = payload.lastIndexOf('|')
-    if (separator <= 0 || separator >= payload.lastIndex) return null
-    val name = payload.substring(0, separator).trim()
-    val url = payload.substring(separator + 1).trim()
-    if (name.isBlank() || url.isBlank()) return null
-    return SourceMetaUi(name, url)
-}
-
-private fun cleanSummaryText(raw: String): String {
-    val normalizedRaw = raw.replace(Regex("\\s*${Regex.escape(SummarySourceMeta.PREFIX)}"), "\n${SummarySourceMeta.PREFIX}")
-    return normalizedRaw
-        .replace(SourceMetaInlineRegex, "")
-        .lines()
-        .filterNot { it.trim().startsWith(SummarySourceMeta.PREFIX) }
-        .map { it.trimEnd() }
-        .filter { it.isNotBlank() }
-        .joinToString("\n")
-}
-
-private fun normalizeForWebView(url: String): String {
-    val trimmed = url.trim()
-    if (!trimmed.contains("t.me/")) return trimmed
-    val marker = "t.me/"
-    val idx = trimmed.indexOf(marker)
-    if (idx == -1) return trimmed
-    val prefix = trimmed.substring(0, idx + marker.length)
-    var path = trimmed.substring(idx + marker.length).trimStart('/')
-    if (path.startsWith("s/")) return "$prefix$path"
-    if (path.startsWith("c/")) return "$prefix$path"
-    val segments = path.split("/").filter { it.isNotBlank() }
-    if (segments.size >= 2) {
-        path = "s/${segments[0]}/${segments[1]}"
-        return "$prefix$path"
     }
-    if (segments.size == 1) {
-        return "$prefix" + "s/${segments[0]}"
+}
+
+@Composable
+private fun InlineSummaryRow(
+    text: String,
+    sourceName: String?,
+    sourceUrl: String?,
+    onOpenWebView: (String) -> Unit,
+    textStyle: TextStyle,
+    lineHeight: TextUnit
+) {
+    val effectiveStyle = textStyle.copy(lineHeight = lineHeight)
+    val annotated = buildAnnotatedString {
+        append(text)
+        if (!sourceName.isNullOrBlank() && !sourceUrl.isNullOrBlank()) {
+            append(" ")
+            pushStringAnnotation(tag = InlineSourceAnnotationTag, annotation = sourceUrl)
+            pushStyle(
+                SpanStyle(
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.86f),
+                    fontSize = 12.sp
+                )
+            )
+            append("[")
+            append(sourceName)
+            append("]")
+            pop()
+            pop()
+        }
     }
-    return trimmed
+    ClickableText(
+        text = annotated,
+        style = effectiveStyle.copy(color = MaterialTheme.colorScheme.onSurface),
+        modifier = Modifier.fillMaxWidth(),
+        onClick = { offset ->
+            annotated
+                .getStringAnnotations(tag = InlineSourceAnnotationTag, start = offset, end = offset)
+                .firstOrNull()
+                ?.let { onOpenWebView(normalizeSummaryUrlForWebView(it.item)) }
+        }
+    )
 }

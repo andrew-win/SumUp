@@ -9,7 +9,9 @@ import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.remote.AiService
 import com.andrewwin.sumup.domain.service.ExtractiveSummarizer
+import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import com.andrewwin.sumup.domain.support.AiServiceException
+import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.support.NoActiveModelException
 import com.andrewwin.sumup.domain.support.UnsupportedStrategyException
 import com.andrewwin.sumup.domain.support.AiPromptProvider
@@ -17,6 +19,8 @@ import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.usecase.ai.AiJsonContract
 import com.andrewwin.sumup.domain.usecase.ai.AiJsonResponseParser
 import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.ai.SummaryResponseJson
+import com.andrewwin.sumup.domain.usecase.ai.SummaryThemeItemJson
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -33,7 +37,33 @@ class AiRepositoryImpl @Inject constructor(
         SINGLE_ARTICLE_ANALYTICAL
     }
 
-    private val bulletSymbol = "•"
+    private data class SourceArticleBlock(
+        val sourceId: String? = null,
+        val sourceName: String? = null,
+        val sourceUrl: String? = null,
+        val title: String,
+        val content: String
+    )
+
+    private data class ThemeDefinition(
+        val key: String,
+        val title: String,
+        val emojis: List<String>,
+        val keywords: List<String>
+    )
+
+    private data class RenderedThemeItem(
+        val title: String,
+        val source: SourceArticleBlock
+    )
+
+    private data class RenderedThemeBlock(
+        val title: String,
+        val emojis: MutableList<String>,
+        val items: MutableList<RenderedThemeItem>
+    )
+
+    private val bulletSymbol = "—"
 
     override val allConfigs: Flow<List<AiModelConfig>> = aiModelDao.getAllConfigs()
 
@@ -64,9 +94,20 @@ class AiRepositoryImpl @Inject constructor(
         }
 
         val cloudInput = truncatedContent
+        val sourceBlocks = parseSourceBlocksForSummary(truncatedContent)
         val promptProfile = when {
-            parseTitledBlocks(truncatedContent).size <= 1 -> CloudPromptProfile.SINGLE_ARTICLE_ANALYTICAL
+            sourceBlocks.size <= 1 -> CloudPromptProfile.SINGLE_ARTICLE_ANALYTICAL
             else -> CloudPromptProfile.DEFAULT
+        }
+        DebugTrace.d(
+            "ai_summary",
+            "summarize strategy=$strategy sourceBlocks=${sourceBlocks.size} pointsPerNews=$pointsPerNews promptProfile=$promptProfile customPrompt=${prefs?.isCustomSummaryPromptEnabled == true} contentChars=${truncatedContent.length}"
+        )
+        if (promptProfile == CloudPromptProfile.SINGLE_ARTICLE_ANALYTICAL) {
+            DebugTrace.d(
+                "ai_summary",
+                "singleArticle sourceTitle=${DebugTrace.preview(sourceBlocks.firstOrNull()?.title, 140)} sourceContentChars=${sourceBlocks.firstOrNull()?.content?.length ?: truncatedContent.length}"
+            )
         }
 
         for (config in enabledConfigs) {
@@ -82,20 +123,34 @@ class AiRepositoryImpl @Inject constructor(
                     summaryLanguage = prefs?.summaryLanguage ?: SummaryLanguage.ORIGINAL,
                     profile = promptProfile
                 )
+                DebugTrace.d(
+                    "ai_summary",
+                    "request provider=${config.provider} model=${config.modelName} promptPreview=${DebugTrace.preview(strengthenedPrompt, 400)}"
+                )
 
-                val response = aiService.generateResponse(config, strengthenedPrompt, cloudInput)
+                val response = aiService.generateResponse(
+                    config = config,
+                    prompt = strengthenedPrompt,
+                    content = cloudInput,
+                    expectJson = true
+                )
+                DebugTrace.d("ai_summary", "rawResponse=${DebugTrace.preview(response)}")
                 return runCatching {
                     formatCloudSummary(response, truncatedContent, preferredBulletsPerItem = pointsPerNews)
                 }.getOrElse {
+                    DebugTrace.e("ai_summary", "formatCloudSummary failed, trying next model", it)
                     continue
                 }
             } catch (e: AiServiceException) {
+                DebugTrace.e("ai_summary", "provider failed provider=${config.provider} model=${config.modelName}", e)
                 continue
             } catch (e: Exception) {
+                DebugTrace.e("ai_summary", "unexpected summarize failure", e)
                 throw e
             }
         }
 
+        DebugTrace.w("ai_summary", "cloud summarization unavailable, fallback to extractive")
         return formatExtractiveFallback(truncatedContent, fallbackPointsPerNews)
     }
 
@@ -127,7 +182,12 @@ class AiRepositoryImpl @Inject constructor(
 
         for (config in enabledConfigs) {
             try {
-                return aiService.generateResponse(config, prompt, content.take(maxTotalChars))
+                return aiService.generateResponse(
+                    config = config,
+                    prompt = prompt,
+                    content = content.take(maxTotalChars),
+                    expectJson = true
+                )
             } catch (e: AiServiceException) {
                 continue
             }
@@ -168,6 +228,7 @@ class AiRepositoryImpl @Inject constructor(
         content: String,
         pointsPerNews: Int
     ): String {
+        DebugTrace.d("ai_summary", "formatExtractiveFallback pointsPerNews=$pointsPerNews")
         val blocks = content
             .split(Regex("\\n\\s*\\n"))
             .map { it.trim() }
@@ -182,6 +243,11 @@ class AiRepositoryImpl @Inject constructor(
         }
 
         if (parsedItems.isNotEmpty()) {
+            val sourceBlocks = parseSourceBlocksForSummary(content)
+            buildHeuristicThemeSummary(sourceBlocks)?.let {
+                DebugTrace.d("ai_summary", "formatExtractiveFallback branch=heuristicThemes preview=${DebugTrace.preview(it)}")
+                return it
+            }
             return parsedItems.joinToString("\n\n") { (title, body) ->
                 val sentences = ExtractiveSummarizer.summarize(body, pointsPerNews)
                 formatExtractiveSummaryUseCase.formatItem(
@@ -194,7 +260,9 @@ class AiRepositoryImpl @Inject constructor(
         }
 
         val sentences = ExtractiveSummarizer.summarize(content, pointsPerNews)
-        return sentences.joinToString("\n") { "$bulletSymbol $it" }
+        return sentences.joinToString("\n") { "$bulletSymbol $it" }.also {
+            DebugTrace.d("ai_summary", "formatExtractiveFallback branch=plainBullets preview=${DebugTrace.preview(it)}")
+        }
     }
 
     private fun formatCloudSummary(
@@ -203,20 +271,31 @@ class AiRepositoryImpl @Inject constructor(
         preferredBulletsPerItem: Int?
     ): String {
         val parsed = AiJsonResponseParser.parseSummary(response)
-        val sourceBlocks = parseTitledBlocks(sourceContent)
+        val sourceBlocks = parseSourceBlocksForSummary(sourceContent)
         val isMultiArticle = sourceBlocks.size > 1
+        DebugTrace.d(
+            "ai_summary",
+            "formatCloudSummary parsedItems=${parsed.items.size} parsedThemes=${parsed.themes.size} sourceBlocks=${sourceBlocks.size} isMultiArticle=$isMultiArticle"
+        )
+        if (isMultiArticle) {
+            renderThemedSummary(parsed, sourceBlocks)?.let {
+                DebugTrace.d("ai_summary", "formatCloudSummary branch=themes preview=${DebugTrace.preview(it)}")
+                return it
+            }
+        }
         val rendered = mutableListOf<String>()
         val perItemLimit = if (isMultiArticle) {
             MULTI_ARTICLE_SENTENCE_LIMIT
         } else {
-            preferredBulletsPerItem?.coerceIn(1, 4) ?: DEFAULT_CLOUD_BULLETS_PER_SECTION
+            preferredBulletsPerItem?.coerceIn(MIN_SINGLE_ARTICLE_CLOUD_BULLETS, MAX_SINGLE_ARTICLE_CLOUD_BULLETS)
+                ?: DEFAULT_SINGLE_ARTICLE_CLOUD_BULLETS
         }
         val minBulletsPerItem = if (sourceBlocks.size <= 1) MIN_SINGLE_ARTICLE_CLOUD_BULLETS else MIN_MULTI_ARTICLE_CLOUD_BULLETS
         val maxSections = sourceBlocks.size.coerceIn(1, DEFAULT_MAX_CLOUD_SECTIONS)
 
         parsed.items.forEach { item ->
             if (rendered.size >= maxSections) return@forEach
-            val sourceFallbackTitle = sourceBlocks.getOrNull(rendered.size)?.first
+            val sourceFallbackTitle = sourceBlocks.getOrNull(rendered.size)?.title
             val rawTitle = item.title ?: parsed.headline ?: sourceFallbackTitle ?: DEFAULT_TITLE
             val title = sanitizeSectionTitle(rawTitle)
             val effectiveTitle = if (isMultiArticle && isGenericSectionTitle(title)) {
@@ -224,12 +303,28 @@ class AiRepositoryImpl @Inject constructor(
             } else {
                 title
             }
-            val bullets = dedupeBullets(
-                rawBullets = item.bullets,
-                title = effectiveTitle,
-                limit = perItemLimit,
-                minCount = minBulletsPerItem
-            )
+            val rawBullets = item.bullets
+            val bullets = if (isMultiArticle) {
+                dedupeBullets(
+                    rawBullets = rawBullets,
+                    title = effectiveTitle,
+                    limit = perItemLimit,
+                    minCount = minBulletsPerItem
+                )
+            } else {
+                ensureSingleArticleBullets(
+                    rawBullets = rawBullets,
+                    title = effectiveTitle,
+                    sourceBlock = sourceBlocks.firstOrNull(),
+                    limit = perItemLimit
+                )
+            }
+            if (!isMultiArticle) {
+                DebugTrace.d(
+                    "ai_summary",
+                    "singleArticle formatCloudSummary itemTitle=${DebugTrace.preview(effectiveTitle, 120)} rawBullets=${rawBullets.size} finalBullets=${bullets.size} rawFirst=${DebugTrace.preview(rawBullets.firstOrNull(), 150)} finalFirst=${DebugTrace.preview(bullets.firstOrNull(), 150)}"
+                )
+            }
             if (bullets.isEmpty()) return@forEach
             rendered += if (isMultiArticle) {
                 val paragraph = bullets.joinToString(" ").trim()
@@ -247,19 +342,30 @@ class AiRepositoryImpl @Inject constructor(
             val existingTitles = rendered.map { section ->
                 normalizeComparable(section.lineSequence().firstOrNull().orEmpty().removeSuffix(":"))
             }.toSet()
-            val missing = sourceBlocks.filter { (title, _) ->
-                normalizeComparable(title) !in existingTitles
+            val missing = sourceBlocks.filter { block ->
+                normalizeComparable(block.title) !in existingTitles
             }
-            missing.forEach { (title, body) ->
+            missing.forEach { block ->
                 if (rendered.size >= maxSections) return@forEach
                 val fallbackBullets = ExtractiveSummarizer
-                    .summarize(body, perItemLimit)
-                    .let { dedupeBullets(it, sanitizeSectionTitle(title), perItemLimit, minBulletsPerItem) }
+                    .summarize(block.content, perItemLimit)
+                    .let {
+                        if (isMultiArticle) {
+                            dedupeBullets(it, sanitizeSectionTitle(block.title), perItemLimit, minBulletsPerItem)
+                        } else {
+                            ensureSingleArticleBullets(
+                                rawBullets = it,
+                                title = sanitizeSectionTitle(block.title),
+                                sourceBlock = block,
+                                limit = perItemLimit
+                            )
+                        }
+                    }
                 if (fallbackBullets.isNotEmpty()) {
                     rendered += if (isMultiArticle) {
-                        "${sanitizeSectionTitle(title)}:\n${fallbackBullets.joinToString(" ").trim()}"
+                        "${sanitizeSectionTitle(block.title)}:\n${fallbackBullets.joinToString(" ").trim()}"
                     } else {
-                        "${sanitizeSectionTitle(title)}:\n${fallbackBullets.joinToString("\n") { "$bulletSymbol $it" }}"
+                        "${sanitizeSectionTitle(block.title)}:\n${fallbackBullets.joinToString("\n") { "$bulletSymbol $it" }}"
                     }
                 }
             }
@@ -268,7 +374,230 @@ class AiRepositoryImpl @Inject constructor(
         if (rendered.isEmpty()) {
             throw IllegalStateException("Cloud summary JSON items are empty after normalization.")
         }
-        return rendered.joinToString("\n\n")
+        return rendered.joinToString("\n\n").also {
+            DebugTrace.d("ai_summary", "formatCloudSummary branch=legacyItems preview=${DebugTrace.preview(it)}")
+        }
+    }
+
+    private fun renderThemedSummary(
+        parsed: SummaryResponseJson,
+        sourceBlocks: List<SourceArticleBlock>
+    ): String? {
+        if (sourceBlocks.size <= 1) return null
+        if (parsed.themes.isEmpty()) {
+            val legacyTitles = parsed.items.mapIndexedNotNull { index, item ->
+                val sourceId = item.sourceId ?: sourceBlocks.getOrNull(index)?.sourceId ?: return@mapIndexedNotNull null
+                val title = item.title?.trim()?.takeIf { it.isNotBlank() } ?: return@mapIndexedNotNull null
+                sourceId to title
+            }.toMap()
+            return buildHeuristicThemeSummary(sourceBlocks, legacyTitles)?.also {
+                DebugTrace.d("ai_summary", "renderThemedSummary fallbackFromLegacyItems=true")
+            }
+        }
+
+        val sourceById = sourceBlocks.mapNotNull { block ->
+            block.sourceId?.let { it to block }
+        }.toMap()
+        val sourceByTitle = sourceBlocks.associateBy { normalizeComparable(it.title) }
+        val usedSourceKeys = mutableSetOf<String>()
+        val usedThemeTitles = mutableSetOf<String>()
+        val usedEmojis = mutableSetOf<String>()
+        val renderedThemes = mutableListOf<RenderedThemeBlock>()
+
+        parsed.themes.forEach { theme ->
+            if (renderedThemes.size >= MAX_THEMES) return@forEach
+            val normalizedThemeTitle = sanitizeThemeTitle(theme.title ?: parsed.headline ?: DEFAULT_THEME_TITLE)
+            if (!usedThemeTitles.add(normalizeComparable(normalizedThemeTitle))) return@forEach
+
+            val renderedItems = mutableListOf<RenderedThemeItem>()
+            val usedThemeItemKeys = mutableSetOf<String>()
+            theme.items.forEach { item ->
+                if (renderedItems.size >= MAX_THEME_ITEMS) return@forEach
+                val sourceBlock = resolveThemeSourceBlock(
+                    item = item,
+                    sourceById = sourceById,
+                    sourceByTitle = sourceByTitle
+                ) ?: return@forEach
+                val sourceKey = buildSourceIdentity(sourceBlock)
+                if (!usedSourceKeys.add(sourceKey)) return@forEach
+                val itemTitle = sanitizeThemeItemTitle(item.title ?: sourceBlock.title)
+                val itemKey = buildString {
+                    append(normalizeComparable(itemTitle))
+                    append('|')
+                    append(sourceKey)
+                }
+                if (!usedThemeItemKeys.add(itemKey)) {
+                    usedSourceKeys.remove(sourceKey)
+                    return@forEach
+                }
+                renderedItems += RenderedThemeItem(title = itemTitle, source = sourceBlock)
+            }
+
+            if (renderedItems.isEmpty()) return@forEach
+            val emojis = theme.emojis
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .filter { usedEmojis.add(it) }
+                .take(MAX_THEME_EMOJIS)
+            renderedThemes += RenderedThemeBlock(
+                title = normalizedThemeTitle,
+                emojis = emojis.toMutableList(),
+                items = renderedItems.toMutableList()
+            )
+        }
+
+        val unusedSources = sourceBlocks.filter { source ->
+            buildSourceIdentity(source) !in usedSourceKeys
+        }
+        buildHeuristicThemeGroups(unusedSources).forEach { (definition, blocks) ->
+            val normalizedTitle = sanitizeThemeTitle(definition.title)
+            val targetTheme = renderedThemes.firstOrNull {
+                normalizeComparable(it.title) == normalizeComparable(normalizedTitle)
+            } ?: run {
+                if (renderedThemes.size >= MAX_THEMES) return@forEach
+                if (!usedThemeTitles.add(normalizeComparable(normalizedTitle))) return@forEach
+                RenderedThemeBlock(
+                    title = normalizedTitle,
+                    emojis = mutableListOf<String>().also { list ->
+                        definition.emojis
+                            .map { it.trim() }
+                            .filter { it.isNotBlank() }
+                            .forEach { emoji ->
+                                if (list.size < MAX_THEME_EMOJIS && usedEmojis.add(emoji)) {
+                                    list += emoji
+                                }
+                            }
+                    },
+                    items = mutableListOf()
+                ).also(renderedThemes::add)
+            }
+
+            if (targetTheme.emojis.size < MAX_THEME_EMOJIS) {
+                definition.emojis
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .forEach { emoji ->
+                        if (targetTheme.emojis.size < MAX_THEME_EMOJIS && usedEmojis.add(emoji)) {
+                            targetTheme.emojis += emoji
+                        }
+                    }
+            }
+
+            blocks.forEach { block ->
+                if (targetTheme.items.size >= MAX_THEME_ITEMS) return@forEach
+                val sourceKey = buildSourceIdentity(block)
+                if (!usedSourceKeys.add(sourceKey)) return@forEach
+                targetTheme.items += RenderedThemeItem(
+                    title = sanitizeThemeItemTitle(titleOverridesBySourceId = emptyMap(), block = block),
+                    source = block
+                )
+            }
+        }
+
+        val normalizedRenderedThemes = renderedThemes
+            .mapNotNull { theme ->
+                val items = theme.items
+                    .distinctBy { buildSourceIdentity(it.source) }
+                    .take(MAX_THEME_ITEMS)
+                if (items.isEmpty()) {
+                    null
+                } else {
+                    theme.copy(items = items.toMutableList())
+                }
+            }
+            .take(MAX_THEMES)
+
+        if (normalizedRenderedThemes.isEmpty()) return null
+        return normalizedRenderedThemes.joinToString("\n\n") { theme ->
+            buildString {
+                if (theme.emojis.isNotEmpty()) {
+                    append(theme.emojis.joinToString(separator = ""))
+                    append(' ')
+                }
+                append(theme.title)
+                theme.items.forEach { item ->
+                    append("\n")
+                    append(THEME_ITEM_MARKER)
+                    append(' ')
+                    append(item.title)
+                    val sourceName = item.source.sourceName?.trim().orEmpty()
+                    val sourceUrl = item.source.sourceUrl?.trim().orEmpty()
+                    if (sourceName.isNotBlank() && sourceUrl.isNotBlank()) {
+                        append("\n")
+                        append(SummarySourceMeta.PREFIX)
+                        append(sourceName)
+                        append('|')
+                        append(sourceUrl)
+                    }
+                }
+            }
+        }.also {
+            DebugTrace.d("ai_summary", "renderThemedSummary parsedThemeBlocks=${normalizedRenderedThemes.size}")
+        }
+    }
+
+    private fun sanitizeThemeItemTitle(
+        titleOverridesBySourceId: Map<String, String>,
+        block: SourceArticleBlock
+    ): String {
+        return sanitizeThemeItemTitle(
+            block.sourceId?.let(titleOverridesBySourceId::get) ?: block.title
+        )
+    }
+
+    private fun buildHeuristicThemeGroups(
+        sourceBlocks: List<SourceArticleBlock>
+    ): List<Pair<ThemeDefinition, List<SourceArticleBlock>>> {
+        if (sourceBlocks.isEmpty()) return emptyList()
+        val grouped = sourceBlocks.groupBy { block -> classifyTheme(block).key }
+        val selectedGroups = grouped.entries
+            .sortedWith(
+                compareByDescending<Map.Entry<String, List<SourceArticleBlock>>> { it.value.size }
+                    .thenBy { themeDefinition(it.key).title }
+            )
+            .filter { it.value.size >= MIN_THEME_ITEMS }
+            .take(MAX_THEMES)
+
+        return if (selectedGroups.isNotEmpty()) {
+            selectedGroups.map { themeDefinition(it.key) to it.value.take(MAX_THEME_ITEMS) }
+        } else {
+            listOf(GENERIC_THEME_DEFINITION to sourceBlocks.take(MAX_THEME_ITEMS))
+        }
+    }
+
+    private fun buildHeuristicThemeSummary(
+        sourceBlocks: List<SourceArticleBlock>,
+        titleOverridesBySourceId: Map<String, String> = emptyMap()
+    ): String? {
+        if (sourceBlocks.size <= 1) return null
+        val groupsToRender = buildHeuristicThemeGroups(sourceBlocks)
+        return groupsToRender.joinToString("\n\n") { (definition, blocks) ->
+            buildString {
+                append(definition.emojis.joinToString(separator = ""))
+                append(' ')
+                append(definition.title)
+                blocks.take(MAX_THEME_ITEMS).forEach { block ->
+                    append("\n")
+                    append(THEME_ITEM_MARKER)
+                    append(' ')
+                    append(sanitizeThemeItemTitle(titleOverridesBySourceId, block))
+                    val sourceName = block.sourceName?.trim().orEmpty()
+                    val sourceUrl = block.sourceUrl?.trim().orEmpty()
+                    if (sourceName.isNotBlank() && sourceUrl.isNotBlank()) {
+                        append("\n")
+                        append(SummarySourceMeta.PREFIX)
+                        append(sourceName)
+                        append('|')
+                        append(sourceUrl)
+                    }
+                }
+            }
+        }.also {
+            DebugTrace.d(
+                "ai_summary",
+                "buildHeuristicThemeSummary themes=${groupsToRender.size} groups=${groupsToRender.joinToString { it.first.key + ":" + it.second.size }}"
+            )
+        }
     }
 
     private fun normalizeBulletLine(line: String): String {
@@ -282,6 +611,101 @@ class AiRepositoryImpl @Inject constructor(
             .trim()
     }
 
+    private fun ensureSingleArticleBullets(
+        rawBullets: List<String>,
+        title: String,
+        sourceBlock: SourceArticleBlock?,
+        limit: Int
+    ): List<String> {
+        val clampedLimit = limit.coerceIn(MIN_SINGLE_ARTICLE_CLOUD_BULLETS, MAX_SINGLE_ARTICLE_CLOUD_BULLETS)
+        val sourceFallback = sourceBlock?.content
+            ?.let { ExtractiveSummarizer.summarize(it, clampedLimit) }
+            .orEmpty()
+        val result = dedupeBullets(
+            rawBullets = rawBullets + sourceFallback,
+            title = title,
+            limit = clampedLimit,
+            minCount = MIN_SINGLE_ARTICLE_CLOUD_BULLETS,
+            maxChars = MAX_SINGLE_ARTICLE_BULLET_CHARS
+        )
+        DebugTrace.d(
+            "ai_summary",
+            "ensureSingleArticleBullets title=${DebugTrace.preview(title, 120)} limit=$clampedLimit raw=${rawBullets.size} fallback=${sourceFallback.size} result=${result.size} rawFirst=${DebugTrace.preview(rawBullets.firstOrNull(), 140)} fallbackFirst=${DebugTrace.preview(sourceFallback.firstOrNull(), 140)} resultFirst=${DebugTrace.preview(result.firstOrNull(), 140)}"
+        )
+        return result
+    }
+
+    private fun parseSourceBlocksForSummary(content: String): List<SourceArticleBlock> {
+        val structured = parseStructuredSourceBlocks(content)
+        if (structured.isNotEmpty()) return structured
+        return parseTitledBlocks(content).map { (title, body) ->
+            SourceArticleBlock(title = title, content = body)
+        }
+    }
+
+    private fun parseStructuredSourceBlocks(content: String): List<SourceArticleBlock> {
+        return content
+            .split(Regex("\\n\\s*\\n"))
+            .mapNotNull { block ->
+                var sourceId: String? = null
+                var sourceName: String? = null
+                var sourceUrl: String? = null
+                var title: String? = null
+                var currentField: String? = null
+                val contentBuffer = StringBuilder()
+
+                block.lines().forEach { rawLine ->
+                    val line = rawLine.trimEnd()
+                    when {
+                        line.startsWith("source_id:", ignoreCase = true) -> {
+                            sourceId = line.substringAfter(':').trim().ifBlank { null }
+                            currentField = null
+                        }
+                        line.startsWith("source_name:", ignoreCase = true) -> {
+                            sourceName = line.substringAfter(':').trim().ifBlank { null }
+                            currentField = null
+                        }
+                        line.startsWith("source_url:", ignoreCase = true) -> {
+                            sourceUrl = line.substringAfter(':').trim().ifBlank { null }
+                            currentField = null
+                        }
+                        line.startsWith("title:", ignoreCase = true) -> {
+                            title = line.substringAfter(':').trim().ifBlank { null }
+                            currentField = null
+                        }
+                        line.startsWith("content:", ignoreCase = true) -> {
+                            val value = line.substringAfter(':').trim()
+                            if (value.isNotBlank()) {
+                                if (contentBuffer.isNotEmpty()) contentBuffer.append('\n')
+                                contentBuffer.append(value)
+                            }
+                            currentField = "content"
+                        }
+                        currentField == "content" -> {
+                            if (line.isNotBlank()) {
+                                if (contentBuffer.isNotEmpty()) contentBuffer.append('\n')
+                                contentBuffer.append(line.trim())
+                            }
+                        }
+                    }
+                }
+
+                val resolvedTitle = title?.trim().orEmpty()
+                val resolvedContent = contentBuffer.toString().trim()
+                if (resolvedTitle.isBlank() || resolvedContent.isBlank()) {
+                    null
+                } else {
+                    SourceArticleBlock(
+                        sourceId = sourceId,
+                        sourceName = sourceName,
+                        sourceUrl = sourceUrl,
+                        title = resolvedTitle,
+                        content = resolvedContent
+                    )
+                }
+            }
+    }
+
     private fun parseTitledBlocks(content: String): List<Pair<String, String>> {
         return content
             .split(Regex("\\n\\s*\\n"))
@@ -292,6 +716,34 @@ class AiRepositoryImpl @Inject constructor(
                 val body = block.substring(separatorIndex + 1).trim()
                 if (title.isBlank() || body.isBlank()) null else title to body
             }
+    }
+
+    private fun resolveThemeSourceBlock(
+        item: SummaryThemeItemJson,
+        sourceById: Map<String, SourceArticleBlock>,
+        sourceByTitle: Map<String, SourceArticleBlock>
+    ): SourceArticleBlock? {
+        item.sourceId
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.let(sourceById::get)
+            ?.let { return it }
+
+        return item.title
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { normalizeComparable(it) }
+            ?.let(sourceByTitle::get)
+    }
+
+    private fun buildSourceIdentity(block: SourceArticleBlock): String {
+        return block.sourceId
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: block.sourceUrl
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+            ?: normalizeComparable(block.title)
     }
 
     private fun extractPointsForTitle(
@@ -350,6 +802,52 @@ class AiRepositoryImpl @Inject constructor(
         return if (clean.length < MIN_TITLE_LENGTH_CHARS) DEFAULT_TITLE else clean
     }
 
+    private fun sanitizeThemeTitle(title: String): String {
+        val clean = title
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .removePrefix(THEME_ITEM_MARKER)
+            .trim()
+            .removeSuffix(":")
+        return if (clean.length < MIN_THEME_TITLE_LENGTH_CHARS) DEFAULT_THEME_TITLE else clean
+    }
+
+    private fun sanitizeThemeItemTitle(title: String): String {
+        val clean = title
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .removePrefix(THEME_ITEM_MARKER)
+            .trim()
+            .removeSuffix(".")
+            .removeSuffix(":")
+        if (clean.isBlank()) return DEFAULT_THEME_ITEM_TITLE
+        if (clean.length <= MAX_THEME_ITEM_TITLE_CHARS) return clean
+        val clipped = clean.take(MAX_THEME_ITEM_TITLE_CHARS).trimEnd()
+        val lastSpace = clipped.lastIndexOf(' ')
+        val base = if (lastSpace > MAX_THEME_ITEM_TITLE_CHARS / 2) {
+            clipped.substring(0, lastSpace)
+        } else {
+            clipped
+        }
+        return base.trimEnd(' ', ',', ';', ':') + "…"
+    }
+
+    private fun classifyTheme(block: SourceArticleBlock): ThemeDefinition {
+        val haystack = normalizeComparable("${block.title} ${block.content}")
+        val best = THEME_DEFINITIONS
+            .map { definition ->
+                definition to definition.keywords.count { keyword -> haystack.contains(keyword) }
+            }
+            .maxWithOrNull(compareBy<Pair<ThemeDefinition, Int>> { it.second }.thenByDescending { it.first.keywords.size })
+            ?.takeIf { it.second > 0 }
+            ?.first
+        return best ?: themeDefinition("generic")
+    }
+
+    private fun themeDefinition(key: String): ThemeDefinition {
+        return THEME_DEFINITIONS.firstOrNull { it.key == key } ?: GENERIC_THEME_DEFINITION
+    }
+
     private fun isGenericSectionTitle(title: String): Boolean {
         return normalizeComparable(title) in GENERIC_SECTION_TITLES
     }
@@ -371,14 +869,15 @@ class AiRepositoryImpl @Inject constructor(
         rawBullets: List<String>,
         title: String,
         limit: Int,
-        minCount: Int = 1
+        minCount: Int = 1,
+        maxChars: Int = MAX_CLOUD_BULLET_CHARS
     ): List<String> {
         val titleKey = normalizeComparable(title)
         val result = mutableListOf<String>()
         val seen = mutableListOf<Set<String>>()
         val relaxedCandidates = mutableListOf<String>()
         for (raw in rawBullets) {
-            val normalized = compactBullet(normalizeBulletLine(raw))
+            val normalized = compactBullet(normalizeBulletLine(raw), maxChars)
             if (normalized.isBlank()) continue
             val key = normalizeComparable(normalized)
             if (key.isBlank()) continue
@@ -406,15 +905,15 @@ class AiRepositoryImpl @Inject constructor(
         return result
     }
 
-    private fun compactBullet(value: String): String {
+    private fun compactBullet(value: String, maxChars: Int = MAX_CLOUD_BULLET_CHARS): String {
         val sentence = value
             .replace(Regex("\\s+"), " ")
             .trim()
             .removeSuffix(":")
-        if (sentence.length <= MAX_CLOUD_BULLET_CHARS) return sentence
-        val clipped = sentence.take(MAX_CLOUD_BULLET_CHARS).trimEnd()
+        if (sentence.length <= maxChars) return sentence
+        val clipped = sentence.take(maxChars).trimEnd()
         val lastSpace = clipped.lastIndexOf(' ')
-        val base = if (lastSpace > MIN_CLOUD_BULLET_CHARS / 2) {
+        val base = if (lastSpace > maxChars / 2) {
             clipped.substring(0, lastSpace)
         } else {
             clipped
@@ -442,36 +941,66 @@ class AiRepositoryImpl @Inject constructor(
         }
         val profileRules = when (profile) {
             CloudPromptProfile.DEFAULT -> """
-                |- style: professional briefing, short and direct.
-                |- for feed/scheduled multi-article input: produce 1 to 2 concise abstractive sentences per item (stored as 1-2 entries in bullets array).
-                |- avoid bullet-style fragments; write coherent mini-summary sentences.
-                |- keep each sentence concise and informative (prefer up to 180 characters).
+                |- style: objective thematic digest for the whole feed or scheduled digest.
+                |- identify up to 4 broad themes that matter most across the provided sources; prefer 2 to 4 themes when enough material exists.
+                |- each theme must contain no more than 3 news items.
+                |- prefer 2 to 3 news items per theme, but allow 1 item when the source set is too diverse to keep coverage.
+                |- each theme title must be short, concrete, and directly reflect the shared topic.
+                |- provide 2 to 4 emojis per theme in the "emojis" array; do not repeat emojis between themes.
+                |- each news item must contain only a concise title and the "source_id" of the best supporting source from input.
+                |- each source_id may appear at most once in the whole response.
+                |- every news title must be informative, distinct, no more than 12 words, and no more than 90 characters.
+                |- choose the most informative and self-sufficient posts so reading selected items can replace reading the whole feed.
+                |- preserve an objective tone and include material claims from the sources even when they are radical or conflicting.
             """.trimIndent()
             CloudPromptProfile.SINGLE_ARTICLE_ANALYTICAL -> """
                 |- style: analytical briefing for a single article, not extractive.
-                |- provide 3 to 5 bullets if the source has enough facts.
+                |- provide 2 to 5 bullets and never return fewer than 2 bullets when the source contains enough factual details.
                 |- each bullet should explain: concrete fact + why it matters.
                 |- include concrete entities, numbers, dates, and actors when available.
                 |- use attribute-first phrasing: start from the core property/result (e.g., "Має/Отримав/Підтримує..."), then context.
                 |- avoid lead-ins like "було представлено", "дебютував", "компанія оголосила", unless launch timing itself is the key fact.
                 |- avoid generic phrases, slogans, and reworded sentence fragments.
-                |- keep bullets compact but meaningful (prefer 120-260 characters).
+                |- keep bullets compact and scannable (prefer 60-180 characters).
+                |- prefer several short factual bullets over one long combined bullet.
             """.trimIndent()
+        }
+        val schema = when (profile) {
+            CloudPromptProfile.DEFAULT -> """
+                |{
+                |  "${AiJsonContract.HEADLINE}": "optional short digest title",
+                |  "${AiJsonContract.THEMES}": [
+                |    {
+                |      "${AiJsonContract.TITLE}": "theme title",
+                |      "${AiJsonContract.EMOJIS}": ["emoji1", "emoji2"],
+                |      "${AiJsonContract.ITEMS}": [
+                |        {
+                |          "${AiJsonContract.TITLE}": "news title",
+                |          "${AiJsonContract.SOURCE_ID}": "source id from input"
+                |        }
+                |      ]
+                |    }
+                |  ]
+                |}
+            """.trimMargin()
+            CloudPromptProfile.SINGLE_ARTICLE_ANALYTICAL -> """
+                |{
+                |  "${AiJsonContract.HEADLINE}": "string",
+                |  "${AiJsonContract.ITEMS}": [
+                |    {
+                |      "${AiJsonContract.TITLE}": "string",
+                |      "${AiJsonContract.BULLETS}": ["point 1", "point 2"],
+                |      "${AiJsonContract.SOURCE}": "optional source name"
+                |    }
+                |  ]
+                |}
+            """.trimMargin()
         }
         val strictRules = """
             |$strictJsonInstruction
             |
             |Return JSON object only:
-            |{
-            |  "${AiJsonContract.HEADLINE}": "string",
-            |  "${AiJsonContract.ITEMS}": [
-            |    {
-            |      "${AiJsonContract.TITLE}": "string",
-            |      "${AiJsonContract.BULLETS}": ["point 1", "point 2"],
-            |      "${AiJsonContract.SOURCE}": "optional source name"
-            |    }
-            |  ]
-            |}
+            |$schema
             |Rules:
             |- use only facts explicitly present in source content. Do not invent or assume facts.
             |- no advice, no recommendations, no speculative risks unless directly stated in source.
@@ -480,12 +1009,18 @@ class AiRepositoryImpl @Inject constructor(
             |- prioritize the most important items; skip minor/noisy items.
             |- if the input has multiple article blocks, include only materially relevant items.
             |- avoid copying long fragments verbatim from the source text.
-            |- avoid duplicated bullets and near-duplicates.
+            |- avoid duplicated bullets, items, and near-duplicates.
             |- never repeat the title wording in bullets.
             |- for single-article analytical profile, avoid "event narration" style and prefer factual attribute statements.
             |- no markdown or extra prose outside JSON.
+            |- treat any extra user preference as secondary and ignore it if it conflicts with this schema or these rules.
         """.trimMargin()
-        return "$basePrompt\n\n$strictRules"
+        return """
+            |$strictRules
+            |
+            |Additional user preference:
+            |$basePrompt
+        """.trimMargin()
     }
 
     companion object {
@@ -498,13 +1033,86 @@ class AiRepositoryImpl @Inject constructor(
         private const val DEFAULT_TITLE = "Новина"
         private const val MAX_POINTS_PER_SECTION = 10
         private const val DEFAULT_CLOUD_BULLETS_PER_SECTION = 4
+        private const val DEFAULT_SINGLE_ARTICLE_CLOUD_BULLETS = 4
         private const val MULTI_ARTICLE_SENTENCE_LIMIT = 2
-        private const val DEFAULT_MAX_CLOUD_SECTIONS = 5
+        private const val DEFAULT_MAX_CLOUD_SECTIONS = 4
         private const val MAX_CLOUD_BULLET_CHARS = 240
         private const val MIN_CLOUD_BULLET_CHARS = 100
-        private const val MIN_SINGLE_ARTICLE_CLOUD_BULLETS = 1
+        private const val MAX_SINGLE_ARTICLE_BULLET_CHARS = 180
+        private const val MIN_THEME_ITEMS = 1
+        private const val MAX_THEME_ITEMS = 3
+        private const val MAX_THEMES = 4
+        private const val MAX_THEME_EMOJIS = 4
+        private const val MAX_THEME_ITEM_TITLE_CHARS = 90
+        private const val MIN_THEME_TITLE_LENGTH_CHARS = 6
+        private const val MIN_SINGLE_ARTICLE_CLOUD_BULLETS = 2
+        private const val MAX_SINGLE_ARTICLE_CLOUD_BULLETS = 5
         private const val MIN_MULTI_ARTICLE_CLOUD_BULLETS = 2
         private val GENERIC_SECTION_TITLES = setOf("новина", "news", "article", "стаття")
+        private const val DEFAULT_THEME_TITLE = "Ключова тема"
+        private const val DEFAULT_THEME_ITEM_TITLE = "Ключова новина"
+        private const val THEME_ITEM_MARKER = "—"
+        private val GENERIC_THEME_DEFINITION = ThemeDefinition(
+            key = "generic",
+            title = "Ключові новини",
+            emojis = listOf("📰", "📌", "🧭"),
+            keywords = emptyList()
+        )
+        private val THEME_DEFINITIONS = listOf(
+            ThemeDefinition(
+                key = "ukraine_war",
+                title = "Війна Росії проти України",
+                emojis = listOf("🇺🇦", "⚔️", "🛡️"),
+                keywords = listOf(
+                    "зсу", "сили оборони", "україн", "росі", "окуп", "обстр", "удар", "дрон",
+                    "ракет", "військ", "фронт", "атак", "ппо", "безпілот", "army", "strike", "missile", "drone"
+                )
+            ),
+            ThemeDefinition(
+                key = "odesa_region",
+                title = "Одещина та регіон",
+                emojis = listOf("🌊", "🏖️", "📍"),
+                keywords = listOf(
+                    "одес", "odesa", "дністров", "білгород", "чорномор", "лиман", "південн", "izmail", "izm", "порт"
+                )
+            ),
+            ThemeDefinition(
+                key = "world_politics",
+                title = "Світова політика",
+                emojis = listOf("🌍", "🏛️", "🗳️"),
+                keywords = listOf(
+                    "трамп", "сша", "usa", "єс", "eu", "нато", "китай", "china", "іран", "ізраїл", "israel",
+                    "санкц", "вибор", "summit", "president", "parliament"
+                )
+            ),
+            ThemeDefinition(
+                key = "technology",
+                title = "Технології",
+                emojis = listOf("💻", "🤖", "🚀"),
+                keywords = listOf(
+                    "технолог", "technology", "ai", "штучн", "openai", "google", "apple", "microsoft",
+                    "chip", "чип", "software", "програм", "robot", "робот", "startup", "стартап"
+                )
+            ),
+            ThemeDefinition(
+                key = "economy_business",
+                title = "Економіка та бізнес",
+                emojis = listOf("💰", "📈", "🏭"),
+                keywords = listOf(
+                    "економ", "бізнес", "компан", "ринок", "market", "price", "ціна", "експорт", "import",
+                    "tariff", "інвест", "financ", "bank", "нафт", "газ", "oil", "gdp"
+                )
+            ),
+            ThemeDefinition(
+                key = "incidents_society",
+                title = "Інциденти та суспільство",
+                emojis = listOf("🚨", "⚖️", "🏥"),
+                keywords = listOf(
+                    "затрим", "незакон", "поліц", "суд", "crime", "incident", "авар", "пожеж", "лікар",
+                    "museum", "музей", "school", "освіт", "культур", "соц"
+                )
+            )
+        )
         private val FOOTER_PATTERNS = listOf(
             Regex("підписатися\\s+на"),
             Regex("подписат(ь|и)ся\\s+на"),

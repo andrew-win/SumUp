@@ -26,6 +26,7 @@ import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.common.NoArticlesException
+import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.usecase.ai.SummaryContext
 import com.andrewwin.sumup.domain.usecase.ai.SummarizationEngineUseCase
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
@@ -49,6 +50,10 @@ class SummaryWorkerHandler @Inject constructor(
 ) {
     suspend fun execute(runAttemptCount: Int): ListenableWorker.Result {
         val prefs = userPreferencesRepository.preferences.first()
+        DebugTrace.d(
+            "scheduled_worker",
+            "execute start attempt=$runAttemptCount strategy=${prefs.aiStrategy} scheduled=${prefs.isScheduledSummaryEnabled}"
+        )
 
         userPreferencesRepository.updatePreferences(
             prefs.copy(lastWorkRunTimestamp = System.currentTimeMillis())
@@ -78,6 +83,10 @@ class SummaryWorkerHandler @Inject constructor(
                     articleImportanceScorer.score(article, sourceType) >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
                 }
             }
+            DebugTrace.d(
+                "scheduled_worker",
+                "recentArticles=${recentArticles.size} filteredArticles=${filteredArticles.size} canDeduplicate=$canDeduplicate"
+            )
 
             val baseClusters: List<ArticleCluster> =
                 if (!prefs.isDeduplicationEnabled || filteredArticles.size < 2 || !canDeduplicate) {
@@ -109,9 +118,11 @@ class SummaryWorkerHandler @Inject constructor(
             }
 
             val articles = clusters.map { it.representative }.sortedByDescending { it.publishedAt }
+            DebugTrace.d("scheduled_worker", "clusters=${clusters.size} articlesForSummary=${articles.size}")
 
             if (articles.isEmpty()) {
                 val message = context.getString(R.string.summary_worker_no_articles_today)
+                DebugTrace.w("scheduled_worker", "no articles for scheduled summary")
                 summaryRepository.insertSummary(Summary(content = message, strategy = prefs.aiStrategy))
                 maybeShowScheduledSummaryNotification(prefs)
                 ListenableWorker.Result.success()
@@ -120,7 +131,15 @@ class SummaryWorkerHandler @Inject constructor(
                     AiStrategy.LOCAL -> prefs.summaryNewsInScheduledExtractive.coerceAtLeast(1)
                     AiStrategy.CLOUD, AiStrategy.ADAPTIVE -> prefs.summaryNewsInScheduledCloud.coerceAtLeast(1)
                 }
-                val articlesToSummarize = articles.take(limit).take(WorkerContracts.MAX_ARTICLES_FOR_SUMMARIZATION)
+                val articlesToSummarize = when (prefs.aiStrategy) {
+                    AiStrategy.LOCAL -> articles.take(limit)
+                    AiStrategy.CLOUD, AiStrategy.ADAPTIVE ->
+                        articles.take(WorkerContracts.MAX_ARTICLES_FOR_SUMMARIZATION)
+                }
+                DebugTrace.d(
+                    "scheduled_worker",
+                    "articlesToSummarize=${articlesToSummarize.size} limit=$limit ids=${articlesToSummarize.joinToString(",") { it.id.toString() }}"
+                )
                 val summaryText = summarizationEngineUseCase
                     .summarizeArticles(
                         articles = articlesToSummarize,
@@ -133,17 +152,20 @@ class SummaryWorkerHandler @Inject constructor(
                     throw IllegalStateException(message)
                 }
 
+                DebugTrace.d("scheduled_worker", "summary success preview=${DebugTrace.preview(summaryText)}")
                 summaryRepository.insertSummary(Summary(content = summaryText, strategy = prefs.aiStrategy))
                 maybeShowScheduledSummaryNotification(prefs)
                 ListenableWorker.Result.success()
             }
         } catch (e: NoArticlesException) {
             val message = context.getString(R.string.summary_worker_no_articles_today)
+            DebugTrace.w("scheduled_worker", "NoArticlesException")
             summaryRepository.insertSummary(Summary(content = message, strategy = prefs.aiStrategy))
             maybeShowScheduledSummaryNotification(prefs)
             ListenableWorker.Result.success()
         } catch (e: Exception) {
             val prefix = context.getString(R.string.summary_worker_error_prefix)
+            DebugTrace.e("scheduled_worker", "summary failed", e)
             summaryRepository.insertSummary(Summary(content = "$prefix: ${e.localizedMessage.orEmpty()}", strategy = prefs.aiStrategy))
             if (runAttemptCount < WorkerContracts.MAX_RETRY_ATTEMPTS) {
                 ListenableWorker.Result.retry()

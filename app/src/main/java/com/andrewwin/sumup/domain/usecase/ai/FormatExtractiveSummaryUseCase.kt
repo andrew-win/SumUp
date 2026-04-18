@@ -4,7 +4,7 @@ import javax.inject.Inject
 
 class FormatExtractiveSummaryUseCase @Inject constructor(
 ) {
-    private val bulletSymbol = "•"
+    private val bulletSymbol = "—"
 
     /**
      * @param title The article title

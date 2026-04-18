@@ -203,7 +203,7 @@ class CompareArticlesUseCase @Inject constructor(
         if (commonLines.isNotEmpty()) {
             builder.append("Спільне:\n")
             commonLines.forEach { (text, article) ->
-                builder.append("• $text\n")
+                builder.append("— $text\n")
                 builder.append("${SummarySourceMeta.PREFIX}${article.sourceName ?: "Джерело"}|${article.article.url}\n")
             }
         }
@@ -211,7 +211,7 @@ class CompareArticlesUseCase @Inject constructor(
             if (commonLines.isNotEmpty()) builder.append("\n")
             builder.append("Відмінне:\n")
             differentLines.forEach { (text, article) ->
-                builder.append("• $text\n")
+                builder.append("— $text\n")
                 builder.append("${SummarySourceMeta.PREFIX}${article.sourceName ?: "Джерело"}|${article.article.url}\n")
             }
         }

@@ -6,6 +6,7 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.service.ExtractiveSummarizer
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import com.andrewwin.sumup.domain.usecase.common.FormatArticleHeadlineUseCase
 import javax.inject.Inject
@@ -23,8 +24,13 @@ class SummaryPreprocessPolicy @Inject constructor(
 class SummaryCloudCallPolicy @Inject constructor(
     private val aiRepository: AiRepository
 ) {
-    suspend fun summarize(content: String, pointsPerNews: Int? = null): String =
-        aiRepository.summarize(content = content, pointsPerNews = pointsPerNews)
+    suspend fun summarize(content: String, pointsPerNews: Int? = null): String {
+        DebugTrace.d(
+            "summary_cloud",
+            "summarize pointsPerNews=$pointsPerNews contentChars=${content.length} contentPreview=${DebugTrace.preview(content, 240)}"
+        )
+        return aiRepository.summarize(content = content, pointsPerNews = pointsPerNews)
+    }
 
     suspend fun askQuestion(content: String, prompt: String): String =
         aiRepository.askWithPrompt(content, prompt)
@@ -104,6 +110,11 @@ class SummaryRenderPolicy @Inject constructor(
 
     suspend fun appendSourceMetadata(summaryText: String, articles: List<Article>): String {
         if (summaryText.isBlank() || articles.isEmpty()) return summaryText
+        val existingSourceMetaCount = summaryText.lines().count { it.trim().startsWith(SummarySourceMeta.PREFIX) }
+        if (existingSourceMetaCount > 1) {
+            DebugTrace.d("summary_render", "appendSourceMetadata skip existingMetaCount=$existingSourceMetaCount")
+            return summaryText.trim()
+        }
 
         data class SourceMeta(val titleKey: String, val sourceName: String, val sourceUrl: String)
         val metas = mutableListOf<SourceMeta>()
@@ -153,7 +164,9 @@ class SummaryRenderPolicy @Inject constructor(
                 "$section\n${SummarySourceMeta.PREFIX}${meta.sourceName}|${meta.sourceUrl}"
             )
         }
-        return enrichedSections.joinToString("\n\n")
+        return enrichedSections.joinToString("\n\n").also {
+            DebugTrace.d("summary_render", "appendSourceMetadata sections=${enrichedSections.size} articles=${articles.size}")
+        }
     }
 
     fun moveSourceToEndForSingleArticle(summaryText: String): String =
@@ -194,7 +207,7 @@ class SummaryRenderPolicy @Inject constructor(
                         if (isNearDuplicateTokenSet(tokenSet, seenCommonTokenSets)) return@forEach
                         if (tokenSet.isNotEmpty()) seenCommonTokenSets += tokenSet
                     }
-                    commonLines += "• $sourceName: ${statement.trim()} (${sourceUrl.trim()})"
+                    commonLines += "— $sourceName: ${statement.trim()} (${sourceUrl.trim()})"
                 }
             differentBySource[sourceKey]
                 .orEmpty()
@@ -210,21 +223,21 @@ class SummaryRenderPolicy @Inject constructor(
                         if (isNearDuplicateTokenSet(tokenSet, seenDifferentTokenSets)) return@forEach
                         if (tokenSet.isNotEmpty()) seenDifferentTokenSets += tokenSet
                     }
-                    differentLines += "• $sourceName: ${statement.trim()} (${sourceUrl.trim()})"
+                    differentLines += "— $sourceName: ${statement.trim()} (${sourceUrl.trim()})"
                 }
         }
 
         val lines = mutableListOf<String>()
         lines += "Спільне:"
         if (commonLines.isEmpty()) {
-            lines += "• Немає достатньо даних."
+            lines += "— Немає достатньо даних."
         } else {
             lines.addAll(commonLines)
         }
         lines += ""
         lines += "Унікальне:"
         if (differentLines.isEmpty()) {
-            lines += "• Немає достатньо даних."
+            lines += "— Немає достатньо даних."
         } else {
             lines.addAll(differentLines)
         }
@@ -302,12 +315,21 @@ class SummaryFallbackPolicy @Inject constructor(
         title: String,
         fullContent: String,
         sentenceLimit: Int
-    ): String = formatExtractiveSummaryUseCase.formatItem(
-        title = title,
-        sentences = ExtractiveSummarizer.summarize(fullContent, sentenceLimit),
-        isScheduledReport = false,
-        maxBullets = sentenceLimit
-    )
+    ): String {
+        val extractive = ExtractiveSummarizer.summarize(fullContent, sentenceLimit)
+        DebugTrace.d(
+            "summary_fallback",
+            "singleArticleFallback title=${DebugTrace.preview(title, 120)} sentenceLimit=$sentenceLimit extractiveCount=${extractive.size} first=${DebugTrace.preview(extractive.firstOrNull(), 160)}"
+        )
+        return formatExtractiveSummaryUseCase.formatItem(
+            title = title,
+            sentences = extractive,
+            isScheduledReport = false,
+            maxBullets = sentenceLimit
+        ).also {
+            DebugTrace.d("summary_fallback", "singleArticleFallback renderedPreview=${DebugTrace.preview(it)}")
+        }
+    }
 }
 
 

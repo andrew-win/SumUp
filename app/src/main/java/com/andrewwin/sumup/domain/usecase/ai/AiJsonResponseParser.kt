@@ -26,14 +26,41 @@ object AiJsonResponseParser {
                     SummaryItemJson(
                         title = item.optString(AiJsonContract.TITLE).ifBlank { null },
                         bullets = readStringArray(item.opt(AiJsonContract.BULLETS)),
-                        source = item.optString(AiJsonContract.SOURCE).ifBlank { null }
+                        source = item.optString(AiJsonContract.SOURCE).ifBlank { null },
+                        sourceId = item.opt(AiJsonContract.SOURCE_ID)?.toString()?.trim()?.ifBlank { null }
+                    )
+                )
+            }
+        }
+        val themesArray = obj.optJSONArray(AiJsonContract.THEMES) ?: JSONArray()
+        val themes = buildList {
+            for (i in 0 until themesArray.length()) {
+                val theme = themesArray.optJSONObject(i) ?: continue
+                val themeItemsArray = theme.optJSONArray(AiJsonContract.ITEMS) ?: JSONArray()
+                val themeItems = buildList {
+                    for (j in 0 until themeItemsArray.length()) {
+                        val item = themeItemsArray.optJSONObject(j) ?: continue
+                        add(
+                            SummaryThemeItemJson(
+                                title = item.optString(AiJsonContract.TITLE).ifBlank { null },
+                                sourceId = item.opt(AiJsonContract.SOURCE_ID)?.toString()?.trim()?.ifBlank { null }
+                            )
+                        )
+                    }
+                }
+                add(
+                    SummaryThemeJson(
+                        title = theme.optString(AiJsonContract.TITLE).ifBlank { null },
+                        emojis = readStringArray(theme.opt(AiJsonContract.EMOJIS)),
+                        items = themeItems
                     )
                 )
             }
         }
         return SummaryResponseJson(
             headline = obj.optString(AiJsonContract.HEADLINE).ifBlank { null },
-            items = items
+            items = items,
+            themes = themes
         )
     }
 

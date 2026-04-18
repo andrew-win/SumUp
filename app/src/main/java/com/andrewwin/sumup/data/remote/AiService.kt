@@ -5,6 +5,7 @@ import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.domain.support.AiProviderUnavailableException
 import com.andrewwin.sumup.domain.support.AiRateLimitException
+import com.andrewwin.sumup.domain.support.DebugTrace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -74,15 +75,24 @@ class AiService(private val okHttpClient: OkHttpClient) {
         }
     }
 
-    suspend fun generateResponse(config: AiModelConfig, prompt: String, content: String): String =
+    suspend fun generateResponse(
+        config: AiModelConfig,
+        prompt: String,
+        content: String,
+        expectJson: Boolean = false
+    ): String =
         withContext(Dispatchers.IO) {
+            DebugTrace.d(
+                "ai_service",
+                "generateResponse provider=${config.provider} model=${config.modelName} expectJson=$expectJson promptPreview=${DebugTrace.preview(prompt, 220)} contentPreview=${DebugTrace.preview(content, 220)}"
+            )
             when (config.provider) {
-                AiProvider.GEMINI -> callGemini(config, prompt, content)
-                AiProvider.GROQ -> callOpenAiCompatible(config, prompt, content, "https://api.groq.com/openai/v1/chat/completions")
-                AiProvider.OPENROUTER -> callOpenAiCompatible(config, prompt, content, "https://openrouter.ai/api/v1/chat/completions")
-                AiProvider.CHATGPT -> callOpenAiCompatible(config, prompt, content, "https://api.openai.com/v1/chat/completions")
+                AiProvider.GEMINI -> callGemini(config, prompt, content, expectJson)
+                AiProvider.GROQ -> callOpenAiCompatible(config, prompt, content, "https://api.groq.com/openai/v1/chat/completions", expectJson)
+                AiProvider.OPENROUTER -> callOpenAiCompatible(config, prompt, content, "https://openrouter.ai/api/v1/chat/completions", expectJson)
+                AiProvider.CHATGPT -> callOpenAiCompatible(config, prompt, content, "https://api.openai.com/v1/chat/completions", expectJson)
                 AiProvider.COHERE -> callCohere(config, prompt, content)
-                AiProvider.CLAUDE -> callClaude(config, prompt, content)
+                AiProvider.CLAUDE -> callClaude(config, prompt, content, expectJson)
             }
         }
 
@@ -96,12 +106,17 @@ class AiService(private val okHttpClient: OkHttpClient) {
             }
         }
 
-    private fun callGemini(config: AiModelConfig, prompt: String, content: String): String {
+    private fun callGemini(config: AiModelConfig, prompt: String, content: String, expectJson: Boolean): String {
         val url = "https://generativelanguage.googleapis.com/v1beta/models/${config.modelName}:generateContent?key=${config.apiKey}"
         val json = JSONObject().apply {
             put("contents", JSONArray().put(JSONObject().apply {
                 put("parts", JSONArray().put(JSONObject().put("text", "$prompt\n\n$content")))
             }))
+            if (expectJson) {
+                put("generationConfig", JSONObject().apply {
+                    put("responseMimeType", "application/json")
+                })
+            }
         }
         return executeRequest(Request.Builder().url(url), json) { response ->
             JSONObject(response)
@@ -114,13 +129,24 @@ class AiService(private val okHttpClient: OkHttpClient) {
         }
     }
 
-    private fun callOpenAiCompatible(config: AiModelConfig, prompt: String, content: String, url: String): String {
+    private fun callOpenAiCompatible(
+        config: AiModelConfig,
+        prompt: String,
+        content: String,
+        url: String,
+        expectJson: Boolean
+    ): String {
         val json = JSONObject().apply {
             put("model", config.modelName)
             put("messages", JSONArray().put(JSONObject().apply {
                 put("role", "user")
                 put("content", "$prompt\n\n$content")
             }))
+            if (expectJson) {
+                put("response_format", JSONObject().apply {
+                    put("type", "json_object")
+                })
+            }
         }
         val requestBuilder = Request.Builder().url(url)
             .addHeader("Authorization", "Bearer ${config.apiKey}")
@@ -146,11 +172,14 @@ class AiService(private val okHttpClient: OkHttpClient) {
         }
     }
 
-    private fun callClaude(config: AiModelConfig, prompt: String, content: String): String {
+    private fun callClaude(config: AiModelConfig, prompt: String, content: String, expectJson: Boolean): String {
         val url = "https://api.anthropic.com/v1/messages"
         val json = JSONObject().apply {
             put("model", config.modelName)
             put("max_tokens", 1024)
+            if (expectJson) {
+                put("system", "Return only valid JSON. No markdown, no prose outside JSON.")
+            }
             put("messages", JSONArray().put(JSONObject().apply {
                 put("role", "user")
                 put("content", "$prompt\n\n$content")
@@ -211,6 +240,7 @@ class AiService(private val okHttpClient: OkHttpClient) {
         val body = json.toString().toRequestBody("application/json".toMediaType())
         val request = requestBuilder.post(body).build()
         okHttpClient.newCall(request).execute().use { response ->
+            DebugTrace.d("ai_service", "http status=${response.code} url=${request.url.redact()}")
             if (!response.isSuccessful) {
                 val message = "Запит до ШІ не вдався: ${response.code}"
                 throw when (response.code) {
@@ -220,6 +250,7 @@ class AiService(private val okHttpClient: OkHttpClient) {
                 }
             }
             val body = response.body?.string() ?: throw Exception("Порожня відповідь від сервера")
+            DebugTrace.d("ai_service", "rawBodyPreview=${DebugTrace.preview(body)}")
             return parser(body)
         }
     }
@@ -237,6 +268,10 @@ class AiService(private val okHttpClient: OkHttpClient) {
     }
 
     private fun JSONArray.toObjectList(): List<JSONObject> = List(length()) { getJSONObject(it) }
+
+    private fun okhttp3.HttpUrl.redact(): String {
+        return newBuilder().query(null).build().toString()
+    }
 }
 
 

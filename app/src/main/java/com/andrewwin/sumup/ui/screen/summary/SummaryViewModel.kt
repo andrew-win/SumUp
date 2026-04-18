@@ -16,6 +16,7 @@ import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
+import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.common.NoArticlesException
 import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
@@ -147,15 +148,18 @@ class SummaryViewModel @Inject constructor(
     fun generateSummaryNow() {
         viewModelScope.launch {
             _isGenerating.value = true
+            DebugTrace.d("scheduled_summary", "generateSummaryNow start strategy=${userPreferences.value.aiStrategy}")
             runCatching {
                 refreshArticlesUseCase()
                 val summaryText = generateSummaryUseCase()
+                DebugTrace.d("scheduled_summary", "generateSummaryNow success preview=${DebugTrace.preview(summaryText)}")
                 summaryRepository.insertSummary(Summary(content = summaryText, strategy = userPreferences.value.aiStrategy))
             }.onFailure { e ->
                 val message = when (e) {
                     is NoArticlesException -> return@onFailure
                     else -> e.localizedMessage.orEmpty()
                 }
+                DebugTrace.e("scheduled_summary", "generateSummaryNow failure message=$message", e)
                 summaryRepository.insertSummary(Summary(content = message, strategy = userPreferences.value.aiStrategy))
             }
             _isGenerating.value = false
