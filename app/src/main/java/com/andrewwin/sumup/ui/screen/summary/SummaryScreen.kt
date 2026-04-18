@@ -88,10 +88,11 @@ import kotlinx.coroutines.launch
 private const val InlineSourceChipMaxWidthDp = 92
 
 private enum class HistoryDateFilter(val label: String, val hours: Int?) {
-    ALL("Увесь час", null),
+    HOUR_1("1 год", 1),
+    HOUR_12("12 год", 12),
     HOUR_24("24 год", 24),
-    DAY_7("7 дн", 24 * 7),
-    DAY_30("30 дн", 24 * 30)
+    DAY_3("3 дні", 24 * 3),
+    DAY_7("Тиждень", 24 * 7)
 }
 
 private enum class HistorySavedFilter(val label: String, val favoritesOnly: Boolean) {
@@ -123,12 +124,13 @@ fun SummaryScreen(
     var isHistoryScreen by rememberSaveable { mutableStateOf(false) }
     var openedHistorySummaryId by rememberSaveable { mutableStateOf<Long?>(null) }
     var historySearchQuery by rememberSaveable { mutableStateOf("") }
-    var historyDateFilter by rememberSaveable { mutableStateOf(HistoryDateFilter.ALL) }
+    var historyDateFilter by rememberSaveable { mutableStateOf(HistoryDateFilter.HOUR_24) }
     var historySavedFilter by rememberSaveable { mutableStateOf(HistorySavedFilter.ALL) }
     val tabs = listOf("Заплановані", "Статистика")
     val listState = rememberLazyListState()
+    val historyListState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    val historySummariesRaw = remember(summaries) { summaries.drop(1) }
+    val historySummariesRaw = remember(summaries) { summaries }
     val historySummaries = remember(
         historySummariesRaw,
         historySearchQuery,
@@ -150,6 +152,12 @@ fun SummaryScreen(
             !isHistoryScreen &&
                 selectedTabIndex == 1 &&
                 (listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 100)
+        }
+    }
+    val showHistoryBackToTop by remember {
+        derivedStateOf {
+            isHistoryScreen &&
+                (historyListState.firstVisibleItemIndex > 0 || historyListState.firstVisibleItemScrollOffset > 100)
         }
     }
 
@@ -231,32 +239,16 @@ fun SummaryScreen(
                             Icon(Icons.Default.Close, contentDescription = "Закрити історію")
                         }
                     } else {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (selectedTabIndex == 0 && lastSummary != null) {
-                                FilledIconButton(
-                                    onClick = {
-                                        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                                        val name = context.getString(R.string.summary_pdf_file_name, date)
-                                        exportLauncher.launch(name)
-                                    },
-                                    colors = IconButtonDefaults.filledIconButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                    )
-                                ) {
-                                    Icon(Icons.Outlined.PictureAsPdf, contentDescription = stringResource(R.string.export_feed_pdf))
-                                }
-                            }
-                            FilledIconButton(
-                                onClick = { isHelpMode = !isHelpMode },
-                                colors = IconButtonDefaults.filledIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            ) {
-                                if (isHelpMode) {
-                                    Icon(Icons.Default.Close, contentDescription = "Вимкнути підказки")
-                                } else {
-                                    Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = "Увімкнути підказки")
-                                }
+                        FilledIconButton(
+                            onClick = { isHelpMode = !isHelpMode },
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            if (isHelpMode) {
+                                Icon(Icons.Default.Close, contentDescription = "Вимкнути підказки")
+                            } else {
+                                Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = "Увімкнути підказки")
                             }
                         }
                     }
@@ -268,7 +260,16 @@ fun SummaryScreen(
         },
         floatingActionButton = {
             when {
-                isHistoryScreen -> Unit
+                showHistoryBackToTop -> {
+                    SmallFloatingActionButton(
+                        onClick = { scope.launch { historyListState.animateScrollToItem(0) } },
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        shape = CircleShape
+                    ) {
+                        Icon(Icons.Default.ArrowUpward, contentDescription = stringResource(R.string.back_to_top))
+                    }
+                }
                 selectedTabIndex == 0 && historySummariesRaw.isNotEmpty() && !isSelectionMode -> {
                     FloatingActionButton(
                         onClick = { isHistoryScreen = true },
@@ -328,6 +329,7 @@ fun SummaryScreen(
                     isSelectionMode = isSelectionMode,
                     activeSummaryModelName = activeSummaryModelName,
                     modifier = Modifier.weight(1f, fill = true),
+                    listState = historyListState,
                     onOpenSummary = { openedHistorySummaryId = it.id },
                     onToggleFavorite = viewModel::toggleFavorite,
                     onDeleteSummary = { summary ->
@@ -415,6 +417,24 @@ fun SummaryScreen(
                                 )
                             }
                         }
+                    } else {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillParentMaxHeight(0.6f)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Ще не було згенеровано жодного зведення.",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    lineHeight = 26.sp
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -496,6 +516,7 @@ private fun HistorySummaryList(
     selectedSummaryIds: List<Long>,
     isSelectionMode: Boolean,
     activeSummaryModelName: String?,
+    listState: androidx.compose.foundation.lazy.LazyListState,
     modifier: Modifier = Modifier,
     onOpenSummary: (Summary) -> Unit,
     onToggleFavorite: (Summary) -> Unit,
@@ -504,6 +525,7 @@ private fun HistorySummaryList(
     onToggleSelect: (Summary) -> Unit
 ) {
     LazyColumn(
+        state = listState,
         modifier = modifier,
         contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1053,7 +1075,7 @@ fun PrevNextStatusRow(
             StatusMiniCard(
                 label = stringResource(R.string.summary_previous_short),
                 status = previousSummaryAt?.let { formatStatusTimeAndDate(it) }
-                    ?: Pair(stringResource(R.string.summary_not_ready), ""),
+                    ?: Pair("Немає", ""),
                 modifier = Modifier.weight(1f)
             )
             StatusMiniCard(
@@ -1087,6 +1109,7 @@ private fun StatusMiniCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = 116.dp)
                 .padding(horizontal = 18.dp, vertical = 16.dp)
         ) {
             Text(

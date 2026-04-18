@@ -162,14 +162,20 @@ object PdfExporter {
             }
 
             fun drawWrapped(text: String, paint: Paint) {
-                val normalized = text.replace('\n', ' ')
-                var start = 0
-                while (start < normalized.length) {
-                    val count = paint.breakText(normalized, start, normalized.length, true, pageWidth - margin * 2, null)
-                    canvas.drawText(normalized, start, start + count, margin, y, paint)
-                    y += paint.fontSpacing
-                    if (y > pageHeight - margin) newPage()
-                    start += count
+                text.lines().forEach { line ->
+                    if (line.isBlank()) {
+                        y += paint.fontSpacing
+                        if (y > pageHeight - margin) newPage()
+                    } else {
+                        var start = 0
+                        while (start < line.length) {
+                            val count = paint.breakText(line, start, line.length, true, pageWidth - margin * 2, null)
+                            canvas.drawText(line, start, start + count, margin, y, paint)
+                            y += paint.fontSpacing
+                            if (y > pageHeight - margin) newPage()
+                            start += count
+                        }
+                    }
                 }
             }
 
