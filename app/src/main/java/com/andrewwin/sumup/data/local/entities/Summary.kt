@@ -9,7 +9,8 @@ data class Summary(
     val content: String,
     val strategy: AiStrategy = AiStrategy.ADAPTIVE,
     val createdAt: Long = System.currentTimeMillis(),
-    val isError: Boolean = false
+    val isError: Boolean = false,
+    val isFavorite: Boolean = false
 )
 
 

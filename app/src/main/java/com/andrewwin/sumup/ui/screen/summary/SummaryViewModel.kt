@@ -206,6 +206,12 @@ class SummaryViewModel @Inject constructor(
         }
     }
 
+    fun toggleFavorite(summary: Summary) {
+        viewModelScope.launch {
+            summaryRepository.setFavorite(summary.id, !summary.isFavorite)
+        }
+    }
+
     companion object {
         private const val SCHEDULED_SUMMARY_WORK_NAME = "scheduled_summary"
     }

@@ -20,6 +20,9 @@ interface SummaryDao {
     @Query("DELETE FROM summaries WHERE id IN (:summaryIds)")
     suspend fun deleteSummariesByIds(summaryIds: List<Long>)
 
+    @Query("UPDATE summaries SET isFavorite = :isFavorite WHERE id = :summaryId")
+    suspend fun setFavorite(summaryId: Long, isFavorite: Boolean)
+
     @Query("DELETE FROM summaries")
     suspend fun deleteAllSummaries()
 }

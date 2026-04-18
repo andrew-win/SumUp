@@ -38,9 +38,13 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.*
@@ -78,6 +82,18 @@ import java.util.*
 import kotlinx.coroutines.launch
 
 private const val InlineSourceChipMaxWidthDp = 92
+
+private enum class HistoryDateFilter(val label: String, val hours: Int?) {
+    ALL("Увесь час", null),
+    HOUR_24("24 год", 24),
+    DAY_7("7 дн", 24 * 7),
+    DAY_30("30 дн", 24 * 30)
+}
+
+private enum class HistorySavedFilter(val label: String, val favoritesOnly: Boolean) {
+    ALL("Усі", false),
+    FAVORITES("Обране", true)
+}
 private const val InlineSourceAnnotationTag = "summary_source"
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -101,10 +117,26 @@ fun SummaryScreen(
     var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
     var isHistoryScreen by rememberSaveable { mutableStateOf(false) }
     var openedHistorySummaryId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var historySearchQuery by rememberSaveable { mutableStateOf("") }
+    var historyDateFilter by rememberSaveable { mutableStateOf(HistoryDateFilter.ALL) }
+    var historySavedFilter by rememberSaveable { mutableStateOf(HistorySavedFilter.ALL) }
     val tabs = listOf("Заплановані", "Статистика")
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    val historySummaries = remember(summaries) { summaries.drop(1) }
+    val historySummariesRaw = remember(summaries) { summaries.drop(1) }
+    val historySummaries = remember(
+        historySummariesRaw,
+        historySearchQuery,
+        historyDateFilter,
+        historySavedFilter
+    ) {
+        filterHistorySummaries(
+            summaries = historySummariesRaw,
+            query = historySearchQuery,
+            dateFilter = historyDateFilter,
+            savedFilter = historySavedFilter
+        )
+    }
     val openedHistorySummary = remember(openedHistorySummaryId, summaries) {
         summaries.firstOrNull { it.id == openedHistorySummaryId }
     }
@@ -192,7 +224,7 @@ fun SummaryScreen(
         floatingActionButton = {
             when {
                 isHistoryScreen -> Unit
-                selectedTabIndex == 0 && historySummaries.isNotEmpty() && !isSelectionMode -> {
+                selectedTabIndex == 0 && historySummariesRaw.isNotEmpty() && !isSelectionMode -> {
                     FloatingActionButton(
                         onClick = { isHistoryScreen = true },
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -225,22 +257,41 @@ fun SummaryScreen(
         }
     ) { innerPadding ->
         if (isHistoryScreen) {
-            HistorySummaryList(
-                summaries = historySummaries,
-                selectedSummaryIds = selectedSummaryIds,
-                isSelectionMode = isSelectionMode,
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
-                onOpenSummary = { openedHistorySummaryId = it.id },
-                onLongSelect = { summary ->
-                    if (!selectedSummaryIds.contains(summary.id)) selectedSummaryIds.add(summary.id)
-                },
-                onToggleSelect = { summary ->
-                    if (selectedSummaryIds.contains(summary.id)) selectedSummaryIds.remove(summary.id)
-                    else selectedSummaryIds.add(summary.id)
-                }
-            )
+                    .padding(innerPadding)
+            ) {
+                HistorySummaryFilters(
+                    searchQuery = historySearchQuery,
+                    onSearchQueryChange = { historySearchQuery = it },
+                    dateFilter = historyDateFilter,
+                    onDateFilterChange = { historyDateFilter = it },
+                    savedFilter = historySavedFilter,
+                    onSavedFilterChange = { historySavedFilter = it },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+                HistorySummaryList(
+                    summaries = historySummaries,
+                    selectedSummaryIds = selectedSummaryIds,
+                    isSelectionMode = isSelectionMode,
+                    activeSummaryModelName = activeSummaryModelName,
+                    modifier = Modifier.weight(1f, fill = true),
+                    onOpenSummary = { openedHistorySummaryId = it.id },
+                    onToggleFavorite = viewModel::toggleFavorite,
+                    onDeleteSummary = { summary ->
+                        if (openedHistorySummaryId == summary.id) openedHistorySummaryId = null
+                        viewModel.deleteSummary(summary.id)
+                    },
+                    onLongSelect = { summary ->
+                        if (!selectedSummaryIds.contains(summary.id)) selectedSummaryIds.add(summary.id)
+                    },
+                    onToggleSelect = { summary ->
+                        if (selectedSummaryIds.contains(summary.id)) selectedSummaryIds.remove(summary.id)
+                        else selectedSummaryIds.add(summary.id)
+                    }
+                )
+            }
         } else {
             LazyColumn(
                 state = listState,
@@ -308,7 +359,8 @@ fun SummaryScreen(
                                 summary = lastSummary,
                                 activeSummaryModelName = activeSummaryModelName,
                                 onOpenWebView = onOpenWebView,
-                                onDelete = { viewModel.deleteSummary(lastSummary.id) }
+                                onDelete = { viewModel.deleteSummary(lastSummary.id) },
+                                onToggleFavorite = { viewModel.toggleFavorite(lastSummary) }
                                 )
                             }
                         }
@@ -340,7 +392,12 @@ fun SummaryScreen(
                 summary = openedHistorySummary,
                 activeSummaryModelName = activeSummaryModelName,
                 onDismiss = { openedHistorySummaryId = null },
-                onOpenWebView = onOpenWebView
+                onOpenWebView = onOpenWebView,
+                onDelete = {
+                    viewModel.deleteSummary(openedHistorySummary.id)
+                    openedHistorySummaryId = null
+                },
+                onToggleFavorite = { viewModel.toggleFavorite(openedHistorySummary) }
             )
         }
 
@@ -387,14 +444,17 @@ private fun HistorySummaryList(
     summaries: List<Summary>,
     selectedSummaryIds: List<Long>,
     isSelectionMode: Boolean,
+    activeSummaryModelName: String?,
     modifier: Modifier = Modifier,
     onOpenSummary: (Summary) -> Unit,
+    onToggleFavorite: (Summary) -> Unit,
+    onDeleteSummary: (Summary) -> Unit,
     onLongSelect: (Summary) -> Unit,
     onToggleSelect: (Summary) -> Unit
 ) {
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
+        contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(summaries, key = { it.id }) { summary ->
@@ -402,8 +462,136 @@ private fun HistorySummaryList(
                 summary = summary,
                 isSelected = selectedSummaryIds.contains(summary.id),
                 isSelectionMode = isSelectionMode,
+                activeSummaryModelName = activeSummaryModelName,
                 onClick = { if (isSelectionMode) onToggleSelect(summary) else onOpenSummary(summary) },
-                onLongClick = { onLongSelect(summary) }
+                onLongClick = { onLongSelect(summary) },
+                onToggleFavorite = { onToggleFavorite(summary) },
+                onDelete = { onDeleteSummary(summary) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun HistorySummaryFilters(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    dateFilter: HistoryDateFilter,
+    onDateFilterChange: (HistoryDateFilter) -> Unit,
+    savedFilter: HistorySavedFilter,
+    onSavedFilterChange: (HistorySavedFilter) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var showDateMenu by remember { mutableStateOf(false) }
+    var showSavedMenu by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = modifier.fillMaxWidth()
+    ) {
+        TextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = MaterialTheme.shapes.extraLarge,
+            placeholder = {
+                Text(
+                    text = "Шукайте зведення тут...",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            singleLine = true,
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                disabledIndicatorColor = Color.Transparent
+            )
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            HistoryFilterChip(
+                icon = Icons.Default.CalendarToday,
+                label = dateFilter.label,
+                onClick = { showDateMenu = true }
+            )
+            HistoryFilterChip(
+                icon = Icons.Default.Bookmark,
+                label = savedFilter.label,
+                onClick = { showSavedMenu = true }
+            )
+
+            DropdownMenu(expanded = showDateMenu, onDismissRequest = { showDateMenu = false }) {
+                HistoryDateFilter.entries.forEach { filter ->
+                    DropdownMenuItem(
+                        text = { Text(filter.label) },
+                        onClick = {
+                            onDateFilterChange(filter)
+                            showDateMenu = false
+                        }
+                    )
+                }
+            }
+
+            DropdownMenu(expanded = showSavedMenu, onDismissRequest = { showSavedMenu = false }) {
+                HistorySavedFilter.entries.forEach { filter ->
+                    DropdownMenuItem(
+                        text = { Text(filter.label) },
+                        onClick = {
+                            onSavedFilterChange(filter)
+                            showSavedMenu = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryFilterChip(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
+        modifier = Modifier.height(32.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
             )
         }
     }
@@ -415,13 +603,17 @@ private fun HistorySummaryCard(
     summary: Summary,
     isSelected: Boolean,
     isSelectionMode: Boolean,
+    activeSummaryModelName: String?,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onDelete: () -> Unit
 ) {
     val preview = remember(summary.content) { extractSummaryPreview(summary.content) }
     val dateLabel = remember(summary.createdAt) {
         SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")).format(Date(summary.createdAt))
     }
+    val context = LocalContext.current
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -463,6 +655,16 @@ private fun HistorySummaryCard(
                 color = if (isSelectionMode) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 else MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (!isSelectionMode) {
+                SummaryFooterRow(
+                    summary = summary,
+                    isError = summary.isError,
+                    context = context,
+                    modelName = activeSummaryModelName,
+                    onToggleFavorite = onToggleFavorite,
+                    onDelete = onDelete
+                )
+            }
         }
     }
 }
@@ -472,7 +674,9 @@ private fun HistorySummaryDialog(
     summary: Summary,
     activeSummaryModelName: String?,
     onDismiss: () -> Unit,
-    onOpenWebView: (String) -> Unit
+    onOpenWebView: (String) -> Unit,
+    onDelete: () -> Unit,
+    onToggleFavorite: () -> Unit
 ) {
     val context = LocalContext.current
     val blocks = remember(summary.content) { parseSummaryBlocks(summary.content) }
@@ -497,7 +701,7 @@ private fun HistorySummaryDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 24.dp, bottom = 14.dp),
+                        .padding(top = 34.dp, bottom = 14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -543,7 +747,9 @@ private fun HistorySummaryDialog(
                         summary = summary,
                         isError = false,
                         context = context,
-                        modelName = activeSummaryModelName
+                        modelName = activeSummaryModelName,
+                        onToggleFavorite = onToggleFavorite,
+                        onDelete = onDelete
                     )
                 }
             }
@@ -840,7 +1046,8 @@ private fun LatestScheduledSummaryView(
     summary: Summary,
     activeSummaryModelName: String?,
     onOpenWebView: (String) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onToggleFavorite: () -> Unit
 ) {
     val isError = summary.content.startsWith(stringResource(R.string.error_prefix)) ||
             summary.content.startsWith(stringResource(R.string.no_articles_prefix))
@@ -892,6 +1099,7 @@ private fun LatestScheduledSummaryView(
             isError = isError,
             context = context,
             modelName = activeSummaryModelName,
+            onToggleFavorite = onToggleFavorite,
             onDelete = onDelete
         )
     }
@@ -1027,6 +1235,7 @@ private fun SummaryFooterRow(
     isError: Boolean,
     context: Context,
     modelName: String?,
+    onToggleFavorite: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     val compactModel = modelName
@@ -1094,6 +1303,20 @@ private fun SummaryFooterRow(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        if (onToggleFavorite != null) {
+            Spacer(Modifier.width(8.dp))
+            IconButton(
+                onClick = onToggleFavorite,
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    imageVector = if (summary.isFavorite) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                    contentDescription = if (summary.isFavorite) "Remove from favorites" else "Add to favorites",
+                    modifier = Modifier.size(18.dp),
+                    tint = if (summary.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         if (onDelete != null) {
             Spacer(Modifier.width(8.dp))
             IconButton(
@@ -1108,6 +1331,22 @@ private fun SummaryFooterRow(
                 )
             }
         }
+    }
+}
+
+private fun filterHistorySummaries(
+    summaries: List<Summary>,
+    query: String,
+    dateFilter: HistoryDateFilter,
+    savedFilter: HistorySavedFilter
+): List<Summary> {
+    val now = System.currentTimeMillis()
+    val queryText = query.trim()
+    return summaries.filter { summary ->
+        val matchesQuery = queryText.isBlank() || summary.content.contains(queryText, ignoreCase = true)
+        val matchesSaved = !savedFilter.favoritesOnly || summary.isFavorite
+        val matchesDate = dateFilter.hours == null || summary.createdAt >= now - dateFilter.hours * 60L * 60L * 1000L
+        matchesQuery && matchesSaved && matchesDate
     }
 }
 

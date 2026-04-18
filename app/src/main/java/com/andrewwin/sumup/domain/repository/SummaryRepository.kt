@@ -8,6 +8,7 @@ interface SummaryRepository {
     suspend fun insertSummary(summary: Summary)
     suspend fun deleteSummaryById(summaryId: Long)
     suspend fun deleteSummariesByIds(summaryIds: List<Long>)
+    suspend fun setFavorite(summaryId: Long, isFavorite: Boolean)
 }
 
 
