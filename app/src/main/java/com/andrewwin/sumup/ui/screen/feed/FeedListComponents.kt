@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -30,8 +32,6 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -255,6 +255,7 @@ fun ArticleClusterCard(
     isDedupInProgress: Boolean,
     minMentions: Int
 ) {
+    val context = LocalContext.current
     val publishedAt = cluster.representative.article.publishedAt
     val formattedDate = formatClusterDate(publishedAt)
 
@@ -287,7 +288,8 @@ fun ArticleClusterCard(
                     onAiClick = {
                         if (cluster.duplicates.isNotEmpty()) onClusterAiClick() else onAiClick(cluster.representative)
                     },
-                    onToggleSaved = { onToggleSaved(cluster.representative) }
+                    onToggleSaved = { onToggleSaved(cluster.representative) },
+                    showActions = false
                 )
 
                 if (cluster.duplicates.isNotEmpty()) {
@@ -310,13 +312,17 @@ fun ArticleClusterCard(
                             )
                         }
 
-                        cluster.duplicates.forEach { (uiModel, score) ->
-                            DuplicateItem(
-                                uiModel = uiModel,
-                                score = score,
-                                onOpenSource = { onOpenSource(uiModel) },
-                                onAiClick = { onAiClick(uiModel) }
-                            )
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            items(cluster.duplicates, key = { it.first.article.id }) { (uiModel, score) ->
+                                DuplicateItemCard(
+                                    uiModel = uiModel,
+                                    score = score,
+                                    onOpenSource = { onOpenSource(uiModel) }
+                                )
+                            }
                         }
 
                         if (isDedupInProgress) {
@@ -336,6 +342,15 @@ fun ArticleClusterCard(
                         }
                     }
                 }
+
+                ClusterActionRow(
+                    isFavorite = cluster.representative.article.isFavorite,
+                    onAiClick = {
+                        if (cluster.duplicates.isNotEmpty()) onClusterAiClick() else onAiClick(cluster.representative)
+                    },
+                    onToggleSaved = { onToggleSaved(cluster.representative) },
+                    onShare = { shareArticleLink(context, cluster.representative.article.url) }
+                )
             }
         }
     }
@@ -349,7 +364,8 @@ fun ArticleItem(
     onMediaClick: (String) -> Unit,
     onOpenSource: () -> Unit,
     onAiClick: () -> Unit,
-    onToggleSaved: () -> Unit
+    onToggleSaved: () -> Unit,
+    showActions: Boolean = true
 ) {
     val context = LocalContext.current
     val mediaUrl = uiModel.article.mediaUrl
@@ -447,82 +463,74 @@ fun ArticleItem(
             )
         }
 
-        Spacer(Modifier.height(8.dp))
+        if (showActions) {
+            Spacer(Modifier.height(8.dp))
+            ClusterActionRow(
+                isFavorite = uiModel.article.isFavorite,
+                onAiClick = onAiClick,
+                onToggleSaved = onToggleSaved,
+                onShare = { shareArticleLink(context = context, articleUrl = uiModel.article.url) }
+            )
+        }
+    }
+}
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+@Composable
+private fun ClusterActionRow(
+    isFavorite: Boolean,
+    onAiClick: () -> Unit,
+    onToggleSaved: () -> Unit,
+    onShare: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.End
+    ) {
+        IconButton(
+            onClick = onAiClick,
+            modifier = Modifier.size(36.dp)
         ) {
-            Button(
-                onClick = onAiClick,
-                modifier = Modifier.weight(1f).height(40.dp),
-                shape = MaterialTheme.shapes.large,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ask_ai),
-                    contentDescription = "Summarize",
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+            Icon(
+                painter = painterResource(R.drawable.ic_ask_ai),
+                contentDescription = "Summarize",
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(
+            onClick = onToggleSaved,
+            modifier = Modifier.size(36.dp)
+        ) {
+            val bookmarkIcon = if (isFavorite) {
+                Icons.Default.Bookmark
+            } else {
+                Icons.Outlined.BookmarkBorder
             }
-            Button(
-                onClick = onToggleSaved,
-                modifier = Modifier.weight(1f).height(40.dp),
-                shape = MaterialTheme.shapes.large,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (uiModel.article.isFavorite) {
-                        MaterialTheme.colorScheme.secondaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant
-                    },
-                    contentColor = if (uiModel.article.isFavorite) {
-                        MaterialTheme.colorScheme.onSecondaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                )
-            ) {
-                val bookmarkIcon = if (uiModel.article.isFavorite) {
-                    Icons.Default.Bookmark
-                } else {
-                    Icons.Outlined.BookmarkBorder
-                }
-                val tint = if (uiModel.article.isFavorite) {
-                    MaterialTheme.colorScheme.onSecondaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                }
-                Icon(
-                    imageVector = bookmarkIcon,
-                    contentDescription = "Bookmark",
-                    modifier = Modifier.size(20.dp),
-                    tint = tint
-                )
+            val tint = if (isFavorite) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
             }
-            Button(
-                onClick = { shareArticleLink(context = context, articleUrl = uiModel.article.url) },
-                modifier = Modifier.weight(1f).height(40.dp),
-                shape = MaterialTheme.shapes.large,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Share,
-                    contentDescription = "Share",
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onTertiaryContainer
-                )
-            }
+            Icon(
+                imageVector = bookmarkIcon,
+                contentDescription = "Bookmark",
+                modifier = Modifier.size(18.dp),
+                tint = tint
+            )
+        }
+        IconButton(
+            onClick = onShare,
+            modifier = Modifier.size(36.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Share,
+                contentDescription = "Share",
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -544,64 +552,79 @@ private fun shareArticleLink(
 }
 
 @Composable
-fun DuplicateItem(
+fun DuplicateItemCard(
     uiModel: ArticleUiModel,
     score: Float,
-    onOpenSource: () -> Unit,
-    onAiClick: () -> Unit
+    onOpenSource: () -> Unit
 ) {
     val scoreInt = (score * 100).toInt()
 
-    Row(
+    Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .clickable { onOpenSource() }
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .width(236.dp)
+            .height(132.dp)
+            .clickable { onOpenSource() },
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Surface(
-            shape = MaterialTheme.shapes.small,
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
-            modifier = Modifier.width(48.dp).height(28.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(14.dp)
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Text(
-                    text = "${scoreInt}%",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = uiModel.sourceName ?: "",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Text(
+                        text = "${scoreInt}%",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
             }
-        }
 
-        Column(modifier = Modifier.weight(1f)) {
+            Spacer(Modifier.height(10.dp))
             Text(
                 text = uiModel.displayTitle,
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = FontWeight.Medium,
-                    lineHeight = 18.sp
+                    lineHeight = 19.sp
                 ),
-                maxLines = 2,
+                maxLines = 4,
                 overflow = TextOverflow.Ellipsis
             )
-            uiModel.sourceName?.let { src ->
-                Text(
-                    text = src,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    modifier = Modifier.padding(top = 2.dp)
+            Spacer(Modifier.weight(1f))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
             }
         }
-
-        Icon(
-            imageVector = Icons.Default.ChevronRight,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-        )
     }
 }
