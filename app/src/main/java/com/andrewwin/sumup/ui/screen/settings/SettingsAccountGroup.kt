@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
+import com.andrewwin.sumup.ui.theme.appCardBorder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -93,10 +94,7 @@ fun SettingsAccountGroup(
                         modifier = Modifier
                             .size(72.dp)
                             .border(
-                                border = androidx.compose.foundation.BorderStroke(
-                                    width = 1.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-                                ),
+                                border = appCardBorder(),
                                 shape = CircleShape
                             )
                             .background(

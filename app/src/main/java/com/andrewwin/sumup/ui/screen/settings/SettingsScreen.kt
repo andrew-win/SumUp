@@ -1000,6 +1000,7 @@ fun SettingsScreen(
                 viewModel = viewModel,
                 config = config,
                 type = type,
+                existingConfigs = if (type == AiModelType.SUMMARY) summaryConfigs else embeddingConfigs,
                 onDismiss = { showConfigDialog = null },
                 onConfirm = { viewModel.addAiConfig(it); showConfigDialog = null }
             )
@@ -1383,6 +1384,7 @@ fun AiConfigDialog(
     viewModel: SettingsViewModel,
     config: AiModelConfig? = null,
     type: AiModelType,
+    existingConfigs: List<AiModelConfig>,
     onDismiss: () -> Unit,
     onConfirm: (AiModelConfig) -> Unit
 ) {
@@ -1390,6 +1392,7 @@ fun AiConfigDialog(
     var apiKey by remember(config?.id) { mutableStateOf(config?.apiKey ?: "") }
     var provider by remember(config?.id) { mutableStateOf(config?.provider ?: AiProvider.GEMINI) }
     var modelName by remember(config?.id) { mutableStateOf(config?.modelName ?: "") }
+    val providerLabel = stringResource(provider.labelRes)
     
     val availableModels by viewModel.availableModels.collectAsState()
     val isLoadingModels by viewModel.isLoadingModels.collectAsState()
@@ -1427,6 +1430,7 @@ fun AiConfigDialog(
                         value = name,
                         onValueChange = { name = it },
                         label = { Text(stringResource(R.string.dialog_config_name)) },
+                        placeholder = { Text(stringResource(R.string.dialog_config_name_hint)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         shape = MaterialTheme.shapes.large
@@ -1554,14 +1558,34 @@ fun AiConfigDialog(
                     }
                     Button(
                         onClick = {
-                            if (name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()) {
+                            val trimmedApiKey = apiKey.trim()
+                            val trimmedModelName = modelName.trim()
+                            val resolvedName = name.trim().ifBlank {
+                                buildAutoAiConfigName(
+                                    providerLabel = providerLabel,
+                                    provider = provider,
+                                    existingConfigs = existingConfigs,
+                                    editingConfigId = config?.id
+                                )
+                            }
+                            if (trimmedApiKey.isNotBlank() && trimmedModelName.isNotBlank()) {
                                 onConfirm(
-                                    config?.copy(name = name, provider = provider, apiKey = apiKey, modelName = modelName)
-                                        ?: AiModelConfig(name = name, provider = provider, apiKey = apiKey, modelName = modelName, type = type)
+                                    config?.copy(
+                                        name = resolvedName,
+                                        provider = provider,
+                                        apiKey = trimmedApiKey,
+                                        modelName = trimmedModelName
+                                    ) ?: AiModelConfig(
+                                        name = resolvedName,
+                                        provider = provider,
+                                        apiKey = trimmedApiKey,
+                                        modelName = trimmedModelName,
+                                        type = type
+                                    )
                                 )
                             }
                         },
-                        enabled = name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank() && !isLoadingModels,
+                        enabled = apiKey.isNotBlank() && modelName.isNotBlank() && !isLoadingModels,
                         modifier = Modifier.weight(1f),
                         shape = MaterialTheme.shapes.large
                     ) {
@@ -1572,6 +1596,32 @@ fun AiConfigDialog(
 
         }
     }
+}
+
+private fun buildAutoAiConfigName(
+    providerLabel: String,
+    provider: AiProvider,
+    existingConfigs: List<AiModelConfig>,
+    editingConfigId: Long?
+): String {
+    val usedNumbers = existingConfigs
+        .asSequence()
+        .filter { it.id != editingConfigId && it.provider == provider }
+        .mapNotNull { config ->
+            val normalizedName = config.name.trim()
+            val prefix = "$providerLabel "
+            if (normalizedName.startsWith(prefix)) {
+                normalizedName.removePrefix(prefix).toIntOrNull()
+            } else {
+                null
+            }
+        }
+        .toSet()
+
+    val nextNumber = generateSequence(1) { it + 1 }
+        .first { it !in usedNumbers }
+
+    return "$providerLabel $nextNumber"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -46,6 +46,9 @@ import com.andrewwin.sumup.data.local.dao.GroupWithSources
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.ui.theme.AppCardShape
+import com.andrewwin.sumup.ui.theme.appCardBorder
+import com.andrewwin.sumup.ui.theme.appCardColors
 
 private val SourceType.iconRes: Int
     get() = when (this) {
@@ -368,18 +371,17 @@ fun GroupCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
+        shape = AppCardShape,
+        colors = appCardColors(
             containerColor = if (isSelected) {
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
             } else {
-                MaterialTheme.colorScheme.surfaceContainer
+                MaterialTheme.colorScheme.surfaceContainerHigh
             }
         ),
-        border = BorderStroke(
-            1.dp,
+        border = appCardBorder(
             if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -725,9 +727,9 @@ fun SourceDialog(
                 ) {
                     if (showDetailedHelp) {
                         Surface(
-                            shape = MaterialTheme.shapes.large,
-                            color = MaterialTheme.colorScheme.surfaceContainer,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                            shape = AppCardShape,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            border = appCardBorder(),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -879,9 +881,9 @@ fun SuggestedThemeItem(
     val targetSubscribedState = !suggestion.isSubscribed
     Surface(
         onClick = { onToggle(targetSubscribedState) },
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
+        shape = AppCardShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = appCardBorder(),
         modifier = modifier.padding(vertical = 4.dp).heightIn(min = 72.dp)
     ) {
         Column(

@@ -67,6 +67,9 @@ import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
+import com.andrewwin.sumup.ui.theme.AppCardShape
+import com.andrewwin.sumup.ui.theme.appCardBorder
+import com.andrewwin.sumup.ui.theme.appCardColors
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -213,7 +216,7 @@ private fun FilterMenuChip(
         onClick = onClick,
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
+        border = appCardBorder(),
         modifier = Modifier.height(32.dp)
     ) {
         Row(
@@ -271,11 +274,9 @@ fun ArticleClusterCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { onOpenSource(cluster.representative) },
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
+            shape = AppCardShape,
+            colors = appCardColors(),
+            border = appCardBorder(),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column {
@@ -293,16 +294,18 @@ fun ArticleClusterCard(
                 )
 
                 if (cluster.duplicates.isNotEmpty()) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    )
-
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(
+                        modifier = Modifier.padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 0.dp,
+                            bottom = 8.dp
+                        )
+                    ) {
                         Surface(
                             shape = MaterialTheme.shapes.small,
                             color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.padding(bottom = 12.dp)
+                            modifier = Modifier.padding(bottom = 8.dp)
                         ) {
                             Text(
                                 text = stringResource(R.string.feed_similar_news, cluster.duplicates.size),
@@ -484,24 +487,24 @@ private fun ClusterActionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = 12.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.End
     ) {
         IconButton(
             onClick = onAiClick,
-            modifier = Modifier.size(36.dp)
+            modifier = Modifier.size(42.dp)
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_ask_ai),
                 contentDescription = "Summarize",
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(22.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         IconButton(
             onClick = onToggleSaved,
-            modifier = Modifier.size(36.dp)
+            modifier = Modifier.size(42.dp)
         ) {
             val bookmarkIcon = if (isFavorite) {
                 Icons.Default.Bookmark
@@ -516,18 +519,18 @@ private fun ClusterActionRow(
             Icon(
                 imageVector = bookmarkIcon,
                 contentDescription = "Bookmark",
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(22.dp),
                 tint = tint
             )
         }
         IconButton(
             onClick = onShare,
-            modifier = Modifier.size(36.dp)
+            modifier = Modifier.size(42.dp)
         ) {
             Icon(
                 imageVector = Icons.Outlined.Share,
                 contentDescription = "Share",
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(22.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -563,11 +566,9 @@ fun DuplicateItemCard(
             .width(264.dp)
             .height(132.dp)
             .clickable { onOpenSource() },
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)),
+        shape = AppCardShape,
+        colors = appCardColors(),
+        border = appCardBorder(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(

@@ -69,8 +69,8 @@
     <string name="settings_user_name">User name</string>
     <string name="settings_user_email">email@gmail.com</string>
     <string name="settings_login_logout">Sign in / Sign out</string>
-    <string name="dialog_config_name">Configuration name</string>
-    <string name="dialog_config_name_hint">E.g. My Gemini</string>
+    <string name="dialog_config_name">Name (auto-generated if left blank)</string>
+    <string name="dialog_config_name_hint">Name (auto-generated if left blank)</string>
     <string name="dialog_provider">Provider</string>
     <string name="dialog_api_key">API key</string>
     <string name="dialog_model">Model</string>

@@ -15,6 +15,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.andrewwin.sumup.ui.theme.AppCardShape
+import com.andrewwin.sumup.ui.theme.appCardBorder
+import com.andrewwin.sumup.ui.theme.appCardColors
 
 @Composable
 fun SettingsSection(
@@ -63,9 +66,9 @@ fun SettingsSection(
     if (boxed) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)),
+            shape = AppCardShape,
+            colors = appCardColors(),
+            border = appCardBorder(),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(modifier = Modifier.padding(14.dp)) {

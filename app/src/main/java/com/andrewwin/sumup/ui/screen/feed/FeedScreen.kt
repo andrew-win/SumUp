@@ -26,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -37,13 +38,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.andrewwin.sumup.R
@@ -385,8 +389,8 @@ fun FeedScreen(
         // Expanded image dialog
         if (expandedImageUrl != null) {
             var scale by remember(expandedImageUrl) { mutableStateOf(1f) }
-            var offsetX by remember(expandedImageUrl) { mutableStateOf(0f) }
-            var offsetY by remember(expandedImageUrl) { mutableStateOf(0f) }
+            var offset by remember(expandedImageUrl) { mutableStateOf(Offset.Zero) }
+            var viewportSize by remember(expandedImageUrl) { mutableStateOf(Size.Zero) }
 
             Dialog(
                 onDismissRequest = { expandedImageUrl = null },
@@ -399,33 +403,60 @@ fun FeedScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Black)
+                        .padding(8.dp)
+                        .clipToBounds()
+                        .onSizeChanged { viewportSize = Size(it.width.toFloat(), it.height.toFloat()) }
                 ) {
                     AsyncImage(
                         model = expandedImageUrl,
                         contentDescription = null,
                         modifier = Modifier
                             .fillMaxSize()
+                            .pointerInput(expandedImageUrl, scale, viewportSize) {
+                                detectTapGestures(
+                                    onDoubleTap = { tapOffset ->
+                                        if (viewportSize == Size.Zero) return@detectTapGestures
+
+                                        if (scale > 1f) {
+                                            scale = 1f
+                                            offset = Offset.Zero
+                                        } else {
+                                            val nextScale = 2f
+                                            scale = nextScale
+                                            offset = clampImageOffset(
+                                                rawOffset = Offset(
+                                                    x = (viewportSize.width / 2f - tapOffset.x) * (nextScale - 1f),
+                                                    y = (viewportSize.height / 2f - tapOffset.y) * (nextScale - 1f)
+                                                ),
+                                                scale = nextScale,
+                                                viewportSize = viewportSize
+                                            )
+                                        }
+                                    }
+                                )
+                            }
                             .pointerInput(expandedImageUrl) {
                                 detectTransformGestures { _: Offset, pan: Offset, zoom: Float, _: Float ->
                                     val nextScale = (scale * zoom).coerceIn(1f, 5f)
                                     if (nextScale <= 1f) {
                                         scale = 1f
-                                        offsetX = 0f
-                                        offsetY = 0f
+                                        offset = Offset.Zero
                                     } else {
                                         scale = nextScale
-                                        offsetX += pan.x
-                                        offsetY += pan.y
+                                        offset = clampImageOffset(
+                                            rawOffset = offset + pan,
+                                            scale = nextScale,
+                                            viewportSize = viewportSize
+                                        )
                                     }
                                 }
                             }
                             .graphicsLayer(
                                 scaleX = scale,
                                 scaleY = scale,
-                                translationX = offsetX,
-                                translationY = offsetY
-                            )
-                            .padding(8.dp),
+                                translationX = offset.x,
+                                translationY = offset.y
+                            ),
                         contentScale = ContentScale.Fit
                     )
                     IconButton(
@@ -442,6 +473,22 @@ fun FeedScreen(
             }
         }
     }
+}
+
+private fun clampImageOffset(
+    rawOffset: Offset,
+    scale: Float,
+    viewportSize: Size
+): Offset {
+    if (scale <= 1f || viewportSize == Size.Zero) return Offset.Zero
+
+    val maxX = ((viewportSize.width * scale) - viewportSize.width) / 2f
+    val maxY = ((viewportSize.height * scale) - viewportSize.height) / 2f
+
+    return Offset(
+        x = rawOffset.x.coerceIn(-maxX, maxX),
+        y = rawOffset.y.coerceIn(-maxY, maxY)
+    )
 }
 
 @Composable

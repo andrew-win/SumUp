@@ -137,7 +137,7 @@ fun SummaryScreen(
     var historySearchQuery by rememberSaveable { mutableStateOf("") }
     var historyDateFilter by rememberSaveable { mutableStateOf(HistoryDateFilter.HOUR_24) }
     var historySavedFilter by rememberSaveable { mutableStateOf(HistorySavedFilter.ALL) }
-    val tabs = listOf("Заплановані", "Статистика")
+    val tabIcons = listOf(Icons.Default.Schedule, Icons.Default.BarChart)
     val listState = rememberLazyListState()
     val historyListState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -157,13 +157,6 @@ fun SummaryScreen(
     }
     val openedHistorySummary = remember(openedHistorySummaryId, summaries) {
         summaries.firstOrNull { it.id == openedHistorySummaryId }
-    }
-    val showBackToTop by remember {
-        derivedStateOf {
-            !isHistoryScreen &&
-                selectedTabIndex == 1 &&
-                (listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 100)
-        }
     }
     val showHistoryBackToTop by remember {
         derivedStateOf {
@@ -281,7 +274,7 @@ fun SummaryScreen(
                         Icon(Icons.Default.ArrowUpward, contentDescription = stringResource(R.string.back_to_top))
                     }
                 }
-                selectedTabIndex == 0 && historySummariesRaw.isNotEmpty() && !isSelectionMode -> {
+                !isHistoryScreen && selectedTabIndex == 0 && historySummariesRaw.isNotEmpty() && !isSelectionMode -> {
                     FloatingActionButton(
                         onClick = { isHistoryScreen = true },
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -296,66 +289,46 @@ fun SummaryScreen(
                         )
                     }
                 }
-                else -> AnimatedVisibility(
-                    visible = showBackToTop,
-                    enter = fadeIn() + scaleIn(),
-                    exit = fadeOut() + scaleOut()
-                ) {
-                    SmallFloatingActionButton(
-                        onClick = { scope.launch { listState.animateScrollToItem(0) } },
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        shape = CircleShape
-                    ) {
-                        Icon(Icons.Default.ArrowUpward, contentDescription = stringResource(R.string.back_to_top))
-                    }
-                }
+                else -> Unit
             }
         }
     ) { innerPadding ->
         if (isHistoryScreen) {
-            Column(
+            HistorySummaryList(
+                summaries = historySummaries,
+                selectedSummaryIds = selectedSummaryIds,
+                isSelectionMode = isSelectionMode,
+                activeSummaryModelName = activeSummaryModelName,
+                listState = historyListState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                HistorySummaryFilters(
-                    searchQuery = historySearchQuery,
-                    onSearchQueryChange = { historySearchQuery = it },
-                    dateFilter = historyDateFilter,
-                    onDateFilterChange = { historyDateFilter = it },
-                    savedFilter = historySavedFilter,
-                    onSavedFilterChange = { historySavedFilter = it },
-                    onExportPdf = {
-                        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                        val name = context.getString(R.string.summary_pdf_file_name, date)
-                        exportLauncher.launch(name)
-                    },
-                    isExportEnabled = historySummaries.isNotEmpty(),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-                HistorySummaryList(
-                    summaries = historySummaries,
-                    selectedSummaryIds = selectedSummaryIds,
-                    isSelectionMode = isSelectionMode,
-                    activeSummaryModelName = activeSummaryModelName,
-                    modifier = Modifier.weight(1f, fill = true),
-                    listState = historyListState,
-                    onOpenSummary = { openedHistorySummaryId = it.id },
-                    onToggleFavorite = viewModel::toggleFavorite,
-                    onDeleteSummary = { summary ->
-                        if (openedHistorySummaryId == summary.id) openedHistorySummaryId = null
-                        viewModel.deleteSummary(summary.id)
-                    },
-                    onLongSelect = { summary ->
-                        if (!selectedSummaryIds.contains(summary.id)) selectedSummaryIds.add(summary.id)
-                    },
-                    onToggleSelect = { summary ->
-                        if (selectedSummaryIds.contains(summary.id)) selectedSummaryIds.remove(summary.id)
-                        else selectedSummaryIds.add(summary.id)
-                    }
-                )
-            }
+                    .padding(innerPadding),
+                searchQuery = historySearchQuery,
+                onSearchQueryChange = { historySearchQuery = it },
+                dateFilter = historyDateFilter,
+                onDateFilterChange = { historyDateFilter = it },
+                savedFilter = historySavedFilter,
+                onSavedFilterChange = { historySavedFilter = it },
+                onExportPdf = {
+                    val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    val name = context.getString(R.string.summary_pdf_file_name, date)
+                    exportLauncher.launch(name)
+                },
+                isExportEnabled = historySummaries.isNotEmpty(),
+                onOpenSummary = { openedHistorySummaryId = it.id },
+                onToggleFavorite = viewModel::toggleFavorite,
+                onDeleteSummary = { summary ->
+                    if (openedHistorySummaryId == summary.id) openedHistorySummaryId = null
+                    viewModel.deleteSummary(summary.id)
+                },
+                onLongSelect = { summary ->
+                    if (!selectedSummaryIds.contains(summary.id)) selectedSummaryIds.add(summary.id)
+                },
+                onToggleSelect = { summary ->
+                    if (selectedSummaryIds.contains(summary.id)) selectedSummaryIds.remove(summary.id)
+                    else selectedSummaryIds.add(summary.id)
+                }
+            )
         } else {
             LazyColumn(
                 state = listState,
@@ -370,22 +343,16 @@ fun SummaryScreen(
                         selectedTabIndex = selectedTabIndex,
                         containerColor = Color.Transparent
                     ) {
-                        tabs.forEachIndexed { index, title ->
+                        tabIcons.forEachIndexed { index, icon ->
                             Tab(
                                 selected = selectedTabIndex == index,
                                 onClick = { selectedTabIndex = index },
-                                text = {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Icon(
-                                        imageVector = if (index == 0) Icons.Default.Schedule else Icons.Default.BarChart,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Text(title)
-                                    }
+                                icon = {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(24.dp)
+                                    )
                                 }
                             )
                         }
@@ -528,6 +495,14 @@ private fun HistorySummaryList(
     isSelectionMode: Boolean,
     activeSummaryModelName: String?,
     listState: androidx.compose.foundation.lazy.LazyListState,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    dateFilter: HistoryDateFilter,
+    onDateFilterChange: (HistoryDateFilter) -> Unit,
+    savedFilter: HistorySavedFilter,
+    onSavedFilterChange: (HistorySavedFilter) -> Unit,
+    onExportPdf: () -> Unit,
+    isExportEnabled: Boolean,
     modifier: Modifier = Modifier,
     onOpenSummary: (Summary) -> Unit,
     onToggleFavorite: (Summary) -> Unit,
@@ -538,9 +513,22 @@ private fun HistorySummaryList(
     LazyColumn(
         state = listState,
         modifier = modifier,
-        contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
+        contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        item {
+            HistorySummaryFilters(
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange,
+                dateFilter = dateFilter,
+                onDateFilterChange = onDateFilterChange,
+                savedFilter = savedFilter,
+                onSavedFilterChange = onSavedFilterChange,
+                onExportPdf = onExportPdf,
+                isExportEnabled = isExportEnabled,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
         items(summaries, key = { it.id }) { summary ->
             HistorySummaryCard(
                 summary = summary,
@@ -1711,7 +1699,7 @@ private fun InlineSummaryRow(
             append(" ")
             appendInlineContent(inlineId, "[source]")
         }
-        val chipWidthEm = ((sourceName.length.coerceAtMost(18) + 5) * 0.58f).em
+        val chipWidthEm = ((sourceName.length.coerceAtMost(20) + 6) * 0.62f).em
         BasicText(
             text = annotated,
             style = effectiveStyle.copy(color = MaterialTheme.colorScheme.onSurface),
@@ -1720,13 +1708,13 @@ private fun InlineSummaryRow(
                 inlineId to InlineTextContent(
                     Placeholder(
                         width = chipWidthEm,
-                        height = 1.55.em,
+                        height = 1.72.em,
                         placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
                     )
                 ) {
                     Surface(
                         onClick = { onOpenWebView(normalizeSummaryUrlForWebView(sourceUrl)) },
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(11.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHighest,
                         border = BorderStroke(
                             1.dp,
@@ -1734,19 +1722,19 @@ private fun InlineSummaryRow(
                         )
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Link,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(12.dp)
+                                modifier = Modifier.size(13.dp)
                             )
                             Text(
                                 text = sourceName,
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis

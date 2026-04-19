@@ -67,6 +67,8 @@ import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
+import com.andrewwin.sumup.ui.theme.AppCardShape
+import com.andrewwin.sumup.ui.theme.appCardBorder
 import com.andrewwin.sumup.ui.util.SummaryBlockUi
 import com.andrewwin.sumup.ui.util.ThemeItem
 import com.andrewwin.sumup.ui.util.cleanSummaryTextForSharing
@@ -416,9 +418,9 @@ private fun CompareBlockCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
+        shape = AppCardShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = appCardBorder()
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -464,9 +466,9 @@ private fun LegacySummarySectionView(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f))
+        shape = AppCardShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = appCardBorder()
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -491,9 +493,9 @@ private fun PlainListSummarySectionView(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f))
+        shape = AppCardShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = appCardBorder()
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -521,9 +523,9 @@ private fun ThemeSummarySectionView(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f))
+        shape = AppCardShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = appCardBorder()
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -571,7 +573,7 @@ private fun InlineSummaryRow(
             append(" ")
             appendInlineContent(inlineId, "[source]")
         }
-        val chipWidthEm = ((sourceName.length.coerceAtMost(18) + 5) * 0.58f).em
+        val chipWidthEm = ((sourceName.length.coerceAtMost(20) + 6) * 0.62f).em
         BasicText(
             text = annotated,
             style = effectiveStyle.copy(color = MaterialTheme.colorScheme.onSurface),
@@ -580,13 +582,13 @@ private fun InlineSummaryRow(
                 inlineId to InlineTextContent(
                     Placeholder(
                         width = chipWidthEm,
-                        height = 1.55.em,
+                        height = 1.72.em,
                         placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
                     )
                 ) {
                     Surface(
                         onClick = { onOpenWebView(normalizeSummaryUrlForWebView(sourceUrl)) },
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(11.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHighest,
                         border = BorderStroke(
                             1.dp,
@@ -594,19 +596,19 @@ private fun InlineSummaryRow(
                         )
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Link,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(12.dp)
+                                modifier = Modifier.size(13.dp)
                             )
                             Text(
                                 text = sourceName,
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis

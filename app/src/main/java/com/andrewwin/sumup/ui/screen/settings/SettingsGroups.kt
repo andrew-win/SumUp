@@ -24,6 +24,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
+import com.andrewwin.sumup.ui.theme.AppCardShape
+import com.andrewwin.sumup.ui.theme.appCardBorder
 import com.andrewwin.sumup.ui.theme.*
 
 internal sealed class SettingsGroupIcon {
@@ -87,9 +89,9 @@ internal fun SettingsGroupsPanel(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
+        shape = AppCardShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = appCardBorder()
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()

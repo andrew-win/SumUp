@@ -70,8 +70,8 @@
     <string name="settings_user_name">Ім\'я користувача</string>
     <string name="settings_user_email">poshta@gmail.com</string>
     <string name="settings_login_logout">Увійти / Вийти</string>
-    <string name="dialog_config_name">Назва конфігурації</string>
-    <string name="dialog_config_name_hint">Напр. Мій Gemini</string>
+    <string name="dialog_config_name">Назва (якщо не ввести автозгенерується)</string>
+    <string name="dialog_config_name_hint">Назва (якщо не ввести автозгенерується)</string>
     <string name="dialog_provider">Провайдер</string>
     <string name="dialog_api_key">API Ключ</string>
     <string name="dialog_model">Модель</string>
