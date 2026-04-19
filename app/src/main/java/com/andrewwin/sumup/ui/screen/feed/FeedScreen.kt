@@ -3,29 +3,18 @@ package com.andrewwin.sumup.ui.screen.feed
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.PictureAsPdf
-import androidx.compose.ui.res.painterResource
 import androidx.compose.animation.*
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -33,10 +22,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
@@ -51,9 +37,16 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.ui.components.AppBackToTopFab
+import com.andrewwin.sumup.ui.components.AppExplanationDialog
+import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
+import com.andrewwin.sumup.ui.components.AppHelpToggleAction
+import com.andrewwin.sumup.ui.components.AppMessageState
+import com.andrewwin.sumup.ui.components.AppProminentFab
+import com.andrewwin.sumup.ui.components.AppTopBar
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
+import com.andrewwin.sumup.ui.theme.AppDimens
 import com.andrewwin.sumup.ui.util.PdfExporter
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -117,29 +110,16 @@ fun FeedScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            AppTopBar(
                 title = {
-                    Text(
-                        text = stringResource(R.string.nav_feed)
-                    )
+                    Text(text = stringResource(R.string.nav_feed))
                 },
                 actions = {
-                    FilledIconButton(
-                        onClick = { isHelpMode = !isHelpMode },
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        if (isHelpMode) {
-                            Icon(Icons.Default.Close, contentDescription = "Вимкнути підказки")
-                        } else {
-                            Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = "Увімкнути підказки")
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                    AppHelpToggleAction(
+                        isHelpMode = isHelpMode,
+                        onToggle = { isHelpMode = !isHelpMode }
+                    )
+                }
             )
         },
         floatingActionButton = {
@@ -152,16 +132,9 @@ fun FeedScreen(
                     enter = fadeIn() + scaleIn(),
                     exit = fadeOut() + scaleOut()
                 ) {
-                    SmallFloatingActionButton(
-                        onClick = { scope.launch { listState.animateScrollToItem(0) } },
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        shape = CircleShape
-                    ) {
-                        Icon(Icons.Default.ArrowUpward, contentDescription = stringResource(R.string.back_to_top))
-                    }
+                    AppBackToTopFab(onClick = { scope.launch { listState.animateScrollToItem(0) } })
                 }
-                FloatingActionButton(
+                AppProminentFab(
                     onClick = {
                         if (isHelpMode) {
                             helpDescription = "Кнопка AI-асистента стрічки (робот): відкриває узагальнення по всій поточній стрічці. " +
@@ -172,11 +145,7 @@ fun FeedScreen(
                             articleForAi = null
                             viewModel.openCachedFeedSummary()
                         }
-                    },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier.size(width = 75.dp, height = 65.dp)
+                    }
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_ask_ai),
@@ -197,11 +166,16 @@ fun FeedScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 0.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                contentPadding = PaddingValues(
+                    top = 0.dp,
+                    bottom = 16.dp,
+                    start = AppDimens.ScreenHorizontalPadding,
+                    end = AppDimens.ScreenHorizontalPadding
+                ),
+                verticalArrangement = Arrangement.spacedBy(AppDimens.ScreenSectionSpacing)
             ) {
                 item {
-                    HelpOverlayTarget(
+                    AppHelpOverlayTarget(
                         isEnabled = isHelpMode,
                         description = "Фільтри стрічки: тут задаються параметри того, що потрапляє у список нижче. " +
                             "Пошук працює по заголовках/контенту, фільтр дати обмежує період, а перемикач збережених показує лише обрані матеріали. " +
@@ -235,61 +209,40 @@ fun FeedScreen(
 
                 if (showLoading) {
                     item {
-                        HelpOverlayTarget(
+                        AppHelpOverlayTarget(
                             isEnabled = isHelpMode,
                             description = "Стан обробки: застосунок зараз групує схожі новини та прибирає дублікати. " +
                                 "Після завершення тут з'явиться фінальний список карток без повторів.",
                             onShowDescription = { helpDescription = it }
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillParentMaxHeight(0.7f)
-                                    .fillMaxWidth()
-                                    .padding(32.dp),
-                                contentAlignment = Alignment.Center
+                            AppMessageState(
+                                message = stringResource(R.string.feed_searching_similar),
+                                modifier = Modifier.fillParentMaxHeight(0.7f)
                             ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                                    Spacer(Modifier.height(12.dp))
-                                    Text(
-                                        text = stringResource(R.string.feed_searching_similar),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center,
-                                        lineHeight = 24.sp
-                                    )
-                                }
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(AppDimens.StateIconSize),
+                                    strokeWidth = 2.dp
+                                )
                             }
                         }
                     }
                 } else if (articleClusters.isEmpty()) {
                     item {
-                        HelpOverlayTarget(
+                        AppHelpOverlayTarget(
                             isEnabled = isHelpMode,
                             description = "Порожня стрічка: немає елементів, що відповідають поточним фільтрам/підпискам. " +
                                 "Спробуйте оновлення, зміну дати, групи або вимкнення фільтра збережених.",
                             onShowDescription = { helpDescription = it }
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillParentMaxHeight(0.7f)
-                                    .fillMaxWidth()
-                                    .padding(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.feed_empty_message),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center,
-                                    lineHeight = 24.sp
-                                )
-                            }
+                            AppMessageState(
+                                message = stringResource(R.string.feed_empty_message),
+                                modifier = Modifier.fillParentMaxHeight(0.7f)
+                            )
                         }
                     }
                 } else {
                     items(articleClusters, key = { it.representative.article.id }) { cluster ->
-                        HelpOverlayTarget(
+                        AppHelpOverlayTarget(
                             isEnabled = isHelpMode,
                             description = "Картка новини: основна сутність стрічки. " +
                                 "З картки можна відкрити оригінальне джерело, запустити AI-аналіз для конкретної новини або кластера, " +
@@ -334,15 +287,9 @@ fun FeedScreen(
         }
 
         if (helpDescription != null) {
-            AlertDialog(
-                onDismissRequest = { helpDescription = null },
-                title = { Text("Пояснення блоку") },
-                text = { Text(helpDescription.orEmpty()) },
-                confirmButton = {
-                    TextButton(onClick = { helpDescription = null }) {
-                        Text("OK")
-                    }
-                }
+            AppExplanationDialog(
+                description = helpDescription.orEmpty(),
+                onDismiss = { helpDescription = null }
             )
         }
         
@@ -491,26 +438,6 @@ private fun clampImageOffset(
     )
 }
 
-@Composable
-private fun HelpOverlayTarget(
-    isEnabled: Boolean,
-    description: String,
-    onShowDescription: (String) -> Unit,
-    content: @Composable () -> Unit
-) {
-    Box(modifier = Modifier.fillMaxWidth()) {
-        content()
-        if (isEnabled) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(MaterialTheme.shapes.large)
-                    .background(Color.Gray.copy(alpha = 0.45f))
-                    .clickable { onShowDescription(description) }
-            )
-        }
-    }
-}
 
 
 

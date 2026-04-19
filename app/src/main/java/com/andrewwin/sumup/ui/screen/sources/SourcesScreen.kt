@@ -7,9 +7,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
@@ -30,9 +27,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -47,7 +42,14 @@ import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.domain.usecase.sources.SuggestedTheme
+import com.andrewwin.sumup.ui.components.AppExplanationDialog
+import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
+import com.andrewwin.sumup.ui.components.AppHelpToggleAction
+import com.andrewwin.sumup.ui.components.AppProminentFab
+import com.andrewwin.sumup.ui.components.AppSelectionActions
+import com.andrewwin.sumup.ui.components.AppTopBar
 import com.andrewwin.sumup.ui.theme.AppCardShape
+import com.andrewwin.sumup.ui.theme.AppDimens
 import com.andrewwin.sumup.ui.theme.appCardBorder
 import com.andrewwin.sumup.ui.theme.appCardColors
 
@@ -81,7 +83,7 @@ fun SourcesScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            AppTopBar(
                 title = {
                     if (isSelectionMode) {
                         Text("Вибрано: ${selectedGroupIds.size}")
@@ -91,54 +93,29 @@ fun SourcesScreen(
                 },
                 actions = {
                     if (isSelectionMode) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilledIconButton(
-                                onClick = { selectedGroupIds.clear() },
-                                colors = IconButtonDefaults.filledIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            ) {
-                                Icon(Icons.Default.Close, contentDescription = "Exit selection mode")
-                            }
-                            FilledIconButton(
-                                onClick = {
-                                    val selected = uiState
-                                        .map { it.group }
-                                        .filter { selectedGroupIds.contains(it.id) }
-                                    selected.forEach { viewModel.deleteGroup(it) }
-                                    selectedGroupIds.clear()
-                                },
-                                colors = IconButtonDefaults.filledIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            ) {
-                                Icon(Icons.Outlined.Delete, contentDescription = "Delete selected groups")
-                            }
-                        }
+                        AppSelectionActions(
+                            onClear = { selectedGroupIds.clear() },
+                            onDelete = {
+                                val selected = uiState
+                                    .map { it.group }
+                                    .filter { selectedGroupIds.contains(it.id) }
+                                selected.forEach { viewModel.deleteGroup(it) }
+                                selectedGroupIds.clear()
+                            },
+                            clearDescription = "Exit selection mode",
+                            deleteDescription = "Delete selected groups"
+                        )
                     } else {
-                        FilledIconButton(
-                            onClick = { isHelpMode = !isHelpMode },
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        ) {
-                            if (isHelpMode) {
-                                Icon(Icons.Default.Close, contentDescription = "Вимкнути підказки")
-                            } else {
-                                Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = "Увімкнути підказки")
-                            }
-                        }
+                        AppHelpToggleAction(
+                            isHelpMode = isHelpMode,
+                            onToggle = { isHelpMode = !isHelpMode }
+                        )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
+            AppProminentFab(
                 onClick = {
                     if (isHelpMode) {
                         helpDescription = "Кнопка '+' додає нову папку (групу) джерел. " +
@@ -148,13 +125,13 @@ fun SourcesScreen(
                     } else {
                         showAddGroupDialog = true
                     }
-                },
-                shape = RoundedCornerShape(24.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(width = 75.dp, height = 65.dp)
+                }
             ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_group), modifier = Modifier.size(48.dp))
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = stringResource(R.string.add_group),
+                    modifier = Modifier.size(48.dp)
+                )
             }
         }
     ) { innerPadding ->
@@ -162,11 +139,16 @@ fun SourcesScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 80.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(
+                start = AppDimens.ScreenHorizontalPadding,
+                end = AppDimens.ScreenHorizontalPadding,
+                top = 8.dp,
+                bottom = AppDimens.ScreenBottomPadding
+            ),
+            verticalArrangement = Arrangement.spacedBy(AppDimens.ScreenItemSpacing)
         ) {
             items(uiState, key = { it.group.id }) { groupWithSources ->
-                HelpOverlayTarget(
+                AppHelpOverlayTarget(
                     isEnabled = isHelpMode,
                     description = "Група джерел (папка): контейнер для підписок. " +
                         "Усередині можна вмикати/вимикати всю групу або окремі джерела, редагувати назву і склад. " +
@@ -202,7 +184,7 @@ fun SourcesScreen(
                 val suggestedThemes by viewModel.suggestedThemes.collectAsState()
                 
                 if (isRecommendationsEnabled) {
-                    HelpOverlayTarget(
+                    AppHelpOverlayTarget(
                         isEnabled = isHelpMode,
                         description = "Рекомендовані теми: швидкий спосіб додати готові тематичні підписки. " +
                             "При підписці застосунок додає джерела у структурованому вигляді як окремі папки/групи, " +
@@ -254,15 +236,9 @@ fun SourcesScreen(
         }
 
         if (helpDescription != null) {
-            AlertDialog(
-                onDismissRequest = { helpDescription = null },
-                title = { Text("Пояснення блоку") },
-                text = { Text(helpDescription.orEmpty()) },
-                confirmButton = {
-                    TextButton(onClick = { helpDescription = null }) {
-                        Text("OK")
-                    }
-                }
+            AppExplanationDialog(
+                description = helpDescription.orEmpty(),
+                onDismiss = { helpDescription = null }
             )
         }
 
@@ -326,27 +302,6 @@ fun SourcesScreen(
                         )
                     )
                 }
-            )
-        }
-    }
-}
-
-@Composable
-private fun HelpOverlayTarget(
-    isEnabled: Boolean,
-    description: String,
-    onShowDescription: (String) -> Unit,
-    content: @Composable () -> Unit
-) {
-    Box(modifier = Modifier.fillMaxWidth()) {
-        content()
-        if (isEnabled) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(MaterialTheme.shapes.large)
-                    .background(Color.Gray.copy(alpha = 0.45f))
-                    .clickable { onShowDescription(description) }
             )
         }
     }

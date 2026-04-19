@@ -65,6 +65,9 @@ import coil.compose.AsyncImage
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.ui.components.AppExportPdfButton
+import com.andrewwin.sumup.ui.components.AppFilterMenuChip
+import com.andrewwin.sumup.ui.components.AppSearchField
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import com.andrewwin.sumup.ui.theme.AppCardShape
@@ -108,40 +111,18 @@ fun FeedFilters(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            TextField(
+            AppSearchField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
-                modifier = Modifier.weight(1f).height(56.dp),
-                shape = MaterialTheme.shapes.extraLarge,
-                placeholder = { 
-                    Text(
-                        stringResource(R.string.search_placeholder),
-                        style = MaterialTheme.typography.bodyLarge
-                    ) 
-                },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                singleLine = true,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent
-                )
+                placeholder = stringResource(R.string.search_placeholder),
+                leadingIcon = Icons.Default.Search,
+                modifier = Modifier.weight(1f)
             )
-            IconButton(
+            AppExportPdfButton(
                 onClick = onExportPdf,
                 enabled = isExportEnabled,
-                modifier = Modifier.size(56.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.PictureAsPdf,
-                    contentDescription = stringResource(R.string.export_feed_pdf),
-                    modifier = Modifier.size(28.dp),
-                    tint = if (isExportEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                )
-            }
+                contentDescription = stringResource(R.string.export_feed_pdf)
+            )
         }
 
         Spacer(Modifier.height(16.dp))
@@ -208,37 +189,11 @@ private fun FilterMenuChip(
     label: String,
     onClick: () -> Unit
 ) {
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = appCardBorder(),
-        modifier = Modifier.height(32.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp)
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Icon(
-                Icons.Default.ArrowDropDown,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp)
-            )
-        }
-    }
+    AppFilterMenuChip(
+        icon = icon,
+        label = label,
+        onClick = onClick
+    )
 }
 
 @Composable

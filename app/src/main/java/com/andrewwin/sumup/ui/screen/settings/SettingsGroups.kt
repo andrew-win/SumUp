@@ -24,6 +24,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
+import com.andrewwin.sumup.ui.components.AppCardSurface
 import com.andrewwin.sumup.ui.theme.AppCardShape
 import com.andrewwin.sumup.ui.theme.appCardBorder
 import com.andrewwin.sumup.ui.theme.*
@@ -87,11 +88,8 @@ internal fun SettingsGroupsPanel(
     onGroupClick: (SettingsGroup) -> Unit,
     onHelpRequest: (SettingsGroup) -> Unit = {}
 ) {
-    Surface(
+    AppCardSurface(
         modifier = Modifier.fillMaxWidth(),
-        shape = AppCardShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = appCardBorder()
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()

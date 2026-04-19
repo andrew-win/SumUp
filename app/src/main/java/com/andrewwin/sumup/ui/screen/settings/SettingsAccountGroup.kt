@@ -139,7 +139,7 @@ fun SettingsAccountGroup(
         }
         SettingsSection(title = stringResource(R.string.settings_sync), boxed = true) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                BackupOptionRow(
+                SettingsBackupOptionRow(
                     title = stringResource(R.string.settings_sync_enabled),
                     checked = isCloudSyncEnabled,
                     onCheckedChange = onSyncEnabledChange
@@ -169,22 +169,22 @@ fun SettingsAccountGroup(
                         }
                     }
                 }
-                BackupCheckboxRow(
+                SettingsBackupCheckboxRow(
                     title = stringResource(R.string.settings_backup_sources),
                     checked = backupSelection.includeSources,
                     onCheckedChange = { onBackupSelectionChange(backupSelection.copy(includeSources = it)) }
                 )
-                BackupCheckboxRow(
+                SettingsBackupCheckboxRow(
                     title = stringResource(R.string.settings_backup_subscriptions),
                     checked = backupSelection.includeSubscriptions,
                     onCheckedChange = { onBackupSelectionChange(backupSelection.copy(includeSubscriptions = it)) }
                 )
-                BackupCheckboxRow(
+                SettingsBackupCheckboxRow(
                     title = stringResource(R.string.settings_backup_settings_no_api),
                     checked = backupSelection.includeSettingsNoApi,
                     onCheckedChange = { onBackupSelectionChange(backupSelection.copy(includeSettingsNoApi = it)) }
                 )
-                BackupCheckboxRow(
+                SettingsBackupCheckboxRow(
                     title = stringResource(R.string.settings_backup_api_keys),
                     checked = backupSelection.includeApiKeys,
                     onCheckedChange = { onBackupSelectionChange(backupSelection.copy(includeApiKeys = it)) }

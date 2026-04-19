@@ -67,6 +67,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
+import com.andrewwin.sumup.ui.components.AppCardSurface
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import com.andrewwin.sumup.ui.theme.AppCardShape
@@ -427,11 +428,8 @@ private fun CompareBlockCard(
     items: List<CompareItemUi>,
     onOpenWebView: (String) -> Unit
 ) {
-    Surface(
+    AppCardSurface(
         modifier = Modifier.fillMaxWidth(),
-        shape = AppCardShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = appCardBorder()
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -475,11 +473,8 @@ private fun LegacySummarySectionView(
     sourceUrl: String?,
     onOpenWebView: (String) -> Unit
 ) {
-    Surface(
+    AppCardSurface(
         modifier = Modifier.fillMaxWidth(),
-        shape = AppCardShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = appCardBorder()
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -502,11 +497,8 @@ private fun PlainListSummarySectionView(
     items: List<ThemeItem>,
     onOpenWebView: (String) -> Unit
 ) {
-    Surface(
+    AppCardSurface(
         modifier = Modifier.fillMaxWidth(),
-        shape = AppCardShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = appCardBorder()
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -532,11 +524,8 @@ private fun ThemeSummarySectionView(
     items: List<ThemeItem>,
     onOpenWebView: (String) -> Unit
 ) {
-    Surface(
+    AppCardSurface(
         modifier = Modifier.fillMaxWidth(),
-        shape = AppCardShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = appCardBorder()
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),

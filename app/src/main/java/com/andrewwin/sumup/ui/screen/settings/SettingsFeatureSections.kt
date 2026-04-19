@@ -48,31 +48,17 @@ fun ScheduledSummarySettingsSection(
         boxed = true
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(R.string.settings_scheduled_summary),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Switch(
-                    checked = userPreferences.isScheduledSummaryEnabled,
-                    onCheckedChange = onScheduledSummaryToggle,
-                    modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
-                )
-            }
+            SettingsToggleRow(
+                label = stringResource(R.string.settings_scheduled_summary),
+                checked = userPreferences.isScheduledSummaryEnabled,
+                onCheckedChange = onScheduledSummaryToggle
+            )
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(R.string.settings_scheduled_push_notifications),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Switch(
-                    checked = userPreferences.isScheduledSummaryPushEnabled,
-                    onCheckedChange = onScheduledPushToggle,
-                    modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
-                )
-            }
+            SettingsToggleRow(
+                label = stringResource(R.string.settings_scheduled_push_notifications),
+                checked = userPreferences.isScheduledSummaryPushEnabled,
+                onCheckedChange = onScheduledPushToggle
+            )
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -95,39 +81,29 @@ fun ScheduledSummarySettingsSection(
                 )
             }
 
-            Column {
-                Text(
-                    stringResource(
-                        R.string.settings_show_last_summaries_count,
-                        showLastSummariesCount.toInt()
-                    ),
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Slider(
-                    value = showLastSummariesCount,
-                    onValueChange = onShowLastSummariesCountChange,
-                    onValueChangeFinished = onShowLastSummariesCountCommitted,
-                    valueRange = 1f..20f,
-                    steps = 18
-                )
-            }
+            SettingsIntSliderItem(
+                label = stringResource(
+                    R.string.settings_show_last_summaries_count,
+                    showLastSummariesCount.toInt()
+                ),
+                value = showLastSummariesCount,
+                onValueChange = onShowLastSummariesCountChange,
+                onValueChangeFinished = onShowLastSummariesCountCommitted,
+                valueRange = 1f..20f,
+                steps = 18
+            )
 
-            Column {
-                Text(
-                    stringResource(
-                        R.string.settings_show_infographic_news_count,
-                        showInfographicNewsCount.toInt()
-                    ),
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Slider(
-                    value = showInfographicNewsCount,
-                    onValueChange = onShowInfographicNewsCountChange,
-                    onValueChangeFinished = onShowInfographicNewsCountCommitted,
-                    valueRange = 1f..10f,
-                    steps = 8
-                )
-            }
+            SettingsIntSliderItem(
+                label = stringResource(
+                    R.string.settings_show_infographic_news_count,
+                    showInfographicNewsCount.toInt()
+                ),
+                value = showInfographicNewsCount,
+                onValueChange = onShowInfographicNewsCountChange,
+                onValueChangeFinished = onShowInfographicNewsCountCommitted,
+                valueRange = 1f..10f,
+                steps = 8
+            )
         }
     }
 }
@@ -142,18 +118,11 @@ fun SourcesSettingsSection(
         title = if (showTitle) stringResource(R.string.settings_sources) else "",
         boxed = true
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(R.string.settings_show_recommendations),
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Switch(
-                checked = isRecommendationsEnabled,
-                onCheckedChange = onRecommendationsToggle,
-                modifier = Modifier.scale(SETTINGS_SWITCH_SCALE)
-            )
-        }
+        SettingsToggleRow(
+            label = stringResource(R.string.settings_show_recommendations),
+            checked = isRecommendationsEnabled,
+            onCheckedChange = onRecommendationsToggle
+        )
     }
 }
 
@@ -319,4 +288,3 @@ private fun AutoCleanupChip(
         modifier = modifier
     )
 }
-
