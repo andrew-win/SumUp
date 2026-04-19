@@ -61,7 +61,7 @@ class FeedUiModelMapper @Inject constructor(
             article = article,
             sourceType = sourceType,
             displayTitle = formatted.displayTitle,
-            displayContent = if (sourceType == SourceType.WEBSITE) "" else formatDescription(formatted.displayContent, ellipsis),
+            displayContent = formatDescription(formatted.displayContent, ellipsis),
             sourceName = source?.name,
             groupName = if (includeGroup) group?.name else null
         )

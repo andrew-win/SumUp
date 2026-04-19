@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.FilterChip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material3.Button
@@ -159,6 +160,8 @@ fun SourcesSettingsSection(
 @Composable
 fun MemorySettingsSection(
     showTitle: Boolean = true,
+    articleAutoCleanupDays: Int,
+    onArticleAutoCleanupDaysChange: (Int) -> Unit,
     onClearArticles: () -> Unit,
     onClearEmbeddings: () -> Unit,
     onClearScheduledSummaries: () -> Unit,
@@ -169,6 +172,63 @@ fun MemorySettingsSection(
         boxed = true
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                text = stringResource(R.string.settings_article_auto_cleanup_interval),
+                style = MaterialTheme.typography.bodyLarge
+            )
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    AutoCleanupChip(
+                        days = 1,
+                        articleAutoCleanupDays = articleAutoCleanupDays,
+                        onArticleAutoCleanupDaysChange = onArticleAutoCleanupDaysChange,
+                        modifier = Modifier.weight(1f)
+                    )
+                    AutoCleanupChip(
+                        days = 3,
+                        articleAutoCleanupDays = articleAutoCleanupDays,
+                        onArticleAutoCleanupDaysChange = onArticleAutoCleanupDaysChange,
+                        modifier = Modifier.weight(1f)
+                    )
+                    AutoCleanupChip(
+                        days = 5,
+                        articleAutoCleanupDays = articleAutoCleanupDays,
+                        onArticleAutoCleanupDaysChange = onArticleAutoCleanupDaysChange,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    AutoCleanupChip(
+                        days = 7,
+                        articleAutoCleanupDays = articleAutoCleanupDays,
+                        onArticleAutoCleanupDaysChange = onArticleAutoCleanupDaysChange,
+                        modifier = Modifier.weight(1f)
+                    )
+                    AutoCleanupChip(
+                        days = 10,
+                        articleAutoCleanupDays = articleAutoCleanupDays,
+                        onArticleAutoCleanupDaysChange = onArticleAutoCleanupDaysChange,
+                        modifier = Modifier.weight(1f)
+                    )
+                    AutoCleanupChip(
+                        days = 30,
+                        articleAutoCleanupDays = articleAutoCleanupDays,
+                        onArticleAutoCleanupDaysChange = onArticleAutoCleanupDaysChange,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
             Button(
                 onClick = onClearArticles,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
@@ -232,7 +292,31 @@ fun MemorySettingsSection(
     }
 }
 
-
-
-
+@Composable
+private fun AutoCleanupChip(
+    days: Int,
+    articleAutoCleanupDays: Int,
+    onArticleAutoCleanupDaysChange: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    FilterChip(
+        selected = articleAutoCleanupDays == days,
+        onClick = { onArticleAutoCleanupDaysChange(days) },
+        label = {
+            Text(
+                text = stringResource(
+                    when (days) {
+                        1 -> R.string.settings_article_auto_cleanup_1_day
+                        3 -> R.string.settings_article_auto_cleanup_3_days
+                        5 -> R.string.settings_article_auto_cleanup_5_days
+                        7 -> R.string.settings_article_auto_cleanup_7_days
+                        10 -> R.string.settings_article_auto_cleanup_10_days
+                        else -> R.string.settings_article_auto_cleanup_30_days
+                    }
+                )
+            )
+        },
+        modifier = modifier
+    )
+}
 

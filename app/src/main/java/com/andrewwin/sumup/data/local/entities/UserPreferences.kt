@@ -65,6 +65,7 @@ data class UserPreferences(
     val isFeedDescriptionEnabled: Boolean = true,
     val isFeedSummaryUseFullTextEnabled: Boolean = false,
     val isRecommendationsEnabled: Boolean = true,
+    val articleAutoCleanupDays: Int = 3,
     val appThemeMode: AppThemeMode = AppThemeMode.SYSTEM,
     val appLanguage: AppLanguage = AppLanguage.UK,
     val summaryLanguage: SummaryLanguage = SummaryLanguage.ORIGINAL

@@ -4,6 +4,7 @@ import android.database.sqlite.SQLiteConstraintException
 import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
+import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
@@ -19,6 +20,7 @@ class ArticleRepositoryImpl @Inject constructor(
     private val articleDao: ArticleDao,
     private val articleSimilarityDao: ArticleSimilarityDao,
     private val sourceDao: SourceDao,
+    private val userPreferencesDao: UserPreferencesDao,
     private val remoteArticleDataSource: RemoteArticleDataSource,
     private val cleanArticleTextUseCase: CleanArticleTextUseCase
 ) : ArticleRepository {
@@ -78,10 +80,11 @@ class ArticleRepositoryImpl @Inject constructor(
                 }
             }
         }
-        val threeDaysAgo = System.currentTimeMillis() - (3 * 24 * 60 * 60 * 1000L)
-        val newerCount = articleDao.countArticlesNewerThan(threeDaysAgo)
+        val cleanupDays = userPreferencesDao.getUserPreferences().first()?.articleAutoCleanupDays ?: 3
+        val cutoffTimestamp = System.currentTimeMillis() - (cleanupDays.toLong() * 24 * 60 * 60 * 1000L)
+        val newerCount = articleDao.countArticlesNewerThan(cutoffTimestamp)
         if (newerCount > 0) {
-            articleDao.deleteOldArticles(threeDaysAgo)
+            articleDao.deleteOldArticles(cutoffTimestamp)
         }
         Unit
     }
@@ -152,6 +155,15 @@ class ArticleRepositoryImpl @Inject constructor(
 
     override suspend fun clearSimilarities() {
         articleSimilarityDao.deleteAll()
+    }
+
+    override suspend fun clearOldArticlesByAge(days: Int) {
+        val safeDays = days.coerceAtLeast(1)
+        val cutoffTimestamp = System.currentTimeMillis() - (safeDays.toLong() * 24 * 60 * 60 * 1000L)
+        val newerCount = articleDao.countArticlesNewerThan(cutoffTimestamp)
+        if (newerCount > 0) {
+            articleDao.deleteOldArticles(cutoffTimestamp)
+        }
     }
 }
 

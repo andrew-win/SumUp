@@ -19,6 +19,7 @@ interface ArticleRepository {
     suspend fun clearAllArticles()
     suspend fun clearEmbeddings()
     suspend fun clearSimilarities()
+    suspend fun clearOldArticlesByAge(days: Int)
 }
 
 

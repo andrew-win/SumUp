@@ -374,8 +374,7 @@ fun ArticleItem(
             !mediaUrl.isNullOrBlank() &&
             (uiModel.sourceType == SourceType.RSS ||
                 uiModel.sourceType == SourceType.TELEGRAM ||
-                uiModel.sourceType == SourceType.YOUTUBE ||
-                uiModel.sourceType == SourceType.WEBSITE)
+                uiModel.sourceType == SourceType.YOUTUBE)
     }
 
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
@@ -561,7 +560,7 @@ fun DuplicateItemCard(
 
     Card(
         modifier = Modifier
-            .width(236.dp)
+            .width(264.dp)
             .height(132.dp)
             .clickable { onOpenSource() },
         shape = MaterialTheme.shapes.large,

@@ -10,9 +10,8 @@
     <string name="add_group">Add group</string>
     <string name="add_source">Add source</string>
     <string name="group_name">Group name</string>
-    <string name="source_name">Source name</string>
+    <string name="source_name">Name (auto-generated if empty)</string>
     <string name="source_url">Link / YouTube id</string>
-    <string name="source_url_website">Link to page with post list</string>
     <string name="source_type">Source type</string>
     <string name="cancel">Cancel</string>
     <string name="add">Add</string>
@@ -155,6 +154,13 @@
     <string name="settings_clear_articles">Clear articles</string>
     <string name="settings_clear_embeddings">Clear embeddings</string>
     <string name="settings_clear_scheduled_summaries">Clear scheduled summaries</string>
+    <string name="settings_article_auto_cleanup_interval">Article auto cleanup</string>
+    <string name="settings_article_auto_cleanup_1_day">1 day</string>
+    <string name="settings_article_auto_cleanup_3_days">3 days</string>
+    <string name="settings_article_auto_cleanup_5_days">5 days</string>
+    <string name="settings_article_auto_cleanup_7_days">7 days</string>
+    <string name="settings_article_auto_cleanup_10_days">10 days</string>
+    <string name="settings_article_auto_cleanup_30_days">30 days</string>
     <string name="settings_clear_articles_confirm">Delete all feed articles? Sources will stay.</string>
     <string name="settings_clear_embeddings_confirm">Delete all embeddings? This will also clear similarity cache.</string>
     <string name="settings_clear_scheduled_summaries_confirm">Delete all saved scheduled summaries?</string>
@@ -167,12 +173,6 @@
     <string name="source_type_rss">RSS feed</string>
     <string name="source_type_telegram">Telegram channel</string>
     <string name="source_type_youtube">YouTube channel</string>
-    <string name="source_type_website">Regular website</string>
-    <string name="website_title_selector">CSS title selector</string>
-    <string name="website_post_link_selector_optional">CSS post link selector (optional)</string>
-    <string name="website_description_selector_optional">CSS description selector (optional)</string>
-    <string name="website_date_selector_optional">CSS date selector (optional)</string>
-    <string name="website_use_headless_browser">Use headless browser</string>
     <string name="ellipsis">…</string>
     <string name="summary_extractive_intro">Here are the top news for this period:</string>
     <string name="summary_extractive_item_header">%1$d. %2$s:</string>
@@ -245,7 +245,6 @@
     <string name="validation_source_name_exists">A source with this name already exists</string>
     <string name="validation_source_url_required">URL is required</string>
     <string name="validation_source_url_exists">A source with this URL already exists</string>
-    <string name="validation_website_selector_required">Website title CSS selector is required</string>
     <string name="validation_ai_config_name_exists">A config with this name already exists</string>
     <string name="validation_api_key_required">API key is required</string>
     <string name="validation_api_key_invalid">API key must not contain spaces</string>

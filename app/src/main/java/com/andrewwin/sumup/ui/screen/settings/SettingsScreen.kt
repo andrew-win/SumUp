@@ -971,6 +971,8 @@ fun SettingsScreen(
             if (activeGroup == SettingsGroup.MEMORY) item {
                 MemorySettingsSection(
                     showTitle = false,
+                    articleAutoCleanupDays = userPreferences.articleAutoCleanupDays,
+                    onArticleAutoCleanupDaysChange = viewModel::updateArticleAutoCleanupDays,
                     onClearArticles = { showClearArticlesDialog = true },
                     onClearEmbeddings = { showClearEmbeddingsDialog = true },
                     onClearScheduledSummaries = { showClearScheduledSummariesDialog = true },

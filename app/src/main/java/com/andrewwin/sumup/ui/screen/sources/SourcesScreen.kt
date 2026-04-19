@@ -52,7 +52,6 @@ private val SourceType.iconRes: Int
         SourceType.TELEGRAM -> R.drawable.ic_telegram_source
         SourceType.RSS -> R.drawable.ic_rss_source
         SourceType.YOUTUBE -> R.drawable.ic_youtube_source
-        SourceType.WEBSITE -> R.drawable.ic_usual_website_source
     }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -540,7 +539,7 @@ fun SourceItem(
 ) {
     val displayUrl = remember(source.url, source.type) {
         when (source.type) {
-            SourceType.RSS, SourceType.WEBSITE -> {
+            SourceType.RSS -> {
                 source.url.removePrefix("https://").removePrefix("http://").removePrefix("www.").substringBefore("/")
             }
             SourceType.TELEGRAM -> {
@@ -663,6 +662,7 @@ fun SourceDialog(
     onDismiss: () -> Unit,
     onConfirm: (String, String, SourceType, String?, String?, String?, String?, Boolean) -> Unit
 ) {
+    val availableSourceTypes = remember { listOf(SourceType.RSS, SourceType.TELEGRAM, SourceType.YOUTUBE) }
     var name by remember(source?.id) { mutableStateOf(source?.name ?: "") }
     var url by remember(source?.id) { mutableStateOf(source?.url ?: "") }
     var type by remember(source?.id) { mutableStateOf(source?.type ?: SourceType.RSS) }
@@ -675,6 +675,7 @@ fun SourceDialog(
     val normalizedName = name.trim()
     val normalizedUrl = normalizeSourceUrl(url, type)
     val isDuplicate = remember(normalizedName, existingSourceNames, source?.id) {
+        if (normalizedName.isBlank()) return@remember false
         existingSourceNames.any {
             it.trim().equals(normalizedName, ignoreCase = true) &&
                 !it.trim().equals(source?.name?.trim().orEmpty(), ignoreCase = true)
@@ -687,15 +688,14 @@ fun SourceDialog(
                 normalizeSourceUrl(it.url, it.type).equals(normalizedUrl, ignoreCase = true)
         }
     }
-    val hasRequiredWebsiteSelector = type != SourceType.WEBSITE || titleSelector.isNotBlank()
     val errorText = when {
-        normalizedName.isBlank() -> stringResource(R.string.validation_name_required)
         isDuplicate -> stringResource(R.string.validation_source_name_exists)
         url.isBlank() -> stringResource(R.string.validation_source_url_required)
         isDuplicateUrl -> stringResource(R.string.validation_source_url_exists)
-        !hasRequiredWebsiteSelector -> stringResource(R.string.validation_website_selector_required)
         else -> null
     }
+    val isNameError = isDuplicate
+    val isUrlError = url.isBlank() || isDuplicateUrl
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -737,23 +737,19 @@ fun SourceDialog(
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    text = "1. Назва: коротка і зрозуміла (це підпис у стрічці та списках).",
+                                    text = "1. Назва: можна не заповнювати, тоді застосунок згенерує її автоматично.",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                                 Text(
-                                    text = "2. URL: посилання на RSS/канал/сайт. Для сайтів бажано головну сторінку або сторінку розділу.",
+                                    text = "2. URL: посилання на RSS, Telegram або YouTube-джерело.",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                                 Text(
-                                    text = "3. Тип джерела: визначає, як парсер читає контент (RSS/Telegram/YouTube/Website).",
+                                    text = "3. Тип джерела визначає, як парсер читає контент (RSS/Telegram/YouTube).",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                                 Text(
-                                    text = "4. Для Website: селектор заголовка обов'язковий; інші селектори покращують точність і структуру.",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                                Text(
-                                    text = "5. Підписки організовуються по папках (групах), щоб їх можна було окремо вмикати та фільтрувати.",
+                                    text = "4. Підписки організовуються по папках (групах), щоб їх можна було окремо вмикати та фільтрувати.",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
@@ -766,30 +762,23 @@ fun SourceDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.large,
-                        isError = errorText != null
+                        isError = isNameError
                     )
                     OutlinedTextField(
                         value = url,
                         onValueChange = { url = it },
-                        label = {
-                            val labelRes = if (type == SourceType.WEBSITE) R.string.source_url_website else R.string.source_url
-                            Text(stringResource(labelRes))
-                        },
+                        label = { Text(stringResource(R.string.source_url)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large
+                        shape = MaterialTheme.shapes.large,
+                        isError = isUrlError
                     )
                     ExposedDropdownMenuBox(
                         expanded = expanded,
                         onExpandedChange = { expanded = !expanded }
                     ) {
                         OutlinedTextField(
-                            value = stringResource(when(type) {
-                                SourceType.RSS -> R.string.source_type_rss
-                                SourceType.TELEGRAM -> R.string.source_type_telegram
-                                SourceType.YOUTUBE -> R.string.source_type_youtube
-                                SourceType.WEBSITE -> R.string.source_type_website
-                            }),
+                            value = stringResource(type.labelRes),
                             onValueChange = {},
                             readOnly = true,
                             label = { Text(stringResource(R.string.source_type)) },
@@ -811,16 +800,9 @@ fun SourceDialog(
                             expanded = expanded,
                             onDismissRequest = { expanded = false }
                         ) {
-                            SourceType.entries.forEach { entry ->
+                            availableSourceTypes.forEach { entry ->
                                 DropdownMenuItem(
-                                    text = {
-                                        Text(stringResource(when(entry) {
-                                            SourceType.RSS -> R.string.source_type_rss
-                                            SourceType.TELEGRAM -> R.string.source_type_telegram
-                                            SourceType.YOUTUBE -> R.string.source_type_youtube
-                                            SourceType.WEBSITE -> R.string.source_type_website
-                                        }))
-                                    },
+                                    text = { Text(stringResource(entry.labelRes)) },
                                     leadingIcon = {
                                         Icon(
                                             painter = painterResource(entry.iconRes),
@@ -835,44 +817,6 @@ fun SourceDialog(
                                     }
                                 )
                             }
-                        }
-                    }
-                    if (type == SourceType.WEBSITE) {
-                        OutlinedTextField(
-                            value = titleSelector,
-                            onValueChange = { titleSelector = it },
-                            label = { Text(stringResource(R.string.website_title_selector)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large
-                        )
-                        OutlinedTextField(
-                            value = postLinkSelector,
-                            onValueChange = { postLinkSelector = it },
-                            label = { Text(stringResource(R.string.website_post_link_selector_optional)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large
-                        )
-                        OutlinedTextField(
-                            value = descriptionSelector,
-                            onValueChange = { descriptionSelector = it },
-                            label = { Text(stringResource(R.string.website_description_selector_optional)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large
-                        )
-                        OutlinedTextField(
-                            value = dateSelector,
-                            onValueChange = { dateSelector = it },
-                            label = { Text(stringResource(R.string.website_date_selector_optional)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(text = stringResource(R.string.website_use_headless_browser), style = MaterialTheme.typography.bodyMedium)
-                            Switch(checked = useHeadlessBrowser, onCheckedChange = { useHeadlessBrowser = it })
                         }
                     }
                     if (errorText != null) {
@@ -890,7 +834,16 @@ fun SourceDialog(
                     Button(
                         onClick = {
                             if (errorText == null) {
-                                onConfirm(normalizedName, url, type, titleSelector.takeIf { it.isNotBlank() }, postLinkSelector.takeIf { it.isNotBlank() }, descriptionSelector.takeIf { it.isNotBlank() }, dateSelector.takeIf { it.isNotBlank() }, useHeadlessBrowser)
+                                onConfirm(
+                                    normalizedName,
+                                    url,
+                                    type,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    false
+                                )
                                 onDismiss()
                             }
                         },
@@ -908,7 +861,7 @@ fun SourceDialog(
 
 private fun normalizeSourceUrl(url: String, type: SourceType): String {
     val trimmed = url.trim()
-    if (trimmed.isBlank() || (type != SourceType.RSS && type != SourceType.WEBSITE)) return trimmed
+    if (trimmed.isBlank() || type != SourceType.RSS) return trimmed
     return when {
         trimmed.startsWith("https://", ignoreCase = true) -> trimmed
         trimmed.startsWith("http://", ignoreCase = true) -> "https://${trimmed.removePrefix("http://")}"

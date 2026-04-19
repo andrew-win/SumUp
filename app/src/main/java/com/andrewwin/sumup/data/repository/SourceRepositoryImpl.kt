@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.data.repository
 
+import android.net.Uri
 import com.andrewwin.sumup.data.local.dao.GroupWithSources
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.entities.Source
@@ -68,8 +69,19 @@ class SourceRepositoryImpl @Inject constructor(
     ) {
         val normalizedName = name.trim()
         val normalizedUrl = normalizeUrl(url, type)
-        if (normalizedName.isBlank() || normalizedUrl.isBlank()) return
+        if (normalizedUrl.isBlank()) return
         if (sourceDao.sourceExistsByTypeAndUrl(type, normalizedUrl)) return
+
+        val existingNames = sourceDao.getGroupsWithSourcesOnce()
+            .flatMap { it.sources }
+            .map { it.name }
+        val effectiveName = generateEffectiveName(
+            explicitName = normalizedName,
+            normalizedUrl = normalizedUrl,
+            type = type,
+            existingNames = existingNames
+        )
+        if (effectiveName.isBlank()) return
 
         val normalizedTitleSelector = normalizeSelector(titleSelector)
         val normalizedPostLinkSelector = normalizeSelector(postLinkSelector)
@@ -77,7 +89,7 @@ class SourceRepositoryImpl @Inject constructor(
         val normalizedDateSelector = normalizeSelector(dateSelector)
         val sourceToInsert = Source(
             groupId = groupId,
-            name = normalizedName,
+            name = effectiveName,
             url = normalizedUrl,
             type = type,
             footerPattern = null,
@@ -97,7 +109,7 @@ class SourceRepositoryImpl @Inject constructor(
                 Source(
                     id = insertedId,
                     groupId = groupId,
-                    name = normalizedName,
+                    name = effectiveName,
                     url = normalizedUrl,
                     type = type,
                     titleSelector = normalizedTitleSelector,
@@ -120,9 +132,21 @@ class SourceRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateSource(source: Source) {
+        val normalizedUrl = normalizeUrl(source.url, source.type)
+        val existingNames = sourceDao.getGroupsWithSourcesOnce()
+            .flatMap { it.sources }
+            .filter { it.id != source.id }
+            .map { it.name }
+        val effectiveName = generateEffectiveName(
+            explicitName = source.name.trim(),
+            normalizedUrl = normalizedUrl,
+            type = source.type,
+            existingNames = existingNames
+        )
         sourceDao.updateSource(
             source.copy(
-                url = normalizeUrl(source.url, source.type),
+                name = effectiveName,
+                url = normalizedUrl,
                 titleSelector = normalizeSelector(source.titleSelector),
                 postLinkSelector = normalizeSelector(source.postLinkSelector),
                 descriptionSelector = normalizeSelector(source.descriptionSelector),
@@ -213,7 +237,7 @@ class SourceRepositoryImpl @Inject constructor(
     private fun normalizeUrl(url: String, type: SourceType): String {
         val trimmed = url.trim()
         if (trimmed.isBlank()) return trimmed
-        if (type != SourceType.RSS && type != SourceType.WEBSITE) return trimmed
+        if (type != SourceType.RSS) return trimmed
 
         return when {
             trimmed.startsWith("https://", ignoreCase = true) -> trimmed
@@ -225,6 +249,68 @@ class SourceRepositoryImpl @Inject constructor(
 
     private fun normalizeSelector(selector: String?): String? =
         selector?.trim()?.takeIf { it.isNotEmpty() }
+
+    private fun generateEffectiveName(
+        explicitName: String,
+        normalizedUrl: String,
+        type: SourceType,
+        existingNames: List<String>
+    ): String {
+        val baseName = explicitName.ifBlank { generateSourceName(normalizedUrl, type) }.trim()
+        if (baseName.isBlank()) return ""
+
+        val normalizedExisting = existingNames.map { it.trim().lowercase() }.toSet()
+        if (baseName.lowercase() !in normalizedExisting) return baseName
+
+        var index = 2
+        while (true) {
+            val candidate = "$baseName #$index"
+            if (candidate.lowercase() !in normalizedExisting) return candidate
+            index++
+        }
+    }
+
+    private fun generateSourceName(url: String, type: SourceType): String {
+        val trimmed = url.trim()
+        return when (type) {
+            SourceType.TELEGRAM -> generateTelegramName(trimmed)
+            SourceType.YOUTUBE -> generateYouTubeName(trimmed)
+            SourceType.RSS -> generateHostBasedName(trimmed)
+        }
+    }
+
+    private fun generateTelegramName(url: String): String {
+        val cleaned = url
+            .removePrefix("https://")
+            .removePrefix("http://")
+            .removePrefix("t.me/")
+            .removePrefix("telegram.me/")
+            .trim('/')
+            .substringBefore('/')
+            .removePrefix("@")
+        return cleaned.ifBlank { "Telegram" }
+    }
+
+    private fun generateYouTubeName(url: String): String {
+        val cleaned = url
+            .removePrefix("https://")
+            .removePrefix("http://")
+            .trim('/')
+        val tail = when {
+            cleaned.startsWith("@") -> cleaned
+            "youtube.com/" in cleaned -> cleaned.substringAfter("youtube.com/").trim('/').substringBefore('/')
+            "youtu.be/" in cleaned -> cleaned.substringAfter("youtu.be/").trim('/').substringBefore('/')
+            else -> cleaned.substringAfterLast('/').ifBlank { cleaned }
+        }.trim()
+        return tail.ifBlank { "YouTube" }
+    }
+
+    private fun generateHostBasedName(url: String): String {
+        val host = runCatching { Uri.parse(url).host.orEmpty() }.getOrDefault("")
+            .removePrefix("www.")
+            .trim()
+        return host.ifBlank { url.trim() }.ifBlank { "RSS" }
+    }
 }
 
 

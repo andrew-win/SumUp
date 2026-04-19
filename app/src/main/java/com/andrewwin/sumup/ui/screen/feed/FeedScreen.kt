@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.PictureAsPdf
+import androidx.compose.ui.res.painterResource
 import androidx.compose.animation.*
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.*
@@ -173,7 +174,11 @@ fun FeedScreen(
                     shape = RoundedCornerShape(24.dp),
                     modifier = Modifier.size(width = 75.dp, height = 65.dp)
                 ) {
-                    Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(48.dp))
+                    Icon(
+                        painter = painterResource(R.drawable.ic_ask_ai),
+                        contentDescription = null,
+                        modifier = Modifier.size(44.dp)
+                    )
                 }
             }
         }

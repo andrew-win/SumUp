@@ -18,9 +18,7 @@ class RemoteArticleDataSource @Inject constructor(
     private val okHttpClient: OkHttpClient,
     private val rssParser: RssParser,
     private val telegramParser: TelegramParser,
-    private val youtubeParser: YouTubeParser,
-    private val websiteParser: WebsiteParser,
-    private val headlessBrowserHtmlFetcher: HeadlessBrowserHtmlFetcher
+    private val youtubeParser: YouTubeParser
 ) {
 
     private inner class OkHttpYoutubeClient(private val client: OkHttpClient) : YoutubeClient {
@@ -51,44 +49,6 @@ class RemoteArticleDataSource @Inject constructor(
             SourceType.RSS -> fetchRssArticles(source.id, source.url)
             SourceType.TELEGRAM -> fetchTelegramArticles(source.id, source.url)
             SourceType.YOUTUBE -> fetchYouTubeArticles(source.id, source.url)
-            SourceType.WEBSITE -> fetchWebsiteArticles(source)
-        }
-    }
-
-    private suspend fun fetchWebsiteArticles(source: Source): List<Article> {
-        val titleSelector = source.titleSelector?.trim().orEmpty()
-        if (titleSelector.isBlank()) {
-            return emptyList()
-        }
-
-        return try {
-            val html = if (source.useHeadlessBrowser) {
-                headlessBrowserHtmlFetcher.fetchHtml(source.url).orEmpty()
-            } else {
-                val request = Request.Builder()
-                    .url(source.url)
-                    .header(HEADER_USER_AGENT, USER_AGENT_VALUE)
-                    .header(HEADER_ACCEPT_LANGUAGE, ACCEPT_LANGUAGE_VALUE)
-                    .build()
-                okHttpClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        return emptyList()
-                    }
-                    response.body?.string().orEmpty()
-                }
-            }
-            val parsed = websiteParser.parse(
-                sourceId = source.id,
-                sourceUrl = source.url,
-                html = html,
-                titleSelector = titleSelector,
-                postLinkSelector = source.postLinkSelector,
-                descriptionSelector = source.descriptionSelector,
-                dateSelector = source.dateSelector
-            )
-            parsed
-        } catch (e: Exception) {
-            emptyList()
         }
     }
 
@@ -132,7 +92,7 @@ class RemoteArticleDataSource @Inject constructor(
 
     suspend fun fetchFullContent(url: String, type: SourceType): String? =
         withContext(Dispatchers.IO) {
-            if (type != SourceType.RSS && type != SourceType.YOUTUBE && type != SourceType.WEBSITE) return@withContext null
+            if (type != SourceType.RSS && type != SourceType.YOUTUBE) return@withContext null
 
             try {
                 if (type == SourceType.YOUTUBE) {
@@ -241,9 +201,6 @@ class RemoteArticleDataSource @Inject constructor(
         private const val USER_AGENT_VALUE =
             "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
         private const val ACCEPT_LANGUAGE_VALUE = "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7"
-        private const val TAG_WEBSITE_FETCH = "WebsiteFetch"
-        private const val TAG_FULL_CONTENT = "WebsiteFullContent"
-        private const val DEBUG_TITLE_PREVIEW_LEN = 80
         private const val YT_BLOCK_WINDOW_SECONDS = 22.0
         private const val YT_BLOCK_GAP_SECONDS = 2.2
         private const val YT_BLOCK_MAX_CHARS = 260

@@ -376,6 +376,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateArticleAutoCleanupDays(days: Int) {
+        viewModelScope.launch {
+            updatePreferences { it.copy(articleAutoCleanupDays = days.coerceIn(1, 10)) }
+        }
+    }
+
     fun updateSummaryLanguage(language: SummaryLanguage) {
         viewModelScope.launch { updatePreferences { it.copy(summaryLanguage = language) } }
     }

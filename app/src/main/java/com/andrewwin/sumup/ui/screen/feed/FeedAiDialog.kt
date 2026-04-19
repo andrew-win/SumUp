@@ -31,7 +31,6 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -50,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.Placeholder
@@ -219,7 +219,10 @@ fun FeedAiDialog(
                         shape = MaterialTheme.shapes.large,
                         contentPadding = PaddingValues(16.dp)
                     ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                        Icon(
+                            painter = painterResource(R.drawable.ic_ask_ai),
+                            contentDescription = null
+                        )
                         Spacer(Modifier.size(12.dp))
                         Text(
                             text = if (isFeedAiActive) {

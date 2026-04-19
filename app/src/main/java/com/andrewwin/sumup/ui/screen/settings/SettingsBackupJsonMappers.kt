@@ -58,6 +58,7 @@ internal fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
     put("isFeedDescriptionEnabled", isFeedDescriptionEnabled)
     put("isFeedSummaryUseFullTextEnabled", isFeedSummaryUseFullTextEnabled)
     put("isRecommendationsEnabled", isRecommendationsEnabled)
+    put("articleAutoCleanupDays", articleAutoCleanupDays)
     put("appThemeMode", appThemeMode.name)
     put("appLanguage", appLanguage.name)
     put("summaryLanguage", summaryLanguage.name)
@@ -154,6 +155,7 @@ internal fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
             defaults.isFeedSummaryUseFullTextEnabled
         ),
         isRecommendationsEnabled = optBoolean("isRecommendationsEnabled", defaults.isRecommendationsEnabled),
+        articleAutoCleanupDays = optInt("articleAutoCleanupDays", defaults.articleAutoCleanupDays),
         appThemeMode = runCatching { AppThemeMode.valueOf(optString("appThemeMode", defaults.appThemeMode.name)) }
             .getOrDefault(defaults.appThemeMode),
         appLanguage = runCatching { AppLanguage.valueOf(optString("appLanguage", defaults.appLanguage.name)) }

@@ -20,7 +20,7 @@ class CleanArticleTextUseCase @Inject constructor(
 
     suspend fun extractMainContent(url: String, rawContent: String, type: SourceType): String = withContext(dispatcherProvider.default) {
         if (rawContent.isBlank()) return@withContext ""
-        if (type != SourceType.RSS && type != SourceType.WEBSITE) return@withContext rawContent
+        if (type != SourceType.RSS) return@withContext rawContent
         runCatching {
             val article = Readability4J(url, rawContent).parse()
             (article.content ?: article.textContent).orEmpty()
@@ -47,7 +47,7 @@ class CleanArticleTextUseCase @Inject constructor(
 
         cleaned = when (type) {
             SourceType.TELEGRAM, SourceType.YOUTUBE -> cleanSocialSpecifics(cleaned)
-            SourceType.RSS, SourceType.WEBSITE -> cleanRssSpecifics(cleaned)
+            SourceType.RSS -> cleanRssSpecifics(cleaned)
         }
 
         cleaned = removeGenericFooterLines(cleaned)

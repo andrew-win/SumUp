@@ -84,7 +84,7 @@ class ArticleImportanceScorer {
     }
 
     private fun computeViewScore(viewCount: Long, sourceType: SourceType): Float {
-        if (sourceType == SourceType.RSS || sourceType == SourceType.WEBSITE) {
+        if (sourceType == SourceType.RSS) {
             return STATIC_RSS_VIEW_SCORE
         }
 
