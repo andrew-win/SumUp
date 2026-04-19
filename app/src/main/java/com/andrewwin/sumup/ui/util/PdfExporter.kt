@@ -44,7 +44,7 @@ object PdfExporter {
             var canvas = page.canvas
             var y = margin
 
-            val dateFormat = SimpleDateFormat("HH:mm, dd MMMM yyyy", Locale("uk", "UA"))
+            val dateFormat = SimpleDateFormat("HH:mm, dd MMMM yyyy", Locale.getDefault())
             val nowText = dateFormat.format(Date())
             val title = context.getString(R.string.feed_pdf_title)
             val generated = context.getString(R.string.feed_pdf_generated, nowText)
@@ -143,7 +143,7 @@ object PdfExporter {
             var canvas = page.canvas
             var y = margin
 
-            val dateFormat = SimpleDateFormat("HH:mm, dd MMMM yyyy", Locale("uk", "UA"))
+            val dateFormat = SimpleDateFormat("HH:mm, dd MMMM yyyy", Locale.getDefault())
             val nowText = dateFormat.format(Date())
             val title = context.getString(R.string.summary_pdf_title)
             val generated = context.getString(R.string.summary_pdf_generated, nowText)

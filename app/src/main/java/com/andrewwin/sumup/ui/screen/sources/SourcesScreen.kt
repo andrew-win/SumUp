@@ -46,6 +46,7 @@ import com.andrewwin.sumup.data.local.dao.GroupWithSources
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.domain.usecase.sources.SuggestedTheme
 import com.andrewwin.sumup.ui.theme.AppCardShape
 import com.andrewwin.sumup.ui.theme.appCardBorder
 import com.andrewwin.sumup.ui.theme.appCardColors
@@ -477,7 +478,7 @@ fun GroupCard(
 
                     if (groupWithSources.sources.isEmpty()) {
                         Text(
-                            text = "Немає джерел у цій групі",
+                            text = stringResource(R.string.sources_group_empty),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(16.dp)
@@ -896,7 +897,7 @@ fun SuggestedThemeItem(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = suggestion.theme.title,
+                    text = suggestion.theme.displayTitle(),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = if (suggestion.isSubscribed) FontWeight.Bold else FontWeight.Medium,
                     color = if (suggestion.isSubscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
@@ -922,3 +923,19 @@ fun SuggestedThemeItem(
         }
     }
 }
+
+@Composable
+private fun SuggestedTheme.displayTitle(): String = stringResource(
+    when (this) {
+        SuggestedTheme.SPORT -> R.string.source_theme_sport
+        SuggestedTheme.TECH -> R.string.source_theme_technology
+        SuggestedTheme.POLITICS -> R.string.source_theme_politics
+        SuggestedTheme.WEATHER -> R.string.source_theme_weather
+        SuggestedTheme.ECONOMY -> R.string.source_theme_economy
+        SuggestedTheme.HEALTH -> R.string.source_theme_health
+        SuggestedTheme.CRYPTO -> R.string.source_theme_crypto
+        SuggestedTheme.SPACE -> R.string.source_theme_space
+        SuggestedTheme.CARS -> R.string.source_theme_cars
+        SuggestedTheme.BOOKS -> R.string.source_theme_books
+    }
+)

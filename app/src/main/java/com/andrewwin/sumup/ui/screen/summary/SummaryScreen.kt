@@ -93,17 +93,17 @@ import kotlinx.coroutines.launch
 
 private const val InlineSourceChipMaxWidthDp = 92
 
-private enum class HistoryDateFilter(val label: String, val hours: Int?) {
-    HOUR_1("1 год", 1),
-    HOUR_12("12 год", 12),
-    HOUR_24("24 год", 24),
-    DAY_3("3 дні", 24 * 3),
-    DAY_7("Тиждень", 24 * 7)
+private enum class HistoryDateFilter(val labelRes: Int, val hours: Int?) {
+    HOUR_1(R.string.filter_date_1h, 1),
+    HOUR_12(R.string.filter_date_12h, 12),
+    HOUR_24(R.string.filter_date_24h, 24),
+    DAY_3(R.string.summary_history_filter_3d, 24 * 3),
+    DAY_7(R.string.summary_history_filter_week, 24 * 7)
 }
 
-private enum class HistorySavedFilter(val label: String, val favoritesOnly: Boolean) {
-    ALL("Усі", false),
-    FAVORITES("Обране", true)
+private enum class HistorySavedFilter(val labelRes: Int, val favoritesOnly: Boolean) {
+    ALL(R.string.filter_saved_all, false),
+    FAVORITES(R.string.summary_history_filter_favorites, true)
 }
 
 private enum class SummarySourceStyle {
@@ -405,7 +405,7 @@ fun SummaryScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "Ще не було згенеровано жодного зведення.",
+                                    text = stringResource(R.string.summary_history_empty_state),
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -576,7 +576,7 @@ private fun HistorySummaryFilters(
                 shape = MaterialTheme.shapes.extraLarge,
                 placeholder = {
                     Text(
-                        text = "Шукайте зведення тут...",
+                        text = stringResource(R.string.summary_search_placeholder),
                         style = MaterialTheme.typography.bodyLarge
                     )
                 },
@@ -614,19 +614,19 @@ private fun HistorySummaryFilters(
         ) {
             HistoryFilterChip(
                 icon = Icons.Default.CalendarToday,
-                label = dateFilter.label,
+                label = stringResource(dateFilter.labelRes),
                 onClick = { showDateMenu = true }
             )
             HistoryFilterChip(
                 icon = Icons.Default.Bookmark,
-                label = savedFilter.label,
+                label = stringResource(savedFilter.labelRes),
                 onClick = { showSavedMenu = true }
             )
 
             DropdownMenu(expanded = showDateMenu, onDismissRequest = { showDateMenu = false }) {
                 HistoryDateFilter.entries.forEach { filter ->
                     DropdownMenuItem(
-                        text = { Text(filter.label) },
+                        text = { Text(stringResource(filter.labelRes)) },
                         onClick = {
                             onDateFilterChange(filter)
                             showDateMenu = false
@@ -638,7 +638,7 @@ private fun HistorySummaryFilters(
             DropdownMenu(expanded = showSavedMenu, onDismissRequest = { showSavedMenu = false }) {
                 HistorySavedFilter.entries.forEach { filter ->
                     DropdownMenuItem(
-                        text = { Text(filter.label) },
+                        text = { Text(stringResource(filter.labelRes)) },
                         onClick = {
                             onSavedFilterChange(filter)
                             showSavedMenu = false
@@ -700,10 +700,10 @@ private fun HistorySummaryCard(
     onLongClick: () -> Unit,
     onToggleFavorite: () -> Unit,
     onDelete: () -> Unit
-) {
+    ) {
     val preview = remember(summary.content) { extractSummaryPreview(summary.content) }
     val dateLabel = remember(summary.createdAt) {
-        SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")).format(Date(summary.createdAt))
+        formatSummaryDate(summary.createdAt)
     }
     val context = LocalContext.current
     Surface(
@@ -735,7 +735,7 @@ private fun HistorySummaryCard(
                 color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = preview,
+                text = preview.ifBlank { stringResource(R.string.summary_default_title) },
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
@@ -798,8 +798,7 @@ private fun HistorySummaryDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA"))
-                            .format(Date(summary.createdAt)),
+                        text = formatSummaryDate(summary.createdAt),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -856,7 +855,7 @@ private fun extractSummaryPreview(raw: String): String {
             is SummaryBlockUi.Theme -> block.items.firstOrNull()?.text.orEmpty()
             is SummaryBlockUi.PlainList -> block.items.firstOrNull()?.text.orEmpty()
         }
-    }.orEmpty().ifBlank { "Зведення" }
+    }.orEmpty().ifBlank { "" }
 }
 
 @Composable
@@ -1093,7 +1092,7 @@ fun PrevNextStatusRow(
             StatusMiniCard(
                 label = stringResource(R.string.summary_previous_short),
                 status = previousSummaryAt?.let { formatStatusTimeAndDate(it) }
-                    ?: Pair("Немає", ""),
+                    ?: Pair(stringResource(R.string.summary_none_short), ""),
                 modifier = Modifier.weight(1f)
             )
             StatusMiniCard(
@@ -1239,7 +1238,6 @@ fun SummaryCard(
     onLongSelect: () -> Unit,
     onToggleSelect: () -> Unit
 ) {
-    val dateFormat = remember { SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA")) }
     val isError = summary.content.startsWith(stringResource(R.string.error_prefix)) ||
             summary.content.startsWith(stringResource(R.string.no_articles_prefix))
     val context = LocalContext.current
@@ -1254,7 +1252,7 @@ fun SummaryCard(
 
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
         Text(
-            text = dateFormat.format(Date(summary.createdAt)),
+            text = formatSummaryDate(summary.createdAt),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
@@ -1363,9 +1361,9 @@ private fun SummaryFooterRow(
         ?.substringAfter('/', modelName)
         ?.takeIf { it.isNotBlank() }
     val strategyLabel = when (summary.strategy) {
-        AiStrategy.CLOUD -> "Хмарна"
-        AiStrategy.LOCAL -> "Локальна"
-        AiStrategy.ADAPTIVE -> "Адаптивна"
+        AiStrategy.CLOUD -> context.getString(R.string.ai_strategy_cloud)
+        AiStrategy.LOCAL -> context.getString(R.string.ai_strategy_local)
+        AiStrategy.ADAPTIVE -> context.getString(R.string.ai_strategy_adaptive)
     }
     val metaText = if (isError) {
         stringResource(R.string.summary_system_notice)
@@ -1539,10 +1537,14 @@ private fun getNextScheduledTimeMillis(hour: Int, minute: Int): Long {
 }
 
 private fun formatStatusTimeAndDate(timestamp: Long): Pair<String, String> {
-    val timeFormat = SimpleDateFormat("HH:mm", Locale("uk", "UA"))
-    val dateFormat = SimpleDateFormat("dd MMM", Locale("uk", "UA"))
+    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+    val dateFormat = SimpleDateFormat("dd MMM", Locale.getDefault())
     val date = Date(timestamp)
     return Pair(timeFormat.format(date), dateFormat.format(date))
+}
+
+private fun formatSummaryDate(timestamp: Long): String {
+    return SimpleDateFormat("HH:mm, dd MMMM", Locale.getDefault()).format(Date(timestamp))
 }
 
 private fun shareSummaryText(

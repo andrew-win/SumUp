@@ -74,12 +74,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private val ClusterDateFormatThreadLocal = ThreadLocal.withInitial {
-    SimpleDateFormat("HH:mm, dd MMMM", Locale("uk", "UA"))
-}
-
 private fun formatClusterDate(timestamp: Long): String {
-    return ClusterDateFormatThreadLocal.get().format(Date(timestamp))
+    return SimpleDateFormat("HH:mm, dd MMMM", Locale.getDefault()).format(Date(timestamp))
 }
 
 @Composable

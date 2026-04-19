@@ -49,7 +49,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.Placeholder
@@ -311,15 +313,16 @@ private fun SummaryMetaRow(
     onCopy: () -> Unit,
     onShare: () -> Unit
 ) {
+    val context = LocalContext.current
     val compactModel = modelName
         ?.substringAfter('/', modelName)
         ?.takeIf { it.isNotBlank() }
     val metaText = buildString {
         append(
             when (aiStrategy) {
-                AiStrategy.CLOUD -> "Хмарна"
-                AiStrategy.LOCAL -> "Локальна"
-                AiStrategy.ADAPTIVE -> "Адаптивна"
+                AiStrategy.CLOUD -> context.getString(R.string.ai_strategy_cloud)
+                AiStrategy.LOCAL -> context.getString(R.string.ai_strategy_local)
+                AiStrategy.ADAPTIVE -> context.getString(R.string.ai_strategy_adaptive)
             }
         )
         if (aiStrategy != AiStrategy.LOCAL && compactModel != null) {
@@ -381,13 +384,13 @@ private fun parseCompareBlocks(raw: String): CompareBlocksUi? {
             .mapNotNull { line ->
                 val match = CompareBulletRegex.find(line)
                 if (match != null) {
-                    val source = match.groupValues[1].trim().ifBlank { "Джерело" }
+                    val source = match.groupValues[1].trim().ifBlank { "" }
                     val text = match.groupValues[2].trim()
                     val url = match.groupValues[3].trim().takeIf { it.isNotBlank() }
                     CompareItemUi(sourceName = source, text = text, url = url)
                 } else {
                     val text = line.removePrefix("•").removePrefix("—").removePrefix("-").trim()
-                    if (text.isBlank()) null else CompareItemUi("Джерело", text, null)
+                    if (text.isBlank()) null else CompareItemUi("", text, null)
                 }
             }
     }
@@ -405,8 +408,16 @@ private fun CompareBlocksView(
     onOpenWebView: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        CompareBlockCard(title = "Спільне", items = commonItems, onOpenWebView = onOpenWebView)
-        CompareBlockCard(title = "Унікальне", items = differentItems, onOpenWebView = onOpenWebView)
+        CompareBlockCard(
+            title = stringResource(R.string.summary_compare_common),
+            items = commonItems,
+            onOpenWebView = onOpenWebView
+        )
+        CompareBlockCard(
+            title = stringResource(R.string.summary_compare_unique),
+            items = differentItems,
+            onOpenWebView = onOpenWebView
+        )
     }
 }
 
@@ -437,7 +448,7 @@ private fun CompareBlockCard(
             )
             if (items.isEmpty()) {
                 Text(
-                    text = "Немає достатньо даних.",
+                    text = stringResource(R.string.summary_not_enough_data),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

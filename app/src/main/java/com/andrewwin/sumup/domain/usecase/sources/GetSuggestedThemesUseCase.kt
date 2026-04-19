@@ -78,7 +78,7 @@ enum class SuggestedTheme(val title: String, val sources: List<ThemeSource>, val
         )
     ),
     ECONOMY(
-        "Економіка і фінанси",
+        "Економіка",
         listOf(
             ThemeSource("https://www.holosameryky.com/api/zpoytl-vomx-tpe_ktr", SourceType.RSS),
             ThemeSource("t.me/fair_price_channel", SourceType.TELEGRAM),
@@ -92,7 +92,7 @@ enum class SuggestedTheme(val title: String, val sources: List<ThemeSource>, val
         )
     ),
     HEALTH(
-        "Здоров'я та медицина",
+        "Здоров'я",
         listOf(
             ThemeSource("https://t.me/PHC_Ukraine", SourceType.TELEGRAM),
             ThemeSource("https://t.me/zemits_ukraine_official", SourceType.TELEGRAM),
@@ -144,7 +144,7 @@ enum class SuggestedTheme(val title: String, val sources: List<ThemeSource>, val
         )
     ),
     BOOKS(
-        "Книги та література",
+        "Книги",
         listOf(
             ThemeSource("https://t.me/ukrlib", SourceType.TELEGRAM),
             ThemeSource("https://t.me/booksua11", SourceType.TELEGRAM)

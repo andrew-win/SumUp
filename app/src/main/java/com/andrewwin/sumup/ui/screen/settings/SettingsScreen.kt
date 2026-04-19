@@ -292,7 +292,7 @@ fun SettingsScreen(
                             isHelpMode = isHelpMode,
                             onGroupClick = { selectedGroup = it },
                             onHelpRequest = { group ->
-                                helpDescription = settingsGroupHelpDescription(group)
+                            helpDescription = settingsGroupHelpDescription(context, group)
                             }
                         )
                         Spacer(modifier = Modifier.height(16.dp))
@@ -307,7 +307,7 @@ fun SettingsScreen(
                             isHelpMode = isHelpMode,
                             onGroupClick = { selectedGroup = it },
                             onHelpRequest = { group ->
-                                helpDescription = settingsGroupHelpDescription(group)
+                            helpDescription = settingsGroupHelpDescription(context, group)
                             }
                         )
                         Spacer(modifier = Modifier.height(16.dp))
@@ -327,7 +327,7 @@ fun SettingsScreen(
                             isHelpMode = isHelpMode,
                             onGroupClick = { selectedGroup = it },
                             onHelpRequest = { group ->
-                                helpDescription = settingsGroupHelpDescription(group)
+                            helpDescription = settingsGroupHelpDescription(context, group)
                             }
                         )
                     }
@@ -1067,40 +1067,16 @@ fun SettingsScreen(
     }
 }
 
-private fun settingsGroupHelpDescription(group: SettingsGroup): String {
+private fun settingsGroupHelpDescription(context: android.content.Context, group: SettingsGroup): String {
     return when (group) {
-        SettingsGroup.ACCOUNT ->
-            "Акаунт: вхід/вихід, хмарна синхронізація та перенос даних. " +
-                "Тут зберігаються параметри резервного копіювання, імпорту/експорту і ручного sync, " +
-                "щоб мати однакові налаштування та джерела на кількох пристроях."
-
-        SettingsGroup.AI_PROCESSING ->
-            "ШІ обробка: логіка формування зведень (стратегія, ліміти, дедуплікація, довжина і фільтри). " +
-                "Ця група визначає якість/швидкість обробки і те, скільки контенту ШІ бере в аналіз."
-
-        SettingsGroup.API_KEYS ->
-            "API ключі: підключення провайдерів ШІ та вибір моделей для summary/embedding задач. " +
-                "Тут додаються ключі, керується їх активність і перевіряється доступність моделей."
-
-        SettingsGroup.RECOMMENDATIONS ->
-            "Рекомендації: налаштування тематичних підписок і пов'язаних сценаріїв персоналізації контенту. " +
-                "Допомагає швидко включати релевантні теми без ручного пошуку кожного джерела."
-
-        SettingsGroup.FEED ->
-            "Стрічка: параметри відображення новин у feed (медіа, описи, кількість елементів і поведінка карток). " +
-                "Впливає на те, наскільки компактно або детально виглядає щоденний перегляд новин."
-
-        SettingsGroup.SCHEDULED_SUMMARY ->
-            "Заплановані зведення: час автогенерації, push-сповіщення та параметри регулярного запуску. " +
-                "Дозволяє отримувати зведення автоматично в заданий час без ручного запуску."
-
-        SettingsGroup.GENERAL ->
-            "Загальні: мова застосунку, мова зведень, тема та інші базові глобальні параметри. " +
-                "Це загальна поведінка інтерфейсу, яка застосовується до всіх екранів."
-
-        SettingsGroup.MEMORY ->
-            "Памʼять: сервісні дії з локальними даними (очищення, скидання, технічне обслуговування сховища). " +
-                "Використовуйте обережно, бо деякі операції можуть видаляти кеш або накопичену історію."
+        SettingsGroup.ACCOUNT -> context.getString(R.string.settings_help_account)
+        SettingsGroup.AI_PROCESSING -> context.getString(R.string.settings_help_ai_processing)
+        SettingsGroup.API_KEYS -> context.getString(R.string.settings_help_api_keys)
+        SettingsGroup.RECOMMENDATIONS -> context.getString(R.string.settings_help_recommendations)
+        SettingsGroup.FEED -> context.getString(R.string.settings_help_feed)
+        SettingsGroup.SCHEDULED_SUMMARY -> context.getString(R.string.settings_help_scheduled)
+        SettingsGroup.GENERAL -> context.getString(R.string.settings_help_general)
+        SettingsGroup.MEMORY -> context.getString(R.string.settings_help_memory)
     }
 }
 

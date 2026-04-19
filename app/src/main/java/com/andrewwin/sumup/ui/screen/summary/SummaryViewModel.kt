@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.ui.screen.summary
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.Constraints
@@ -11,6 +12,7 @@ import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.R
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
@@ -23,6 +25,7 @@ import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
 import com.andrewwin.sumup.worker.SummaryWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -42,6 +45,7 @@ data class SummaryChartItem(
 
 @HiltViewModel
 class SummaryViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val summaryRepository: SummaryRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val workManager: WorkManager,
@@ -112,7 +116,11 @@ class SummaryViewModel @Inject constructor(
                     SummaryChartItem(
                         headline = cluster.representative.title,
                         value = totalViews.toFloat(),
-                        displayValue = if (hasKnownViews) "${formatViews(totalViews)} перегл." else "н/д",
+                        displayValue = if (hasKnownViews) {
+                            context.getString(R.string.summary_stat_views_count, formatViews(totalViews))
+                        } else {
+                            context.getString(R.string.summary_stat_not_available)
+                        },
                         sourceName = source?.name,
                         sourceUrl = cluster.representative.url.takeIf { it.isNotBlank() } ?: source?.url,
                         isValueUnavailable = !hasKnownViews
@@ -126,7 +134,7 @@ class SummaryViewModel @Inject constructor(
                     SummaryChartItem(
                         headline = cluster.representative.title,
                         value = count.toFloat(),
-                        displayValue = "$count схож.",
+                        displayValue = context.getString(R.string.summary_stat_mentions_count, count),
                         sourceName = source?.name,
                         sourceUrl = cluster.representative.url.takeIf { it.isNotBlank() } ?: source?.url
                     )
