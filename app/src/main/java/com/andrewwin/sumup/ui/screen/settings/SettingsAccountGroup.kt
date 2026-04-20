@@ -40,11 +40,13 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsAccountGroup(
+    isHelpMode: Boolean,
     authUiState: AuthUiState,
     isCloudSyncEnabled: Boolean,
     syncIntervalHours: Int,
     backupSelection: BackupSelection,
     transferState: TransferState,
+    onHelpRequest: (String) -> Unit,
     onSyncIntervalSelect: (Int) -> Unit,
     onSyncEnabledChange: (Boolean) -> Unit,
     onBackupSelectionChange: (BackupSelection) -> Unit,
@@ -59,7 +61,13 @@ fun SettingsAccountGroup(
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SettingsSection(title = "", boxed = true) {
+        SettingsSection(
+            title = "",
+            boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_account_profile),
+            onHelpRequest = onHelpRequest
+        ) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -137,7 +145,13 @@ fun SettingsAccountGroup(
                 }
             }
         }
-        SettingsSection(title = stringResource(R.string.settings_sync), boxed = true) {
+        SettingsSection(
+            title = stringResource(R.string.settings_sync),
+            boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_sync),
+            onHelpRequest = onHelpRequest
+        ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 SettingsBackupOptionRow(
                     title = stringResource(R.string.settings_sync_enabled),

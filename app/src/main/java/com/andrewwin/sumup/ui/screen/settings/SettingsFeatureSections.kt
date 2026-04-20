@@ -32,6 +32,7 @@ import java.util.Locale
 @Composable
 fun ScheduledSummarySettingsSection(
     showTitle: Boolean = true,
+    isHelpMode: Boolean = false,
     userPreferences: UserPreferences,
     showLastSummariesCount: Float,
     onShowLastSummariesCountChange: (Float) -> Unit,
@@ -41,11 +42,15 @@ fun ScheduledSummarySettingsSection(
     onShowInfographicNewsCountCommitted: () -> Unit,
     onScheduledSummaryToggle: (Boolean) -> Unit,
     onScheduledPushToggle: (Boolean) -> Unit,
-    onPickTime: () -> Unit
+    onPickTime: () -> Unit,
+    onHelpRequest: (String) -> Unit = {}
 ) {
     SettingsSection(
         title = if (showTitle) stringResource(R.string.settings_scheduled_summary) else "",
-        boxed = true
+        boxed = true,
+        isHelpMode = isHelpMode,
+        helpDescription = stringResource(R.string.settings_help_section_scheduled_summary),
+        onHelpRequest = onHelpRequest
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             SettingsToggleRow(
@@ -112,11 +117,16 @@ fun ScheduledSummarySettingsSection(
 fun SourcesSettingsSection(
     showTitle: Boolean = true,
     isRecommendationsEnabled: Boolean,
-    onRecommendationsToggle: (Boolean) -> Unit
+    onRecommendationsToggle: (Boolean) -> Unit,
+    isHelpMode: Boolean = false,
+    onHelpRequest: (String) -> Unit = {}
 ) {
     SettingsSection(
         title = if (showTitle) stringResource(R.string.settings_sources) else "",
-        boxed = true
+        boxed = true,
+        isHelpMode = isHelpMode,
+        helpDescription = stringResource(R.string.settings_help_section_recommendations),
+        onHelpRequest = onHelpRequest
     ) {
         SettingsToggleRow(
             label = stringResource(R.string.settings_show_recommendations),
@@ -129,16 +139,21 @@ fun SourcesSettingsSection(
 @Composable
 fun MemorySettingsSection(
     showTitle: Boolean = true,
+    isHelpMode: Boolean = false,
     articleAutoCleanupDays: Int,
     onArticleAutoCleanupDaysChange: (Int) -> Unit,
     onClearArticles: () -> Unit,
     onClearEmbeddings: () -> Unit,
     onClearScheduledSummaries: () -> Unit,
-    onResetSettings: () -> Unit
+    onResetSettings: () -> Unit,
+    onHelpRequest: (String) -> Unit = {}
 ) {
     SettingsSection(
         title = if (showTitle) stringResource(R.string.settings_memory) else "",
-        boxed = true
+        boxed = true,
+        isHelpMode = isHelpMode,
+        helpDescription = stringResource(R.string.settings_help_section_memory),
+        onHelpRequest = onHelpRequest
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(

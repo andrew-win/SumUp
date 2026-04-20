@@ -52,6 +52,7 @@ import com.andrewwin.sumup.ui.components.AppCardSurface
 import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.ui.components.AppExportPdfButton
 import com.andrewwin.sumup.ui.components.AppFilterMenuChip
+import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.components.AppSearchField
 import com.andrewwin.sumup.ui.util.SummaryBlockUi
 import com.andrewwin.sumup.ui.util.parseSummaryBlocks
@@ -79,7 +80,11 @@ internal fun SummaryHistoryListSection(
     onToggleFavorite: (Summary) -> Unit,
     onDeleteSummary: (Summary) -> Unit,
     onLongSelect: (Summary) -> Unit,
-    onToggleSelect: (Summary) -> Unit
+    onToggleSelect: (Summary) -> Unit,
+    isHelpMode: Boolean,
+    historyFiltersHelpDescription: String,
+    historyCardHelpDescription: String,
+    onShowHelpDescription: (String) -> Unit
 ) {
     LazyColumn(
         state = listState,
@@ -88,29 +93,41 @@ internal fun SummaryHistoryListSection(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            SummaryHistoryFiltersRow(
-                searchQuery = searchQuery,
-                onSearchQueryChange = onSearchQueryChange,
-                dateFilter = dateFilter,
-                onDateFilterChange = onDateFilterChange,
-                savedFilter = savedFilter,
-                onSavedFilterChange = onSavedFilterChange,
-                onExportPdf = onExportPdf,
-                isExportEnabled = isExportEnabled,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+            AppHelpOverlayTarget(
+                isEnabled = isHelpMode,
+                description = historyFiltersHelpDescription,
+                onShowDescription = onShowHelpDescription
+            ) {
+                SummaryHistoryFiltersRow(
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = onSearchQueryChange,
+                    dateFilter = dateFilter,
+                    onDateFilterChange = onDateFilterChange,
+                    savedFilter = savedFilter,
+                    onSavedFilterChange = onSavedFilterChange,
+                    onExportPdf = onExportPdf,
+                    isExportEnabled = isExportEnabled,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
         }
         items(summaries, key = { it.id }) { summary ->
-            SummaryHistoryCard(
-                summary = summary,
-                isSelected = selectedSummaryIds.contains(summary.id),
-                isSelectionMode = isSelectionMode,
-                activeSummaryModelName = activeSummaryModelName,
-                onClick = { if (isSelectionMode) onToggleSelect(summary) else onOpenSummary(summary) },
-                onLongClick = { onLongSelect(summary) },
-                onToggleFavorite = { onToggleFavorite(summary) },
-                onDelete = { onDeleteSummary(summary) }
-            )
+            AppHelpOverlayTarget(
+                isEnabled = isHelpMode,
+                description = historyCardHelpDescription,
+                onShowDescription = onShowHelpDescription
+            ) {
+                SummaryHistoryCard(
+                    summary = summary,
+                    isSelected = selectedSummaryIds.contains(summary.id),
+                    isSelectionMode = isSelectionMode,
+                    activeSummaryModelName = activeSummaryModelName,
+                    onClick = { if (isSelectionMode) onToggleSelect(summary) else onOpenSummary(summary) },
+                    onLongClick = { onLongSelect(summary) },
+                    onToggleFavorite = { onToggleFavorite(summary) },
+                    onDelete = { onDeleteSummary(summary) }
+                )
+            }
         }
     }
 }

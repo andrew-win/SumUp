@@ -71,6 +71,11 @@ fun FeedScreen(
     val activeSummaryModelName by viewModel.activeSummaryModelName.collectAsState()
     val groups by viewModel.groups.collectAsState()
     val context = LocalContext.current
+    val feedAiHelpDescription = stringResource(R.string.feed_help_ai_fab)
+    val feedFiltersHelpDescription = stringResource(R.string.feed_help_filters)
+    val feedProcessingHelpDescription = stringResource(R.string.feed_help_processing)
+    val feedEmptyHelpDescription = stringResource(R.string.feed_help_empty)
+    val feedCardHelpDescription = stringResource(R.string.feed_help_article_card)
 
     var articleForAi by remember { mutableStateOf<ArticleUiModel?>(null) }
     var isFeedAiActive by remember { mutableStateOf(false) }
@@ -137,9 +142,7 @@ fun FeedScreen(
                 AppProminentFab(
                     onClick = {
                         if (isHelpMode) {
-                            helpDescription = "Кнопка AI-асистента стрічки (робот): відкриває узагальнення по всій поточній стрічці. " +
-                                "Асистент враховує активні фільтри, тому відповідь формується саме по видимій вибірці новин. " +
-                                "У вікні можна ставити уточнюючі запитання, перегенерувати зведення або перейти до джерел."
+                            helpDescription = feedAiHelpDescription
                         } else {
                             isFeedAiActive = true
                             articleForAi = null
@@ -177,10 +180,7 @@ fun FeedScreen(
                 item {
                     AppHelpOverlayTarget(
                         isEnabled = isHelpMode,
-                        description = "Фільтри стрічки: тут задаються параметри того, що потрапляє у список нижче. " +
-                            "Пошук працює по заголовках/контенту, фільтр дати обмежує період, а перемикач збережених показує лише обрані матеріали. " +
-                            "Вибір групи дозволяє звузити стрічку до конкретного набору джерел. " +
-                            "Кнопка PDF експортує поточну відфільтровану стрічку у файл, тобто у PDF потрапляють саме ті елементи, які зараз на екрані.",
+                        description = feedFiltersHelpDescription,
                         onShowDescription = { helpDescription = it }
                     ) {
                         FeedFilters(
@@ -211,8 +211,7 @@ fun FeedScreen(
                     item {
                         AppHelpOverlayTarget(
                             isEnabled = isHelpMode,
-                            description = "Стан обробки: застосунок зараз групує схожі новини та прибирає дублікати. " +
-                                "Після завершення тут з'явиться фінальний список карток без повторів.",
+                            description = feedProcessingHelpDescription,
                             onShowDescription = { helpDescription = it }
                         ) {
                             AppMessageState(
@@ -230,8 +229,7 @@ fun FeedScreen(
                     item {
                         AppHelpOverlayTarget(
                             isEnabled = isHelpMode,
-                            description = "Порожня стрічка: немає елементів, що відповідають поточним фільтрам/підпискам. " +
-                                "Спробуйте оновлення, зміну дати, групи або вимкнення фільтра збережених.",
+                            description = feedEmptyHelpDescription,
                             onShowDescription = { helpDescription = it }
                         ) {
                             AppMessageState(
@@ -244,9 +242,7 @@ fun FeedScreen(
                     items(articleClusters, key = { it.representative.article.id }) { cluster ->
                         AppHelpOverlayTarget(
                             isEnabled = isHelpMode,
-                            description = "Картка новини: основна сутність стрічки. " +
-                                "З картки можна відкрити оригінальне джерело, запустити AI-аналіз для конкретної новини або кластера, " +
-                                "додати у збережені, переглянути медіа та взаємодіяти з дублікатами (якщо вони знайдені).",
+                            description = feedCardHelpDescription,
                             onShowDescription = { helpDescription = it }
                         ) {
                             ArticleClusterCard(

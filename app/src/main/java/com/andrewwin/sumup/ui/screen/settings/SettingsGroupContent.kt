@@ -47,7 +47,8 @@ import java.util.Locale
 internal fun SettingsHomeGroupsContent(
     isHelpMode: Boolean,
     onGroupClick: (SettingsGroup) -> Unit,
-    onHelpRequest: (SettingsGroup) -> Unit
+    onHelpRequest: (SettingsGroup) -> Unit,
+    helpDescriptionForGroup: (SettingsGroup) -> String
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SettingsHomeSection(
@@ -55,14 +56,16 @@ internal fun SettingsHomeGroupsContent(
             groups = listOf(SettingsGroup.ACCOUNT),
             isHelpMode = isHelpMode,
             onGroupClick = onGroupClick,
-            onHelpRequest = onHelpRequest
+            onHelpRequest = onHelpRequest,
+            helpDescriptionForGroup = helpDescriptionForGroup
         )
         SettingsHomeSection(
             title = stringResource(R.string.settings_section_content_ai),
             groups = listOf(SettingsGroup.AI_PROCESSING, SettingsGroup.API_KEYS, SettingsGroup.RECOMMENDATIONS),
             isHelpMode = isHelpMode,
             onGroupClick = onGroupClick,
-            onHelpRequest = onHelpRequest
+            onHelpRequest = onHelpRequest,
+            helpDescriptionForGroup = helpDescriptionForGroup
         )
         SettingsHomeSection(
             title = stringResource(R.string.settings_section_interface),
@@ -74,7 +77,8 @@ internal fun SettingsHomeGroupsContent(
             ),
             isHelpMode = isHelpMode,
             onGroupClick = onGroupClick,
-            onHelpRequest = onHelpRequest
+            onHelpRequest = onHelpRequest,
+            helpDescriptionForGroup = helpDescriptionForGroup
         )
     }
 }
@@ -85,7 +89,8 @@ private fun SettingsHomeSection(
     groups: List<SettingsGroup>,
     isHelpMode: Boolean,
     onGroupClick: (SettingsGroup) -> Unit,
-    onHelpRequest: (SettingsGroup) -> Unit
+    onHelpRequest: (SettingsGroup) -> Unit,
+    helpDescriptionForGroup: (SettingsGroup) -> String
 ) {
     Column {
         Text(
@@ -98,20 +103,29 @@ private fun SettingsHomeSection(
             groups = groups,
             isHelpMode = isHelpMode,
             onGroupClick = onGroupClick,
-            onHelpRequest = onHelpRequest
+            onHelpRequest = onHelpRequest,
+            helpDescriptionForGroup = helpDescriptionForGroup
         )
     }
 }
 
 @Composable
 internal fun SettingsGeneralGroupContent(
+    isHelpMode: Boolean,
     userPreferences: UserPreferences,
+    onHelpRequest: (String) -> Unit,
     onAppLanguageChange: (AppLanguage) -> Unit,
     onSummaryLanguageChange: (SummaryLanguage) -> Unit,
     onThemeModeChange: (AppThemeMode) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        SettingsSection(title = stringResource(R.string.settings_language), boxed = true) {
+        SettingsSection(
+            title = stringResource(R.string.settings_language),
+            boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_app_language),
+            onHelpRequest = onHelpRequest
+        ) {
             val languages = listOf(
                 AppLanguage.UK to R.string.settings_language_uk,
                 AppLanguage.EN to R.string.settings_language_en
@@ -129,7 +143,13 @@ internal fun SettingsGeneralGroupContent(
             }
         }
 
-        SettingsSection(title = stringResource(R.string.settings_summary_language), boxed = true) {
+        SettingsSection(
+            title = stringResource(R.string.settings_summary_language),
+            boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_summary_language),
+            onHelpRequest = onHelpRequest
+        ) {
             val summaryLanguages = listOf(
                 SummaryLanguage.UK to R.string.settings_summary_language_uk,
                 SummaryLanguage.EN to R.string.settings_summary_language_en
@@ -152,7 +172,13 @@ internal fun SettingsGeneralGroupContent(
             }
         }
 
-        SettingsSection(title = stringResource(R.string.settings_theme), boxed = true) {
+        SettingsSection(
+            title = stringResource(R.string.settings_theme),
+            boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_theme),
+            onHelpRequest = onHelpRequest
+        ) {
             val themeModes = listOf(
                 AppThemeMode.SYSTEM to R.string.settings_theme_system,
                 AppThemeMode.LIGHT to R.string.settings_theme_light,
@@ -180,8 +206,10 @@ internal fun SettingsGeneralGroupContent(
 
 @Composable
 internal fun SettingsApiKeysGroupContent(
+    isHelpMode: Boolean,
     summaryConfigs: List<AiModelConfig>,
     embeddingConfigs: List<AiModelConfig>,
+    onHelpRequest: (String) -> Unit,
     onAddSummaryConfig: () -> Unit,
     onEditSummaryConfig: (AiModelConfig) -> Unit,
     onDeleteSummaryConfig: (AiModelConfig) -> Unit,
@@ -195,6 +223,9 @@ internal fun SettingsApiKeysGroupContent(
         SettingsSection(
             title = stringResource(R.string.settings_cloud_summary_api_keys),
             boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_summary_api_keys),
+            onHelpRequest = onHelpRequest,
             trailing = {
                 AddSettingsActionButton(onClick = onAddSummaryConfig)
             }
@@ -210,6 +241,9 @@ internal fun SettingsApiKeysGroupContent(
         SettingsSection(
             title = stringResource(R.string.settings_cloud_vectorization_api_keys),
             boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_embedding_api_keys),
+            onHelpRequest = onHelpRequest,
             trailing = {
                 AddSettingsActionButton(onClick = onAddEmbeddingConfig)
             }
@@ -267,6 +301,7 @@ private fun AiConfigList(
 
 @Composable
 internal fun SettingsAiProcessingGroupContent(
+    isHelpMode: Boolean,
     userPreferences: UserPreferences,
     summaryPrompt: String,
     aiMaxCharsPerArticle: Float,
@@ -296,10 +331,17 @@ internal fun SettingsAiProcessingGroupContent(
     onAdaptiveExtractiveCompressAboveCharsChange: (Float) -> Unit,
     onAdaptiveExtractiveCompressAboveCharsCommitted: () -> Unit,
     onAdaptiveExtractiveCompressionPercentChange: (Float) -> Unit,
-    onAdaptiveExtractiveCompressionPercentCommitted: () -> Unit
+    onAdaptiveExtractiveCompressionPercentCommitted: () -> Unit,
+    onHelpRequest: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        SettingsSection(title = stringResource(R.string.settings_ai_strategy), boxed = true) {
+        SettingsSection(
+            title = stringResource(R.string.settings_ai_strategy),
+            boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_ai_strategy),
+            onHelpRequest = onHelpRequest
+        ) {
             val strategies = listOf(
                 AiStrategy.LOCAL to R.string.ai_strategy_local,
                 AiStrategy.CLOUD to R.string.ai_strategy_cloud,
@@ -323,7 +365,13 @@ internal fun SettingsAiProcessingGroupContent(
             }
         }
 
-        SettingsSection(title = stringResource(R.string.settings_ai_limits), boxed = true) {
+        SettingsSection(
+            title = stringResource(R.string.settings_ai_limits),
+            boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_ai_limits),
+            onHelpRequest = onHelpRequest
+        ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SettingsIntSliderItem(
                     label = stringResource(R.string.settings_ai_chars_per_article_processing, aiMaxCharsPerArticle.toInt()),
@@ -352,7 +400,13 @@ internal fun SettingsAiProcessingGroupContent(
             }
         }
 
-        SettingsSection(title = stringResource(R.string.settings_local_summary), boxed = true) {
+        SettingsSection(
+            title = stringResource(R.string.settings_local_summary),
+            boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_local_summary),
+            onHelpRequest = onHelpRequest
+        ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SettingsIntSliderItem(
                     label = stringResource(R.string.settings_summary_news_feed_extractive, summaryNewsInFeedExtractive.toInt()),
@@ -373,7 +427,13 @@ internal fun SettingsAiProcessingGroupContent(
             }
         }
 
-        SettingsSection(title = stringResource(R.string.settings_deduplication_strategy), boxed = true) {
+        SettingsSection(
+            title = stringResource(R.string.settings_deduplication_strategy),
+            boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_dedup_strategy),
+            onHelpRequest = onHelpRequest
+        ) {
             val strategies = listOf(
                 DeduplicationStrategy.LOCAL to R.string.ai_strategy_local,
                 DeduplicationStrategy.CLOUD to R.string.ai_strategy_cloud,
@@ -397,7 +457,13 @@ internal fun SettingsAiProcessingGroupContent(
             }
         }
 
-        SettingsSection(title = stringResource(R.string.settings_custom_summary_prompt), boxed = true) {
+        SettingsSection(
+            title = stringResource(R.string.settings_custom_summary_prompt),
+            boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_custom_prompt),
+            onHelpRequest = onHelpRequest
+        ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SettingsToggleRow(
                     label = stringResource(R.string.settings_custom_summary_prompt),
@@ -418,7 +484,13 @@ internal fun SettingsAiProcessingGroupContent(
             }
         }
 
-        SettingsSection(title = stringResource(R.string.settings_adaptive_summary), boxed = true) {
+        SettingsSection(
+            title = stringResource(R.string.settings_adaptive_summary),
+            boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_adaptive_summary),
+            onHelpRequest = onHelpRequest
+        ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SettingsIntSliderItem(
                     label = stringResource(
@@ -460,6 +532,7 @@ internal fun SettingsAiProcessingGroupContent(
 
 @Composable
 internal fun SettingsFeedGroupContent(
+    isHelpMode: Boolean,
     userPreferences: UserPreferences,
     localDeduplicationThreshold: Float,
     cloudDeduplicationThreshold: Float,
@@ -477,9 +550,16 @@ internal fun SettingsFeedGroupContent(
     onCloudDeduplicationThresholdCommitted: () -> Unit,
     onMinMentionsChange: (Float) -> Unit,
     onMinMentionsCommitted: () -> Unit,
-    onModelActionClick: () -> Unit
+    onModelActionClick: () -> Unit,
+    onHelpRequest: (String) -> Unit
 ) {
-    SettingsSection(title = stringResource(R.string.settings_feed), boxed = true) {
+    SettingsSection(
+        title = stringResource(R.string.settings_feed),
+        boxed = true,
+        isHelpMode = isHelpMode,
+        helpDescription = stringResource(R.string.settings_help_section_feed),
+        onHelpRequest = onHelpRequest
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             SettingsToggleRow(
                 label = stringResource(R.string.settings_feed_media),

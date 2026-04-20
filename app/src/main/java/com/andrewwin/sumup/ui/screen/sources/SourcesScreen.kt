@@ -74,6 +74,9 @@ fun SourcesScreen(
     var selectedGroupIdForSource by remember { mutableStateOf<Long?>(null) }
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
+    val addGroupHelpDescription = stringResource(R.string.sources_help_add_group)
+    val groupCardHelpDescription = stringResource(R.string.sources_help_group_card)
+    val suggestedThemesHelpDescription = stringResource(R.string.sources_help_recommended_themes)
 
     LaunchedEffect(isSelectionMode) {
         if (isSelectionMode && isHelpMode) {
@@ -118,10 +121,7 @@ fun SourcesScreen(
             AppProminentFab(
                 onClick = {
                     if (isHelpMode) {
-                        helpDescription = "Кнопка '+' додає нову папку (групу) джерел. " +
-                            "Група використовується для логічного розділення підписок за темами або задачами. " +
-                            "Наприклад: 'Україна', 'Технології', 'Крипта'. " +
-                            "Після створення папки в неї додаються конкретні джерела: RSS, Telegram, YouTube або сайт."
+                        helpDescription = addGroupHelpDescription
                     } else {
                         showAddGroupDialog = true
                     }
@@ -150,9 +150,7 @@ fun SourcesScreen(
             items(uiState, key = { it.group.id }) { groupWithSources ->
                 AppHelpOverlayTarget(
                     isEnabled = isHelpMode,
-                    description = "Група джерел (папка): контейнер для підписок. " +
-                        "Усередині можна вмикати/вимикати всю групу або окремі джерела, редагувати назву і склад. " +
-                        "Коли групу вимкнено, її джерела не беруть участі у формуванні стрічки.",
+                    description = groupCardHelpDescription,
                     onShowDescription = { helpDescription = it }
                 ) {
                     GroupCard(
@@ -186,9 +184,7 @@ fun SourcesScreen(
                 if (isRecommendationsEnabled) {
                     AppHelpOverlayTarget(
                         isEnabled = isHelpMode,
-                        description = "Рекомендовані теми: швидкий спосіб додати готові тематичні підписки. " +
-                            "При підписці застосунок додає джерела у структурованому вигляді як окремі папки/групи, " +
-                            "щоб їх можна було незалежно фільтрувати у стрічці та гнучко керувати ввімкненням.",
+                        description = suggestedThemesHelpDescription,
                         onShowDescription = { helpDescription = it }
                     ) {
                         Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
@@ -428,7 +424,7 @@ fun GroupCard(
                     HorizontalDivider(
                         modifier = Modifier.padding(horizontal = 16.dp),
                         thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
                     )
 
                     if (groupWithSources.sources.isEmpty()) {

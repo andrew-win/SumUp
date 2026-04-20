@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.ui.components.AppCardSurface
+import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.theme.AppCardShape
 import com.andrewwin.sumup.ui.theme.appCardBorder
 import com.andrewwin.sumup.ui.theme.*
@@ -86,26 +87,34 @@ internal fun SettingsGroupsPanel(
     groups: List<SettingsGroup>,
     isHelpMode: Boolean = false,
     onGroupClick: (SettingsGroup) -> Unit,
-    onHelpRequest: (SettingsGroup) -> Unit = {}
+    onHelpRequest: (SettingsGroup) -> Unit = {},
+    helpDescriptionForGroup: (SettingsGroup) -> String = { "" }
 ) {
     AppCardSurface(
         modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()
         ) {
             groups.forEachIndexed { index, group ->
-                SettingsGroupRow(
-                    group = group,
-                    onClick = {
-                        if (isHelpMode) onHelpRequest(group) else onGroupClick(group)
-                    }
-                )
+                AppHelpOverlayTarget(
+                    isEnabled = isHelpMode,
+                    description = helpDescriptionForGroup(group),
+                    onShowDescription = { onHelpRequest(group) }
+                ) {
+                    SettingsGroupRow(
+                        group = group,
+                        onClick = {
+                            if (isHelpMode) onHelpRequest(group) else onGroupClick(group)
+                        }
+                    )
+                }
                 if (index < groups.size - 1) {
                     androidx.compose.material3.HorizontalDivider(
                         modifier = Modifier.padding(start = 70.dp),
                         thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
                     )
                 }
             }

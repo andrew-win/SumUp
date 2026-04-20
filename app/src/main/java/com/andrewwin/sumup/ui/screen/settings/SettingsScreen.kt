@@ -251,12 +251,10 @@ fun SettingsScreen(
                     }
                 },
                 actions = {
-                    if (selectedGroup == null) {
-                        AppHelpToggleAction(
-                            isHelpMode = isHelpMode,
-                            onToggle = { isHelpMode = !isHelpMode }
-                        )
-                    }
+                    AppHelpToggleAction(
+                        isHelpMode = isHelpMode,
+                        onToggle = { isHelpMode = !isHelpMode }
+                    )
                 }
             )
         }
@@ -277,200 +275,219 @@ fun SettingsScreen(
                             onGroupClick = { selectedGroup = it },
                             onHelpRequest = { group ->
                                 helpDescription = settingsGroupHelpDescription(context, group)
+                            },
+                            helpDescriptionForGroup = { group ->
+                                settingsGroupHelpDescription(context, group)
                             }
                         )
                     }
                     return@LazyColumn
                 }
-            if (activeGroup == SettingsGroup.ACCOUNT) item {
-                SettingsAccountGroup(
-                    authUiState = authUiState,
-                    isCloudSyncEnabled = isCloudSyncEnabled,
-                    syncIntervalHours = syncIntervalHours,
-                    backupSelection = backupSelection,
-                    transferState = transferState,
-                    onSyncIntervalSelect = { viewModel.updateSyncIntervalHours(it) },
-                    onSyncEnabledChange = { enabled ->
-                        viewModel.setCloudSyncEnabled(enabled, backupSelection)
-                    },
-                    onBackupSelectionChange = viewModel::updateBackupSelection,
-                    onSignInOutClick = {
-                        if (authUiState.isSignedIn) {
-                            viewModel.signOut()
-                        } else {
-                            showEmailAuthDialog = true
-                        }
-                    },
-                    onSyncNowClick = { viewModel.syncNow(backupSelection) },
-                    onImportClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
-                    onExportClick = { exportLauncher.launch(it) }
-                )
-            }
+                if (activeGroup == SettingsGroup.ACCOUNT) item {
+                    SettingsAccountGroup(
+                        isHelpMode = isHelpMode,
+                        authUiState = authUiState,
+                        isCloudSyncEnabled = isCloudSyncEnabled,
+                        syncIntervalHours = syncIntervalHours,
+                        backupSelection = backupSelection,
+                        transferState = transferState,
+                        onHelpRequest = { helpDescription = it },
+                        onSyncIntervalSelect = { viewModel.updateSyncIntervalHours(it) },
+                        onSyncEnabledChange = { enabled ->
+                            viewModel.setCloudSyncEnabled(enabled, backupSelection)
+                        },
+                        onBackupSelectionChange = viewModel::updateBackupSelection,
+                        onSignInOutClick = {
+                            if (authUiState.isSignedIn) {
+                                viewModel.signOut()
+                            } else {
+                                showEmailAuthDialog = true
+                            }
+                        },
+                        onSyncNowClick = { viewModel.syncNow(backupSelection) },
+                        onImportClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
+                        onExportClick = { exportLauncher.launch(it) }
+                    )
+                }
 
-            if (activeGroup == SettingsGroup.GENERAL) item {
-                SettingsGeneralGroupContent(
-                    userPreferences = userPreferences,
-                    onAppLanguageChange = viewModel::updateAppLanguage,
-                    onSummaryLanguageChange = viewModel::updateSummaryLanguage,
-                    onThemeModeChange = viewModel::updateAppThemeMode
-                )
-            }
-            if (activeGroup == SettingsGroup.API_KEYS) item {
-                SettingsApiKeysGroupContent(
-                    summaryConfigs = summaryConfigs,
-                    embeddingConfigs = embeddingConfigs,
-                    onAddSummaryConfig = { showConfigDialog = null to AiModelType.SUMMARY },
-                    onEditSummaryConfig = { showConfigDialog = it to AiModelType.SUMMARY },
-                    onDeleteSummaryConfig = viewModel::deleteAiConfig,
-                    onToggleSummaryConfig = viewModel::toggleAiConfig,
-                    onAddEmbeddingConfig = { showConfigDialog = null to AiModelType.EMBEDDING },
-                    onEditEmbeddingConfig = { showConfigDialog = it to AiModelType.EMBEDDING },
-                    onDeleteEmbeddingConfig = viewModel::deleteAiConfig,
-                    onToggleEmbeddingConfig = viewModel::toggleAiConfig
-                )
-            }
-            if (activeGroup == SettingsGroup.AI_PROCESSING) item {
-                SettingsAiProcessingGroupContent(
-                    userPreferences = userPreferences,
-                    summaryPrompt = summaryPrompt,
-                    aiMaxCharsPerArticle = aiMaxCharsPerArticle,
-                    aiMaxCharsPerFeedArticle = aiMaxCharsPerFeedArticle,
-                    aiMaxCharsTotal = aiMaxCharsTotal,
-                    summaryNewsInFeedExtractive = summaryNewsInFeedExtractive,
-                    summaryNewsInScheduledExtractive = summaryNewsInScheduledExtractive,
-                    adaptiveExtractiveOnlyBelowChars = adaptiveExtractiveOnlyBelowChars,
-                    adaptiveExtractiveCompressAboveChars = adaptiveExtractiveCompressAboveChars,
-                    adaptiveExtractiveCompressionPercent = adaptiveExtractiveCompressionPercent,
-                    onAiStrategyChange = viewModel::updateAiStrategy,
-                    onAiMaxCharsPerArticleChange = { aiMaxCharsPerArticle = it },
-                    onAiMaxCharsPerArticleCommitted = {
-                        viewModel.updateAiMaxCharsPerArticle(aiMaxCharsPerArticle.toInt())
-                    },
-                    onAiMaxCharsPerFeedArticleChange = { aiMaxCharsPerFeedArticle = it },
-                    onAiMaxCharsPerFeedArticleCommitted = {
-                        viewModel.updateAiMaxCharsPerFeedArticle(aiMaxCharsPerFeedArticle.toInt())
-                    },
-                    onAiMaxCharsTotalChange = { aiMaxCharsTotal = it },
-                    onAiMaxCharsTotalCommitted = {
-                        viewModel.updateAiMaxCharsTotal(aiMaxCharsTotal.toInt())
-                    },
-                    onSummaryNewsInFeedExtractiveChange = { summaryNewsInFeedExtractive = it },
-                    onSummaryNewsInFeedExtractiveCommitted = {
-                        viewModel.updateSummaryNewsInFeedExtractive(summaryNewsInFeedExtractive.toInt())
-                    },
-                    onSummaryNewsInScheduledExtractiveChange = { summaryNewsInScheduledExtractive = it },
-                    onSummaryNewsInScheduledExtractiveCommitted = {
-                        viewModel.updateSummaryNewsInScheduledExtractive(summaryNewsInScheduledExtractive.toInt())
-                    },
-                    onDeduplicationStrategyChange = viewModel::updateDeduplicationStrategy,
-                    onCustomSummaryPromptEnabledChange = viewModel::updateCustomSummaryPromptEnabled,
-                    onSummaryPromptChange = {
-                        summaryPrompt = it
-                        viewModel.updateSummaryPrompt(it)
-                    },
-                    onAdaptiveExtractiveOnlyBelowCharsChange = { adaptiveExtractiveOnlyBelowChars = it },
-                    onAdaptiveExtractiveOnlyBelowCharsCommitted = {
-                        viewModel.updateAdaptiveExtractiveOnlyBelowChars(adaptiveExtractiveOnlyBelowChars.toInt())
-                    },
-                    onAdaptiveExtractiveCompressAboveCharsChange = { adaptiveExtractiveCompressAboveChars = it },
-                    onAdaptiveExtractiveCompressAboveCharsCommitted = {
-                        viewModel.updateAdaptiveExtractiveCompressAboveChars(adaptiveExtractiveCompressAboveChars.toInt())
-                    },
-                    onAdaptiveExtractiveCompressionPercentChange = { adaptiveExtractiveCompressionPercent = it },
-                    onAdaptiveExtractiveCompressionPercentCommitted = {
-                        viewModel.updateAdaptiveExtractiveCompressionPercent(adaptiveExtractiveCompressionPercent.toInt())
-                    }
-                )
-            }
-            if (activeGroup == SettingsGroup.FEED) item {
-                SettingsFeedGroupContent(
-                    userPreferences = userPreferences,
-                    localDeduplicationThreshold = localDeduplicationThreshold,
-                    cloudDeduplicationThreshold = cloudDeduplicationThreshold,
-                    minMentions = minMentions,
-                    downloadState = downloadState,
-                    onFeedMediaEnabledChange = viewModel::updateFeedMediaEnabled,
-                    onFeedDescriptionEnabledChange = viewModel::updateFeedDescriptionEnabled,
-                    onFeedSummaryUseFullTextEnabledChange = viewModel::updateFeedSummaryUseFullTextEnabled,
-                    onImportanceFilterEnabledChange = viewModel::updateImportanceFilterEnabled,
-                    onDeduplicationEnabledChange = viewModel::updateDeduplicationEnabled,
-                    onHideSingleNewsEnabledChange = viewModel::updateHideSingleNewsEnabled,
-                    onLocalDeduplicationThresholdChange = { localDeduplicationThreshold = it },
-                    onLocalDeduplicationThresholdCommitted = {
-                        viewModel.updateLocalDeduplicationThreshold(localDeduplicationThreshold)
-                    },
-                    onCloudDeduplicationThresholdChange = { cloudDeduplicationThreshold = it },
-                    onCloudDeduplicationThresholdCommitted = {
-                        viewModel.updateCloudDeduplicationThreshold(cloudDeduplicationThreshold)
-                    },
-                    onMinMentionsChange = { minMentions = it },
-                    onMinMentionsCommitted = {
-                        viewModel.updateMinMentions(minMentions.toInt())
-                    },
-                    onModelActionClick = {
-                        if (downloadState is ModelDownloadState.Ready) viewModel.deleteModel()
-                        else viewModel.downloadModel()
-                    }
-                )
-            }
-            if (activeGroup == SettingsGroup.SCHEDULED_SUMMARY) item {
-                ScheduledSummarySettingsSection(
-                    showTitle = false,
-                    userPreferences = userPreferences,
-                    showLastSummariesCount = showLastSummariesCount,
-                    onShowLastSummariesCountChange = { showLastSummariesCount = it },
-                    onShowLastSummariesCountCommitted = {
-                        viewModel.updateShowLastSummariesCount(showLastSummariesCount.toInt())
-                    },
-                    showInfographicNewsCount = showInfographicNewsCount,
-                    onShowInfographicNewsCountChange = { showInfographicNewsCount = it },
-                    onShowInfographicNewsCountCommitted = {
-                        viewModel.updateShowInfographicNewsCount(showInfographicNewsCount.toInt())
-                    },
-                    onScheduledSummaryToggle = {
-                        viewModel.updateScheduledSummary(
-                            it,
-                            userPreferences.scheduledHour,
-                            userPreferences.scheduledMinute
-                        )
-                    },
-                    onScheduledPushToggle = { enabled ->
-                        if (!enabled) {
-                            viewModel.updateScheduledSummaryPushEnabled(false)
-                        } else if (
-                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                            ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.POST_NOTIFICATIONS
-                            ) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else {
-                            viewModel.updateScheduledSummaryPushEnabled(true)
-                        }
-                    },
-                    onPickTime = { showTimePicker = true }
-                )
-            }
-            if (activeGroup == SettingsGroup.RECOMMENDATIONS) item {
-                SourcesSettingsSection(
-                    showTitle = false,
-                    isRecommendationsEnabled = userPreferences.isRecommendationsEnabled,
-                    onRecommendationsToggle = { viewModel.updateRecommendationsEnabled(it) }
-                )
-            }
+                if (activeGroup == SettingsGroup.GENERAL) item {
+                    SettingsGeneralGroupContent(
+                        isHelpMode = isHelpMode,
+                        userPreferences = userPreferences,
+                        onHelpRequest = { helpDescription = it },
+                        onAppLanguageChange = viewModel::updateAppLanguage,
+                        onSummaryLanguageChange = viewModel::updateSummaryLanguage,
+                        onThemeModeChange = viewModel::updateAppThemeMode
+                    )
+                }
+                if (activeGroup == SettingsGroup.API_KEYS) item {
+                    SettingsApiKeysGroupContent(
+                        isHelpMode = isHelpMode,
+                        summaryConfigs = summaryConfigs,
+                        embeddingConfigs = embeddingConfigs,
+                        onHelpRequest = { helpDescription = it },
+                        onAddSummaryConfig = { showConfigDialog = null to AiModelType.SUMMARY },
+                        onEditSummaryConfig = { showConfigDialog = it to AiModelType.SUMMARY },
+                        onDeleteSummaryConfig = viewModel::deleteAiConfig,
+                        onToggleSummaryConfig = viewModel::toggleAiConfig,
+                        onAddEmbeddingConfig = { showConfigDialog = null to AiModelType.EMBEDDING },
+                        onEditEmbeddingConfig = { showConfigDialog = it to AiModelType.EMBEDDING },
+                        onDeleteEmbeddingConfig = viewModel::deleteAiConfig,
+                        onToggleEmbeddingConfig = viewModel::toggleAiConfig
+                    )
+                }
+                if (activeGroup == SettingsGroup.AI_PROCESSING) item {
+                    SettingsAiProcessingGroupContent(
+                        isHelpMode = isHelpMode,
+                        userPreferences = userPreferences,
+                        summaryPrompt = summaryPrompt,
+                        aiMaxCharsPerArticle = aiMaxCharsPerArticle,
+                        aiMaxCharsPerFeedArticle = aiMaxCharsPerFeedArticle,
+                        aiMaxCharsTotal = aiMaxCharsTotal,
+                        summaryNewsInFeedExtractive = summaryNewsInFeedExtractive,
+                        summaryNewsInScheduledExtractive = summaryNewsInScheduledExtractive,
+                        adaptiveExtractiveOnlyBelowChars = adaptiveExtractiveOnlyBelowChars,
+                        adaptiveExtractiveCompressAboveChars = adaptiveExtractiveCompressAboveChars,
+                        adaptiveExtractiveCompressionPercent = adaptiveExtractiveCompressionPercent,
+                        onAiStrategyChange = viewModel::updateAiStrategy,
+                        onAiMaxCharsPerArticleChange = { aiMaxCharsPerArticle = it },
+                        onAiMaxCharsPerArticleCommitted = {
+                            viewModel.updateAiMaxCharsPerArticle(aiMaxCharsPerArticle.toInt())
+                        },
+                        onAiMaxCharsPerFeedArticleChange = { aiMaxCharsPerFeedArticle = it },
+                        onAiMaxCharsPerFeedArticleCommitted = {
+                            viewModel.updateAiMaxCharsPerFeedArticle(aiMaxCharsPerFeedArticle.toInt())
+                        },
+                        onAiMaxCharsTotalChange = { aiMaxCharsTotal = it },
+                        onAiMaxCharsTotalCommitted = {
+                            viewModel.updateAiMaxCharsTotal(aiMaxCharsTotal.toInt())
+                        },
+                        onSummaryNewsInFeedExtractiveChange = { summaryNewsInFeedExtractive = it },
+                        onSummaryNewsInFeedExtractiveCommitted = {
+                            viewModel.updateSummaryNewsInFeedExtractive(summaryNewsInFeedExtractive.toInt())
+                        },
+                        onSummaryNewsInScheduledExtractiveChange = { summaryNewsInScheduledExtractive = it },
+                        onSummaryNewsInScheduledExtractiveCommitted = {
+                            viewModel.updateSummaryNewsInScheduledExtractive(summaryNewsInScheduledExtractive.toInt())
+                        },
+                        onDeduplicationStrategyChange = viewModel::updateDeduplicationStrategy,
+                        onCustomSummaryPromptEnabledChange = viewModel::updateCustomSummaryPromptEnabled,
+                        onSummaryPromptChange = {
+                            summaryPrompt = it
+                            viewModel.updateSummaryPrompt(it)
+                        },
+                        onAdaptiveExtractiveOnlyBelowCharsChange = { adaptiveExtractiveOnlyBelowChars = it },
+                        onAdaptiveExtractiveOnlyBelowCharsCommitted = {
+                            viewModel.updateAdaptiveExtractiveOnlyBelowChars(adaptiveExtractiveOnlyBelowChars.toInt())
+                        },
+                        onAdaptiveExtractiveCompressAboveCharsChange = { adaptiveExtractiveCompressAboveChars = it },
+                        onAdaptiveExtractiveCompressAboveCharsCommitted = {
+                            viewModel.updateAdaptiveExtractiveCompressAboveChars(adaptiveExtractiveCompressAboveChars.toInt())
+                        },
+                        onAdaptiveExtractiveCompressionPercentChange = { adaptiveExtractiveCompressionPercent = it },
+                        onAdaptiveExtractiveCompressionPercentCommitted = {
+                            viewModel.updateAdaptiveExtractiveCompressionPercent(adaptiveExtractiveCompressionPercent.toInt())
+                        },
+                        onHelpRequest = { helpDescription = it }
+                    )
+                }
+                if (activeGroup == SettingsGroup.FEED) item {
+                    SettingsFeedGroupContent(
+                        isHelpMode = isHelpMode,
+                        userPreferences = userPreferences,
+                        localDeduplicationThreshold = localDeduplicationThreshold,
+                        cloudDeduplicationThreshold = cloudDeduplicationThreshold,
+                        minMentions = minMentions,
+                        downloadState = downloadState,
+                        onFeedMediaEnabledChange = viewModel::updateFeedMediaEnabled,
+                        onFeedDescriptionEnabledChange = viewModel::updateFeedDescriptionEnabled,
+                        onFeedSummaryUseFullTextEnabledChange = viewModel::updateFeedSummaryUseFullTextEnabled,
+                        onImportanceFilterEnabledChange = viewModel::updateImportanceFilterEnabled,
+                        onDeduplicationEnabledChange = viewModel::updateDeduplicationEnabled,
+                        onHideSingleNewsEnabledChange = viewModel::updateHideSingleNewsEnabled,
+                        onLocalDeduplicationThresholdChange = { localDeduplicationThreshold = it },
+                        onLocalDeduplicationThresholdCommitted = {
+                            viewModel.updateLocalDeduplicationThreshold(localDeduplicationThreshold)
+                        },
+                        onCloudDeduplicationThresholdChange = { cloudDeduplicationThreshold = it },
+                        onCloudDeduplicationThresholdCommitted = {
+                            viewModel.updateCloudDeduplicationThreshold(cloudDeduplicationThreshold)
+                        },
+                        onMinMentionsChange = { minMentions = it },
+                        onMinMentionsCommitted = {
+                            viewModel.updateMinMentions(minMentions.toInt())
+                        },
+                        onModelActionClick = {
+                            if (downloadState is ModelDownloadState.Ready) viewModel.deleteModel()
+                            else viewModel.downloadModel()
+                        },
+                        onHelpRequest = { helpDescription = it }
+                    )
+                }
+                if (activeGroup == SettingsGroup.SCHEDULED_SUMMARY) item {
+                    ScheduledSummarySettingsSection(
+                        showTitle = false,
+                        isHelpMode = isHelpMode,
+                        userPreferences = userPreferences,
+                        showLastSummariesCount = showLastSummariesCount,
+                        onShowLastSummariesCountChange = { showLastSummariesCount = it },
+                        onShowLastSummariesCountCommitted = {
+                            viewModel.updateShowLastSummariesCount(showLastSummariesCount.toInt())
+                        },
+                        showInfographicNewsCount = showInfographicNewsCount,
+                        onShowInfographicNewsCountChange = { showInfographicNewsCount = it },
+                        onShowInfographicNewsCountCommitted = {
+                            viewModel.updateShowInfographicNewsCount(showInfographicNewsCount.toInt())
+                        },
+                        onScheduledSummaryToggle = {
+                            viewModel.updateScheduledSummary(
+                                it,
+                                userPreferences.scheduledHour,
+                                userPreferences.scheduledMinute
+                            )
+                        },
+                        onScheduledPushToggle = { enabled ->
+                            if (!enabled) {
+                                viewModel.updateScheduledSummaryPushEnabled(false)
+                            } else if (
+                                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.POST_NOTIFICATIONS
+                                ) != PackageManager.PERMISSION_GRANTED
+                            ) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                viewModel.updateScheduledSummaryPushEnabled(true)
+                            }
+                        },
+                        onPickTime = { showTimePicker = true },
+                        onHelpRequest = { helpDescription = it }
+                    )
+                }
+                if (activeGroup == SettingsGroup.RECOMMENDATIONS) item {
+                    SourcesSettingsSection(
+                        showTitle = false,
+                        isRecommendationsEnabled = userPreferences.isRecommendationsEnabled,
+                        onRecommendationsToggle = { viewModel.updateRecommendationsEnabled(it) },
+                        isHelpMode = isHelpMode,
+                        onHelpRequest = { helpDescription = it }
+                    )
+                }
 
-            if (activeGroup == SettingsGroup.MEMORY) item {
-                MemorySettingsSection(
-                    showTitle = false,
-                    articleAutoCleanupDays = userPreferences.articleAutoCleanupDays,
-                    onArticleAutoCleanupDaysChange = viewModel::updateArticleAutoCleanupDays,
-                    onClearArticles = { showClearArticlesDialog = true },
-                    onClearEmbeddings = { showClearEmbeddingsDialog = true },
-                    onClearScheduledSummaries = { showClearScheduledSummariesDialog = true },
-                    onResetSettings = { showResetSettingsDialog = true }
-                )
-            }
+                if (activeGroup == SettingsGroup.MEMORY) item {
+                    MemorySettingsSection(
+                        showTitle = false,
+                        isHelpMode = isHelpMode,
+                        articleAutoCleanupDays = userPreferences.articleAutoCleanupDays,
+                        onArticleAutoCleanupDaysChange = viewModel::updateArticleAutoCleanupDays,
+                        onClearArticles = { showClearArticlesDialog = true },
+                        onClearEmbeddings = { showClearEmbeddingsDialog = true },
+                        onClearScheduledSummaries = { showClearScheduledSummariesDialog = true },
+                        onResetSettings = { showResetSettingsDialog = true },
+                        onHelpRequest = { helpDescription = it }
+                    )
+                }
             }
         }
 
@@ -478,7 +495,7 @@ fun SettingsScreen(
             AppExplanationDialog(
                 description = helpDescription.orEmpty(),
                 onDismiss = { helpDescription = null },
-                title = "Пояснення групи налаштувань"
+                title = stringResource(R.string.settings_help_group_dialog_title)
             )
         }
 

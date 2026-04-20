@@ -9,7 +9,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.andrewwin.sumup.ui.components.AppHelpToggleAction
 import com.andrewwin.sumup.ui.components.AppTopBar
 
 @Composable
@@ -22,9 +21,6 @@ fun PlaceholderScreen(title: String) {
                         text = title,
                         style = MaterialTheme.typography.headlineMedium
                     )
-                },
-                actions = {
-                    AppHelpToggleAction(isHelpMode = false, onToggle = {})
                 }
             )
         }

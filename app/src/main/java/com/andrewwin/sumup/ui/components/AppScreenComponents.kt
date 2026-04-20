@@ -37,9 +37,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.andrewwin.sumup.R
 import com.andrewwin.sumup.ui.theme.AppDimens
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -49,6 +51,11 @@ fun AppHelpToggleAction(
     onToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val contentDescription = if (isHelpMode) {
+        stringResource(R.string.help_toggle_disable)
+    } else {
+        stringResource(R.string.help_toggle_enable)
+    }
     FilledIconButton(
         onClick = onToggle,
         modifier = modifier,
@@ -57,9 +64,9 @@ fun AppHelpToggleAction(
         )
     ) {
         if (isHelpMode) {
-            Icon(Icons.Default.Close, contentDescription = "Вимкнути підказки")
+            Icon(Icons.Default.Close, contentDescription = contentDescription)
         } else {
-            Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = "Увімкнути підказки")
+            Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = contentDescription)
         }
     }
 }
@@ -174,7 +181,7 @@ fun AppBackToTopFab(
 fun AppExplanationDialog(
     description: String,
     onDismiss: () -> Unit,
-    title: String = "Пояснення блоку"
+    title: String = stringResource(R.string.help_dialog_title)
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -182,7 +189,7 @@ fun AppExplanationDialog(
         text = { Text(description) },
         confirmButton = {
             Button(onClick = onDismiss) {
-                Text("Зрозуміло")
+                Text(stringResource(R.string.help_dialog_confirm))
             }
         }
     )
@@ -196,12 +203,12 @@ fun AppHelpOverlayTarget(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    Box(modifier = modifier.fillMaxWidth()) {
+    Box(modifier = modifier) {
         content()
         if (isEnabled) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .matchParentSize()
                     .clip(MaterialTheme.shapes.large)
                     .background(Color.Gray.copy(alpha = 0.45f))
                     .clickable { onShowDescription(description) }

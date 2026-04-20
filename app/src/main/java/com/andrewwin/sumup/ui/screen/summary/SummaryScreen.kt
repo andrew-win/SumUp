@@ -121,6 +121,12 @@ fun SummaryScreen(
     onOpenWebView: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val summaryHistoryFabHelpDescription = stringResource(R.string.summary_help_history_fab)
+    val summaryHistoryFiltersHelpDescription = stringResource(R.string.summary_help_history_filters)
+    val summaryHistoryCardHelpDescription = stringResource(R.string.summary_help_history_card)
+    val summaryStatusHelpDescription = stringResource(R.string.summary_help_status)
+    val summaryLatestHelpDescription = stringResource(R.string.summary_help_latest)
+    val summaryChartHelpDescription = stringResource(R.string.summary_help_chart)
     val summaries by viewModel.summaries.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
     val activeSummaryModelName by viewModel.activeSummaryModelName.collectAsState()
@@ -221,11 +227,17 @@ fun SummaryScreen(
                             deleteDescription = "Delete selected summaries"
                         )
                     } else if (isHistoryScreen) {
-                        AppFilledIconAction(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Закрити історію",
-                            onClick = { isHistoryScreen = false }
-                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AppHelpToggleAction(
+                                isHelpMode = isHelpMode,
+                                onToggle = { isHelpMode = !isHelpMode }
+                            )
+                            AppFilledIconAction(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Закрити історію",
+                                onClick = { isHistoryScreen = false }
+                            )
+                        }
                     } else {
                         AppHelpToggleAction(
                             isHelpMode = isHelpMode,
@@ -241,12 +253,18 @@ fun SummaryScreen(
                     AppBackToTopFab(onClick = { scope.launch { historyListState.animateScrollToItem(0) } })
                 }
                 !isHistoryScreen && selectedTabIndex == 0 && historySummariesRaw.isNotEmpty() && !isSelectionMode -> {
-                    AppProminentFab(onClick = { isHistoryScreen = true }) {
-                        Icon(
-                            Icons.Default.History,
-                            contentDescription = stringResource(R.string.summary_history_title),
-                            modifier = Modifier.size(34.dp)
-                        )
+                    AppHelpOverlayTarget(
+                        isEnabled = isHelpMode,
+                        description = summaryHistoryFabHelpDescription,
+                        onShowDescription = { helpDescription = it }
+                    ) {
+                        AppProminentFab(onClick = { isHistoryScreen = true }) {
+                            Icon(
+                                Icons.Default.History,
+                                contentDescription = stringResource(R.string.summary_history_title),
+                                modifier = Modifier.size(34.dp)
+                            )
+                        }
                     }
                 }
                 else -> Unit
@@ -287,7 +305,11 @@ fun SummaryScreen(
                 onToggleSelect = { summary ->
                     if (selectedSummaryIds.contains(summary.id)) selectedSummaryIds.remove(summary.id)
                     else selectedSummaryIds.add(summary.id)
-                }
+                },
+                isHelpMode = isHelpMode,
+                historyFiltersHelpDescription = summaryHistoryFiltersHelpDescription,
+                historyCardHelpDescription = summaryHistoryCardHelpDescription,
+                onShowHelpDescription = { helpDescription = it }
             )
         } else {
             LazyColumn(
@@ -323,7 +345,7 @@ fun SummaryScreen(
                     item {
                         AppHelpOverlayTarget(
                             isEnabled = isHelpMode,
-                            description = "Статус: показує час останнього зведення або коли заплановано наступне.",
+                            description = summaryStatusHelpDescription,
                             onShowDescription = { helpDescription = it }
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
@@ -343,11 +365,11 @@ fun SummaryScreen(
 
                     if (lastSummary != null) {
                         item {
-                            AppHelpOverlayTarget(
-                                isEnabled = isHelpMode,
-                                description = "Останнє зведення: поточний актуальний підсумок з діями копіювання та поширення.",
-                                onShowDescription = { helpDescription = it }
-                            ) {
+                        AppHelpOverlayTarget(
+                            isEnabled = isHelpMode,
+                            description = summaryLatestHelpDescription,
+                            onShowDescription = { helpDescription = it }
+                        ) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
                                     LatestScheduledSummaryView(
                                         summary = lastSummary,
@@ -384,7 +406,7 @@ fun SummaryScreen(
                     item {
                         AppHelpOverlayTarget(
                             isEnabled = isHelpMode,
-                            description = "Інфографіка: ключові новини та метрики. Натисни на рядок, щоб відкрити джерело.",
+                            description = summaryChartHelpDescription,
                             onShowDescription = { helpDescription = it }
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
