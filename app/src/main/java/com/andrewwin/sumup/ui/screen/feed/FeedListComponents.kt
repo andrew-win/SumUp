@@ -70,6 +70,7 @@ import com.andrewwin.sumup.ui.components.AppFilterMenuChip
 import com.andrewwin.sumup.ui.components.AppSearchField
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
+import com.andrewwin.sumup.ui.theme.AppDimens
 import com.andrewwin.sumup.ui.theme.AppCardShape
 import com.andrewwin.sumup.ui.theme.appCardBorder
 import com.andrewwin.sumup.ui.theme.appCardColors
@@ -438,13 +439,13 @@ private fun ClusterActionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 3.dp),
+            .padding(horizontal = AppDimens.CardCompactPadding, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.End
     ) {
         IconButton(
             onClick = onAiClick,
-            modifier = Modifier.size(42.dp)
+            modifier = Modifier.size(AppDimens.ActionIconButtonSize)
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_ask_ai),
@@ -455,7 +456,7 @@ private fun ClusterActionRow(
         }
         IconButton(
             onClick = onToggleSaved,
-            modifier = Modifier.size(42.dp)
+            modifier = Modifier.size(AppDimens.ActionIconButtonSize)
         ) {
             val bookmarkIcon = if (isFavorite) {
                 Icons.Default.Bookmark
@@ -476,7 +477,7 @@ private fun ClusterActionRow(
         }
         IconButton(
             onClick = onShare,
-            modifier = Modifier.size(42.dp)
+            modifier = Modifier.size(AppDimens.ActionIconButtonSize)
         ) {
             Icon(
                 imageVector = Icons.Outlined.Share,

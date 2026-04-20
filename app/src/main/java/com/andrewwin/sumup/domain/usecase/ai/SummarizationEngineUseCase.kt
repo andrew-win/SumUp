@@ -366,7 +366,6 @@ class SummarizationEngineUseCase @Inject constructor(
     ): String {
         val input = buildComparisonCloudInput(articles, context, prefs)
         val languageRule = when (prefs.summaryLanguage) {
-            SummaryLanguage.ORIGINAL -> "use the same language as the source content."
             SummaryLanguage.UK -> "use Ukrainian language for all text."
             SummaryLanguage.EN -> "use English language for all text."
         }

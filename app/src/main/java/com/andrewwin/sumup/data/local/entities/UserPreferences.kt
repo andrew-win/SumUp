@@ -20,7 +20,7 @@ enum class AppLanguage {
 }
 
 enum class SummaryLanguage {
-    ORIGINAL, UK, EN
+    UK, EN
 }
 
 @Entity(tableName = "user_preferences")
@@ -68,7 +68,7 @@ data class UserPreferences(
     val articleAutoCleanupDays: Int = 3,
     val appThemeMode: AppThemeMode = AppThemeMode.SYSTEM,
     val appLanguage: AppLanguage = AppLanguage.UK,
-    val summaryLanguage: SummaryLanguage = SummaryLanguage.ORIGINAL
+    val summaryLanguage: SummaryLanguage = SummaryLanguage.UK
 )
 
 

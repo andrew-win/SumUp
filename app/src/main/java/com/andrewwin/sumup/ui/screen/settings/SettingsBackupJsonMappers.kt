@@ -161,7 +161,18 @@ internal fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
         appLanguage = runCatching { AppLanguage.valueOf(optString("appLanguage", defaults.appLanguage.name)) }
             .getOrDefault(defaults.appLanguage),
         summaryLanguage = runCatching {
-            SummaryLanguage.valueOf(optString("summaryLanguage", defaults.summaryLanguage.name))
+            when (optString("summaryLanguage", defaults.summaryLanguage.name)) {
+                "ORIGINAL" -> when (
+                    runCatching {
+                        AppLanguage.valueOf(optString("appLanguage", defaults.appLanguage.name))
+                    }.getOrDefault(defaults.appLanguage)
+                ) {
+                    AppLanguage.EN -> SummaryLanguage.EN
+                    AppLanguage.UK -> SummaryLanguage.UK
+                }
+
+                else -> SummaryLanguage.valueOf(optString("summaryLanguage", defaults.summaryLanguage.name))
+            }
         }.getOrDefault(defaults.summaryLanguage)
     )
 }

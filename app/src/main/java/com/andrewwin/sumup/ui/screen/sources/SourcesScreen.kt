@@ -351,7 +351,7 @@ fun GroupCard(
                         },
                         onLongClick = onLongSelectGroup
                     )
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .padding(horizontal = AppDimens.CardContentPadding, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
@@ -360,7 +360,7 @@ fun GroupCard(
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp)
                 )
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(AppDimens.InlineItemSpacing))
                 Text(
                     text = groupWithSources.group.name,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
@@ -455,7 +455,7 @@ fun GroupCard(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                            .padding(horizontal = AppDimens.CardContentPadding),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -514,7 +514,7 @@ fun SourceItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = AppDimens.CardContentPadding, vertical = AppDimens.CompactItemSpacing)
             .alpha(if (isGroupEnabled) 1f else 0.5f),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -524,7 +524,7 @@ fun SourceItem(
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.secondary
         )
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AppDimens.InlineItemSpacing))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = source.name, 

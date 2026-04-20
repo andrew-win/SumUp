@@ -131,7 +131,6 @@ internal fun SettingsGeneralGroupContent(
 
         SettingsSection(title = stringResource(R.string.settings_summary_language), boxed = true) {
             val summaryLanguages = listOf(
-                SummaryLanguage.ORIGINAL to R.string.settings_summary_language_original,
                 SummaryLanguage.UK to R.string.settings_summary_language_uk,
                 SummaryLanguage.EN to R.string.settings_summary_language_en
             )

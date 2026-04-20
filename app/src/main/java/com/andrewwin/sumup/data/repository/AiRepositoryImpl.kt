@@ -120,7 +120,7 @@ class AiRepositoryImpl @Inject constructor(
                 val strengthenedPrompt = buildSummaryPrompt(
                     basePrompt = prompt,
                     strictJsonInstruction = aiPromptProvider.strictJsonInstruction(),
-                    summaryLanguage = prefs?.summaryLanguage ?: SummaryLanguage.ORIGINAL,
+                    summaryLanguage = prefs?.summaryLanguage ?: SummaryLanguage.UK,
                     profile = promptProfile
                 )
                 DebugTrace.d(
@@ -935,7 +935,6 @@ class AiRepositoryImpl @Inject constructor(
         profile: CloudPromptProfile
     ): String {
         val summaryLanguageRule = when (summaryLanguage) {
-            SummaryLanguage.ORIGINAL -> "use the same language as the source content."
             SummaryLanguage.UK -> "use Ukrainian language for all text."
             SummaryLanguage.EN -> "use English language for all text."
         }
@@ -949,7 +948,7 @@ class AiRepositoryImpl @Inject constructor(
                 |- provide 2 to 4 emojis per theme in the "emojis" array; do not repeat emojis between themes.
                 |- each news item must contain only a concise title and the "source_id" of the best supporting source from input.
                 |- each source_id may appear at most once in the whole response.
-                |- every news title must be informative, distinct, no more than 12 words, and no more than 90 characters.
+                |- every news title must be informative, distinct, no more than 25 words, and no more than 90 characters.
                 |- choose the most informative and self-sufficient posts so reading selected items can replace reading the whole feed.
                 |- preserve an objective tone and include material claims from the sources even when they are radical or conflicting.
             """.trimIndent()
