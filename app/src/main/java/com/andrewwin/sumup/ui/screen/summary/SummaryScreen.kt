@@ -80,6 +80,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Summary
+import com.andrewwin.sumup.ui.components.AppAnimatedSwap
 import com.andrewwin.sumup.ui.components.AppBackToTopFab
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
 import com.andrewwin.sumup.ui.components.AppExportPdfButton
@@ -271,55 +272,58 @@ fun SummaryScreen(
             }
         }
     ) { innerPadding ->
-        if (isHistoryScreen) {
-            SummaryHistoryListSection(
-                summaries = historySummaries,
-                selectedSummaryIds = selectedSummaryIds,
-                isSelectionMode = isSelectionMode,
-                activeSummaryModelName = activeSummaryModelName,
-                listState = historyListState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                searchQuery = historySearchQuery,
-                onSearchQueryChange = { historySearchQuery = it },
-                dateFilter = historyDateFilter,
-                onDateFilterChange = { historyDateFilter = it },
-                savedFilter = historySavedFilter,
-                onSavedFilterChange = { historySavedFilter = it },
-                onExportPdf = {
-                    val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                    val name = context.getString(R.string.summary_pdf_file_name, date)
-                    exportLauncher.launch(name)
-                },
-                isExportEnabled = historySummaries.isNotEmpty(),
-                onOpenSummary = { openedHistorySummaryId = it.id },
-                onToggleFavorite = viewModel::toggleFavorite,
-                onDeleteSummary = { summary ->
-                    if (openedHistorySummaryId == summary.id) openedHistorySummaryId = null
-                    viewModel.deleteSummary(summary.id)
-                },
-                onLongSelect = { summary ->
-                    if (!selectedSummaryIds.contains(summary.id)) selectedSummaryIds.add(summary.id)
-                },
-                onToggleSelect = { summary ->
-                    if (selectedSummaryIds.contains(summary.id)) selectedSummaryIds.remove(summary.id)
-                    else selectedSummaryIds.add(summary.id)
-                },
-                isHelpMode = isHelpMode,
-                historyFiltersHelpDescription = summaryHistoryFiltersHelpDescription,
-                historyCardHelpDescription = summaryHistoryCardHelpDescription,
-                onShowHelpDescription = { helpDescription = it }
-            )
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(top = 0.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
+        AppAnimatedSwap(
+            targetState = isHistoryScreen,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            label = "summaryMainContent"
+        ) { showHistory ->
+            if (showHistory) {
+                SummaryHistoryListSection(
+                    summaries = historySummaries,
+                    selectedSummaryIds = selectedSummaryIds,
+                    isSelectionMode = isSelectionMode,
+                    activeSummaryModelName = activeSummaryModelName,
+                    listState = historyListState,
+                    modifier = Modifier.fillMaxSize(),
+                    searchQuery = historySearchQuery,
+                    onSearchQueryChange = { historySearchQuery = it },
+                    dateFilter = historyDateFilter,
+                    onDateFilterChange = { historyDateFilter = it },
+                    savedFilter = historySavedFilter,
+                    onSavedFilterChange = { historySavedFilter = it },
+                    onExportPdf = {
+                        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                        val name = context.getString(R.string.summary_pdf_file_name, date)
+                        exportLauncher.launch(name)
+                    },
+                    isExportEnabled = historySummaries.isNotEmpty(),
+                    onOpenSummary = { openedHistorySummaryId = it.id },
+                    onToggleFavorite = viewModel::toggleFavorite,
+                    onDeleteSummary = { summary ->
+                        if (openedHistorySummaryId == summary.id) openedHistorySummaryId = null
+                        viewModel.deleteSummary(summary.id)
+                    },
+                    onLongSelect = { summary ->
+                        if (!selectedSummaryIds.contains(summary.id)) selectedSummaryIds.add(summary.id)
+                    },
+                    onToggleSelect = { summary ->
+                        if (selectedSummaryIds.contains(summary.id)) selectedSummaryIds.remove(summary.id)
+                        else selectedSummaryIds.add(summary.id)
+                    },
+                    isHelpMode = isHelpMode,
+                    historyFiltersHelpDescription = summaryHistoryFiltersHelpDescription,
+                    historyCardHelpDescription = summaryHistoryCardHelpDescription,
+                    onShowHelpDescription = { helpDescription = it }
+                )
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(top = 0.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
                 item {
                     TabRow(
                         selectedTabIndex = selectedTabIndex,
@@ -421,6 +425,7 @@ fun SummaryScreen(
                         }
                     }
                 }
+                }
             }
         }
 
@@ -438,12 +443,11 @@ fun SummaryScreen(
             )
         }
 
-        if (helpDescription != null) {
-            AppExplanationDialog(
-                description = helpDescription.orEmpty(),
-                onDismiss = { helpDescription = null }
-            )
-        }
+        AppExplanationDialog(
+            visible = helpDescription != null,
+            description = helpDescription.orEmpty(),
+            onDismiss = { helpDescription = null }
+        )
     }
 }
 

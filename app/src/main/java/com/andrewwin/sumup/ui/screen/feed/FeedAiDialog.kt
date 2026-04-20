@@ -63,10 +63,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
+import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppCardSurface
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
@@ -80,6 +80,7 @@ import com.andrewwin.sumup.ui.util.parseSummaryBlocks
 
 @Composable
 fun FeedAiDialog(
+    isVisible: Boolean,
     context: Context,
     isFeedAiActive: Boolean,
     articleForAi: ArticleUiModel?,
@@ -95,7 +96,8 @@ fun FeedAiDialog(
     onRegenerate: () -> Unit,
     onOpenWebView: (String) -> Unit
 ) {
-    Dialog(
+    AppAnimatedDialog(
+        visible = isVisible,
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {

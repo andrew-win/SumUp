@@ -12,7 +12,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.Crossfade
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Delete
@@ -49,6 +48,7 @@ import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.AppThemeMode
 import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
+import com.andrewwin.sumup.ui.components.AppAnimatedSwap
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
 import com.andrewwin.sumup.ui.components.AppHelpToggleAction
 import com.andrewwin.sumup.ui.components.AppTopBar
@@ -259,7 +259,7 @@ fun SettingsScreen(
             )
         }
     ) { innerPadding ->
-        Crossfade(targetState = selectedGroup, label = "settingsGroupTransition") { activeGroup ->
+        AppAnimatedSwap(targetState = selectedGroup, label = "settingsGroupTransition") { activeGroup ->
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -491,13 +491,12 @@ fun SettingsScreen(
             }
         }
 
-        if (helpDescription != null) {
-            AppExplanationDialog(
-                description = helpDescription.orEmpty(),
-                onDismiss = { helpDescription = null },
-                title = stringResource(R.string.settings_help_group_dialog_title)
-            )
-        }
+        AppExplanationDialog(
+            visible = helpDescription != null,
+            description = helpDescription.orEmpty(),
+            onDismiss = { helpDescription = null },
+            title = stringResource(R.string.settings_help_group_dialog_title)
+        )
 
         showConfigDialog?.let { (config, type) ->
             SettingsAiConfigDialog(

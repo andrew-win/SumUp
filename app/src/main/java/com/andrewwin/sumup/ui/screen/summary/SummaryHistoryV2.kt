@@ -45,7 +45,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.ui.components.AppCardSurface
@@ -54,6 +53,7 @@ import com.andrewwin.sumup.ui.components.AppExportPdfButton
 import com.andrewwin.sumup.ui.components.AppFilterMenuChip
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.components.AppSearchField
+import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.util.SummaryBlockUi
 import com.andrewwin.sumup.ui.util.parseSummaryBlocks
 import java.text.SimpleDateFormat
@@ -307,7 +307,8 @@ internal fun SummaryHistoryDialogView(
 ) {
     val context = LocalContext.current
     val blocks = remember(summary.content) { parseSummaryBlocks(summary.content) }
-    Dialog(
+    AppAnimatedDialog(
+        visible = true,
         onDismissRequest = onDismiss,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,

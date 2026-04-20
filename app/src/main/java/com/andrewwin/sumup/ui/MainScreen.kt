@@ -2,15 +2,13 @@ package com.andrewwin.sumup.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -22,11 +20,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import com.andrewwin.sumup.ui.screen.feed.FeedScreen
 import com.andrewwin.sumup.ui.screen.settings.SettingsScreen
 import com.andrewwin.sumup.ui.screen.sources.SourcesScreen
 import com.andrewwin.sumup.ui.screen.summary.SummaryScreen
 import com.andrewwin.sumup.ui.screen.webview.WebViewScreen
+import com.andrewwin.sumup.ui.components.AppMotion
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
@@ -35,6 +36,7 @@ fun MainScreen() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val mainRoutes = remember(navItems) { navItems.map { it.route }.toSet() }
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
@@ -84,16 +86,40 @@ fun MainScreen() {
                 navController = navController,
                 startDestination = Screen.Summary.route,
                 enterTransition = {
-                    fadeIn(animationSpec = tween(120))
+                    val fromRoute = initialState.destination.route
+                    val toRoute = targetState.destination.route
+                    if (fromRoute in mainRoutes && toRoute in mainRoutes) {
+                        EnterTransition.None
+                    } else {
+                        AppMotion.screenEnter()
+                    }
                 },
                 exitTransition = {
-                    fadeOut(animationSpec = tween(90))
+                    val fromRoute = initialState.destination.route
+                    val toRoute = targetState.destination.route
+                    if (fromRoute in mainRoutes && toRoute in mainRoutes) {
+                        ExitTransition.None
+                    } else {
+                        AppMotion.screenExit()
+                    }
                 },
                 popEnterTransition = {
-                    fadeIn(animationSpec = tween(110))
+                    val fromRoute = initialState.destination.route
+                    val toRoute = targetState.destination.route
+                    if (fromRoute in mainRoutes && toRoute in mainRoutes) {
+                        EnterTransition.None
+                    } else {
+                        AppMotion.screenPopEnter()
+                    }
                 },
                 popExitTransition = {
-                    fadeOut(animationSpec = tween(80))
+                    val fromRoute = initialState.destination.route
+                    val toRoute = targetState.destination.route
+                    if (fromRoute in mainRoutes && toRoute in mainRoutes) {
+                        ExitTransition.None
+                    } else {
+                        AppMotion.screenPopExit()
+                    }
                 }
             ) {
         composable(Screen.Summary.route) {

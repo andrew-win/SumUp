@@ -33,7 +33,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
@@ -42,6 +41,7 @@ import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.domain.usecase.sources.SuggestedTheme
+import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.components.AppHelpToggleAction
@@ -231,12 +231,11 @@ fun SourcesScreen(
             }
         }
 
-        if (helpDescription != null) {
-            AppExplanationDialog(
-                description = helpDescription.orEmpty(),
-                onDismiss = { helpDescription = null }
-            )
-        }
+        AppExplanationDialog(
+            visible = helpDescription != null,
+            description = helpDescription.orEmpty(),
+            onDismiss = { helpDescription = null }
+        )
 
         if (showAddGroupDialog) {
             GroupDialog(
@@ -651,7 +650,8 @@ fun SourceDialog(
     val isNameError = isDuplicate
     val isUrlError = url.isBlank() || isDuplicateUrl
 
-    Dialog(
+    AppAnimatedDialog(
+        visible = true,
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {

@@ -37,6 +37,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.andrewwin.sumup.R
+import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppBackToTopFab
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
@@ -282,136 +283,133 @@ fun FeedScreen(
             }
         }
 
-        if (helpDescription != null) {
-            AppExplanationDialog(
-                description = helpDescription.orEmpty(),
-                onDismiss = { helpDescription = null }
-            )
-        }
-        
-        if (articleForAi != null || isFeedAiActive) {
-            FeedAiDialog(
-                context = context,
-                isFeedAiActive = isFeedAiActive,
-                articleForAi = articleForAi,
-                articleClusters = articleClusters,
-                aiResult = aiResult,
-                isAiLoading = isAiLoading,
-                aiStrategy = userPreferences.aiStrategy,
-                activeSummaryModelName = activeSummaryModelName,
-                userQuestion = userQuestion,
-                onQuestionChange = { userQuestion = it },
-                onDismiss = {
-                    articleForAi = null
-                    isFeedAiActive = false
-                    viewModel.clearAiResult()
-                    userQuestion = ""
-                },
-                onAsk = {
-                    if (isFeedAiActive) viewModel.askFeed(userQuestion)
-                    else articleForAi?.let { viewModel.askQuestion(it.article, userQuestion) }
-                },
-                onRegenerate = {
-                    if (isFeedAiActive) {
-                        viewModel.summarizeFeed(forceRefresh = true)
-                    } else {
-                        val cluster = articleClusters.firstOrNull { c ->
-                            c.representative.article.id == articleForAi?.article?.id
-                        }
-                        if (cluster != null && cluster.duplicates.isNotEmpty()) {
-                            viewModel.summarizeCluster(cluster, forceRefresh = true)
-                        } else {
-                            articleForAi?.let { viewModel.summarizeArticle(it.article, forceRefresh = true) }
-                        }
+        AppExplanationDialog(
+            visible = helpDescription != null,
+            description = helpDescription.orEmpty(),
+            onDismiss = { helpDescription = null }
+        )
+
+        FeedAiDialog(
+            isVisible = articleForAi != null || isFeedAiActive,
+            context = context,
+            isFeedAiActive = isFeedAiActive,
+            articleForAi = articleForAi,
+            articleClusters = articleClusters,
+            aiResult = aiResult,
+            isAiLoading = isAiLoading,
+            aiStrategy = userPreferences.aiStrategy,
+            activeSummaryModelName = activeSummaryModelName,
+            userQuestion = userQuestion,
+            onQuestionChange = { userQuestion = it },
+            onDismiss = {
+                articleForAi = null
+                isFeedAiActive = false
+                viewModel.clearAiResult()
+                userQuestion = ""
+            },
+            onAsk = {
+                if (isFeedAiActive) viewModel.askFeed(userQuestion)
+                else articleForAi?.let { viewModel.askQuestion(it.article, userQuestion) }
+            },
+            onRegenerate = {
+                if (isFeedAiActive) {
+                    viewModel.summarizeFeed(forceRefresh = true)
+                } else {
+                    val cluster = articleClusters.firstOrNull { c ->
+                        c.representative.article.id == articleForAi?.article?.id
                     }
-                },
-                onOpenWebView = onOpenWebView
-            )
-        }
+                    if (cluster != null && cluster.duplicates.isNotEmpty()) {
+                        viewModel.summarizeCluster(cluster, forceRefresh = true)
+                    } else {
+                        articleForAi?.let { viewModel.summarizeArticle(it.article, forceRefresh = true) }
+                    }
+                }
+            },
+            onOpenWebView = onOpenWebView
+        )
 
         // Expanded image dialog
-        if (expandedImageUrl != null) {
+        AppAnimatedDialog(
+            visible = expandedImageUrl != null,
+            onDismissRequest = { expandedImageUrl = null },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
             var scale by remember(expandedImageUrl) { mutableStateOf(1f) }
             var offset by remember(expandedImageUrl) { mutableStateOf(Offset.Zero) }
             var viewportSize by remember(expandedImageUrl) { mutableStateOf(Size.Zero) }
 
-            Dialog(
-                onDismissRequest = { expandedImageUrl = null },
-                properties = DialogProperties(
-                    usePlatformDefaultWidth = false,
-                    decorFitsSystemWindows = false
-                )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .padding(8.dp)
+                    .clipToBounds()
+                    .onSizeChanged { viewportSize = Size(it.width.toFloat(), it.height.toFloat()) }
             ) {
-                Box(
+                AsyncImage(
+                    model = expandedImageUrl,
+                    contentDescription = null,
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black)
-                        .padding(8.dp)
-                        .clipToBounds()
-                        .onSizeChanged { viewportSize = Size(it.width.toFloat(), it.height.toFloat()) }
-                ) {
-                    AsyncImage(
-                        model = expandedImageUrl,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .pointerInput(expandedImageUrl, scale, viewportSize) {
-                                detectTapGestures(
-                                    onDoubleTap = { tapOffset ->
-                                        if (viewportSize == Size.Zero) return@detectTapGestures
+                        .pointerInput(expandedImageUrl, scale, viewportSize) {
+                            detectTapGestures(
+                                onDoubleTap = { tapOffset ->
+                                    if (viewportSize == Size.Zero) return@detectTapGestures
 
-                                        if (scale > 1f) {
-                                            scale = 1f
-                                            offset = Offset.Zero
-                                        } else {
-                                            val nextScale = 2f
-                                            scale = nextScale
-                                            offset = clampImageOffset(
-                                                rawOffset = Offset(
-                                                    x = (viewportSize.width / 2f - tapOffset.x) * (nextScale - 1f),
-                                                    y = (viewportSize.height / 2f - tapOffset.y) * (nextScale - 1f)
-                                                ),
-                                                scale = nextScale,
-                                                viewportSize = viewportSize
-                                            )
-                                        }
-                                    }
-                                )
-                            }
-                            .pointerInput(expandedImageUrl) {
-                                detectTransformGestures { _: Offset, pan: Offset, zoom: Float, _: Float ->
-                                    val nextScale = (scale * zoom).coerceIn(1f, 5f)
-                                    if (nextScale <= 1f) {
+                                    if (scale > 1f) {
                                         scale = 1f
                                         offset = Offset.Zero
                                     } else {
+                                        val nextScale = 2f
                                         scale = nextScale
                                         offset = clampImageOffset(
-                                            rawOffset = offset + pan,
+                                            rawOffset = Offset(
+                                                x = (viewportSize.width / 2f - tapOffset.x) * (nextScale - 1f),
+                                                y = (viewportSize.height / 2f - tapOffset.y) * (nextScale - 1f)
+                                            ),
                                             scale = nextScale,
                                             viewportSize = viewportSize
                                         )
                                     }
                                 }
+                            )
+                        }
+                        .pointerInput(expandedImageUrl) {
+                            detectTransformGestures { _: Offset, pan: Offset, zoom: Float, _: Float ->
+                                val nextScale = (scale * zoom).coerceIn(1f, 5f)
+                                if (nextScale <= 1f) {
+                                    scale = 1f
+                                    offset = Offset.Zero
+                                } else {
+                                    scale = nextScale
+                                    offset = clampImageOffset(
+                                        rawOffset = offset + pan,
+                                        scale = nextScale,
+                                        viewportSize = viewportSize
+                                    )
+                                }
                             }
-                            .graphicsLayer(
-                                scaleX = scale,
-                                scaleY = scale,
-                                translationX = offset.x,
-                                translationY = offset.y
-                            ),
-                        contentScale = ContentScale.Fit
+                        }
+                        .graphicsLayer(
+                            scaleX = scale,
+                            scaleY = scale,
+                            translationX = offset.x,
+                            translationY = offset.y
+                        ),
+                    contentScale = ContentScale.Fit
+                )
+                IconButton(
+                    onClick = { expandedImageUrl = null },
+                    modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = null,
+                        tint = Color.White
                     )
-                    IconButton(
-                        onClick = { expandedImageUrl = null },
-                        modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = null,
-                            tint = Color.White
-                        )
-                    }
                 }
             }
         }
