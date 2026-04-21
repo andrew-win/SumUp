@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.domain.repository
 
 import com.andrewwin.sumup.data.local.dao.GroupWithSources
+import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
@@ -36,11 +37,19 @@ interface SourceRepository {
 }
 
 data class ImportedSourceGroup(
+    val id: String,
     val name: String,
+    val nameUk: String,
+    val nameEn: String,
     val isEnabled: Boolean,
     val isDeletable: Boolean,
     val sources: List<ImportedSource>
-)
+) {
+    fun displayName(language: AppLanguage): String = when (language) {
+        AppLanguage.UK -> nameUk.ifBlank { name }.ifBlank { nameEn }
+        AppLanguage.EN -> nameEn.ifBlank { name }.ifBlank { nameUk }
+    }
+}
 
 data class ImportedSource(
     val name: String,

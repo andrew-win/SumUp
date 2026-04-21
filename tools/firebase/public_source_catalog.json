@@ -1,0 +1,294 @@
+{
+  "groups": [
+    {
+      "id": "sport",
+      "title": {
+        "uk": "Спорт",
+        "en": "Sport"
+      },
+      "name": "Спорт",
+      "nameUk": "Спорт",
+      "nameEn": "Sport",
+      "isEnabled": true,
+      "isDeletable": true,
+      "sources": [
+        {
+          "name": "Right Inside UA",
+          "url": "t.me/right_inside_ua",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "Suspilne Sport",
+          "url": "https://www.suspilne.media/sport/rss/latest.rss",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Tribuna",
+          "url": "https://www.rss.ua.tribuna.com/ru/feed.xml",
+          "type": "RSS",
+          "isEnabled": true
+        }
+      ]
+    },
+    {
+      "id": "technology",
+      "title": {
+        "uk": "Технології",
+        "en": "Technology"
+      },
+      "name": "Технології",
+      "nameUk": "Технології",
+      "nameEn": "Technology",
+      "isEnabled": true,
+      "isDeletable": true,
+      "sources": [
+        {
+          "name": "iLenta",
+          "url": "https://www.ilenta.com/uk/news/news.rss",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Mezha",
+          "url": "https://www.mezha.ua/feed/",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Holos Ameryky Tech",
+          "url": "https://www.holosameryky.com/api/zvoypl-vomx-tpeuktm",
+          "type": "RSS",
+          "isEnabled": true
+        }
+      ]
+    },
+    {
+      "id": "politics",
+      "title": {
+        "uk": "Політика",
+        "en": "Politics"
+      },
+      "name": "Політика",
+      "nameUk": "Політика",
+      "nameEn": "Politics",
+      "isEnabled": true,
+      "isDeletable": true,
+      "sources": [
+        {
+          "name": "RBC Politics",
+          "url": "https://www.rbc.ua/static/rss/ukrnet.politics.ukr.rss.xml",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Suspilne",
+          "url": "https://www.suspilne.media/rss/all.rss",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Holos Ameryky Politics",
+          "url": "https://www.holosameryky.com/api/zqoy_l-vomx-tpeikty",
+          "type": "RSS",
+          "isEnabled": true
+        }
+      ]
+    },
+    {
+      "id": "weather",
+      "title": {
+        "uk": "Погода",
+        "en": "Weather"
+      },
+      "name": "Погода",
+      "nameUk": "Погода",
+      "nameEn": "Weather",
+      "isEnabled": true,
+      "isDeletable": true,
+      "sources": [
+        {
+          "name": "UHMC",
+          "url": "t.me/uhmc2022",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "Lviv RCHM",
+          "url": "t.me/lviv_rchm",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "HMC Odesa",
+          "url": "t.me/HMC_Odesa",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        }
+      ]
+    },
+    {
+      "id": "economy",
+      "title": {
+        "uk": "Економіка",
+        "en": "Economy"
+      },
+      "name": "Економіка",
+      "nameUk": "Економіка",
+      "nameEn": "Economy",
+      "isEnabled": true,
+      "isDeletable": true,
+      "sources": [
+        {
+          "name": "Holos Ameryky Economy",
+          "url": "https://www.holosameryky.com/api/zpoytl-vomx-tpe_ktr",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Fair Price",
+          "url": "t.me/fair_price_channel",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "MSUa Official",
+          "url": "https://t.me/MSUa_official",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        }
+      ]
+    },
+    {
+      "id": "health",
+      "title": {
+        "uk": "Здоров'я",
+        "en": "Health"
+      },
+      "name": "Здоров'я",
+      "nameUk": "Здоров'я",
+      "nameEn": "Health",
+      "isEnabled": true,
+      "isDeletable": true,
+      "sources": [
+        {
+          "name": "PHC Ukraine",
+          "url": "https://t.me/PHC_Ukraine",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "Zemits Ukraine",
+          "url": "https://t.me/zemits_ukraine_official",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        }
+      ]
+    },
+    {
+      "id": "crypto",
+      "title": {
+        "uk": "Крипта",
+        "en": "Crypto"
+      },
+      "name": "Крипта",
+      "nameUk": "Крипта",
+      "nameEn": "Crypto",
+      "isEnabled": true,
+      "isDeletable": true,
+      "sources": [
+        {
+          "name": "ProBitcoin UA",
+          "url": "https://t.me/probitcoinua",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "Kripta Ukraina",
+          "url": "https://t.me/Kripta_Ukraina",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        }
+      ]
+    },
+    {
+      "id": "space",
+      "title": {
+        "uk": "Космос",
+        "en": "Space"
+      },
+      "name": "Космос",
+      "nameUk": "Космос",
+      "nameEn": "Space",
+      "isEnabled": true,
+      "isDeletable": true,
+      "sources": [
+        {
+          "name": "NASA Breaking News",
+          "url": "https://www.nasa.gov/rss/dyn/breaking_news.rss",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Space.com",
+          "url": "https://www.space.com/feeds/all",
+          "type": "RSS",
+          "isEnabled": true
+        }
+      ]
+    },
+    {
+      "id": "cars",
+      "title": {
+        "uk": "Автомобілі",
+        "en": "Cars"
+      },
+      "name": "Автомобілі",
+      "nameUk": "Автомобілі",
+      "nameEn": "Cars",
+      "isEnabled": true,
+      "isDeletable": true,
+      "sources": [
+        {
+          "name": "W8 Shipping Ukraine",
+          "url": "https://t.me/w8shippingukraine",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "AutoScout UA",
+          "url": "https://t.me/AUTOSCOUTCOMUA",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        }
+      ]
+    },
+    {
+      "id": "books",
+      "title": {
+        "uk": "Книги",
+        "en": "Books"
+      },
+      "name": "Книги",
+      "nameUk": "Книги",
+      "nameEn": "Books",
+      "isEnabled": true,
+      "isDeletable": true,
+      "sources": [
+        {
+          "name": "UkrLib",
+          "url": "https://t.me/ukrlib",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "Books UA",
+          "url": "https://t.me/booksua11",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        }
+      ]
+    }
+  ]
+}

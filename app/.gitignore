@@ -15,6 +15,10 @@
 .cxx
 local.properties
 /app/google-services.json
+/firebase-service-account*.json
+/service-account*.json
+/tools/firebase/service-account*.json
+/tools/firebase/firebase-service-account*.json
 /app/phoneArm64/
 /app/phoneArmV7/
 /app/universal/

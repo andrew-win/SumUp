@@ -37,10 +37,10 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.dao.GroupWithSources
+import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
-import com.andrewwin.sumup.domain.usecase.sources.SuggestedTheme
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
@@ -66,6 +66,7 @@ fun SourcesScreen(
     viewModel: SourcesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val appLanguage by viewModel.appLanguage.collectAsState()
     val selectedGroupIds = remember { mutableStateListOf<Long>() }
     val isSelectionMode = selectedGroupIds.isNotEmpty()
     var showAddGroupDialog by remember { mutableStateOf(false) }
@@ -177,9 +178,9 @@ fun SourcesScreen(
             }
 
             item {
-                val isModelLoaded by viewModel.isModelLoaded.collectAsState()
                 val isRecommendationsEnabled by viewModel.isRecommendationsEnabled.collectAsState()
                 val suggestedThemes by viewModel.suggestedThemes.collectAsState()
+                val subscriptionsSyncFailed by viewModel.subscriptionsSyncFailed.collectAsState()
                 
                 if (isRecommendationsEnabled) {
                     AppHelpOverlayTarget(
@@ -200,9 +201,18 @@ fun SourcesScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = stringResource(if (isModelLoaded) R.string.sources_suggested_themes_title else R.string.sources_suggested_themes_hint),
+                                    text = stringResource(R.string.sources_suggested_themes_title),
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            if (subscriptionsSyncFailed) {
+                                Text(
+                                    text = stringResource(R.string.sources_sync_failed),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
                                 )
                             }
 
@@ -214,6 +224,7 @@ fun SourcesScreen(
                                     rowItems.forEach { suggestion ->
                                         SuggestedThemeItem(
                                             suggestion = suggestion,
+                                            appLanguage = appLanguage,
                                             modifier = Modifier.weight(1f),
                                             onToggle = { isSubscribed ->
                                                 viewModel.toggleThemeSubscription(suggestion, isSubscribed)
@@ -224,6 +235,26 @@ fun SourcesScreen(
                                         Spacer(modifier = Modifier.weight(1f))
                                     }
                                 }
+                            }
+
+                            FilledTonalButton(
+                                onClick = { viewModel.refreshSuggestedThemes(forceRefresh = true) },
+                                modifier = Modifier
+                                    .align(Alignment.End)
+                                    .padding(top = 8.dp),
+                                shape = MaterialTheme.shapes.medium,
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(stringResource(R.string.sources_refresh_themes))
                             }
                         }
                     }                
@@ -826,7 +857,8 @@ private fun normalizeSourceUrl(url: String, type: SourceType): String {
 
 @Composable
 fun SuggestedThemeItem(
-    suggestion: com.andrewwin.sumup.domain.usecase.sources.ThemeSuggestion,
+    suggestion: FirebaseThemeSuggestion,
+    appLanguage: AppLanguage,
     modifier: Modifier = Modifier,
     onToggle: (Boolean) -> Unit
 ) {
@@ -848,7 +880,7 @@ fun SuggestedThemeItem(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = suggestion.theme.displayTitle(),
+                    text = suggestion.group.displayName(appLanguage),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = if (suggestion.isSubscribed) FontWeight.Bold else FontWeight.Medium,
                     color = if (suggestion.isSubscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
@@ -862,31 +894,6 @@ fun SuggestedThemeItem(
                     tint = if (suggestion.isSubscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            if (suggestion.isRecommended && !suggestion.isSubscribed) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.sources_recommended_badge).uppercase(),
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Black
-                )
-            }
         }
     }
 }
-
-@Composable
-private fun SuggestedTheme.displayTitle(): String = stringResource(
-    when (this) {
-        SuggestedTheme.SPORT -> R.string.source_theme_sport
-        SuggestedTheme.TECH -> R.string.source_theme_technology
-        SuggestedTheme.POLITICS -> R.string.source_theme_politics
-        SuggestedTheme.WEATHER -> R.string.source_theme_weather
-        SuggestedTheme.ECONOMY -> R.string.source_theme_economy
-        SuggestedTheme.HEALTH -> R.string.source_theme_health
-        SuggestedTheme.CRYPTO -> R.string.source_theme_crypto
-        SuggestedTheme.SPACE -> R.string.source_theme_space
-        SuggestedTheme.CARS -> R.string.source_theme_cars
-        SuggestedTheme.BOOKS -> R.string.source_theme_books
-    }
-)

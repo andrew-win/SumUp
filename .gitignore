@@ -2,6 +2,10 @@
 .gradle
 .gradle-user-home/
 /app/google-services.json
+/firebase-service-account*.json
+/service-account*.json
+/tools/firebase/service-account*.json
+/tools/firebase/firebase-service-account*.json
 /local.properties
 /.idea/caches
 /.idea/libraries

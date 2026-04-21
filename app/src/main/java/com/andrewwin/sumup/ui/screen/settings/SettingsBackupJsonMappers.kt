@@ -248,7 +248,10 @@ internal fun JSONArray?.toImportedGroupsFromBackup(): List<ImportedSourceGroup> 
         if (name.isBlank()) continue
         groups.add(
             ImportedSourceGroup(
+                id = name.lowercase(),
                 name = name,
+                nameUk = name,
+                nameEn = name,
                 isEnabled = item.optBoolean("isEnabled", true),
                 isDeletable = item.optBoolean("isDeletable", true),
                 sources = item.optJSONArray("sources").toImportedSourcesFromBackup()

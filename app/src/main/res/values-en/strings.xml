@@ -37,7 +37,7 @@
     <string name="summary_today_title">Summary</string>
     <string name="summary_history_title">Generated earlier</string>
     <string name="summary_empty">No scheduled summaries yet</string>
-    <string name="summary_not_ready">Will be generated later</string>
+    <string name="summary_not_ready">Will be later</string>
     <string name="summary_next_at">Next at %s</string>
     <string name="summary_scheduling_disabled">Scheduling is disabled</string>
     <string name="summary_status_ready">Today’s issue is ready</string>
@@ -328,7 +328,9 @@
     <string name="chart_top_news">Top news</string>
 
     <string name="sources_suggested_themes_title">Subscribe to themes:</string>
-    <string name="sources_suggested_themes_hint">Subscribe to themes (download AI model for personalization):</string>
+    <string name="sources_suggested_themes_hint">Subscribe to themes:</string>
+    <string name="sources_sync_failed">Failed to load subscriptions</string>
+    <string name="sources_refresh_themes">Refresh themes</string>
     <string name="sources_recommended_badge">⭐️ Recommended</string>
     <string name="sources_subscribed">Subscribed</string>
     <string name="settings_section_account">Account</string>
