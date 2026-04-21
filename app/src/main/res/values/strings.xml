@@ -84,6 +84,7 @@
     <string name="ai_error_prefix">Помилка ШІ: %s</string>
     <string name="ai_generic_error">Помилка при генерації</string>
     <string name="settings_deduplication">Дедуплікація</string>
+    <string name="settings_feed_display">Відображення стрічки</string>
     <string name="settings_enable_deduplication">Приховувати схожі</string>
     <string name="settings_local_deduplication_threshold">Поріг схожості (локальна): %s</string>
     <string name="settings_cloud_deduplication_threshold">Поріг схожості (хмарна): %s</string>
@@ -235,7 +236,7 @@
     <string name="settings_api_priority_high">Високий</string>
     <string name="settings_api_currently_used">використовується зараз</string>
     <string name="settings_api_use_now">Використовувати зараз</string>
-    <string name="settings_api_current_model">Зараз використовується: %1$s (%2$s)</string>
+    <string name="settings_api_current_model">Зараз використовується: %1$s</string>
     <string name="settings_scheduled_push_notifications">Push-сповіщення про зведення</string>
     <string name="summary_notification_channel_name">Заплановані зведення</string>
     <string name="summary_notification_channel_description">Сповіщення про готові заплановані зведення</string>

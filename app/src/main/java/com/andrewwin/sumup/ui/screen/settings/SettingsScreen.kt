@@ -8,8 +8,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -327,38 +325,37 @@ fun SettingsScreen(
                 when {
                     enteringDetails -> {
                         slideInHorizontally(
-                            animationSpec = tween(280),
-                            initialOffsetX = { it / 4 }
-                        ) + fadeIn(animationSpec = tween(220)) togetherWith
+                            animationSpec = tween(180),
+                            initialOffsetX = { it / 10 }
+                        ) + fadeIn(animationSpec = tween(160)) togetherWith
                             slideOutHorizontally(
-                                animationSpec = tween(280),
-                                targetOffsetX = { -it / 5 }
-                            ) + fadeOut(animationSpec = tween(180))
+                                animationSpec = tween(180),
+                                targetOffsetX = { -it / 12 }
+                            ) + fadeOut(animationSpec = tween(120))
                     }
 
                     enteringList -> {
                         slideInHorizontally(
-                            animationSpec = tween(280),
-                            initialOffsetX = { -it / 4 }
-                        ) + fadeIn(animationSpec = tween(220)) togetherWith
+                            animationSpec = tween(180),
+                            initialOffsetX = { -it / 10 }
+                        ) + fadeIn(animationSpec = tween(160)) togetherWith
                             slideOutHorizontally(
-                                animationSpec = tween(280),
-                                targetOffsetX = { it / 5 }
-                            ) + fadeOut(animationSpec = tween(180))
+                                animationSpec = tween(180),
+                                targetOffsetX = { it / 12 }
+                            ) + fadeOut(animationSpec = tween(120))
                     }
 
                     else -> {
-                        fadeIn(animationSpec = tween(180)) togetherWith
-                            fadeOut(animationSpec = tween(140))
+                        fadeIn(animationSpec = tween(140)) togetherWith
+                            fadeOut(animationSpec = tween(100))
                     }
-                }.using(SizeTransform(clip = false))
+                }
             }
         ) { activeGroup ->
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
-                    .animateContentSize(),
+                    .padding(innerPadding),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {

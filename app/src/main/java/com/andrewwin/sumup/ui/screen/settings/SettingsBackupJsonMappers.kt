@@ -18,6 +18,18 @@ import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import org.json.JSONArray
 import org.json.JSONObject
 
+private fun parseDeduplicationStrategyOrDefault(
+    rawValue: String?,
+    defaultValue: DeduplicationStrategy
+): DeduplicationStrategy {
+    return when (rawValue?.uppercase()) {
+        DeduplicationStrategy.LOCAL.name -> DeduplicationStrategy.LOCAL
+        DeduplicationStrategy.CLOUD.name -> DeduplicationStrategy.CLOUD
+        "ADAPTIVE" -> DeduplicationStrategy.CLOUD
+        else -> defaultValue
+    }
+}
+
 internal fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
     put("id", id)
     put("aiStrategy", aiStrategy.name)
@@ -81,11 +93,10 @@ internal fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
         scheduledMinute = optInt("scheduledMinute", defaults.scheduledMinute),
         lastWorkRunTimestamp = optLong("lastWorkRunTimestamp", defaults.lastWorkRunTimestamp),
         isDeduplicationEnabled = optBoolean("isDeduplicationEnabled", defaults.isDeduplicationEnabled),
-        deduplicationStrategy = runCatching {
-            DeduplicationStrategy.valueOf(
-                optString("deduplicationStrategy", defaults.deduplicationStrategy.name)
-            )
-        }.getOrDefault(defaults.deduplicationStrategy),
+        deduplicationStrategy = parseDeduplicationStrategyOrDefault(
+            rawValue = optString("deduplicationStrategy", defaults.deduplicationStrategy.name),
+            defaultValue = defaults.deduplicationStrategy
+        ),
         localDeduplicationThreshold = optDouble(
             "localDeduplicationThreshold",
             defaults.localDeduplicationThreshold.toDouble()

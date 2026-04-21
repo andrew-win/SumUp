@@ -241,8 +241,7 @@ internal fun SettingsApiKeysGroupContent(
                 Text(
                     text = stringResource(
                         R.string.settings_api_current_model,
-                        activeConfig.name,
-                        activeConfig.modelName
+                        activeConfig.name
                     ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -271,8 +270,7 @@ internal fun SettingsApiKeysGroupContent(
                 Text(
                     text = stringResource(
                         R.string.settings_api_current_model,
-                        activeConfig.name,
-                        activeConfig.modelName
+                        activeConfig.name
                     ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -548,134 +546,153 @@ internal fun SettingsFeedGroupContent(
     onModelActionClick: () -> Unit,
     onHelpRequest: (String) -> Unit
 ) {
-    SettingsSection(
-        title = stringResource(R.string.settings_feed),
-        boxed = true,
-        isHelpMode = isHelpMode,
-        helpDescription = stringResource(R.string.settings_help_section_feed),
-        onHelpRequest = onHelpRequest
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            SettingsToggleRow(
-                label = stringResource(R.string.settings_feed_media),
-                checked = userPreferences.isFeedMediaEnabled,
-                onCheckedChange = onFeedMediaEnabledChange
-            )
-            SettingsToggleRow(
-                label = stringResource(R.string.settings_feed_description),
-                checked = userPreferences.isFeedDescriptionEnabled,
-                onCheckedChange = onFeedDescriptionEnabledChange
-            )
-            SettingsToggleRow(
-                label = stringResource(R.string.settings_feed_summary_use_full_text),
-                checked = userPreferences.isFeedSummaryUseFullTextEnabled,
-                onCheckedChange = onFeedSummaryUseFullTextEnabledChange
-            )
-            SettingsToggleRow(
-                label = stringResource(R.string.settings_enable_importance_filter),
-                checked = userPreferences.isImportanceFilterEnabled,
-                onCheckedChange = onImportanceFilterEnabledChange
-            )
-            SettingsToggleRow(
-                label = stringResource(R.string.settings_enable_deduplication),
-                checked = userPreferences.isDeduplicationEnabled,
-                onCheckedChange = onDeduplicationEnabledChange
-            )
-            SettingsToggleRow(
-                label = stringResource(R.string.settings_hide_single_news),
-                checked = userPreferences.isHideSingleNewsEnabled,
-                onCheckedChange = onHideSingleNewsEnabledChange
-            )
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        SettingsSection(
+            title = stringResource(R.string.settings_feed_display),
+            boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_feed),
+            onHelpRequest = onHelpRequest
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                SettingsToggleRow(
+                    label = stringResource(R.string.settings_feed_media),
+                    checked = userPreferences.isFeedMediaEnabled,
+                    onCheckedChange = onFeedMediaEnabledChange
+                )
+                SettingsToggleRow(
+                    label = stringResource(R.string.settings_feed_description),
+                    checked = userPreferences.isFeedDescriptionEnabled,
+                    onCheckedChange = onFeedDescriptionEnabledChange
+                )
+                SettingsToggleRow(
+                    label = stringResource(R.string.settings_feed_summary_use_full_text),
+                    checked = userPreferences.isFeedSummaryUseFullTextEnabled,
+                    onCheckedChange = onFeedSummaryUseFullTextEnabledChange
+                )
+                SettingsToggleRow(
+                    label = stringResource(R.string.settings_enable_importance_filter),
+                    checked = userPreferences.isImportanceFilterEnabled,
+                    onCheckedChange = onImportanceFilterEnabledChange
+                )
+            }
+        }
 
-            val strategies = listOf(
-                com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.LOCAL to R.string.ai_strategy_local,
-                com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.CLOUD to R.string.ai_strategy_cloud,
-                com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.ADAPTIVE to R.string.ai_strategy_adaptive
-            )
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                strategies.forEachIndexed { index, (strategy, labelRes) ->
-                    SegmentedButton(
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = strategies.size),
-                        onClick = { onDeduplicationStrategyChange(strategy) },
-                        selected = userPreferences.deduplicationStrategy == strategy
-                    ) {
-                        Text(
-                            text = stringResource(labelRes),
-                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+        SettingsSection(
+            title = stringResource(R.string.settings_deduplication),
+            boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_feed),
+            onHelpRequest = onHelpRequest
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = stringResource(R.string.settings_deduplication_strategy),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    val strategies = listOf(
+                        com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.LOCAL to R.string.ai_strategy_local,
+                        com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.CLOUD to R.string.ai_strategy_cloud
+                    )
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        strategies.forEachIndexed { index, (strategy, labelRes) ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = strategies.size),
+                                onClick = { onDeduplicationStrategyChange(strategy) },
+                                selected = userPreferences.deduplicationStrategy == strategy
+                            ) {
+                                Text(
+                                    text = stringResource(labelRes),
+                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
                 }
-            }
 
-            SettingsFloatSliderItem(
-                label = stringResource(
-                    R.string.settings_local_deduplication_threshold,
-                    String.format(Locale.US, "%.2f", localDeduplicationThreshold)
-                ),
-                value = localDeduplicationThreshold,
-                onValueChange = onLocalDeduplicationThresholdChange,
-                onValueChangeFinished = onLocalDeduplicationThresholdCommitted,
-                valueRange = 0.3f..0.99f,
-                steps = 69
-            )
-            SettingsFloatSliderItem(
-                label = stringResource(
-                    R.string.settings_cloud_deduplication_threshold,
-                    String.format(Locale.US, "%.2f", cloudDeduplicationThreshold)
-                ),
-                value = cloudDeduplicationThreshold,
-                onValueChange = onCloudDeduplicationThresholdChange,
-                onValueChangeFinished = onCloudDeduplicationThresholdCommitted,
-                valueRange = 0.3f..0.99f,
-                steps = 69
-            )
-            SettingsIntSliderItem(
-                label = stringResource(R.string.settings_min_mentions, minMentions.toInt()),
-                value = minMentions,
-                onValueChange = onMinMentionsChange,
-                onValueChangeFinished = onMinMentionsCommitted,
-                valueRange = 1f..10f,
-                steps = 8
-            )
-
-            Spacer(Modifier.height(4.dp))
-            val isModelReady = downloadState is ModelDownloadState.Ready
-            val statusText = when (val state = downloadState) {
-                is ModelDownloadState.Idle -> stringResource(R.string.model_status_idle)
-                is ModelDownloadState.Downloading -> stringResource(R.string.model_status_downloading, state.progress)
-                is ModelDownloadState.Loading -> stringResource(R.string.model_status_loading)
-                is ModelDownloadState.Ready -> stringResource(R.string.model_status_ready)
-                is ModelDownloadState.Error -> stringResource(R.string.model_status_error, state.message)
-            }
-
-            Text(
-                stringResource(R.string.settings_model_status, statusText),
-                style = MaterialTheme.typography.bodyLarge
-            )
-
-            Button(
-                onClick = onModelActionClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = MaterialTheme.shapes.extraLarge,
-                colors = if (isModelReady) {
-                    ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                } else {
-                    ButtonDefaults.buttonColors()
-                }
-            ) {
-                Text(
-                    text = stringResource(
-                        if (isModelReady) R.string.settings_delete_model else R.string.settings_download_model
-                    ),
-                    style = MaterialTheme.typography.labelLarge
+                SettingsToggleRow(
+                    label = stringResource(R.string.settings_enable_deduplication),
+                    checked = userPreferences.isDeduplicationEnabled,
+                    onCheckedChange = onDeduplicationEnabledChange
                 )
+                SettingsToggleRow(
+                    label = stringResource(R.string.settings_hide_single_news),
+                    checked = userPreferences.isHideSingleNewsEnabled,
+                    onCheckedChange = onHideSingleNewsEnabledChange
+                )
+
+                SettingsFloatSliderItem(
+                    label = stringResource(
+                        R.string.settings_local_deduplication_threshold,
+                        String.format(Locale.US, "%.2f", localDeduplicationThreshold)
+                    ),
+                    value = localDeduplicationThreshold,
+                    onValueChange = onLocalDeduplicationThresholdChange,
+                    onValueChangeFinished = onLocalDeduplicationThresholdCommitted,
+                    valueRange = 0.3f..0.99f,
+                    steps = 69
+                )
+                SettingsFloatSliderItem(
+                    label = stringResource(
+                        R.string.settings_cloud_deduplication_threshold,
+                        String.format(Locale.US, "%.2f", cloudDeduplicationThreshold)
+                    ),
+                    value = cloudDeduplicationThreshold,
+                    onValueChange = onCloudDeduplicationThresholdChange,
+                    onValueChangeFinished = onCloudDeduplicationThresholdCommitted,
+                    valueRange = 0.3f..0.99f,
+                    steps = 69
+                )
+                SettingsIntSliderItem(
+                    label = stringResource(R.string.settings_min_mentions, minMentions.toInt()),
+                    value = minMentions,
+                    onValueChange = onMinMentionsChange,
+                    onValueChangeFinished = onMinMentionsCommitted,
+                    valueRange = 1f..10f,
+                    steps = 8
+                )
+
+                Spacer(Modifier.height(4.dp))
+                val isModelReady = downloadState is ModelDownloadState.Ready
+                val statusText = when (val state = downloadState) {
+                    is ModelDownloadState.Idle -> stringResource(R.string.model_status_idle)
+                    is ModelDownloadState.Downloading -> stringResource(R.string.model_status_downloading, state.progress)
+                    is ModelDownloadState.Loading -> stringResource(R.string.model_status_loading)
+                    is ModelDownloadState.Ready -> stringResource(R.string.model_status_ready)
+                    is ModelDownloadState.Error -> stringResource(R.string.model_status_error, state.message)
+                }
+
+                Text(
+                    stringResource(R.string.settings_model_status, statusText),
+                    style = MaterialTheme.typography.bodyLarge
+                )
+
+                Button(
+                    onClick = onModelActionClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    colors = if (isModelReady) {
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    } else {
+                        ButtonDefaults.buttonColors()
+                    }
+                ) {
+                    Text(
+                        text = stringResource(
+                            if (isModelReady) R.string.settings_delete_model else R.string.settings_download_model
+                        ),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
             }
         }
     }

@@ -8,7 +8,7 @@ enum class AiStrategy {
 }
 
 enum class DeduplicationStrategy {
-    CLOUD, LOCAL, ADAPTIVE
+    CLOUD, LOCAL
 }
 
 enum class AppThemeMode {
@@ -28,12 +28,12 @@ data class UserPreferences(
     @PrimaryKey val id: Int = 0,
     val aiStrategy: AiStrategy = AiStrategy.ADAPTIVE,
     val isScheduledSummaryEnabled: Boolean = false,
-    val isScheduledSummaryPushEnabled: Boolean = true,
+    val isScheduledSummaryPushEnabled: Boolean = false,
     val scheduledHour: Int = 8,
     val scheduledMinute: Int = 0,
     val lastWorkRunTimestamp: Long = 0,
     val isDeduplicationEnabled: Boolean = false,
-    val deduplicationStrategy: DeduplicationStrategy = DeduplicationStrategy.ADAPTIVE,
+    val deduplicationStrategy: DeduplicationStrategy = DeduplicationStrategy.CLOUD,
     val localDeduplicationThreshold: Float = 0.55f,
     val cloudDeduplicationThreshold: Float = 0.75f,
     val minMentions: Int = 2,
@@ -61,8 +61,8 @@ data class UserPreferences(
     val aiMaxCharsTotal: Int = 12000,
     val summaryPrompt: String = "",
     val isCustomSummaryPromptEnabled: Boolean = false,
-    val isFeedMediaEnabled: Boolean = false,
-    val isFeedDescriptionEnabled: Boolean = true,
+    val isFeedMediaEnabled: Boolean = true,
+    val isFeedDescriptionEnabled: Boolean = false,
     val isFeedSummaryUseFullTextEnabled: Boolean = false,
     val isRecommendationsEnabled: Boolean = true,
     val articleAutoCleanupDays: Int = 3,

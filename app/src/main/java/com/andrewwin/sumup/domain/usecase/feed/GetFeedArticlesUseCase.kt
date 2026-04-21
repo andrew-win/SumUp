@@ -153,7 +153,6 @@ class GetFeedArticlesUseCase @Inject constructor(
                         val canDeduplicate = when (state.prefs.deduplicationStrategy) {
                             DeduplicationStrategy.LOCAL -> hasLocalEmbedding
                             DeduplicationStrategy.CLOUD -> hasCloudEmbedding
-                            DeduplicationStrategy.ADAPTIVE -> hasCloudEmbedding || hasLocalEmbedding
                         }
                         if (!canDeduplicate) {
                             emit(FeedResult(initial, false))
@@ -164,11 +163,6 @@ class GetFeedArticlesUseCase @Inject constructor(
                         val deduplicationThreshold = when (state.prefs.deduplicationStrategy) {
                             DeduplicationStrategy.LOCAL -> state.prefs.localDeduplicationThreshold
                             DeduplicationStrategy.CLOUD -> state.prefs.cloudDeduplicationThreshold
-                            DeduplicationStrategy.ADAPTIVE -> if (hasCloudEmbedding) {
-                                state.prefs.cloudDeduplicationThreshold
-                            } else {
-                                state.prefs.localDeduplicationThreshold
-                            }
                         }
 
                         deduplicationService

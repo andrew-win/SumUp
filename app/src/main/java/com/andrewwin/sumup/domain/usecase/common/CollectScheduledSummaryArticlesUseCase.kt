@@ -35,7 +35,6 @@ class CollectScheduledSummaryArticlesUseCase @Inject constructor(
         val canDeduplicate = when (prefs.deduplicationStrategy) {
             DeduplicationStrategy.LOCAL -> hasLocalEmbedding
             DeduplicationStrategy.CLOUD -> hasCloudEmbedding
-            DeduplicationStrategy.ADAPTIVE -> hasCloudEmbedding || hasLocalEmbedding
         }
 
         var filteredArticles = recentArticles
@@ -59,11 +58,6 @@ class CollectScheduledSummaryArticlesUseCase @Inject constructor(
                 val dedupThreshold = when (prefs.deduplicationStrategy) {
                     DeduplicationStrategy.LOCAL -> prefs.localDeduplicationThreshold
                     DeduplicationStrategy.CLOUD -> prefs.cloudDeduplicationThreshold
-                    DeduplicationStrategy.ADAPTIVE -> if (hasCloudEmbedding) {
-                        prefs.cloudDeduplicationThreshold
-                    } else {
-                        prefs.localDeduplicationThreshold
-                    }
                 }
                 deduplicationService.clusterArticlesIncremental(
                     filteredArticles,
