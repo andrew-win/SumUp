@@ -38,7 +38,6 @@ import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.AppThemeMode
-import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import java.util.Locale
@@ -323,7 +322,6 @@ internal fun SettingsAiProcessingGroupContent(
     onSummaryNewsInFeedExtractiveCommitted: () -> Unit,
     onSummaryNewsInScheduledExtractiveChange: (Float) -> Unit,
     onSummaryNewsInScheduledExtractiveCommitted: () -> Unit,
-    onDeduplicationStrategyChange: (DeduplicationStrategy) -> Unit,
     onCustomSummaryPromptEnabledChange: (Boolean) -> Unit,
     onSummaryPromptChange: (String) -> Unit,
     onAdaptiveExtractiveOnlyBelowCharsChange: (Float) -> Unit,
@@ -361,6 +359,33 @@ internal fun SettingsAiProcessingGroupContent(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+                }
+            }
+        }
+
+        SettingsSection(
+            title = stringResource(R.string.settings_custom_summary_prompt),
+            boxed = true,
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_custom_prompt),
+            onHelpRequest = onHelpRequest
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                SettingsToggleRow(
+                    label = stringResource(R.string.settings_custom_summary_prompt),
+                    checked = userPreferences.isCustomSummaryPromptEnabled,
+                    onCheckedChange = onCustomSummaryPromptEnabledChange
+                )
+
+                if (userPreferences.isCustomSummaryPromptEnabled) {
+                    OutlinedTextField(
+                        value = summaryPrompt,
+                        onValueChange = onSummaryPromptChange,
+                        label = { Text(stringResource(R.string.settings_summary_prompt)) },
+                        placeholder = { Text(stringResource(R.string.settings_summary_prompt_hint)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large
+                    )
                 }
             }
         }
@@ -428,63 +453,6 @@ internal fun SettingsAiProcessingGroupContent(
         }
 
         SettingsSection(
-            title = stringResource(R.string.settings_deduplication_strategy),
-            boxed = true,
-            isHelpMode = isHelpMode,
-            helpDescription = stringResource(R.string.settings_help_section_dedup_strategy),
-            onHelpRequest = onHelpRequest
-        ) {
-            val strategies = listOf(
-                DeduplicationStrategy.LOCAL to R.string.ai_strategy_local,
-                DeduplicationStrategy.CLOUD to R.string.ai_strategy_cloud,
-                DeduplicationStrategy.ADAPTIVE to R.string.ai_strategy_adaptive
-            )
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                strategies.forEachIndexed { index, (strategy, labelRes) ->
-                    SegmentedButton(
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = strategies.size),
-                        onClick = { onDeduplicationStrategyChange(strategy) },
-                        selected = userPreferences.deduplicationStrategy == strategy
-                    ) {
-                        Text(
-                            text = stringResource(labelRes),
-                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-        }
-
-        SettingsSection(
-            title = stringResource(R.string.settings_custom_summary_prompt),
-            boxed = true,
-            isHelpMode = isHelpMode,
-            helpDescription = stringResource(R.string.settings_help_section_custom_prompt),
-            onHelpRequest = onHelpRequest
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                SettingsToggleRow(
-                    label = stringResource(R.string.settings_custom_summary_prompt),
-                    checked = userPreferences.isCustomSummaryPromptEnabled,
-                    onCheckedChange = onCustomSummaryPromptEnabledChange
-                )
-
-                if (userPreferences.isCustomSummaryPromptEnabled) {
-                    OutlinedTextField(
-                        value = summaryPrompt,
-                        onValueChange = onSummaryPromptChange,
-                        label = { Text(stringResource(R.string.settings_summary_prompt)) },
-                        placeholder = { Text(stringResource(R.string.settings_summary_prompt_hint)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large
-                    )
-                }
-            }
-        }
-
-        SettingsSection(
             title = stringResource(R.string.settings_adaptive_summary),
             boxed = true,
             isHelpMode = isHelpMode,
@@ -544,6 +512,7 @@ internal fun SettingsFeedGroupContent(
     onImportanceFilterEnabledChange: (Boolean) -> Unit,
     onDeduplicationEnabledChange: (Boolean) -> Unit,
     onHideSingleNewsEnabledChange: (Boolean) -> Unit,
+    onDeduplicationStrategyChange: (com.andrewwin.sumup.data.local.entities.DeduplicationStrategy) -> Unit,
     onLocalDeduplicationThresholdChange: (Float) -> Unit,
     onLocalDeduplicationThresholdCommitted: () -> Unit,
     onCloudDeduplicationThresholdChange: (Float) -> Unit,
@@ -591,6 +560,28 @@ internal fun SettingsFeedGroupContent(
                 checked = userPreferences.isHideSingleNewsEnabled,
                 onCheckedChange = onHideSingleNewsEnabledChange
             )
+
+            val strategies = listOf(
+                com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.LOCAL to R.string.ai_strategy_local,
+                com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.CLOUD to R.string.ai_strategy_cloud,
+                com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.ADAPTIVE to R.string.ai_strategy_adaptive
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                strategies.forEachIndexed { index, (strategy, labelRes) ->
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = strategies.size),
+                        onClick = { onDeduplicationStrategyChange(strategy) },
+                        selected = userPreferences.deduplicationStrategy == strategy
+                    ) {
+                        Text(
+                            text = stringResource(labelRes),
+                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
 
             SettingsFloatSliderItem(
                 label = stringResource(

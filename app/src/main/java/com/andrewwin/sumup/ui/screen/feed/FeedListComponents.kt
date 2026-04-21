@@ -65,6 +65,7 @@ import coil.compose.AsyncImage
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.ui.displayName
 import com.andrewwin.sumup.ui.components.AppExportPdfButton
 import com.andrewwin.sumup.ui.components.AppFilterMenuChip
 import com.andrewwin.sumup.ui.components.AppSearchField
@@ -143,9 +144,8 @@ fun FeedFilters(
                 label = stringResource(savedFilter.labelRes),
                 onClick = { showSavedMenu = true }
             )
-            val groupName = remember(selectedGroupId, groups) {
-                groups.find { it.id == selectedGroupId }?.name
-            } ?: stringResource(R.string.filter_group)
+            val groupName = groups.find { it.id == selectedGroupId }?.displayName()
+                ?: stringResource(R.string.filter_group)
             FilterMenuChip(
                 icon = Icons.Filled.Folder,
                 label = groupName,
@@ -175,7 +175,7 @@ fun FeedFilters(
                 )
                 groups.forEach { group ->
                     DropdownMenuItem(
-                        text = { Text(group.name) },
+                        text = { Text(group.displayName()) },
                         onClick = { onGroupSelect(group.id); showGroupMenu = false }
                     )
                 }

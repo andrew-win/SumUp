@@ -10,6 +10,7 @@
     <string name="add_group">Додати групу</string>
     <string name="add_source">Додати джерело</string>
     <string name="group_name">Назва групи</string>
+    <string name="group_uncategorized">Без категорії</string>
     <string name="source_name">Назва (якщо не ввести автозгенерується)</string>
     <string name="source_url">Посилання / id для YouTube</string>
     <string name="source_type">Тип джерела</string>
@@ -366,21 +367,25 @@
     <string name="settings_account_status_keys">API-ключі\nзавжди\nпід рукою</string>
 
     <string name="settings_group_account">Акаунт</string>
-    <string name="settings_group_account_desc">Синхронізація, вхід/реєстрація</string>
+    <string name="settings_group_account_desc">Вхід і синхронізація</string>
+    <string name="settings_group_transfer">Експорт/імпорт</string>
+    <string name="settings_group_transfer_desc">Резервні копії та перенесення</string>
     <string name="settings_group_general">Загальні</string>
     <string name="settings_group_general_desc">Мова, тема</string>
     <string name="settings_group_api_keys">API-ключі</string>
     <string name="settings_group_api_keys_desc">Для сумаризації, ембедингів</string>
-    <string name="settings_group_ai_processing">ШІ-обробка</string>
-    <string name="settings_group_ai_processing_desc">Ліміти, стратегія, дедублікація</string>
+    <string name="settings_group_ai_processing">Сумаризація</string>
+    <string name="settings_group_ai_processing_desc">Стратегія, ліміти, промпт</string>
     <string name="settings_group_feed">Стрічка</string>
-    <string name="settings_group_feed_desc">Відображення, фільтрація</string>
+    <string name="settings_group_feed_desc">Відображення, фільтрація, дедублікація</string>
     <string name="settings_group_scheduled">Заплановані зведення</string>
     <string name="settings_group_scheduled_desc">Час, повідомлення</string>
     <string name="settings_group_recommendations">Рекомендації</string>
     <string name="settings_group_recommendations_desc">Теми та персоналізація</string>
     <string name="settings_group_memory">Память</string>
     <string name="settings_group_memory_desc">Статті, ембедингі, налаштування</string>
+    <string name="settings_search_placeholder">Шукайте налаштування тут…</string>
+    <string name="settings_search_empty">Налаштувань за вашим запитом не знайдено</string>
     <string name="validation_name_required">Назва обовязкова</string>
     <string name="validation_group_name_exists">Група з такою назвою вже існує</string>
     <string name="validation_source_name_exists">Джерело з такою назвою вже існує</string>

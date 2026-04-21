@@ -41,6 +41,7 @@ import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.ui.displayName
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
@@ -240,7 +241,7 @@ fun SourcesScreen(
                             FilledTonalButton(
                                 onClick = { viewModel.refreshSuggestedThemes(forceRefresh = true) },
                                 modifier = Modifier
-                                    .align(Alignment.End)
+                                    .align(Alignment.Start)
                                     .padding(top = 8.dp),
                                 shape = MaterialTheme.shapes.medium,
                                 colors = ButtonDefaults.filledTonalButtonColors(
@@ -388,7 +389,7 @@ fun GroupCard(
                 )
                 Spacer(Modifier.width(AppDimens.InlineItemSpacing))
                 Text(
-                    text = groupWithSources.group.name,
+                    text = groupWithSources.group.displayName(),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                     modifier = Modifier.weight(1f)
                 )

@@ -47,21 +47,15 @@ fun SettingsAccountGroup(
     isCloudSyncEnabled: Boolean,
     syncIntervalHours: Int,
     syncSelection: BackupSelection,
-    exportSelection: BackupSelection,
-    importSelection: BackupSelection,
     hasSyncPassphrase: Boolean,
     transferState: TransferState,
     onHelpRequest: (String) -> Unit,
     onSyncIntervalSelect: (Int) -> Unit,
     onSyncEnabledChange: (Boolean) -> Unit,
     onSyncSelectionChange: (BackupSelection) -> Unit,
-    onExportSelectionChange: (BackupSelection) -> Unit,
-    onImportSelectionChange: (BackupSelection) -> Unit,
     onManageSyncPassphrase: () -> Unit,
     onSignInOutClick: () -> Unit,
-    onSyncNowClick: () -> Unit,
-    onImportClick: () -> Unit,
-    onExportClick: (String) -> Unit
+    onSyncNowClick: () -> Unit
 ) {
     var syncIntervalExpanded by remember { mutableStateOf(false) }
     val unifiedButtonColors = ButtonDefaults.buttonColors(
@@ -256,6 +250,26 @@ fun SettingsAccountGroup(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun SettingsTransferGroupContent(
+    isHelpMode: Boolean,
+    exportSelection: BackupSelection,
+    importSelection: BackupSelection,
+    transferState: TransferState,
+    onHelpRequest: (String) -> Unit,
+    onExportSelectionChange: (BackupSelection) -> Unit,
+    onImportSelectionChange: (BackupSelection) -> Unit,
+    onImportClick: () -> Unit,
+    onExportClick: (String) -> Unit
+) {
+    val unifiedButtonColors = ButtonDefaults.buttonColors(
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SettingsTransferSection(
             title = stringResource(R.string.settings_export_block_title),
             isHelpMode = isHelpMode,

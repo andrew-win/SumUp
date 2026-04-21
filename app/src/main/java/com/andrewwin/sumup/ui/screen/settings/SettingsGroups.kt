@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +45,11 @@ internal enum class SettingsGroup(
         R.string.settings_group_account,
         R.string.settings_group_account_desc,
         SettingsGroupIcon.Vector(Icons.Default.AccountCircle)
+    ),
+    TRANSFER(
+        R.string.settings_group_transfer,
+        R.string.settings_group_transfer_desc,
+        SettingsGroupIcon.Vector(Icons.Default.Sync)
     ),
     GENERAL(
         R.string.settings_group_general,
