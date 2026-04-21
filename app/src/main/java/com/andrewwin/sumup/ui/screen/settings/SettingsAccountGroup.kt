@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
+import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.theme.appCardBorder
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -44,12 +46,18 @@ fun SettingsAccountGroup(
     authUiState: AuthUiState,
     isCloudSyncEnabled: Boolean,
     syncIntervalHours: Int,
-    backupSelection: BackupSelection,
+    syncSelection: BackupSelection,
+    exportSelection: BackupSelection,
+    importSelection: BackupSelection,
+    hasSyncPassphrase: Boolean,
     transferState: TransferState,
     onHelpRequest: (String) -> Unit,
     onSyncIntervalSelect: (Int) -> Unit,
     onSyncEnabledChange: (Boolean) -> Unit,
-    onBackupSelectionChange: (BackupSelection) -> Unit,
+    onSyncSelectionChange: (BackupSelection) -> Unit,
+    onExportSelectionChange: (BackupSelection) -> Unit,
+    onImportSelectionChange: (BackupSelection) -> Unit,
+    onManageSyncPassphrase: () -> Unit,
     onSignInOutClick: () -> Unit,
     onSyncNowClick: () -> Unit,
     onImportClick: () -> Unit,
@@ -185,24 +193,54 @@ fun SettingsAccountGroup(
                 }
                 SettingsBackupCheckboxRow(
                     title = stringResource(R.string.settings_backup_sources),
-                    checked = backupSelection.includeSources,
-                    onCheckedChange = { onBackupSelectionChange(backupSelection.copy(includeSources = it)) }
+                    checked = syncSelection.includeSources,
+                    onCheckedChange = { onSyncSelectionChange(syncSelection.copy(includeSources = it)) }
                 )
                 SettingsBackupCheckboxRow(
                     title = stringResource(R.string.settings_backup_subscriptions),
-                    checked = backupSelection.includeSubscriptions,
-                    onCheckedChange = { onBackupSelectionChange(backupSelection.copy(includeSubscriptions = it)) }
+                    checked = syncSelection.includeSubscriptions,
+                    onCheckedChange = { onSyncSelectionChange(syncSelection.copy(includeSubscriptions = it)) }
                 )
                 SettingsBackupCheckboxRow(
                     title = stringResource(R.string.settings_backup_settings_no_api),
-                    checked = backupSelection.includeSettingsNoApi,
-                    onCheckedChange = { onBackupSelectionChange(backupSelection.copy(includeSettingsNoApi = it)) }
+                    checked = syncSelection.includeSettingsNoApi,
+                    onCheckedChange = { onSyncSelectionChange(syncSelection.copy(includeSettingsNoApi = it)) }
                 )
                 SettingsBackupCheckboxRow(
                     title = stringResource(R.string.settings_backup_api_keys),
-                    checked = backupSelection.includeApiKeys,
-                    onCheckedChange = { onBackupSelectionChange(backupSelection.copy(includeApiKeys = it)) }
+                    checked = syncSelection.includeApiKeys,
+                    onCheckedChange = { onSyncSelectionChange(syncSelection.copy(includeApiKeys = it)) }
                 )
+                AppHelpOverlayTarget(
+                    isEnabled = isHelpMode,
+                    description = stringResource(R.string.settings_help_sync_passphrase),
+                    onShowDescription = onHelpRequest
+                ) {
+                    OutlinedTextField(
+                        value = stringResource(
+                            if (hasSyncPassphrase) R.string.settings_sync_passphrase_configured
+                            else R.string.settings_sync_passphrase_missing
+                        ),
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.settings_sync_passphrase_title)) },
+                        supportingText = {
+                            Text(stringResource(R.string.settings_sync_passphrase_support))
+                        },
+                        trailingIcon = {
+                            TextButton(onClick = onManageSyncPassphrase) {
+                                Text(
+                                    stringResource(
+                                        if (hasSyncPassphrase) R.string.settings_sync_passphrase_update
+                                        else R.string.settings_sync_passphrase_set
+                                    )
+                                )
+                            }
+                        },
+                        shape = MaterialTheme.shapes.large
+                    )
+                }
                 if (authUiState.isSignedIn) {
                     Button(
                         onClick = onSyncNowClick,
@@ -216,33 +254,92 @@ fun SettingsAccountGroup(
                         Text(stringResource(R.string.settings_sync_now))
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(
-                        onClick = onImportClick,
-                        enabled = transferState !is TransferState.Working,
-                        modifier = Modifier.weight(1f).height(52.dp),
-                        shape = MaterialTheme.shapes.extraLarge,
-                        colors = unifiedButtonColors
-                    ) {
-                        Icon(Icons.Default.ArrowDownward, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.size(8.dp))
-                        Text(stringResource(R.string.settings_import_button))
-                    }
-                    Button(
-                        onClick = {
-                            val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                            onExportClick("sumup-backup-$date.json")
-                        },
-                        enabled = transferState !is TransferState.Working,
-                        modifier = Modifier.weight(1f).height(52.dp),
-                        shape = MaterialTheme.shapes.extraLarge,
-                        colors = unifiedButtonColors
-                    ) {
-                        Icon(Icons.Default.ArrowUpward, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.size(8.dp))
-                        Text(stringResource(R.string.settings_export_button))
-                    }
-                }
+            }
+        }
+        SettingsTransferSection(
+            title = stringResource(R.string.settings_export_block_title),
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_export),
+            selection = exportSelection,
+            onSelectionChange = onExportSelectionChange,
+            buttonLabel = stringResource(R.string.settings_export_button),
+            buttonIcon = Icons.Default.ArrowUpward,
+            transferState = transferState,
+            onHelpRequest = onHelpRequest,
+            onActionClick = {
+                val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                onExportClick("sumup-backup-$date.json")
+            },
+            buttonColors = unifiedButtonColors
+        )
+        SettingsTransferSection(
+            title = stringResource(R.string.settings_import_block_title),
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_section_import),
+            selection = importSelection,
+            onSelectionChange = onImportSelectionChange,
+            buttonLabel = stringResource(R.string.settings_import_button),
+            buttonIcon = Icons.Default.ArrowDownward,
+            transferState = transferState,
+            onHelpRequest = onHelpRequest,
+            onActionClick = onImportClick,
+            buttonColors = unifiedButtonColors
+        )
+    }
+}
+
+@Composable
+private fun SettingsTransferSection(
+    title: String,
+    isHelpMode: Boolean,
+    helpDescription: String,
+    selection: BackupSelection,
+    onSelectionChange: (BackupSelection) -> Unit,
+    buttonLabel: String,
+    buttonIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    transferState: TransferState,
+    onHelpRequest: (String) -> Unit,
+    onActionClick: () -> Unit,
+    buttonColors: androidx.compose.material3.ButtonColors
+) {
+    SettingsSection(
+        title = title,
+        boxed = true,
+        isHelpMode = isHelpMode,
+        helpDescription = helpDescription,
+        onHelpRequest = onHelpRequest
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SettingsBackupCheckboxRow(
+                title = stringResource(R.string.settings_backup_sources),
+                checked = selection.includeSources,
+                onCheckedChange = { onSelectionChange(selection.copy(includeSources = it)) }
+            )
+            SettingsBackupCheckboxRow(
+                title = stringResource(R.string.settings_backup_subscriptions),
+                checked = selection.includeSubscriptions,
+                onCheckedChange = { onSelectionChange(selection.copy(includeSubscriptions = it)) }
+            )
+            SettingsBackupCheckboxRow(
+                title = stringResource(R.string.settings_backup_settings_no_api),
+                checked = selection.includeSettingsNoApi,
+                onCheckedChange = { onSelectionChange(selection.copy(includeSettingsNoApi = it)) }
+            )
+            SettingsBackupCheckboxRow(
+                title = stringResource(R.string.settings_backup_api_keys),
+                checked = selection.includeApiKeys,
+                onCheckedChange = { onSelectionChange(selection.copy(includeApiKeys = it)) }
+            )
+            Button(
+                onClick = onActionClick,
+                enabled = transferState !is TransferState.Working,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                colors = buttonColors
+            ) {
+                Icon(buttonIcon, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(8.dp))
+                Text(buttonLabel)
             }
         }
     }

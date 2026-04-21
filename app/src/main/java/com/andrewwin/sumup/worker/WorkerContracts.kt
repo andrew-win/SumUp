@@ -7,10 +7,10 @@ object WorkerContracts {
 
     const val KEY_SYNC_ENABLED = "sync_enabled"
     const val KEY_LAST_SYNC_AT = "last_sync_at"
-    const val KEY_INCLUDE_SOURCES = "sync_include_sources"
-    const val KEY_INCLUDE_SUBSCRIPTIONS = "sync_include_subscriptions"
-    const val KEY_INCLUDE_SETTINGS_NO_API = "sync_include_settings_no_api"
-    const val KEY_INCLUDE_API_KEYS = "sync_include_api_keys"
+    const val KEY_SYNC_INCLUDE_SOURCES = "sync_include_sources"
+    const val KEY_SYNC_INCLUDE_SUBSCRIPTIONS = "sync_include_subscriptions"
+    const val KEY_SYNC_INCLUDE_SETTINGS_NO_API = "sync_include_settings_no_api"
+    const val KEY_SYNC_INCLUDE_API_KEYS = "sync_include_api_keys"
     const val KEY_SAVED_THEMES = "savedThemes"
     const val KEY_LAST_RECOMMENDATION_AT = "lastRecommendationAt"
 

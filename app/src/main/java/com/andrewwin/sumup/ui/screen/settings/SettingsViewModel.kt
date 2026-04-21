@@ -29,6 +29,7 @@ import com.andrewwin.sumup.data.local.entities.AppThemeMode
 import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 import com.andrewwin.sumup.data.local.entities.UserPreferences
+import com.andrewwin.sumup.data.security.SecretEncryptionManager
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.ImportedSource
@@ -72,7 +73,7 @@ data class BackupSelection(
     val includeSources: Boolean = true,
     val includeSubscriptions: Boolean = true,
     val includeSettingsNoApi: Boolean = true,
-    val includeApiKeys: Boolean = true
+    val includeApiKeys: Boolean = false
 )
 
 data class AuthUiState(
@@ -92,7 +93,8 @@ class SettingsViewModel @Inject constructor(
     private val manageModelUseCase: ManageModelUseCase,
     private val scheduleSummaryUseCase: ScheduleSummaryUseCase,
     private val updateSummaryPromptUseCase: UpdateSummaryPromptUseCase,
-    private val updateCustomSummaryPromptEnabledUseCase: UpdateCustomSummaryPromptEnabledUseCase
+    private val updateCustomSummaryPromptEnabledUseCase: UpdateCustomSummaryPromptEnabledUseCase,
+    private val secretEncryptionManager: SecretEncryptionManager
 ) : AndroidViewModel(application) {
     private val firebaseAuth by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { FirebaseAuth.getInstance() }
     private val firestore by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { FirebaseFirestore.getInstance() }
@@ -129,19 +131,34 @@ class SettingsViewModel @Inject constructor(
     val isCloudSyncEnabled: StateFlow<Boolean> = _isCloudSyncEnabled.asStateFlow()
     private val _syncIntervalHours = MutableStateFlow(DEFAULT_SYNC_INTERVAL_HOURS)
     val syncIntervalHours: StateFlow<Int> = _syncIntervalHours.asStateFlow()
-    private val _backupSelection = MutableStateFlow(BackupSelection())
-    val backupSelection: StateFlow<BackupSelection> = _backupSelection.asStateFlow()
+    private val _syncSelection = MutableStateFlow(BackupSelection())
+    val syncSelection: StateFlow<BackupSelection> = _syncSelection.asStateFlow()
+    private val _exportSelection = MutableStateFlow(BackupSelection())
+    val exportSelection: StateFlow<BackupSelection> = _exportSelection.asStateFlow()
+    private val _importSelection = MutableStateFlow(BackupSelection())
+    val importSelection: StateFlow<BackupSelection> = _importSelection.asStateFlow()
+    private val _hasSyncPassphrase = MutableStateFlow(false)
+    val hasSyncPassphrase: StateFlow<Boolean> = _hasSyncPassphrase.asStateFlow()
 
     init {
         checkModelExists()
+        viewModelScope.launch {
+            aiRepository.migrateLegacyApiKeys()
+        }
         _isCloudSyncEnabled.value = syncPrefs.getBoolean(KEY_SYNC_ENABLED, false)
         _syncIntervalHours.value = syncPrefs.getInt(KEY_SYNC_INTERVAL_HOURS, DEFAULT_SYNC_INTERVAL_HOURS)
-        _backupSelection.value = BackupSelection(
-            includeSources = syncPrefs.getBoolean(KEY_INCLUDE_SOURCES, true),
-            includeSubscriptions = syncPrefs.getBoolean(KEY_INCLUDE_SUBSCRIPTIONS, true),
-            includeSettingsNoApi = syncPrefs.getBoolean(KEY_INCLUDE_SETTINGS_NO_API, true),
-            includeApiKeys = syncPrefs.getBoolean(KEY_INCLUDE_API_KEYS, true)
-        )
+        _syncSelection.value = readSelectionFromPrefs(KEY_PREFIX_SYNC)
+        _exportSelection.value = readSelectionFromPrefs(KEY_PREFIX_EXPORT)
+        _importSelection.value = readSelectionFromPrefs(KEY_PREFIX_IMPORT)
+        refreshSyncPassphraseState()
+        if (!_hasSyncPassphrase.value) {
+            _syncSelection.value = _syncSelection.value.copy(includeApiKeys = false)
+            _exportSelection.value = _exportSelection.value.copy(includeApiKeys = false)
+            _importSelection.value = _importSelection.value.copy(includeApiKeys = false)
+            persistSelection(KEY_PREFIX_SYNC, _syncSelection.value)
+            persistSelection(KEY_PREFIX_EXPORT, _exportSelection.value)
+            persistSelection(KEY_PREFIX_IMPORT, _importSelection.value)
+        }
         refreshAuthState()
         if (_isCloudSyncEnabled.value) {
             scheduleCloudSyncWorker(_syncIntervalHours.value)
@@ -443,20 +460,49 @@ class SettingsViewModel @Inject constructor(
 
     fun setCloudSyncEnabled(enabled: Boolean, selection: BackupSelection) {
         _isCloudSyncEnabled.value = enabled
-        persistBackupSelection(selection)
+        val effectiveSelection = sanitizeBackupSelection(selection)
+        persistSelection(KEY_PREFIX_SYNC, effectiveSelection)
         syncPrefs.edit()
             .putBoolean(KEY_SYNC_ENABLED, enabled)
             .apply()
         if (enabled) {
             scheduleCloudSyncWorker(_syncIntervalHours.value)
-            syncNow(selection)
+            syncNow(effectiveSelection)
         } else {
             WorkManager.getInstance(getApplication()).cancelUniqueWork(CLOUD_SYNC_WORK_NAME)
         }
     }
 
-    fun updateBackupSelection(selection: BackupSelection) {
-        persistBackupSelection(selection)
+    fun updateSyncSelection(selection: BackupSelection) {
+        persistSelection(KEY_PREFIX_SYNC, sanitizeBackupSelection(selection))
+    }
+
+    fun updateExportSelection(selection: BackupSelection) {
+        persistSelection(KEY_PREFIX_EXPORT, sanitizeBackupSelection(selection))
+    }
+
+    fun updateImportSelection(selection: BackupSelection) {
+        persistSelection(KEY_PREFIX_IMPORT, sanitizeBackupSelection(selection))
+    }
+
+    fun saveSyncPassphrase(passphrase: String) {
+        val normalized = passphrase.trim()
+        if (normalized.length < MIN_SYNC_PASSPHRASE_LENGTH) {
+            _transferState.value = TransferState.Error("Пароль синхронізації має містити щонайменше $MIN_SYNC_PASSPHRASE_LENGTH символів")
+            return
+        }
+        secretEncryptionManager.setSyncPassphrase(normalized)
+        refreshSyncPassphraseState()
+        _transferState.value = TransferState.Success("Пароль синхронізації API-ключів збережено")
+    }
+
+    fun clearSyncPassphrase() {
+        secretEncryptionManager.clearSyncPassphrase()
+        refreshSyncPassphraseState()
+        persistSelection(KEY_PREFIX_SYNC, _syncSelection.value.copy(includeApiKeys = false))
+        persistSelection(KEY_PREFIX_EXPORT, _exportSelection.value.copy(includeApiKeys = false))
+        persistSelection(KEY_PREFIX_IMPORT, _importSelection.value.copy(includeApiKeys = false))
+        _transferState.value = TransferState.Success("Синхронізацію API-ключів вимкнено, пароль очищено")
     }
 
     fun updateSyncIntervalHours(hours: Int) {
@@ -480,15 +526,17 @@ class SettingsViewModel @Inject constructor(
             runCatching {
                 val docRef = firestore.collection(CLOUD_COLLECTION).document(uid)
                 val remote = docRef.get().await()
+                val remoteBackupJson = remote.getString("backup")
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let(::JSONObject)
                 val remoteUpdatedAt = remote.getLong("updatedAt") ?: 0L
                 val lastSyncAt = syncPrefs.getLong(KEY_LAST_SYNC_AT, 0L)
                 if (remote.exists() && remoteUpdatedAt > lastSyncAt) {
-                    val remoteBackup = remote.getString("backup").orEmpty()
-                    if (remoteBackup.isNotBlank()) {
-                        applyBackupJson(JSONObject(remoteBackup), merge = true, selection = selection)
+                    if (remoteBackupJson != null) {
+                        applyBackupJson(remoteBackupJson, merge = true, selection = selection)
                     }
                 }
-                val localBackup = buildBackupJson(selection)
+                val localBackup = buildBackupJson(selection, remoteBackupJson)
                 val now = System.currentTimeMillis()
                 docRef.set(
                     mapOf(
@@ -534,15 +582,28 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
-    private fun persistBackupSelection(selection: BackupSelection) {
-        _backupSelection.value = selection
+    private fun persistSelection(prefix: String, selection: BackupSelection) {
+        when (prefix) {
+            KEY_PREFIX_SYNC -> _syncSelection.value = selection
+            KEY_PREFIX_EXPORT -> _exportSelection.value = selection
+            KEY_PREFIX_IMPORT -> _importSelection.value = selection
+        }
         syncPrefs.edit()
-            .putBoolean(KEY_INCLUDE_SOURCES, selection.includeSources)
-            .putBoolean(KEY_INCLUDE_SUBSCRIPTIONS, selection.includeSubscriptions)
-            .putBoolean(KEY_INCLUDE_SETTINGS_NO_API, selection.includeSettingsNoApi)
-            .putBoolean(KEY_INCLUDE_API_KEYS, selection.includeApiKeys)
+            .putBoolean(prefKey(prefix, KEY_INCLUDE_SOURCES_SUFFIX), selection.includeSources)
+            .putBoolean(prefKey(prefix, KEY_INCLUDE_SUBSCRIPTIONS_SUFFIX), selection.includeSubscriptions)
+            .putBoolean(prefKey(prefix, KEY_INCLUDE_SETTINGS_NO_API_SUFFIX), selection.includeSettingsNoApi)
+            .putBoolean(prefKey(prefix, KEY_INCLUDE_API_KEYS_SUFFIX), selection.includeApiKeys)
             .apply()
     }
+
+    private fun readSelectionFromPrefs(prefix: String): BackupSelection = BackupSelection(
+        includeSources = syncPrefs.getBoolean(prefKey(prefix, KEY_INCLUDE_SOURCES_SUFFIX), true),
+        includeSubscriptions = syncPrefs.getBoolean(prefKey(prefix, KEY_INCLUDE_SUBSCRIPTIONS_SUFFIX), true),
+        includeSettingsNoApi = syncPrefs.getBoolean(prefKey(prefix, KEY_INCLUDE_SETTINGS_NO_API_SUFFIX), true),
+        includeApiKeys = syncPrefs.getBoolean(prefKey(prefix, KEY_INCLUDE_API_KEYS_SUFFIX), false)
+    )
+
+    private fun prefKey(prefix: String, suffix: String): String = "${prefix}_$suffix"
 
     fun exportSettingsAndSources(uri: Uri, selection: BackupSelection) {
         viewModelScope.launch {
@@ -578,13 +639,18 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private suspend fun buildBackupJson(selection: BackupSelection): JSONObject {
+    private suspend fun buildBackupJson(selection: BackupSelection, remoteBackupRoot: JSONObject? = null): JSONObject {
         val prefs = if (selection.includeSettingsNoApi) {
             userPreferencesRepository.preferences.first()
         } else {
             null
         }
         val aiConfigs = if (selection.includeApiKeys) aiRepository.allConfigs.first() else emptyList()
+        val syncPassphrase = if (selection.includeApiKeys) {
+            requireSyncPassphrase()
+        } else {
+            null
+        }
         val groups = if (selection.includeSources) sourceRepository.getGroupsWithSourcesSnapshot() else emptyList()
         val savedThemes = if (selection.includeSubscriptions) {
             subscriptionsPrefs.getStringSet(KEY_SAVED_THEMES, emptySet()).orEmpty()
@@ -608,7 +674,11 @@ class SettingsViewModel @Inject constructor(
             })
             if (prefs != null) put("userPreferences", prefs.toBackupJson())
             if (selection.includeApiKeys) {
-                put("aiConfigs", JSONArray().apply { aiConfigs.forEach { put(it.toBackupJson()) } })
+                put("aiConfigs", JSONArray().apply {
+                    aiConfigs.forEach { put(it.toBackupJson(secretEncryptionManager, syncPassphrase!!)) }
+                })
+            } else if (remoteBackupRoot?.has("aiConfigs") == true) {
+                put("aiConfigs", remoteBackupRoot.optJSONArray("aiConfigs"))
             }
             if (selection.includeSources) {
                 put("groups", JSONArray().apply {
@@ -635,7 +705,14 @@ class SettingsViewModel @Inject constructor(
 
     private suspend fun applyBackupJson(root: JSONObject, merge: Boolean, selection: BackupSelection) {
         val importedPrefs = root.optJSONObject("userPreferences")?.toUserPreferencesFromBackup()
-        val importedConfigs = root.optJSONArray("aiConfigs").toAiConfigsFromBackup()
+        val importedConfigs = if (selection.includeApiKeys) {
+            root.optJSONArray("aiConfigs").toAiConfigsFromBackup(
+                secretEncryptionManager = secretEncryptionManager,
+                syncPassphrase = requireSyncPassphrase()
+            )
+        } else {
+            emptyList()
+        }
         val importedGroups = root.optJSONArray("groups").toImportedGroupsFromBackup()
         val importedSubscriptions = root.optJSONObject("subscriptions")
 
@@ -710,6 +787,23 @@ class SettingsViewModel @Inject constructor(
         userPreferencesRepository.updatePreferences(transform(current))
     }
 
+    private fun sanitizeBackupSelection(selection: BackupSelection): BackupSelection {
+        return if (selection.includeApiKeys && !_hasSyncPassphrase.value) {
+            _transferState.value = TransferState.Error("Спочатку задайте пароль синхронізації для API-ключів")
+            selection.copy(includeApiKeys = false)
+        } else {
+            selection
+        }
+    }
+
+    private fun refreshSyncPassphraseState() {
+        _hasSyncPassphrase.value = secretEncryptionManager.hasSyncPassphrase()
+    }
+
+    private fun requireSyncPassphrase(): String =
+        secretEncryptionManager.getSyncPassphraseOrNull()
+            ?: error("Спочатку задайте пароль синхронізації для API-ключів")
+
     private fun hasInternetConnection(): Boolean {
         val connectivityManager = getApplication<Application>()
             .getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -724,15 +818,19 @@ class SettingsViewModel @Inject constructor(
         private const val SYNC_PREFS = "sync_prefs"
         private const val KEY_SYNC_ENABLED = "sync_enabled"
         private const val KEY_SYNC_INTERVAL_HOURS = "sync_interval_hours"
-        private const val KEY_INCLUDE_SOURCES = "sync_include_sources"
-        private const val KEY_INCLUDE_SUBSCRIPTIONS = "sync_include_subscriptions"
-        private const val KEY_INCLUDE_SETTINGS_NO_API = "sync_include_settings_no_api"
-        private const val KEY_INCLUDE_API_KEYS = "sync_include_api_keys"
+        private const val KEY_PREFIX_SYNC = "sync"
+        private const val KEY_PREFIX_EXPORT = "export"
+        private const val KEY_PREFIX_IMPORT = "import"
+        private const val KEY_INCLUDE_SOURCES_SUFFIX = "include_sources"
+        private const val KEY_INCLUDE_SUBSCRIPTIONS_SUFFIX = "include_subscriptions"
+        private const val KEY_INCLUDE_SETTINGS_NO_API_SUFFIX = "include_settings_no_api"
+        private const val KEY_INCLUDE_API_KEYS_SUFFIX = "include_api_keys"
         private const val KEY_LAST_SYNC_AT = "last_sync_at"
         private const val SUBSCRIPTIONS_PREFS = "suggested_themes_prefs"
         private const val KEY_SAVED_THEMES = "savedThemes"
         private const val KEY_LAST_RECOMMENDATION_AT = "lastRecommendationAt"
         private const val DEFAULT_SYNC_INTERVAL_HOURS = 24
+        private const val MIN_SYNC_PASSPHRASE_LENGTH = 8
     }
 }
 

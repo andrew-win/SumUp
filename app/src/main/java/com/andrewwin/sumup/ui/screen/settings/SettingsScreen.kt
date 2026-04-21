@@ -85,7 +85,10 @@ fun SettingsScreen(
     val authUiState by viewModel.authUiState.collectAsState()
     val isCloudSyncEnabled by viewModel.isCloudSyncEnabled.collectAsState()
     val syncIntervalHours by viewModel.syncIntervalHours.collectAsState()
-    val backupSelectionState by viewModel.backupSelection.collectAsState()
+    val syncSelectionState by viewModel.syncSelection.collectAsState()
+    val exportSelectionState by viewModel.exportSelection.collectAsState()
+    val importSelectionState by viewModel.importSelection.collectAsState()
+    val hasSyncPassphrase by viewModel.hasSyncPassphrase.collectAsState()
     
     var showConfigDialog by remember { mutableStateOf<Pair<AiModelConfig?, AiModelType>?>(null) }
     var showTimePicker by remember { mutableStateOf(false) }
@@ -98,6 +101,7 @@ fun SettingsScreen(
     var showClearScheduledSummariesDialog by remember { mutableStateOf(false) }
     var showResetSettingsDialog by remember { mutableStateOf(false) }
     var showEmailAuthDialog by remember { mutableStateOf(false) }
+    var showSyncPassphraseDialog by remember { mutableStateOf(false) }
     var selectedGroup by rememberSaveable { mutableStateOf<SettingsGroup?>(null) }
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
@@ -112,11 +116,23 @@ fun SettingsScreen(
         }
     }
 
-    val backupSelection = BackupSelection(
-        includeSources = backupSelectionState.includeSources,
-        includeSubscriptions = backupSelectionState.includeSubscriptions,
-        includeSettingsNoApi = backupSelectionState.includeSettingsNoApi,
-        includeApiKeys = backupSelectionState.includeApiKeys
+    val syncSelection = BackupSelection(
+        includeSources = syncSelectionState.includeSources,
+        includeSubscriptions = syncSelectionState.includeSubscriptions,
+        includeSettingsNoApi = syncSelectionState.includeSettingsNoApi,
+        includeApiKeys = syncSelectionState.includeApiKeys
+    )
+    val exportSelection = BackupSelection(
+        includeSources = exportSelectionState.includeSources,
+        includeSubscriptions = exportSelectionState.includeSubscriptions,
+        includeSettingsNoApi = exportSelectionState.includeSettingsNoApi,
+        includeApiKeys = exportSelectionState.includeApiKeys
+    )
+    val importSelection = BackupSelection(
+        includeSources = importSelectionState.includeSources,
+        includeSubscriptions = importSelectionState.includeSubscriptions,
+        includeSettingsNoApi = importSelectionState.includeSettingsNoApi,
+        includeApiKeys = importSelectionState.includeApiKeys
     )
 
     val webClientId = remember(context) {
@@ -134,11 +150,11 @@ fun SettingsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            viewModel.importSettingsAndSources(
-                uri = uri,
-                merge = isMergeImport,
-                selection = backupSelection
-            )
+                viewModel.importSettingsAndSources(
+                    uri = uri,
+                    merge = isMergeImport,
+                    selection = importSelection
+                )
         }
     }
 
@@ -146,10 +162,10 @@ fun SettingsScreen(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
         if (uri != null) {
-            viewModel.exportSettingsAndSources(
-                uri = uri,
-                selection = backupSelection
-            )
+                viewModel.exportSettingsAndSources(
+                    uri = uri,
+                    selection = exportSelection
+                )
         }
     }
 
@@ -289,14 +305,20 @@ fun SettingsScreen(
                         authUiState = authUiState,
                         isCloudSyncEnabled = isCloudSyncEnabled,
                         syncIntervalHours = syncIntervalHours,
-                        backupSelection = backupSelection,
+                        syncSelection = syncSelection,
+                        exportSelection = exportSelection,
+                        importSelection = importSelection,
+                        hasSyncPassphrase = hasSyncPassphrase,
                         transferState = transferState,
                         onHelpRequest = { helpDescription = it },
                         onSyncIntervalSelect = { viewModel.updateSyncIntervalHours(it) },
                         onSyncEnabledChange = { enabled ->
-                            viewModel.setCloudSyncEnabled(enabled, backupSelection)
+                            viewModel.setCloudSyncEnabled(enabled, syncSelection)
                         },
-                        onBackupSelectionChange = viewModel::updateBackupSelection,
+                        onSyncSelectionChange = viewModel::updateSyncSelection,
+                        onExportSelectionChange = viewModel::updateExportSelection,
+                        onImportSelectionChange = viewModel::updateImportSelection,
+                        onManageSyncPassphrase = { showSyncPassphraseDialog = true },
                         onSignInOutClick = {
                             if (authUiState.isSignedIn) {
                                 viewModel.signOut()
@@ -304,7 +326,7 @@ fun SettingsScreen(
                                 showEmailAuthDialog = true
                             }
                         },
-                        onSyncNowClick = { viewModel.syncNow(backupSelection) },
+                        onSyncNowClick = { viewModel.syncNow(syncSelection) },
                         onImportClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
                         onExportClick = { exportLauncher.launch(it) }
                     )
@@ -505,7 +527,10 @@ fun SettingsScreen(
                 type = type,
                 existingConfigs = if (type == AiModelType.SUMMARY) summaryConfigs else embeddingConfigs,
                 onDismiss = { showConfigDialog = null },
-                onConfirm = { viewModel.addAiConfig(it); showConfigDialog = null }
+                onConfirm = {
+                    if (it.id == 0L) viewModel.addAiConfig(it) else viewModel.updateAiConfig(it)
+                    showConfigDialog = null
+                }
             )
         }
 
@@ -565,6 +590,15 @@ fun SettingsScreen(
                         googleAuthLauncher.launch(googleSignInClient.signInIntent)
                     }
                 }
+            )
+        }
+
+        if (showSyncPassphraseDialog) {
+            SettingsSyncPassphraseDialog(
+                hasExistingPassphrase = hasSyncPassphrase,
+                onDismiss = { showSyncPassphraseDialog = false },
+                onSave = viewModel::saveSyncPassphrase,
+                onClear = viewModel::clearSyncPassphrase
             )
         }
     }

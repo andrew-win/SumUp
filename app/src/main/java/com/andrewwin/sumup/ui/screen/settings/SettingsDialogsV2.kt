@@ -256,6 +256,136 @@ fun SettingsEmailAuthDialog(
 }
 
 @Composable
+fun SettingsSyncPassphraseDialog(
+    hasExistingPassphrase: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+    onClear: () -> Unit
+) {
+    val tooShortMessage = stringResource(R.string.settings_sync_passphrase_too_short)
+    val mismatchMessage = stringResource(R.string.settings_sync_passphrase_mismatch)
+    var passphrase by rememberSaveable { mutableStateOf("") }
+    var confirmPassphrase by rememberSaveable { mutableStateOf("") }
+    var isPassphraseVisible by rememberSaveable { mutableStateOf(false) }
+    var validationError by rememberSaveable { mutableStateOf<String?>(null) }
+
+    AppAnimatedDialog(
+        visible = true,
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_sync_passphrase_title),
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = null)
+                    }
+                }
+
+                Text(
+                    text = stringResource(R.string.settings_sync_passphrase_dialog_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                OutlinedTextField(
+                    value = passphrase,
+                    onValueChange = {
+                        passphrase = it
+                        validationError = null
+                    },
+                    label = { Text(stringResource(R.string.settings_sync_passphrase_field)) },
+                    singleLine = true,
+                    visualTransformation = if (isPassphraseVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { isPassphraseVisible = !isPassphraseVisible }) {
+                            Icon(
+                                imageVector = if (isPassphraseVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                contentDescription = null
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = confirmPassphrase,
+                    onValueChange = {
+                        confirmPassphrase = it
+                        validationError = null
+                    },
+                    label = { Text(stringResource(R.string.settings_sync_passphrase_confirm_field)) },
+                    singleLine = true,
+                    visualTransformation = if (isPassphraseVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                validationError?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Spacer(Modifier.weight(1f))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (hasExistingPassphrase) {
+                        OutlinedButton(
+                            onClick = {
+                                onClear()
+                                onDismiss()
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.large
+                        ) {
+                            Text(stringResource(R.string.settings_sync_passphrase_clear))
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            val normalized = passphrase.trim()
+                            when {
+                                normalized.length < 8 -> validationError = tooShortMessage
+                                normalized != confirmPassphrase.trim() -> validationError = mismatchMessage
+                                else -> {
+                                    onSave(normalized)
+                                    onDismiss()
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Text(stringResource(R.string.save))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun SettingsAiKeyItem(
     config: AiModelConfig,
     onEdit: () -> Unit,

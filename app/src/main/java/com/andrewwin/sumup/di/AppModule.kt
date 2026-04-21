@@ -23,6 +23,7 @@ import com.andrewwin.sumup.data.repository.SourceRepositoryImpl
 import com.andrewwin.sumup.data.repository.SuggestedThemesStateRepositoryImpl
 import com.andrewwin.sumup.data.repository.SummaryRepositoryImpl
 import com.andrewwin.sumup.data.repository.UserPreferencesRepositoryImpl
+import com.andrewwin.sumup.data.security.SecretEncryptionManager
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.service.DeduplicationService
 import com.andrewwin.sumup.domain.support.AiPromptProvider
@@ -163,13 +164,15 @@ object AppModule {
         userPreferencesDao: UserPreferencesDao,
         aiService: AiService,
         formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase,
-        aiPromptProvider: AiPromptProvider
+        aiPromptProvider: AiPromptProvider,
+        secretEncryptionManager: SecretEncryptionManager
     ): AiRepository = AiRepositoryImpl(
         aiModelDao,
         userPreferencesDao,
         aiService,
         formatExtractiveSummaryUseCase,
-        aiPromptProvider
+        aiPromptProvider,
+        secretEncryptionManager
     )
 
     @Provides

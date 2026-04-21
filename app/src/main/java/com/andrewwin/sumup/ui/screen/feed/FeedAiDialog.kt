@@ -67,6 +67,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
+import com.andrewwin.sumup.ui.components.AppMotion
 import com.andrewwin.sumup.ui.components.AppCardSurface
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
@@ -99,7 +100,9 @@ fun FeedAiDialog(
     AppAnimatedDialog(
         visible = isVisible,
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        enter = AppMotion.contentEnter(),
+        exit = AppMotion.contentExit()
     ) {
         Surface(
             modifier = Modifier
@@ -199,7 +202,7 @@ fun FeedAiDialog(
                     }
                 }
 
-                if ((aiResult != null || !isAiLoading) && aiStrategy != AiStrategy.LOCAL) {
+                if (aiStrategy != AiStrategy.LOCAL) {
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         value = userQuestion,
@@ -211,7 +214,10 @@ fun FeedAiDialog(
                         modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.large,
                         trailingIcon = {
-                            IconButton(onClick = onAsk) {
+                            IconButton(
+                                onClick = onAsk,
+                                enabled = userQuestion.isNotBlank() && !isAiLoading
+                            ) {
                                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
                             }
                         }

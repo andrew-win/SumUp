@@ -118,6 +118,8 @@ fun AppAnimatedDialog(
     modifier: Modifier = Modifier,
     properties: DialogProperties = DialogProperties(),
     contentAlignment: Alignment = Alignment.Center,
+    enter: EnterTransition = AppMotion.modalEnter(),
+    exit: ExitTransition = AppMotion.modalExit(),
     content: @Composable BoxScope.() -> Unit
 ) {
     if (visible) {
@@ -131,8 +133,8 @@ fun AppAnimatedDialog(
             ) {
                 AnimatedVisibility(
                     visible = true,
-                    enter = AppMotion.modalEnter(),
-                    exit = AppMotion.modalExit()
+                    enter = enter,
+                    exit = exit
                 ) {
                     Box(
                         modifier = Modifier.fillMaxSize(),

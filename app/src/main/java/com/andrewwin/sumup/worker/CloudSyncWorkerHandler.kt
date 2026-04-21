@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.work.ListenableWorker
+import com.andrewwin.sumup.data.security.SecretEncryptionManager
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
@@ -27,7 +28,8 @@ class CloudSyncWorkerHandler @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val aiRepository: AiRepository,
     private val sourceRepository: SourceRepository,
-    private val scheduleSummaryUseCase: ScheduleSummaryUseCase
+    private val scheduleSummaryUseCase: ScheduleSummaryUseCase,
+    private val secretEncryptionManager: SecretEncryptionManager
 ) {
     suspend fun execute(): ListenableWorker.Result {
         val syncPrefs = context.getSharedPreferences(WorkerContracts.SYNC_PREFS, 0)
@@ -35,10 +37,11 @@ class CloudSyncWorkerHandler @Inject constructor(
         if (!enabled) return ListenableWorker.Result.success()
 
         val selection = BackupSelection(
-            includeSources = syncPrefs.getBoolean(WorkerContracts.KEY_INCLUDE_SOURCES, true),
-            includeSubscriptions = syncPrefs.getBoolean(WorkerContracts.KEY_INCLUDE_SUBSCRIPTIONS, true),
-            includeSettingsNoApi = syncPrefs.getBoolean(WorkerContracts.KEY_INCLUDE_SETTINGS_NO_API, true),
-            includeApiKeys = syncPrefs.getBoolean(WorkerContracts.KEY_INCLUDE_API_KEYS, true)
+            includeSources = syncPrefs.getBoolean(WorkerContracts.KEY_SYNC_INCLUDE_SOURCES, true),
+            includeSubscriptions = syncPrefs.getBoolean(WorkerContracts.KEY_SYNC_INCLUDE_SUBSCRIPTIONS, true),
+            includeSettingsNoApi = syncPrefs.getBoolean(WorkerContracts.KEY_SYNC_INCLUDE_SETTINGS_NO_API, true),
+            includeApiKeys = syncPrefs.getBoolean(WorkerContracts.KEY_SYNC_INCLUDE_API_KEYS, false) &&
+                secretEncryptionManager.hasSyncPassphrase()
         )
 
         val uid = FirebaseAuth.getInstance().currentUser?.uid
@@ -48,17 +51,19 @@ class CloudSyncWorkerHandler @Inject constructor(
             val firestore = FirebaseFirestore.getInstance()
             val docRef = firestore.collection(WorkerContracts.CLOUD_COLLECTION).document(uid)
             val remote = docRef.get().await()
+            val remoteBackupJson = remote.getString("backup")
+                ?.takeIf { it.isNotBlank() }
+                ?.let(::JSONObject)
             val remoteUpdatedAt = remote.getLong("updatedAt") ?: 0L
             val lastSyncAt = syncPrefs.getLong(WorkerContracts.KEY_LAST_SYNC_AT, 0L)
 
             if (remote.exists() && remoteUpdatedAt > lastSyncAt) {
-                val remoteBackup = remote.getString("backup").orEmpty()
-                if (remoteBackup.isNotBlank()) {
-                    applyBackupJson(JSONObject(remoteBackup), merge = true, selection = selection)
+                if (remoteBackupJson != null) {
+                    applyBackupJson(remoteBackupJson, merge = true, selection = selection)
                 }
             }
 
-            val localBackup = buildBackupJson(selection)
+            val localBackup = buildBackupJson(selection, remoteBackupJson)
             val now = System.currentTimeMillis()
             docRef.set(
                 mapOf(
@@ -73,10 +78,15 @@ class CloudSyncWorkerHandler @Inject constructor(
         )
     }
 
-    private suspend fun buildBackupJson(selection: BackupSelection): JSONObject {
+    private suspend fun buildBackupJson(selection: BackupSelection, remoteBackupRoot: JSONObject? = null): JSONObject {
         val subscriptionsPrefs = context.getSharedPreferences(WorkerContracts.SUBSCRIPTIONS_PREFS, 0)
         val prefs = if (selection.includeSettingsNoApi) userPreferencesRepository.preferences.first() else null
         val aiConfigs = if (selection.includeApiKeys) aiRepository.allConfigs.first() else emptyList()
+        val syncPassphrase = if (selection.includeApiKeys) {
+            secretEncryptionManager.getSyncPassphraseOrNull() ?: error("Sync passphrase is missing.")
+        } else {
+            null
+        }
         val groups = if (selection.includeSources) sourceRepository.getGroupsWithSourcesSnapshot() else emptyList()
         val savedThemes = if (selection.includeSubscriptions) {
             subscriptionsPrefs.getStringSet(WorkerContracts.KEY_SAVED_THEMES, emptySet()).orEmpty()
@@ -100,7 +110,11 @@ class CloudSyncWorkerHandler @Inject constructor(
             })
             if (prefs != null) put("userPreferences", prefs.toBackupJson())
             if (selection.includeApiKeys) {
-                put("aiConfigs", JSONArray().apply { aiConfigs.forEach { put(it.toBackupJson()) } })
+                put("aiConfigs", JSONArray().apply {
+                    aiConfigs.forEach { put(it.toBackupJson(secretEncryptionManager, syncPassphrase!!)) }
+                })
+            } else if (remoteBackupRoot?.has("aiConfigs") == true) {
+                put("aiConfigs", remoteBackupRoot.optJSONArray("aiConfigs"))
             }
             if (selection.includeSources) {
                 put("groups", JSONArray().apply {
@@ -128,7 +142,15 @@ class CloudSyncWorkerHandler @Inject constructor(
     private suspend fun applyBackupJson(root: JSONObject, merge: Boolean, selection: BackupSelection) {
         val subscriptionsPrefs = context.getSharedPreferences(WorkerContracts.SUBSCRIPTIONS_PREFS, 0)
         val importedPrefs = root.optJSONObject("userPreferences")?.toUserPreferencesFromBackup()
-        val importedConfigs = root.optJSONArray("aiConfigs").toAiConfigsFromBackup()
+        val importedConfigs = if (selection.includeApiKeys) {
+            root.optJSONArray("aiConfigs").toAiConfigsFromBackup(
+                secretEncryptionManager = secretEncryptionManager,
+                syncPassphrase = secretEncryptionManager.getSyncPassphraseOrNull()
+                    ?: error("Sync passphrase is missing.")
+            )
+        } else {
+            emptyList()
+        }
         val importedGroups = root.optJSONArray("groups").toImportedGroupsFromBackup()
         val importedSubscriptions = root.optJSONObject("subscriptions")
 

@@ -12,6 +12,7 @@ interface AiRepository {
     suspend fun addConfig(config: AiModelConfig)
     suspend fun updateConfig(config: AiModelConfig)
     suspend fun deleteConfig(config: AiModelConfig)
+    suspend fun migrateLegacyApiKeys()
     suspend fun summarize(content: String, pointsPerNews: Int? = null): String
     suspend fun askQuestion(content: String, question: String): String
     suspend fun askWithPrompt(content: String, prompt: String): String

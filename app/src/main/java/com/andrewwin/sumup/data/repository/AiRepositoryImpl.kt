@@ -8,6 +8,7 @@ import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.remote.AiService
+import com.andrewwin.sumup.data.security.SecretEncryptionManager
 import com.andrewwin.sumup.domain.service.ExtractiveSummarizer
 import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import com.andrewwin.sumup.domain.support.AiServiceException
@@ -23,6 +24,7 @@ import com.andrewwin.sumup.domain.usecase.ai.SummaryResponseJson
 import com.andrewwin.sumup.domain.usecase.ai.SummaryThemeItemJson
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class AiRepositoryImpl @Inject constructor(
@@ -30,7 +32,8 @@ class AiRepositoryImpl @Inject constructor(
     private val prefsDao: UserPreferencesDao,
     private val aiService: AiService,
     private val formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase,
-    private val aiPromptProvider: AiPromptProvider
+    private val aiPromptProvider: AiPromptProvider,
+    private val secretEncryptionManager: SecretEncryptionManager
 ) : AiRepository {
     private enum class CloudPromptProfile {
         DEFAULT,
@@ -65,17 +68,26 @@ class AiRepositoryImpl @Inject constructor(
 
     private val bulletSymbol = "—"
 
-    override val allConfigs: Flow<List<AiModelConfig>> = aiModelDao.getAllConfigs()
+    override val allConfigs: Flow<List<AiModelConfig>> = aiModelDao.getAllConfigs().map { configs ->
+        configs.map(::decryptConfig)
+    }
 
     override fun getConfigsByType(type: AiModelType): Flow<List<AiModelConfig>> =
-        aiModelDao.getConfigsByType(type)
+        aiModelDao.getConfigsByType(type).map { configs -> configs.map(::decryptConfig) }
 
     override suspend fun fetchAvailableModels(provider: AiProvider, apiKey: String, type: AiModelType): List<String> =
         aiService.fetchModels(provider, apiKey, type)
 
-    override suspend fun addConfig(config: AiModelConfig) = aiModelDao.insertConfig(config)
-    override suspend fun updateConfig(config: AiModelConfig) = aiModelDao.updateConfig(config)
+    override suspend fun addConfig(config: AiModelConfig) = aiModelDao.insertConfig(encryptConfig(config))
+    override suspend fun updateConfig(config: AiModelConfig) = aiModelDao.updateConfig(encryptConfig(config))
     override suspend fun deleteConfig(config: AiModelConfig) = aiModelDao.deleteConfig(config)
+    override suspend fun migrateLegacyApiKeys() {
+        aiModelDao.getAllConfigs().first().forEach { config ->
+            if (!secretEncryptionManager.isLocallyEncrypted(config.apiKey) && config.apiKey.isNotBlank()) {
+                aiModelDao.updateConfig(encryptConfig(config))
+            }
+        }
+    }
 
     override suspend fun summarize(content: String, pointsPerNews: Int?): String {
         val prefs = prefsDao.getUserPreferences().first()
@@ -88,7 +100,7 @@ class AiRepositoryImpl @Inject constructor(
             return formatExtractiveFallback(truncatedContent, fallbackPointsPerNews)
         }
 
-        val enabledConfigs = aiModelDao.getEnabledConfigsByType(AiModelType.SUMMARY)
+        val enabledConfigs = getEnabledConfigsByTypeDecrypted(AiModelType.SUMMARY)
         if (enabledConfigs.isEmpty()) {
             return formatExtractiveFallback(truncatedContent, fallbackPointsPerNews)
         }
@@ -177,7 +189,7 @@ class AiRepositoryImpl @Inject constructor(
             throw UnsupportedStrategyException()
         }
 
-        val enabledConfigs = aiModelDao.getEnabledConfigsByType(AiModelType.SUMMARY)
+        val enabledConfigs = getEnabledConfigsByTypeDecrypted(AiModelType.SUMMARY)
         if (enabledConfigs.isEmpty()) throw NoActiveModelException()
 
         for (config in enabledConfigs) {
@@ -197,7 +209,7 @@ class AiRepositoryImpl @Inject constructor(
     }
 
     override suspend fun embed(text: String): FloatArray? {
-        val enabledConfigs = aiModelDao.getEnabledConfigsByType(AiModelType.EMBEDDING)
+        val enabledConfigs = getEnabledConfigsByTypeDecrypted(AiModelType.EMBEDDING)
         if (enabledConfigs.isEmpty()) return null
 
         for (config in enabledConfigs) {
@@ -211,8 +223,17 @@ class AiRepositoryImpl @Inject constructor(
     }
 
     override suspend fun hasEnabledEmbeddingConfig(): Boolean {
-        return aiModelDao.getEnabledConfigsByType(AiModelType.EMBEDDING).isNotEmpty()
+        return getEnabledConfigsByTypeDecrypted(AiModelType.EMBEDDING).isNotEmpty()
     }
+
+    private suspend fun getEnabledConfigsByTypeDecrypted(type: AiModelType): List<AiModelConfig> =
+        aiModelDao.getEnabledConfigsByType(type).map(::decryptConfig)
+
+    private fun encryptConfig(config: AiModelConfig): AiModelConfig =
+        config.copy(apiKey = secretEncryptionManager.encryptLocal(config.apiKey))
+
+    private fun decryptConfig(config: AiModelConfig): AiModelConfig =
+        config.copy(apiKey = secretEncryptionManager.decryptLocal(config.apiKey))
 
     private fun estimateSentenceCountByTargetLength(
         content: String,

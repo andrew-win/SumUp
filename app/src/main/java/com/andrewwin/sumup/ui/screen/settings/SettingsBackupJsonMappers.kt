@@ -11,6 +11,7 @@ import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 import com.andrewwin.sumup.data.local.entities.UserPreferences
+import com.andrewwin.sumup.data.security.SecretEncryptionManager
 import com.andrewwin.sumup.domain.repository.ImportedSource
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import org.json.JSONArray
@@ -177,23 +178,37 @@ internal fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
     )
 }
 
-internal fun AiModelConfig.toBackupJson(): JSONObject = JSONObject().apply {
+internal fun AiModelConfig.toBackupJson(
+    secretEncryptionManager: SecretEncryptionManager,
+    syncPassphrase: String
+): JSONObject = JSONObject().apply {
     put("name", name)
     put("provider", provider.name)
-    put("apiKey", apiKey)
+    put("apiKeyCiphertext", secretEncryptionManager.encryptForSync(apiKey, syncPassphrase))
     put("modelName", modelName)
     put("isEnabled", isEnabled)
     put("type", type.name)
 }
 
-internal fun JSONArray?.toAiConfigsFromBackup(): List<AiModelConfig> {
+internal fun JSONArray?.toAiConfigsFromBackup(
+    secretEncryptionManager: SecretEncryptionManager,
+    syncPassphrase: String?
+): List<AiModelConfig> {
     if (this == null) return emptyList()
     val result = mutableListOf<AiModelConfig>()
     for (index in 0 until length()) {
         val item = optJSONObject(index) ?: continue
         val name = item.optString("name", "").trim()
-        val apiKey = item.optString("apiKey", "").trim()
         val modelName = item.optString("modelName", "").trim()
+        val encryptedApiKey = item.optString("apiKeyCiphertext", "").trim()
+        val apiKey = when {
+            encryptedApiKey.isNotBlank() -> {
+                val passphrase = syncPassphrase?.trim().orEmpty()
+                require(passphrase.isNotBlank()) { "Sync passphrase is required to import API keys." }
+                secretEncryptionManager.decryptFromSync(encryptedApiKey, passphrase).trim()
+            }
+            else -> item.optString("apiKey", "").trim()
+        }
         if (name.isBlank() || apiKey.isBlank() || modelName.isBlank()) continue
         val provider = runCatching { AiProvider.valueOf(item.optString("provider")) }.getOrNull() ?: continue
         val type = runCatching { AiModelType.valueOf(item.optString("type")) }.getOrNull() ?: continue
