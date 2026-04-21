@@ -86,6 +86,8 @@ fun SettingsScreen(
     val exportSelectionState by viewModel.exportSelection.collectAsState()
     val importSelectionState by viewModel.importSelection.collectAsState()
     val hasSyncPassphrase by viewModel.hasSyncPassphrase.collectAsState()
+    val currentSummaryConfig = remember(summaryConfigs) { summaryConfigs.firstOrNull { it.isEnabled } }
+    val currentEmbeddingConfig = remember(embeddingConfigs) { embeddingConfigs.firstOrNull { it.isEnabled } }
 
     var showConfigDialog by remember { mutableStateOf<Pair<AiModelConfig?, AiModelType>?>(null) }
     var showTimePicker by remember { mutableStateOf(false) }
@@ -510,6 +512,8 @@ fun SettingsScreen(
                             isHelpMode = isHelpMode,
                             summaryConfigs = summaryConfigs,
                             embeddingConfigs = embeddingConfigs,
+                            currentSummaryConfig = currentSummaryConfig,
+                            currentEmbeddingConfig = currentEmbeddingConfig,
                             onHelpRequest = { helpDescription = it },
                             onAddSummaryConfig = { showConfigDialog = null to AiModelType.SUMMARY },
                             onEditSummaryConfig = { showConfigDialog = it to AiModelType.SUMMARY },

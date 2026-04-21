@@ -251,11 +251,11 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun addAiConfig(config: AiModelConfig) {
-        viewModelScope.launch { aiRepository.addConfig(config) }
+        viewModelScope.launch { persistAiConfigWithUseNow(config, isNew = true) }
     }
 
     fun updateAiConfig(config: AiModelConfig) {
-        viewModelScope.launch { aiRepository.updateConfig(config) }
+        viewModelScope.launch { persistAiConfigWithUseNow(config, isNew = false) }
     }
 
     fun deleteAiConfig(config: AiModelConfig) {
@@ -263,7 +263,23 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun toggleAiConfig(config: AiModelConfig, isEnabled: Boolean) {
-        viewModelScope.launch { aiRepository.updateConfig(config.copy(isEnabled = isEnabled)) }
+        viewModelScope.launch {
+            val updated = if (!isEnabled) config.copy(isEnabled = false, isUseNow = false)
+            else config.copy(isEnabled = true)
+            persistAiConfigWithUseNow(updated, isNew = false)
+        }
+    }
+
+    private suspend fun persistAiConfigWithUseNow(config: AiModelConfig, isNew: Boolean) {
+        if (config.isUseNow) {
+            val configs = aiRepository.getConfigsByType(config.type).first()
+            configs
+                .filter { it.id != config.id && it.isUseNow }
+                .forEach { existing ->
+                    aiRepository.updateConfig(existing.copy(isUseNow = false))
+                }
+        }
+        if (isNew) aiRepository.addConfig(config) else aiRepository.updateConfig(config)
     }
 
     fun updateScheduledSummary(enabled: Boolean, hour: Int, minute: Int) {

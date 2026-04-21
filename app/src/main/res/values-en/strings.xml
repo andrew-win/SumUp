@@ -214,6 +214,13 @@
     <string name="settings_cloud_vectorization">Cloud vectorization</string>
     <string name="settings_cloud_summary_api_keys">Cloud API keys for summarization</string>
     <string name="settings_cloud_vectorization_api_keys">Cloud API keys for vectorization</string>
+    <string name="settings_api_priority">Priority</string>
+    <string name="settings_api_priority_low">Low</string>
+    <string name="settings_api_priority_medium">Medium</string>
+    <string name="settings_api_priority_high">High</string>
+    <string name="settings_api_currently_used">currently used</string>
+    <string name="settings_api_use_now">Use now</string>
+    <string name="settings_api_current_model">Currently used: %1$s (%2$s)</string>
     <string name="settings_summary_prompt">Summarization prompt</string>
     <string name="settings_summary_prompt_hint">Write instructions for the model</string>
     <string name="settings_custom_summary_prompt">Custom prompt</string>

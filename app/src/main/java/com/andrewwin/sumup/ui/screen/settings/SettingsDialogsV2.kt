@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Delete
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
+import com.andrewwin.sumup.data.local.entities.AiConfigPriority
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
@@ -417,6 +419,18 @@ fun SettingsAiKeyItem(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
             )
+            Spacer(Modifier.size(6.dp))
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest
+            ) {
+                Text(
+                    text = priorityLabel(config.priority),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
         }
         Switch(
             checked = config.isEnabled,
@@ -451,6 +465,8 @@ fun SettingsAiConfigDialog(
     var apiKey by remember(config?.id) { mutableStateOf(config?.apiKey ?: "") }
     var provider by remember(config?.id) { mutableStateOf(config?.provider ?: AiProvider.GEMINI) }
     var modelName by remember(config?.id) { mutableStateOf(config?.modelName ?: "") }
+    var priority by remember(config?.id) { mutableStateOf(config?.priority ?: AiConfigPriority.MEDIUM) }
+    var isUseNow by remember(config?.id) { mutableStateOf(config?.isUseNow ?: false) }
     val providerLabel = stringResource(provider.labelRes)
 
     val availableModels by viewModel.availableModels.collectAsState()
@@ -458,6 +474,7 @@ fun SettingsAiConfigDialog(
 
     var expandedProvider by remember { mutableStateOf(false) }
     var expandedModel by remember { mutableStateOf(false) }
+    var expandedPriority by remember { mutableStateOf(false) }
 
     AppAnimatedDialog(
         visible = true,
@@ -553,6 +570,43 @@ fun SettingsAiConfigDialog(
                         shape = MaterialTheme.shapes.large
                     )
 
+                    ExposedDropdownMenuBox(
+                        expanded = expandedPriority,
+                        onExpandedChange = { expandedPriority = !expandedPriority }
+                    ) {
+                        OutlinedTextField(
+                            value = priorityLabel(priority),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.settings_api_priority)) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedPriority) },
+                            modifier = Modifier
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                                .fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expandedPriority,
+                            onDismissRequest = { expandedPriority = false }
+                        ) {
+                            AiConfigPriority.entries.forEach { entry ->
+                                DropdownMenuItem(
+                                    text = { Text(priorityLabel(entry)) },
+                                    onClick = {
+                                        priority = entry
+                                        expandedPriority = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    SettingsToggleRow(
+                        label = stringResource(R.string.settings_api_use_now),
+                        checked = isUseNow,
+                        onCheckedChange = { isUseNow = it }
+                    )
+
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         ExposedDropdownMenuBox(
                             expanded = expandedModel,
@@ -634,13 +688,18 @@ fun SettingsAiConfigDialog(
                                         name = resolvedName,
                                         provider = provider,
                                         apiKey = trimmedApiKey,
-                                        modelName = trimmedModelName
+                                        modelName = trimmedModelName,
+                                        priority = priority
+                                            ,
+                                        isUseNow = isUseNow
                                     ) ?: AiModelConfig(
                                         name = resolvedName,
                                         provider = provider,
                                         apiKey = trimmedApiKey,
                                         modelName = trimmedModelName,
-                                        type = type
+                                        type = type,
+                                        priority = priority,
+                                        isUseNow = isUseNow
                                     )
                                 )
                             }
@@ -656,6 +715,15 @@ fun SettingsAiConfigDialog(
         }
     }
 }
+
+@Composable
+private fun priorityLabel(priority: AiConfigPriority): String = stringResource(
+    when (priority) {
+        AiConfigPriority.LOW -> R.string.settings_api_priority_low
+        AiConfigPriority.MEDIUM -> R.string.settings_api_priority_medium
+        AiConfigPriority.HIGH -> R.string.settings_api_priority_high
+    }
+)
 
 private fun buildAutoAiConfigNameV2(
     providerLabel: String,

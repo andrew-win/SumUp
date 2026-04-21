@@ -7,10 +7,37 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AiModelDao {
-    @Query("SELECT * FROM ai_model_configs")
+    @Query(
+        """
+        SELECT * FROM ai_model_configs
+        ORDER BY
+            isUseNow DESC,
+            CASE priority
+                WHEN 'HIGH' THEN 3
+                WHEN 'MEDIUM' THEN 2
+                ELSE 1
+            END DESC,
+            isEnabled DESC,
+            id ASC
+        """
+    )
     fun getAllConfigs(): Flow<List<AiModelConfig>>
 
-    @Query("SELECT * FROM ai_model_configs WHERE type = :type")
+    @Query(
+        """
+        SELECT * FROM ai_model_configs
+        WHERE type = :type
+        ORDER BY
+            isEnabled DESC,
+            isUseNow DESC,
+            CASE priority
+                WHEN 'HIGH' THEN 3
+                WHEN 'MEDIUM' THEN 2
+                ELSE 1
+            END DESC,
+            id ASC
+        """
+    )
     fun getConfigsByType(type: AiModelType): Flow<List<AiModelConfig>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -22,16 +49,70 @@ interface AiModelDao {
     @Delete
     suspend fun deleteConfig(config: AiModelConfig)
 
-    @Query("SELECT * FROM ai_model_configs WHERE isEnabled = 1")
+    @Query(
+        """
+        SELECT * FROM ai_model_configs
+        WHERE isEnabled = 1
+        ORDER BY
+            isUseNow DESC,
+            CASE priority
+                WHEN 'HIGH' THEN 3
+                WHEN 'MEDIUM' THEN 2
+                ELSE 1
+            END DESC,
+            id ASC
+        """
+    )
     suspend fun getEnabledConfigs(): List<AiModelConfig>
 
-    @Query("SELECT * FROM ai_model_configs WHERE isEnabled = 1 AND type = :type")
+    @Query(
+        """
+        SELECT * FROM ai_model_configs
+        WHERE isEnabled = 1 AND type = :type
+        ORDER BY
+            isUseNow DESC,
+            CASE priority
+                WHEN 'HIGH' THEN 3
+                WHEN 'MEDIUM' THEN 2
+                ELSE 1
+            END DESC,
+            id ASC
+        """
+    )
     suspend fun getEnabledConfigsByType(type: AiModelType): List<AiModelConfig>
 
-    @Query("SELECT * FROM ai_model_configs WHERE isEnabled = 1 AND type = :type LIMIT 1")
+    @Query(
+        """
+        SELECT * FROM ai_model_configs
+        WHERE isEnabled = 1 AND type = :type
+        ORDER BY
+            isUseNow DESC,
+            CASE priority
+                WHEN 'HIGH' THEN 3
+                WHEN 'MEDIUM' THEN 2
+                ELSE 1
+            END DESC,
+            id ASC
+        LIMIT 1
+        """
+    )
     suspend fun getActiveConfigByType(type: AiModelType): AiModelConfig?
 
-    @Query("SELECT * FROM ai_model_configs WHERE isEnabled = 1 LIMIT 1")
+    @Query(
+        """
+        SELECT * FROM ai_model_configs
+        WHERE isEnabled = 1
+        ORDER BY
+            isUseNow DESC,
+            CASE priority
+                WHEN 'HIGH' THEN 3
+                WHEN 'MEDIUM' THEN 2
+                ELSE 1
+            END DESC,
+            id ASC
+        LIMIT 1
+        """
+    )
     suspend fun getActiveConfig(): AiModelConfig?
 }
 

@@ -229,6 +229,13 @@
     <string name="settings_cloud_vectorization">Хмарна векторизація</string>
     <string name="settings_cloud_summary_api_keys">Хмарні API ключі для сумаризації</string>
     <string name="settings_cloud_vectorization_api_keys">Хмарні API ключі для векторизації</string>
+    <string name="settings_api_priority">Пріоритет</string>
+    <string name="settings_api_priority_low">Низький</string>
+    <string name="settings_api_priority_medium">Середній</string>
+    <string name="settings_api_priority_high">Високий</string>
+    <string name="settings_api_currently_used">використовується зараз</string>
+    <string name="settings_api_use_now">Використовувати зараз</string>
+    <string name="settings_api_current_model">Зараз використовується: %1$s (%2$s)</string>
     <string name="settings_scheduled_push_notifications">Push-сповіщення про зведення</string>
     <string name="summary_notification_channel_name">Заплановані зведення</string>
     <string name="summary_notification_channel_description">Сповіщення про готові заплановані зведення</string>

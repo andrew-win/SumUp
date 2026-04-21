@@ -208,6 +208,8 @@ internal fun SettingsApiKeysGroupContent(
     isHelpMode: Boolean,
     summaryConfigs: List<AiModelConfig>,
     embeddingConfigs: List<AiModelConfig>,
+    currentSummaryConfig: AiModelConfig?,
+    currentEmbeddingConfig: AiModelConfig?,
     onHelpRequest: (String) -> Unit,
     onAddSummaryConfig: () -> Unit,
     onEditSummaryConfig: (AiModelConfig) -> Unit,
@@ -235,6 +237,18 @@ internal fun SettingsApiKeysGroupContent(
                 onDelete = onDeleteSummaryConfig,
                 onToggle = onToggleSummaryConfig
             )
+            currentSummaryConfig?.let { activeConfig ->
+                Text(
+                    text = stringResource(
+                        R.string.settings_api_current_model,
+                        activeConfig.name,
+                        activeConfig.modelName
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 14.dp)
+                )
+            }
         }
 
         SettingsSection(
@@ -253,6 +267,18 @@ internal fun SettingsApiKeysGroupContent(
                 onDelete = onDeleteEmbeddingConfig,
                 onToggle = onToggleEmbeddingConfig
             )
+            currentEmbeddingConfig?.let { activeConfig ->
+                Text(
+                    text = stringResource(
+                        R.string.settings_api_current_model,
+                        activeConfig.name,
+                        activeConfig.modelName
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 14.dp)
+                )
+            }
         }
     }
 }

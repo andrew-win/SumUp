@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.ui.screen.settings
 
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
+import com.andrewwin.sumup.data.local.entities.AiConfigPriority
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
@@ -188,6 +189,8 @@ internal fun AiModelConfig.toBackupJson(
     put("modelName", modelName)
     put("isEnabled", isEnabled)
     put("type", type.name)
+    put("priority", priority.name)
+    put("isUseNow", isUseNow)
 }
 
 internal fun JSONArray?.toAiConfigsFromBackup(
@@ -212,6 +215,9 @@ internal fun JSONArray?.toAiConfigsFromBackup(
         if (name.isBlank() || apiKey.isBlank() || modelName.isBlank()) continue
         val provider = runCatching { AiProvider.valueOf(item.optString("provider")) }.getOrNull() ?: continue
         val type = runCatching { AiModelType.valueOf(item.optString("type")) }.getOrNull() ?: continue
+        val priority = runCatching {
+            AiConfigPriority.valueOf(item.optString("priority", AiConfigPriority.MEDIUM.name))
+        }.getOrDefault(AiConfigPriority.MEDIUM)
         result.add(
             AiModelConfig(
                 name = name,
@@ -219,7 +225,9 @@ internal fun JSONArray?.toAiConfigsFromBackup(
                 apiKey = apiKey,
                 modelName = modelName,
                 isEnabled = item.optBoolean("isEnabled", true),
-                type = type
+                type = type,
+                priority = priority,
+                isUseNow = item.optBoolean("isUseNow", false)
             )
         )
     }

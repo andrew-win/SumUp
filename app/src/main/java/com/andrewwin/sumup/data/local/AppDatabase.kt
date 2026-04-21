@@ -30,7 +30,7 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
         Summary::class,
         UserPreferences::class
     ],
-    version = 38,
+    version = 40,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -60,7 +60,9 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_34_35,
                         MIGRATION_35_36,
                         MIGRATION_36_37,
-                        MIGRATION_37_38
+                        MIGRATION_37_38,
+                        MIGRATION_38_39,
+                        MIGRATION_39_40
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -140,6 +142,22 @@ abstract class AppDatabase : RoomDatabase() {
                     END
                     WHERE summaryLanguage = 'ORIGINAL' OR summaryLanguage IS NULL
                     """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_38_39 = object : Migration(38, 39) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE ai_model_configs ADD COLUMN priority TEXT NOT NULL DEFAULT 'MEDIUM'"
+                )
+            }
+        }
+
+        private val MIGRATION_39_40 = object : Migration(39, 40) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE ai_model_configs ADD COLUMN isUseNow INTEGER NOT NULL DEFAULT 0"
                 )
             }
         }
