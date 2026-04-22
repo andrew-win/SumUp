@@ -11,11 +11,12 @@ data class SummarySourceLinkUi(
 sealed interface SummaryBlockUi {
     data class Section(
         val body: String,
-        val source: SummarySourceLinkUi?
+        val sources: List<SummarySourceLinkUi>
     ) : SummaryBlockUi
 
     data class Theme(
         val heading: String,
+        val summary: String?,
         val items: List<ThemeItem>
     ) : SummaryBlockUi
 
@@ -27,7 +28,7 @@ sealed interface SummaryBlockUi {
 data class ThemeItem(
     val marker: String,
     val text: String,
-    val source: SummarySourceLinkUi?
+    val sources: List<SummarySourceLinkUi>
 )
 
 private const val ThemeItemMarker = "—"
@@ -89,25 +90,30 @@ private fun parseThemeBlock(block: String): SummaryBlockUi.Theme? {
     val heading = lines.first().trim()
     if (heading.startsWith(ThemeItemMarker) || heading.startsWith(SummarySourceMeta.PREFIX)) return null
 
+    val summaryLine = lines.getOrNull(1)?.trim()?.takeIf {
+        it.isNotBlank() && !it.startsWith(ThemeItemMarker) && !it.startsWith(SummarySourceMeta.PREFIX)
+    }
     val items = mutableListOf<ThemeItem>()
-    var index = 1
+    var index = if (summaryLine != null) 2 else 1
     while (index < lines.size) {
         val line = lines[index].trim()
         if (!line.startsWith(ThemeItemMarker)) return null
         val text = line.removePrefix(ThemeItemMarker).trim()
         if (text.isBlank()) return null
-        var source: SummarySourceLinkUi? = null
-        if (index + 1 < lines.size) {
-            source = parseSourceMeta(lines[index + 1].trim())
-            if (source != null) index++
+        val sources = mutableListOf<SummarySourceLinkUi>()
+        while (index + 1 < lines.size) {
+            val source = parseSourceMeta(lines[index + 1].trim()) ?: break
+            sources += source
+            index++
         }
-        items += ThemeItem(marker = ThemeItemMarker, text = text, source = source)
+        items += ThemeItem(marker = ThemeItemMarker, text = text, sources = sources)
         index++
     }
 
     return items.takeIf { it.isNotEmpty() }?.let {
         SummaryBlockUi.Theme(
             heading = heading,
+            summary = summaryLine,
             items = it
         )
     }
@@ -116,11 +122,15 @@ private fun parseThemeBlock(block: String): SummaryBlockUi.Theme? {
 private fun parseSectionBlock(block: String): SummaryBlockUi.Section? {
     val lines = block.lines().map { it.trimEnd() }.filter { it.isNotBlank() }
     if (lines.isEmpty()) return null
-    val source = lines.lastOrNull()?.let { parseSourceMeta(it.trim()) }
-    val bodyLines = if (source != null) lines.dropLast(1) else lines
+    val trailingSources = lines
+        .asReversed()
+        .takeWhile { parseSourceMeta(it.trim()) != null }
+        .mapNotNull { parseSourceMeta(it.trim()) }
+        .reversed()
+    val bodyLines = if (trailingSources.isNotEmpty()) lines.dropLast(trailingSources.size) else lines
     val body = bodyLines.joinToString("\n").replace(SourceMetaInlineRegex, "").trim()
     if (body.isBlank()) return null
-    return SummaryBlockUi.Section(body = body, source = source)
+    return SummaryBlockUi.Section(body = body, sources = trailingSources)
 }
 
 private fun parsePlainListBlock(block: String): SummaryBlockUi.PlainList? {
@@ -135,12 +145,13 @@ private fun parsePlainListBlock(block: String): SummaryBlockUi.PlainList? {
         if (!line.startsWith(ThemeItemMarker)) return null
         val text = line.removePrefix(ThemeItemMarker).trim()
         if (text.isBlank()) return null
-        var source: SummarySourceLinkUi? = null
-        if (index + 1 < lines.size) {
-            source = parseSourceMeta(lines[index + 1].trim())
-            if (source != null) index++
+        val sources = mutableListOf<SummarySourceLinkUi>()
+        while (index + 1 < lines.size) {
+            val source = parseSourceMeta(lines[index + 1].trim()) ?: break
+            sources += source
+            index++
         }
-        items += ThemeItem(marker = ThemeItemMarker, text = text, source = source)
+        items += ThemeItem(marker = ThemeItemMarker, text = text, sources = sources)
         index++
     }
 

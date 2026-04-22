@@ -5,19 +5,19 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.service.ExtractiveSummarizer
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import org.json.JSONException
-import org.json.JSONObject
 import javax.inject.Inject
 
 class CompareArticlesUseCase @Inject constructor(
     private val aiRepository: AiRepository,
+    private val articleRepository: ArticleRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val dispatcherProvider: DispatcherProvider
 ) {
@@ -45,29 +45,9 @@ class CompareArticlesUseCase @Inject constructor(
         if (strategy == AiStrategy.CLOUD || strategy == AiStrategy.ADAPTIVE) {
             val combinedContent = buildCloudComparisonInput(allArticles, prefs, strategy)
             
-            val prompt = """
-                Поверни ТІЛЬКИ валідний JSON і нічого більше.
-                Без markdown, без коментарів, без пояснень.
-                Формат:
-                {
-                  "headline": "короткий заголовок події",
-                  "items": [
-                    {
-                      "source_id": "id джерела з вхідних даних",
-                      "common": "2 короткі речення про спільне для цього джерела",
-                      "different": "2 короткі речення про відмінне для цього джерела"
-                    }
-                  ]
-                }
-                Правила:
-                1) У "common" рівно 2 речення.
-                2) У "different" рівно 2 речення.
-                3) Не вставляй URL у "headline", "common", "different".
-                4) Для кожного джерела з вхідних даних має бути item.
-                5) common/different ПОВИННІ бути масивами рядків:
-                   "common": ["речення 1", "речення 2"]
-                   "different": ["речення 1", "речення 2"]
-            """.trimIndent()
+            val prompt = AiPromptCatalog.buildComparePrompt(
+                summaryLanguage = prefs.summaryLanguage
+            )
             
             return@withContext runCatching {
                 val raw = aiRepository.askQuestion(combinedContent, prompt)
@@ -81,7 +61,7 @@ class CompareArticlesUseCase @Inject constructor(
         return@withContext runCatching { performLocalComparison(allArticles) }
     }
 
-    private fun buildCloudComparisonInput(
+    private suspend fun buildCloudComparisonInput(
         allArticles: List<ArticleUiModel>,
         prefs: UserPreferences,
         strategy: AiStrategy
@@ -91,9 +71,16 @@ class CompareArticlesUseCase @Inject constructor(
         val adaptiveExtractiveCompressAboveChars = prefs.adaptiveExtractiveCompressAboveChars.coerceAtLeast(1)
         val adaptiveExtractiveCompressionPercent = prefs.adaptiveExtractiveCompressionPercent.coerceIn(1, 100)
         var remainingTotal = maxTotalChars
+        val blocks = mutableListOf<String>()
 
-        return allArticles.joinToString("\n\n") { article ->
-            val base = article.article.content.take(perArticleLimit)
+        allArticles.forEach { article ->
+            val fullContent = articleRepository.fetchFullContent(article.article)
+            val baseSource = when {
+                fullContent.isNotBlank() -> fullContent
+                article.article.content.isNotBlank() -> article.article.content
+                else -> article.displayTitle
+            }
+            val base = baseSource.take(perArticleLimit)
             val prepared = if (
                 strategy == AiStrategy.ADAPTIVE &&
                 base.length > adaptiveExtractiveCompressAboveChars
@@ -107,14 +94,13 @@ class CompareArticlesUseCase @Inject constructor(
             }
             val content = prepared.take(remainingTotal.coerceAtLeast(0))
             remainingTotal = (remainingTotal - content.length).coerceAtLeast(0)
-            buildString {
+            blocks += buildString {
                 append("source_id: ${article.article.id}\n")
-                append("source_name: ${article.sourceName ?: "Невідоме"}\n")
-                append("source_url: ${article.article.url}\n")
                 append("title: ${article.displayTitle}\n")
                 append("content: $content")
             }
         }
+        return blocks.joinToString("\n\n")
     }
 
     private fun estimateSentenceCountByTargetLength(content: String, targetChars: Int): Int {
@@ -173,42 +159,62 @@ class CompareArticlesUseCase @Inject constructor(
     }
 
     private fun formatCloudComparison(raw: String, articles: List<ArticleUiModel>): String {
-        val json = normalizeCloudJson(extractJson(raw))
-        val obj = JSONObject(json)
-        val headline = articles.first().displayTitle
-        val items = obj.optJSONArray("items") ?: JSONArray()
+        val parsed = AiJsonResponseParser.parseCompare(raw)
         val articleById = articles.associateBy { it.article.id.toString() }
-
-        val commonLines = mutableListOf<Pair<String, ArticleUiModel>>()
+        val validCommonFacts = parsed.commonFacts
+            .mapNotNull { fact ->
+                val resolvedArticles = fact.sourceIds
+                    .mapNotNull { articleById[it] }
+                    .distinctBy { it.article.id }
+                val distinctUrls = resolvedArticles
+                    .map { it.article.url.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                val isValidCommon = fact.text.isNotBlank() &&
+                    resolvedArticles.size >= 2 &&
+                    distinctUrls.size >= 2
+                if (isValidCommon) {
+                    fact to resolvedArticles
+                } else {
+                    null
+                }
+            }
         val differentLines = mutableListOf<Pair<String, ArticleUiModel>>()
 
-        for (i in 0 until items.length()) {
-            val item = items.optJSONObject(i) ?: continue
-            val sourceId = item.opt("source_id")?.toString()?.trim().orEmpty()
-            val article = articleById[sourceId] ?: continue
-
-            val common = enforceTwoSentences(readFieldAsText(item, "common"))
-            if (common.isNotBlank()) {
-                commonLines += common to article
-            }
-
-            val different = enforceTwoSentences(readFieldAsText(item, "different"))
-            if (different.isNotBlank()) {
-                differentLines += different to article
-            }
+        parsed.items.forEach { item ->
+            val sourceId = item.sourceId?.trim().orEmpty()
+            val article = articleById[sourceId] ?: return@forEach
+            item.uniqueDetails
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .forEach { different ->
+                    differentLines += different to article
+                }
         }
 
         val builder = StringBuilder()
-        builder.append("$headline:\n")
-        if (commonLines.isNotEmpty()) {
-            builder.append("Спільне:\n")
-            commonLines.forEach { (text, article) ->
-                builder.append("— $text\n")
-                builder.append("${SummarySourceMeta.PREFIX}${article.sourceName ?: "Джерело"}|${article.article.url}\n")
+        builder.append("Спільне:\n")
+        if (validCommonFacts.isNotEmpty()) {
+            validCommonFacts.forEach { (commonFact, resolvedArticles) ->
+                builder.append("— ${commonFact.text.trim()}\n")
+                resolvedArticles
+                    .distinctBy { it.article.url.trim() }
+                    .forEach { article ->
+                    builder.append("${SummarySourceMeta.PREFIX}${article.sourceName ?: "Джерело"}|${article.article.url}\n")
+                }
             }
+        } else {
+            val fallbackText = parsed.commonTopic
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { "Хоча новини стосуються теми $it, спільних фрагментів знайдено не було" }
+                ?: parsed.fallbackMessage?.ifBlank { null }
+                ?: "Спільних фрагментів знайдено не було"
+            builder.append("— $fallbackText\n")
         }
+        
         if (differentLines.isNotEmpty()) {
-            if (commonLines.isNotEmpty()) builder.append("\n")
+            builder.append("\n")
             builder.append("Відмінне:\n")
             differentLines.forEach { (text, article) ->
                 builder.append("— $text\n")
@@ -216,59 +222,6 @@ class CompareArticlesUseCase @Inject constructor(
             }
         }
         return builder.toString().trim()
-    }
-
-    private fun normalizeCloudJson(json: String): String {
-        if (json.isBlank()) return "{}"
-        // Fix invalid pattern: "common": "a", "b"  ->  "common": ["a","b"]
-        // Same for "different".
-        return json
-            .replace(
-                Regex("\"(common|different)\"\\s*:\\s*\"([^\"]*)\"\\s*,\\s*\"([^\"]*)\""),
-                "\"$1\": [\"$2\", \"$3\"]"
-            )
-    }
-
-    private fun extractJson(raw: String): String {
-        val trimmed = raw.trim()
-        if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed
-        val fenced = Regex("```(?:json)?\\s*(\\{[\\s\\S]*\\})\\s*```").find(trimmed)?.groupValues?.get(1)
-        if (!fenced.isNullOrBlank()) return fenced.trim()
-        val start = trimmed.indexOf('{')
-        val end = trimmed.lastIndexOf('}')
-        if (start >= 0 && end > start) return trimmed.substring(start, end + 1).trim()
-        return "{}"
-    }
-
-    private fun enforceTwoSentences(value: String): String {
-        val cleaned = value
-            .replace(Regex("https?://\\S+"), "")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-        if (cleaned.isBlank()) return ""
-        val parts = Regex("(?<=[.!?…])\\s+")
-            .split(cleaned)
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .distinctBy { normalizeSentenceForCompare(it) }
-        return parts.take(2).joinToString(" ").trim()
-    }
-
-    private fun readFieldAsText(item: JSONObject, key: String): String {
-        val value = item.opt(key) ?: return ""
-        return when (value) {
-            is JSONArray -> {
-                buildString {
-                    for (idx in 0 until value.length()) {
-                        val part = value.optString(idx).trim()
-                        if (part.isBlank()) continue
-                        if (isNotBlank()) append(' ')
-                        append(part)
-                    }
-                }
-            }
-            else -> value.toString()
-        }
     }
 }
 

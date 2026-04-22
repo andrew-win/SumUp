@@ -29,7 +29,7 @@ import androidx.compose.ui.window.DialogProperties
 object AppMotion {
     const val ScreenDurationMs = 180
     const val ScreenPopDurationMs = 160
-    const val ContentDurationMs = 190
+    const val ContentDurationMs = 240
     const val ModalDurationMs = 180
 
     fun screenEnter(): EnterTransition =

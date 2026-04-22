@@ -13,7 +13,7 @@ class AiPromptProviderImpl @Inject constructor(
     override fun questionPromptPrefix(): String = context.getString(R.string.ai_question_prompt_prefix)
     override fun questionPromptSuffix(): String = context.getString(R.string.ai_question_prompt_suffix)
     override fun strictJsonInstruction(): String =
-        "You must respond ONLY in valid JSON format. Do not include any greeting, markdown formatting blocks, or conversational text."
+        "Return valid JSON only. Do not add any introduction, greeting, explanation, markdown, code fences, commentary, or text before or after the JSON."
 }
 
 

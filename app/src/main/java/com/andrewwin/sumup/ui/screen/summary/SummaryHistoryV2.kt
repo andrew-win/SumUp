@@ -354,8 +354,8 @@ internal fun SummaryHistoryDialogView(
                         when (block) {
                             is SummaryBlockUi.Section -> SummaryLegacyBlock(
                                 text = block.body,
-                                sourceName = block.source?.name,
-                                sourceUrl = block.source?.url,
+                                sourceName = block.sources.firstOrNull()?.name,
+                                sourceUrl = block.sources.firstOrNull()?.url,
                                 onOpenWebView = onOpenWebView
                             )
                             is SummaryBlockUi.PlainList -> SummaryPlainListBlock(

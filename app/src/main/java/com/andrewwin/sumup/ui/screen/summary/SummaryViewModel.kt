@@ -81,7 +81,10 @@ class SummaryViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val activeSummaryModelName: StateFlow<String?> = aiRepository.getConfigsByType(AiModelType.SUMMARY)
-        .map { configs -> configs.firstOrNull { it.isEnabled }?.modelName?.takeIf { it.isNotBlank() } }
+        .combine(aiRepository.lastUsedSummaryModelName) { configs, lastUsed ->
+            lastUsed?.takeIf { it.isNotBlank() }
+                ?: configs.firstOrNull { it.isEnabled }?.modelName?.takeIf { it.isNotBlank() }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val chartData: StateFlow<List<SummaryChartItem>> = combine(

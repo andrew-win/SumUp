@@ -49,9 +49,19 @@ class SummaryRenderPolicy @Inject constructor(
         articles: List<Article>
     ): String {
         val articleById = articles.associateBy { it.id.toString() }
-        val headline = parsed.headline?.ifBlank { null } ?: "Порівняння джерел"
-        val lines = mutableListOf("$headline:")
-        val commonBySource = mutableMapOf<String, MutableList<String>>()
+        val lines = mutableListOf<String>()
+        val commonBlockLines = parsed.commonFacts
+            .filter { it.text.isNotBlank() }
+            .flatMap { commonFact ->
+                val factLines = mutableListOf("— ${commonFact.text.trim()}")
+                commonFact.sourceIds.mapNotNull { articleById[it] }.forEach { article ->
+                    val sName = articleRepository.getSourceById(article.sourceId)?.name?.ifBlank { "Джерело" } ?: "Джерело"
+                    val sUrl = article.url.takeIf { it.isNotBlank() } ?: articleRepository.getSourceById(article.sourceId)?.url.orEmpty()
+                    factLines += "${SummarySourceMeta.PREFIX}$sName|$sUrl"
+                }
+                factLines
+            }
+            
         val differentBySource = mutableMapOf<String, MutableList<String>>()
         parsed.items.forEachIndexed { index, item ->
             val article = item.sourceId?.let { articleById[it] } ?: articles.getOrNull(index) ?: return@forEachIndexed
@@ -59,31 +69,33 @@ class SummaryRenderPolicy @Inject constructor(
             val sourceName = source?.name?.ifBlank { null } ?: "Джерело"
             val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
             val key = "$sourceName|$sourceUrl"
-            val target = commonBySource.getOrPut(key) { mutableListOf() }
-            target += item.common.take(2).map { it.trim() }.filter { it.isNotBlank() }
-        }
-        parsed.items.forEachIndexed { index, item ->
-            val article = item.sourceId?.let { articleById[it] } ?: articles.getOrNull(index) ?: return@forEachIndexed
-            val source = articleRepository.getSourceById(article.sourceId)
-            val sourceName = source?.name?.ifBlank { null } ?: "Джерело"
-            val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
-            val key = "$sourceName|$sourceUrl"
             val target = differentBySource.getOrPut(key) { mutableListOf() }
-            target += item.different.take(2).map { it.trim() }.filter { it.isNotBlank() }
+            target += item.uniqueDetails.map { it.trim() }.filter { it.isNotBlank() }
         }
+
         lines += ""
-        lines += renderCompareBlocks(
-            commonBySource = commonBySource,
-            differentBySource = differentBySource,
-            softDedupe = false
-        )
+        lines += "Спільне:"
+        lines += if (commonBlockLines.isNotEmpty()) {
+            commonBlockLines
+        } else {
+            val fallbackText = parsed.commonTopic
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { "Хоча новини стосуються теми $it, спільних фрагментів знайдено не було" }
+                ?: parsed.fallbackMessage?.ifBlank { null }
+                ?: "Спільних фрагментів знайдено не було"
+            listOf("— $fallbackText")
+        }
+        if (differentBySource.isNotEmpty()) {
+            lines += ""
+            lines += renderUniqueCompareBlocks(differentBySource)
+        }
         return lines.joinToString("\n").trim()
     }
 
     suspend fun renderLocalCompare(articles: List<Article>): String {
         if (articles.isEmpty()) return ""
-        val title = articles.first().title.ifBlank { "Порівняння джерел" }
-        val lines = mutableListOf("$title:")
+        val lines = mutableListOf<String>()
         val commonBySource = mutableMapOf<String, MutableList<String>>()
         val differentBySource = mutableMapOf<String, MutableList<String>>()
         for (article in articles) {
@@ -99,7 +111,6 @@ class SummaryRenderPolicy @Inject constructor(
             if (prepared.isNotEmpty()) commonBySource.getOrPut(key) { mutableListOf() } += prepared.take(1)
             if (prepared.size > 1) differentBySource.getOrPut(key) { mutableListOf() } += prepared.drop(1).take(1)
         }
-        lines += ""
         lines += renderCompareBlocks(
             commonBySource = commonBySource,
             differentBySource = differentBySource,
@@ -181,14 +192,14 @@ class SummaryRenderPolicy @Inject constructor(
         if (sourceKeys.isEmpty()) return "Немає достатньо даних для порівняння."
 
         val commonLines = mutableListOf<String>()
-        val differentLines = mutableListOf<String>()
+        val differentEntries = mutableListOf<Pair<String, String>>()
         val seenCommonStatements = mutableSetOf<String>()
         val seenDifferentStatements = mutableSetOf<String>()
         val seenCommonTokenSets = mutableListOf<Set<String>>()
         val seenDifferentTokenSets = mutableListOf<Set<String>>()
 
         sourceKeys.forEach { sourceKey ->
-            if (commonLines.size >= MAX_COMPARE_LINES_PER_BLOCK && differentLines.size >= MAX_COMPARE_LINES_PER_BLOCK) {
+            if (commonLines.size >= MAX_COMPARE_LINES_PER_BLOCK && differentEntries.size >= MAX_COMPARE_LINES_PER_BLOCK) {
                 return@forEach
             }
             val sourceName = sourceKey.substringBefore('|').ifBlank { "Джерело" }
@@ -207,14 +218,14 @@ class SummaryRenderPolicy @Inject constructor(
                         if (isNearDuplicateTokenSet(tokenSet, seenCommonTokenSets)) return@forEach
                         if (tokenSet.isNotEmpty()) seenCommonTokenSets += tokenSet
                     }
-                    commonLines += "— $sourceName: ${statement.trim()} (${sourceUrl.trim()})"
+                    commonLines += "— ${statement.trim()}"
                 }
             differentBySource[sourceKey]
                 .orEmpty()
                 .distinctBy { normalizeKey(it) }
                 .take(2)
                 .forEach { statement ->
-                    if (differentLines.size >= MAX_COMPARE_LINES_PER_BLOCK) return@forEach
+                    if (differentEntries.size >= MAX_COMPARE_LINES_PER_BLOCK) return@forEach
                     val normalized = normalizeKey(statement)
                     if (normalized.isBlank()) return@forEach
                     if (!seenDifferentStatements.add(normalized)) return@forEach
@@ -223,23 +234,61 @@ class SummaryRenderPolicy @Inject constructor(
                         if (isNearDuplicateTokenSet(tokenSet, seenDifferentTokenSets)) return@forEach
                         if (tokenSet.isNotEmpty()) seenDifferentTokenSets += tokenSet
                     }
-                    differentLines += "— $sourceName: ${statement.trim()} (${sourceUrl.trim()})"
+                    differentEntries += statement.trim() to "${SummarySourceMeta.PREFIX}$sourceName|${sourceUrl.trim()}"
                 }
         }
 
         val lines = mutableListOf<String>()
         lines += "Спільне:"
         if (commonLines.isEmpty()) {
-            lines += "— Немає достатньо даних."
+            lines += "— Спільних фрагментів не було знайдено"
         } else {
             lines.addAll(commonLines)
         }
         lines += ""
         lines += "Унікальне:"
-        if (differentLines.isEmpty()) {
+        if (differentEntries.isEmpty()) {
             lines += "— Немає достатньо даних."
         } else {
-            lines.addAll(differentLines)
+            differentEntries.forEach { (text, sourceMeta) ->
+                lines += "— $text"
+                lines += sourceMeta
+            }
+        }
+        return lines.joinToString("\n").trim()
+    }
+
+    private fun renderUniqueCompareBlocks(
+        differentBySource: Map<String, List<String>>
+    ): String {
+        val differentEntries = mutableListOf<Pair<String, String>>()
+        val seenDifferentStatements = mutableSetOf<String>()
+
+        differentBySource.forEach { (sourceKey, statements) ->
+            if (differentEntries.size >= MAX_COMPARE_LINES_PER_BLOCK) return@forEach
+            val sourceName = sourceKey.substringBefore('|').ifBlank { "Джерело" }
+            val sourceUrl = sourceKey.substringAfter('|', "")
+            statements
+                .distinctBy { normalizeKey(it) }
+                .take(2)
+                .forEach { statement ->
+                    if (differentEntries.size >= MAX_COMPARE_LINES_PER_BLOCK) return@forEach
+                    val normalized = normalizeKey(statement)
+                    if (normalized.isBlank()) return@forEach
+                    if (!seenDifferentStatements.add(normalized)) return@forEach
+                    differentEntries += statement.trim() to "${SummarySourceMeta.PREFIX}$sourceName|${sourceUrl.trim()}"
+                }
+        }
+
+        val lines = mutableListOf<String>()
+        lines += "Відмінне:"
+        if (differentEntries.isEmpty()) {
+            lines += "— Немає достатньо даних."
+        } else {
+            differentEntries.forEach { (text, sourceMeta) ->
+                lines += "— $text"
+                lines += sourceMeta
+            }
         }
         return lines.joinToString("\n").trim()
     }

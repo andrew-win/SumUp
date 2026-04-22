@@ -23,9 +23,16 @@ class AskFeedUseCase @Inject constructor(
             val builder = StringBuilder()
             for (uiModel in articles) {
                 if (builder.isNotEmpty()) builder.append("\n\n")
-                builder.append(uiModel.displayTitle)
-                    .append(": ")
-                    .append(uiModel.article.content.take(perArticleLimit))
+                builder.append("source_id: ").append(uiModel.article.id).append('\n')
+                uiModel.sourceName
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { builder.append("source_name: ").append(it.trim()).append('\n') }
+                builder.append("source_url: ").append(uiModel.article.url).append('\n')
+                builder.append("title: ").append(uiModel.displayTitle.trim()).append('\n')
+                val contentPreview = uiModel.displayContent
+                    .takeIf { it.isNotBlank() }
+                    ?: uiModel.article.content
+                builder.append("content: ").append(contentPreview.take(perArticleLimit))
                 if (builder.length >= maxTotalChars) break
             }
             builder.toString().take(maxTotalChars)

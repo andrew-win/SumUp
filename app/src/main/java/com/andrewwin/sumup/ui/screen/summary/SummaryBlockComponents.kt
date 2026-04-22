@@ -32,6 +32,9 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.isSpecified
+import androidx.compose.ui.platform.LocalDensity
 import com.andrewwin.sumup.ui.components.AppCardSurface
 import com.andrewwin.sumup.ui.theme.appCardBorder
 import com.andrewwin.sumup.ui.util.ThemeItem
@@ -99,8 +102,8 @@ internal fun SummaryThemeBlock(
             items.forEach { item ->
                 InlineSummaryRow(
                     text = "${item.marker} ${item.text}",
-                    sourceName = item.source?.name,
-                    sourceUrl = item.source?.url,
+                    sourceName = item.sources.firstOrNull()?.name,
+                    sourceUrl = item.sources.firstOrNull()?.url,
                     onOpenWebView = onOpenWebView,
                     textStyle = itemTextStyle,
                     lineHeight = itemLineHeight,
@@ -129,8 +132,8 @@ internal fun SummaryPlainListBlock(
             items.forEach { item ->
                 InlineSummaryRow(
                     text = "${item.marker} ${item.text}",
-                    sourceName = item.source?.name,
-                    sourceUrl = item.source?.url,
+                    sourceName = item.sources.firstOrNull()?.name,
+                    sourceUrl = item.sources.firstOrNull()?.url,
                     onOpenWebView = onOpenWebView,
                     textStyle = textStyle,
                     lineHeight = lineHeight,
@@ -152,6 +155,9 @@ private fun InlineSummaryRow(
     sourceStyle: SummarySourceStyle = SummarySourceStyle.InlineChip
 ) {
     val effectiveStyle = textStyle.copy(lineHeight = lineHeight)
+    val chipTextStyle = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp)
+    val density = LocalDensity.current
+    val textMeasurer = rememberTextMeasurer()
     if (
         sourceStyle == SummarySourceStyle.InlineChip &&
         !sourceName.isNullOrBlank() &&
@@ -163,7 +169,19 @@ private fun InlineSummaryRow(
             append(" ")
             appendInlineContent(inlineId, "[source]")
         }
-        val chipWidthEm = ((sourceName.length.coerceAtMost(20) + 6) * 0.62f).em
+        val labelWidthPx = textMeasurer.measure(
+            text = sourceName,
+            style = chipTextStyle,
+            maxLines = 1
+        ).size.width.toFloat()
+        val bodyFontSize = if (effectiveStyle.fontSize.isSpecified) {
+            effectiveStyle.fontSize
+        } else {
+            MaterialTheme.typography.bodyLarge.fontSize
+        }
+        val bodyFontPx = with(density) { bodyFontSize.toPx().coerceAtLeast(1f) }
+        val chipHorizontalPx = with(density) { (10.dp * 2 + 13.dp + 6.dp).toPx() }
+        val chipWidthEm = ((labelWidthPx + chipHorizontalPx) / bodyFontPx).em
         BasicText(
             text = annotated,
             style = effectiveStyle.copy(color = MaterialTheme.colorScheme.onSurface),
@@ -195,7 +213,7 @@ private fun InlineSummaryRow(
                             )
                             Text(
                                 text = sourceName,
-                                style = MaterialTheme.typography.labelLarge,
+                                style = chipTextStyle,
                                 color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis

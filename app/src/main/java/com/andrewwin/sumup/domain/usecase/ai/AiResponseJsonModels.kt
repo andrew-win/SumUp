@@ -15,6 +15,7 @@ data class SummaryItemJson(
 
 data class SummaryThemeJson(
     val title: String? = null,
+    val summary: String? = null,
     val emojis: List<String> = emptyList(),
     val items: List<SummaryThemeItemJson> = emptyList()
 )
@@ -25,14 +26,20 @@ data class SummaryThemeItemJson(
 )
 
 data class CompareResponseJson(
-    val headline: String? = null,
-    val items: List<CompareItemJson> = emptyList()
+    val commonFacts: List<CompareCommonFactJson> = emptyList(),
+    val items: List<CompareItemJson> = emptyList(),
+    val commonTopic: String? = null,
+    val fallbackMessage: String? = null
+)
+
+data class CompareCommonFactJson(
+    val text: String,
+    val sourceIds: List<String> = emptyList()
 )
 
 data class CompareItemJson(
     val sourceId: String? = null,
-    val common: List<String> = emptyList(),
-    val different: List<String> = emptyList()
+    val uniqueDetails: List<String> = emptyList()
 )
 
 data class QaResponseJson(

@@ -85,7 +85,10 @@ class FeedViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
 
     val activeSummaryModelName: StateFlow<String?> = aiRepository.getConfigsByType(AiModelType.SUMMARY)
-        .map { configs -> configs.firstOrNull { it.isEnabled }?.modelName?.takeIf { it.isNotBlank() } }
+        .combine(aiRepository.lastUsedSummaryModelName) { configs, lastUsed ->
+            lastUsed?.takeIf { it.isNotBlank() }
+                ?: configs.firstOrNull { it.isEnabled }?.modelName?.takeIf { it.isNotBlank() }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val groupsWithSources: StateFlow<List<GroupWithSources>> = sourceRepository.groupsWithSources

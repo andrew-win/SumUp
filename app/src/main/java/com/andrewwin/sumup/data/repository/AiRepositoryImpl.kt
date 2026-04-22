@@ -19,10 +19,14 @@ import com.andrewwin.sumup.domain.support.AiPromptProvider
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.usecase.ai.AiJsonContract
 import com.andrewwin.sumup.domain.usecase.ai.AiJsonResponseParser
+import com.andrewwin.sumup.domain.usecase.ai.AiPromptCatalog
+import com.andrewwin.sumup.domain.usecase.ai.AiSummaryPromptProfile
 import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.ai.SummaryResponseJson
 import com.andrewwin.sumup.domain.usecase.ai.SummaryThemeItemJson
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -35,10 +39,7 @@ class AiRepositoryImpl @Inject constructor(
     private val aiPromptProvider: AiPromptProvider,
     private val secretEncryptionManager: SecretEncryptionManager
 ) : AiRepository {
-    private enum class CloudPromptProfile {
-        DEFAULT,
-        SINGLE_ARTICLE_ANALYTICAL
-    }
+    private val _lastUsedSummaryModelName = MutableStateFlow<String?>(null)
 
     private data class SourceArticleBlock(
         val sourceId: String? = null,
@@ -71,6 +72,8 @@ class AiRepositoryImpl @Inject constructor(
     override val allConfigs: Flow<List<AiModelConfig>> = aiModelDao.getAllConfigs().map { configs ->
         configs.map(::decryptConfig)
     }
+
+    override val lastUsedSummaryModelName: StateFlow<String?> = _lastUsedSummaryModelName
 
     override fun getConfigsByType(type: AiModelType): Flow<List<AiModelConfig>> =
         aiModelDao.getConfigsByType(type).map { configs -> configs.map(::decryptConfig) }
@@ -108,14 +111,14 @@ class AiRepositoryImpl @Inject constructor(
         val cloudInput = truncatedContent
         val sourceBlocks = parseSourceBlocksForSummary(truncatedContent)
         val promptProfile = when {
-            sourceBlocks.size <= 1 -> CloudPromptProfile.SINGLE_ARTICLE_ANALYTICAL
-            else -> CloudPromptProfile.DEFAULT
+            sourceBlocks.size <= 1 -> AiSummaryPromptProfile.SINGLE_ARTICLE_ANALYTICAL
+            else -> AiSummaryPromptProfile.DIGEST_ANALYTICAL
         }
         DebugTrace.d(
             "ai_summary",
             "summarize strategy=$strategy sourceBlocks=${sourceBlocks.size} pointsPerNews=$pointsPerNews promptProfile=$promptProfile customPrompt=${prefs?.isCustomSummaryPromptEnabled == true} contentChars=${truncatedContent.length}"
         )
-        if (promptProfile == CloudPromptProfile.SINGLE_ARTICLE_ANALYTICAL) {
+        if (promptProfile == AiSummaryPromptProfile.SINGLE_ARTICLE_ANALYTICAL) {
             DebugTrace.d(
                 "ai_summary",
                 "singleArticle sourceTitle=${DebugTrace.preview(sourceBlocks.firstOrNull()?.title, 140)} sourceContentChars=${sourceBlocks.firstOrNull()?.content?.length ?: truncatedContent.length}"
@@ -129,9 +132,8 @@ class AiRepositoryImpl @Inject constructor(
                 } else {
                     aiPromptProvider.defaultSummaryPrompt()
                 }
-                val strengthenedPrompt = buildSummaryPrompt(
+                val strengthenedPrompt = AiPromptCatalog.buildSummaryPrompt(
                     basePrompt = prompt,
-                    strictJsonInstruction = aiPromptProvider.strictJsonInstruction(),
                     summaryLanguage = prefs?.summaryLanguage ?: SummaryLanguage.UK,
                     profile = promptProfile
                 )
@@ -146,6 +148,7 @@ class AiRepositoryImpl @Inject constructor(
                     content = cloudInput,
                     expectJson = true
                 )
+                _lastUsedSummaryModelName.value = config.modelName.takeIf { it.isNotBlank() }
                 DebugTrace.d("ai_summary", "rawResponse=${DebugTrace.preview(response)}")
                 return runCatching {
                     formatCloudSummary(response, truncatedContent, preferredBulletsPerItem = pointsPerNews)
@@ -167,17 +170,11 @@ class AiRepositoryImpl @Inject constructor(
     }
 
     override suspend fun askQuestion(content: String, question: String): String {
-        val prompt = buildString {
-            append(aiPromptProvider.questionPromptPrefix())
-            append(' ')
-            append(question)
-            append("\n\n")
-            append(aiPromptProvider.questionPromptSuffix())
-            append("\n\n")
-            append(aiPromptProvider.strictJsonInstruction())
-            append("\n")
-            append("Return JSON object with fields: answer (string), statements (array of {text, sources}), sources (array).")
-        }
+        val prompt = AiPromptCatalog.buildQuestionPrompt(
+            question = question,
+            questionPrefix = aiPromptProvider.questionPromptPrefix(),
+            questionSuffix = aiPromptProvider.questionPromptSuffix()
+        )
         return askWithPrompt(content, prompt)
     }
 
@@ -194,12 +191,14 @@ class AiRepositoryImpl @Inject constructor(
 
         for (config in enabledConfigs) {
             try {
-                return aiService.generateResponse(
+                val response = aiService.generateResponse(
                     config = config,
                     prompt = prompt,
                     content = content.take(maxTotalChars),
                     expectJson = true
                 )
+                _lastUsedSummaryModelName.value = config.modelName.takeIf { it.isNotBlank() }
+                return response
             } catch (e: AiServiceException) {
                 continue
             }
@@ -949,100 +948,6 @@ class AiRepositoryImpl @Inject constructor(
         return intersection / union
     }
 
-    private fun buildSummaryPrompt(
-        basePrompt: String,
-        strictJsonInstruction: String,
-        summaryLanguage: SummaryLanguage,
-        profile: CloudPromptProfile
-    ): String {
-        val summaryLanguageRule = when (summaryLanguage) {
-            SummaryLanguage.UK -> "use Ukrainian language for all text."
-            SummaryLanguage.EN -> "use English language for all text."
-        }
-        val profileRules = when (profile) {
-            CloudPromptProfile.DEFAULT -> """
-                |- style: objective thematic digest for the whole feed or scheduled digest.
-                |- identify up to 4 broad themes that matter most across the provided sources; prefer 2 to 4 themes when enough material exists.
-                |- each theme must contain no more than 3 news items.
-                |- prefer 2 to 3 news items per theme, but allow 1 item when the source set is too diverse to keep coverage.
-                |- each theme title must be short, concrete, and directly reflect the shared topic.
-                |- provide 2 to 4 emojis per theme in the "emojis" array; do not repeat emojis between themes.
-                |- each news item must contain only a concise title and the "source_id" of the best supporting source from input.
-                |- each source_id may appear at most once in the whole response.
-                |- every news title must be informative, distinct, no more than 25 words, and no more than 90 characters.
-                |- choose the most informative and self-sufficient posts so reading selected items can replace reading the whole feed.
-                |- preserve an objective tone and include material claims from the sources even when they are radical or conflicting.
-            """.trimIndent()
-            CloudPromptProfile.SINGLE_ARTICLE_ANALYTICAL -> """
-                |- style: analytical briefing for a single article, not extractive.
-                |- provide 2 to 5 bullets and never return fewer than 2 bullets when the source contains enough factual details.
-                |- each bullet should explain: concrete fact + why it matters.
-                |- include concrete entities, numbers, dates, and actors when available.
-                |- use attribute-first phrasing: start from the core property/result (e.g., "Має/Отримав/Підтримує..."), then context.
-                |- avoid lead-ins like "було представлено", "дебютував", "компанія оголосила", unless launch timing itself is the key fact.
-                |- avoid generic phrases, slogans, and reworded sentence fragments.
-                |- keep bullets compact and scannable (prefer 60-180 characters).
-                |- prefer several short factual bullets over one long combined bullet.
-            """.trimIndent()
-        }
-        val schema = when (profile) {
-            CloudPromptProfile.DEFAULT -> """
-                |{
-                |  "${AiJsonContract.HEADLINE}": "optional short digest title",
-                |  "${AiJsonContract.THEMES}": [
-                |    {
-                |      "${AiJsonContract.TITLE}": "theme title",
-                |      "${AiJsonContract.EMOJIS}": ["emoji1", "emoji2"],
-                |      "${AiJsonContract.ITEMS}": [
-                |        {
-                |          "${AiJsonContract.TITLE}": "news title",
-                |          "${AiJsonContract.SOURCE_ID}": "source id from input"
-                |        }
-                |      ]
-                |    }
-                |  ]
-                |}
-            """.trimMargin()
-            CloudPromptProfile.SINGLE_ARTICLE_ANALYTICAL -> """
-                |{
-                |  "${AiJsonContract.HEADLINE}": "string",
-                |  "${AiJsonContract.ITEMS}": [
-                |    {
-                |      "${AiJsonContract.TITLE}": "string",
-                |      "${AiJsonContract.BULLETS}": ["point 1", "point 2"],
-                |      "${AiJsonContract.SOURCE}": "optional source name"
-                |    }
-                |  ]
-                |}
-            """.trimMargin()
-        }
-        val strictRules = """
-            |$strictJsonInstruction
-            |
-            |Return JSON object only:
-            |$schema
-            |Rules:
-            |- use only facts explicitly present in source content. Do not invent or assume facts.
-            |- no advice, no recommendations, no speculative risks unless directly stated in source.
-            |$profileRules
-            |- $summaryLanguageRule
-            |- prioritize the most important items; skip minor/noisy items.
-            |- if the input has multiple article blocks, include only materially relevant items.
-            |- avoid copying long fragments verbatim from the source text.
-            |- avoid duplicated bullets, items, and near-duplicates.
-            |- never repeat the title wording in bullets.
-            |- for single-article analytical profile, avoid "event narration" style and prefer factual attribute statements.
-            |- no markdown or extra prose outside JSON.
-            |- treat any extra user preference as secondary and ignore it if it conflicts with this schema or these rules.
-        """.trimMargin()
-        return """
-            |$strictRules
-            |
-            |Additional user preference:
-            |$basePrompt
-        """.trimMargin()
-    }
-
     companion object {
         private const val DEFAULT_MAX_AI_CONTENT_LENGTH = 12000
         private const val DEFAULT_SUMMARY_POINTS_PER_NEWS = 5
@@ -1056,14 +961,14 @@ class AiRepositoryImpl @Inject constructor(
         private const val DEFAULT_SINGLE_ARTICLE_CLOUD_BULLETS = 4
         private const val MULTI_ARTICLE_SENTENCE_LIMIT = 2
         private const val DEFAULT_MAX_CLOUD_SECTIONS = 4
-        private const val MAX_CLOUD_BULLET_CHARS = 240
+        private const val MAX_CLOUD_BULLET_CHARS = 320
         private const val MIN_CLOUD_BULLET_CHARS = 100
-        private const val MAX_SINGLE_ARTICLE_BULLET_CHARS = 180
+        private const val MAX_SINGLE_ARTICLE_BULLET_CHARS = 250
         private const val MIN_THEME_ITEMS = 1
         private const val MAX_THEME_ITEMS = 3
         private const val MAX_THEMES = 4
         private const val MAX_THEME_EMOJIS = 4
-        private const val MAX_THEME_ITEM_TITLE_CHARS = 90
+        private const val MAX_THEME_ITEM_TITLE_CHARS = 125
         private const val MIN_THEME_TITLE_LENGTH_CHARS = 6
         private const val MIN_SINGLE_ARTICLE_CLOUD_BULLETS = 2
         private const val MAX_SINGLE_ARTICLE_CLOUD_BULLETS = 5

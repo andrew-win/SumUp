@@ -315,9 +315,9 @@
     <string name="settings_help_section_scheduled_summary">— Scheduled summary enables automatic digest generation by schedule.\n— Push notifications control notifications after a summary is created.\n— Time defines when the daily summary runs.\n— Show latest summaries sets the history size on the summary screen.\n— Show news in infographic defines how many items appear in the summary dashboard infographic.</string>
     <string name="settings_help_section_recommendations">— Show recommendations enables topic suggestions and quick subscription blocks.\n— It controls whether recommended themes and guided source suggestions appear in the app.</string>
     <string name="settings_help_section_memory">— Article auto cleanup defines after how many days old articles are removed automatically.\n— Clear articles removes the local feed content but keeps the sources.\n— Clear embeddings resets vector data and similarity cache.\n— Clear scheduled summaries removes stored scheduled summary history.\n— Reset settings returns app preferences to their default values.</string>
-    <string name="summary_prompt_default">Task: structure the feed or scheduled digest into key themes, select the most important stories in each theme, write short distinct headlines, and attach each story to the best supporting source.</string>
-    <string name="ai_question_prompt_prefix">Answer the question:</string>
-    <string name="ai_question_prompt_suffix">Based on this text:</string>
+    <string name="summary_prompt_default">Task: group the material into key themes, keep the most important stories, write short headlines, and attach each story to the best source.</string>
+    <string name="ai_question_prompt_prefix">Question:</string>
+    <string name="ai_question_prompt_suffix">Text:</string>
     <string name="provider_gemini">Gemini</string>
     <string name="provider_groq">Groq</string>
     <string name="provider_openrouter">OpenRouter</string>

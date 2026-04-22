@@ -7,8 +7,10 @@ import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
+import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -114,7 +116,14 @@ class ArticleRepositoryImpl @Inject constructor(
         val fetchedRemote = remoteArticleDataSource.fetchFullContent(article.url, source.type)
         val remoteContent = fetchedRemote ?: article.content
         val mainContent = cleanArticleTextUseCase.extractMainContent(article.url, remoteContent, source.type)
-        return cleanArticleTextUseCase(mainContent, source.type, source.footerPattern)
+        val cleaned = cleanArticleTextUseCase(mainContent, source.type, source.footerPattern)
+        if (source.type == SourceType.YOUTUBE) {
+            DebugTrace.d(
+                "youtube_full_content",
+                "repository fetchFullContent articleId=${article.id} videoId=${article.videoId} remoteFetched=${fetchedRemote != null} remoteChars=${fetchedRemote?.length ?: 0} articleContentChars=${article.content.length} finalChars=${cleaned.length} finalPreview=${DebugTrace.preview(cleaned, 260)}"
+            )
+        }
+        return cleaned
     }
 
     override suspend fun getSimilaritiesForArticles(articleIds: List<Long>): List<ArticleSimilarity> =

@@ -63,9 +63,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.isSpecified
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
+import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppMotion
 import com.andrewwin.sumup.ui.components.AppCardSurface
@@ -74,6 +78,7 @@ import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import com.andrewwin.sumup.ui.theme.AppCardShape
 import com.andrewwin.sumup.ui.theme.appCardBorder
 import com.andrewwin.sumup.ui.util.SummaryBlockUi
+import com.andrewwin.sumup.ui.util.SummarySourceLinkUi
 import com.andrewwin.sumup.ui.util.ThemeItem
 import com.andrewwin.sumup.ui.util.cleanSummaryTextForSharing
 import com.andrewwin.sumup.ui.util.normalizeSummaryUrlForWebView
@@ -155,6 +160,10 @@ fun FeedAiDialog(
                     } else if (aiResult != null) {
                         val compareBlocks = parseCompareBlocks(aiResult)
                         val blocks = parseSummaryBlocks(aiResult)
+                        val sourceLabelMap = rememberSourceLabelMap(
+                            summaryBlocks = blocks,
+                            compareBlocks = compareBlocks
+                        )
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             if (!summaryTitle.isNullOrBlank()) {
                                 Text(
@@ -171,11 +180,13 @@ fun FeedAiDialog(
                                 CompareBlocksView(
                                     commonItems = compareBlocks.common,
                                     differentItems = compareBlocks.different,
+                                    sourceLabelMap = sourceLabelMap,
                                     onOpenWebView = onOpenWebView
                                 )
                             } else {
                                 SingleSummaryCard(
                                     blocks = blocks,
+                                    sourceLabelMap = sourceLabelMap,
                                     onOpenWebView = onOpenWebView
                                 )
                             }
@@ -255,6 +266,7 @@ fun FeedAiDialog(
 @Composable
 private fun SingleSummaryCard(
     blocks: List<SummaryBlockUi>,
+    sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
     Column(
@@ -265,17 +277,20 @@ private fun SingleSummaryCard(
         when (block) {
             is SummaryBlockUi.Section -> LegacySummarySectionView(
                 text = block.body,
-                sourceName = block.source?.name,
-                sourceUrl = block.source?.url,
+                sources = block.sources,
+                sourceLabelMap = sourceLabelMap,
                 onOpenWebView = onOpenWebView
             )
             is SummaryBlockUi.PlainList -> PlainListSummarySectionView(
                 items = block.items,
+                sourceLabelMap = sourceLabelMap,
                 onOpenWebView = onOpenWebView
             )
             is SummaryBlockUi.Theme -> ThemeSummarySectionView(
                 heading = block.heading,
+                summary = block.summary,
                 items = block.items,
+                sourceLabelMap = sourceLabelMap,
                 onOpenWebView = onOpenWebView
             )
             }
@@ -304,16 +319,60 @@ private fun shareText(
     context.startActivity(Intent.createChooser(shareIntent, chooserTitle))
 }
 
-private data class CompareItemUi(val sourceName: String, val text: String, val url: String?)
+private data class CompareItemUi(val text: String, val sources: List<SummarySourceLinkUi>)
 private data class CompareBlocksUi(val common: List<CompareItemUi>, val different: List<CompareItemUi>)
 private val CompareBulletRegex = Regex("""^[•—-]\s*(.*?):\s*(.*?)\s*\((https?://[^)]+)\)\s*$""")
-private const val InlineSourceChipMaxWidthDp = 92
 private const val InlineSourceAnnotationTag = "summary_source"
 
 private enum class FeedSummarySourceStyle {
     TextLink,
     InlineChip
 }
+
+@Composable
+private fun rememberSourceLabelMap(
+    summaryBlocks: List<SummaryBlockUi>,
+    compareBlocks: CompareBlocksUi?
+): Map<String, String> {
+    val summarySources = buildList {
+        summaryBlocks.forEach { block ->
+            when (block) {
+                is SummaryBlockUi.Section -> addAll(block.sources)
+                is SummaryBlockUi.PlainList -> block.items.forEach { addAll(it.sources) }
+                is SummaryBlockUi.Theme -> block.items.forEach { addAll(it.sources) }
+            }
+        }
+    }
+    val compareSources = buildList {
+        compareBlocks?.common?.forEach { addAll(it.sources) }
+        compareBlocks?.different?.forEach { addAll(it.sources) }
+    }
+    return buildSourceLabelMap(summarySources + compareSources)
+}
+
+private fun buildSourceLabelMap(sources: List<SummarySourceLinkUi>): Map<String, String> {
+    val orderedDistinct = buildList {
+        val seen = mutableSetOf<String>()
+        sources.forEach { source ->
+            val key = source.key()
+            if (seen.add(key)) add(source)
+        }
+    }
+    val countsByName = orderedDistinct.groupingBy { it.name }.eachCount()
+    val nextIndexByName = mutableMapOf<String, Int>()
+    return orderedDistinct.associate { source ->
+        val index = nextIndexByName.getOrElse(source.name) { 0 } + 1
+        nextIndexByName[source.name] = index
+        val label = if ((countsByName[source.name] ?: 0) > 1) {
+            "${source.name} ($index)"
+        } else {
+            source.name
+        }
+        source.key() to label
+    }
+}
+
+private fun SummarySourceLinkUi.key(): String = "$name|$url"
 
 @Composable
 private fun SummaryMetaRow(
@@ -388,20 +447,54 @@ private fun parseCompareBlocks(raw: String): CompareBlocksUi? {
     if (commonIndex == -1 || differentIndex == -1 || differentIndex <= commonIndex) return null
 
     fun parseRange(from: Int, toExclusive: Int): List<CompareItemUi> {
-        return lines.subList(from, toExclusive)
-            .filter { it.startsWith("•") || it.startsWith("—") || it.startsWith("-") }
-            .mapNotNull { line ->
-                val match = CompareBulletRegex.find(line)
-                if (match != null) {
-                    val source = match.groupValues[1].trim().ifBlank { "" }
-                    val text = match.groupValues[2].trim()
-                    val url = match.groupValues[3].trim().takeIf { it.isNotBlank() }
-                    CompareItemUi(sourceName = source, text = text, url = url)
-                } else {
-                    val text = line.removePrefix("•").removePrefix("—").removePrefix("-").trim()
-                    if (text.isBlank()) null else CompareItemUi("", text, null)
-                }
+        val parsed = mutableListOf<CompareItemUi>()
+        var index = from
+        while (index < toExclusive) {
+            val line = lines[index]
+            if (!(line.startsWith("•") || line.startsWith("—") || line.startsWith("-"))) {
+                index++
+                continue
             }
+
+            val match = CompareBulletRegex.find(line)
+            if (match != null) {
+                val text = match.groupValues[2].trim()
+                val url = match.groupValues[3].trim().takeIf { it.isNotBlank() }
+                val sources = if (!url.isNullOrBlank()) {
+                    listOf(SummarySourceLinkUi(name = match.groupValues[1].trim().ifBlank { "Джерело" }, url = url))
+                } else {
+                    emptyList()
+                }
+                parsed += CompareItemUi(text = text, sources = sources)
+                index++
+                continue
+            }
+
+            val text = line.removePrefix("•").removePrefix("—").removePrefix("-").trim()
+            if (text.isBlank()) {
+                index++
+                continue
+            }
+
+            val sources = mutableListOf<SummarySourceLinkUi>()
+            while (index + 1 < toExclusive) {
+                val nextLine = lines.getOrNull(index + 1).orEmpty()
+                if (!nextLine.startsWith(SummarySourceMeta.PREFIX)) break
+                val payload = nextLine.removePrefix(SummarySourceMeta.PREFIX)
+                val separator = payload.lastIndexOf('|')
+                if (separator <= 0 || separator >= payload.lastIndex) break
+                val sourceName = payload.substring(0, separator).trim()
+                val sourceUrl = payload.substring(separator + 1).trim().ifBlank { null }
+                if (!sourceName.isBlank() && !sourceUrl.isNullOrBlank()) {
+                    sources += SummarySourceLinkUi(name = sourceName, url = sourceUrl)
+                }
+                index++
+            }
+
+            parsed += CompareItemUi(text = text, sources = sources)
+            index++
+        }
+        return parsed
     }
 
     val common = parseRange(commonIndex + 1, differentIndex)
@@ -414,17 +507,20 @@ private fun parseCompareBlocks(raw: String): CompareBlocksUi? {
 private fun CompareBlocksView(
     commonItems: List<CompareItemUi>,
     differentItems: List<CompareItemUi>,
+    sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         CompareBlockCard(
             title = stringResource(R.string.summary_compare_common),
             items = commonItems,
+            sourceLabelMap = sourceLabelMap,
             onOpenWebView = onOpenWebView
         )
         CompareBlockCard(
             title = stringResource(R.string.summary_compare_unique),
             items = differentItems,
+            sourceLabelMap = sourceLabelMap,
             onOpenWebView = onOpenWebView
         )
     }
@@ -434,6 +530,7 @@ private fun CompareBlocksView(
 private fun CompareBlockCard(
     title: String,
     items: List<CompareItemUi>,
+    sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
     AppCardSurface(
@@ -441,7 +538,7 @@ private fun CompareBlockCard(
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = title,
@@ -462,8 +559,8 @@ private fun CompareBlockCard(
                 items.forEach { item ->
                     InlineSummaryRow(
                         text = "— ${item.text}",
-                        sourceName = item.sourceName,
-                        sourceUrl = item.url,
+                        sources = item.sources,
+                        sourceLabelMap = sourceLabelMap,
                         onOpenWebView = onOpenWebView,
                         textStyle = MaterialTheme.typography.bodyLarge,
                         lineHeight = 26.sp
@@ -477,8 +574,8 @@ private fun CompareBlockCard(
 @Composable
 private fun LegacySummarySectionView(
     text: String,
-    sourceName: String?,
-    sourceUrl: String?,
+    sources: List<SummarySourceLinkUi>,
+    sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
     AppCardSurface(
@@ -490,8 +587,8 @@ private fun LegacySummarySectionView(
         ) {
             InlineSummaryRow(
                 text = text,
-                sourceName = sourceName,
-                sourceUrl = sourceUrl,
+                sources = sources,
+                sourceLabelMap = sourceLabelMap,
                 onOpenWebView = onOpenWebView,
                 textStyle = MaterialTheme.typography.bodyLarge,
                 lineHeight = 26.sp
@@ -503,6 +600,7 @@ private fun LegacySummarySectionView(
 @Composable
 private fun PlainListSummarySectionView(
     items: List<ThemeItem>,
+    sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
     AppCardSurface(
@@ -510,13 +608,13 @@ private fun PlainListSummarySectionView(
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             items.forEach { item ->
                 InlineSummaryRow(
                     text = "${item.marker} ${item.text}",
-                    sourceName = item.source?.name,
-                    sourceUrl = item.source?.url,
+                    sources = item.sources,
+                    sourceLabelMap = sourceLabelMap,
                     onOpenWebView = onOpenWebView,
                     textStyle = MaterialTheme.typography.bodyLarge,
                     lineHeight = 26.sp
@@ -529,7 +627,9 @@ private fun PlainListSummarySectionView(
 @Composable
 private fun ThemeSummarySectionView(
     heading: String,
+    summary: String?,
     items: List<ThemeItem>,
+    sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
     AppCardSurface(
@@ -537,7 +637,7 @@ private fun ThemeSummarySectionView(
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = heading,
@@ -545,11 +645,18 @@ private fun ThemeSummarySectionView(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
+            summary?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             items.forEach { item ->
                 InlineSummaryRow(
                     text = "${item.marker} ${item.text}",
-                    sourceName = item.source?.name,
-                    sourceUrl = item.source?.url,
+                    sources = item.sources,
+                    sourceLabelMap = sourceLabelMap,
                     onOpenWebView = onOpenWebView,
                     textStyle = MaterialTheme.typography.bodyLarge,
                     lineHeight = 26.sp
@@ -562,40 +669,47 @@ private fun ThemeSummarySectionView(
 @Composable
 private fun InlineSummaryRow(
     text: String,
-    sourceName: String?,
-    sourceUrl: String?,
+    sources: List<SummarySourceLinkUi>,
+    sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit,
     textStyle: TextStyle,
     lineHeight: TextUnit,
     sourceStyle: FeedSummarySourceStyle = FeedSummarySourceStyle.InlineChip
 ) {
     val effectiveStyle = textStyle.copy(lineHeight = lineHeight)
-    if (
-        sourceStyle == FeedSummarySourceStyle.InlineChip &&
-        !sourceName.isNullOrBlank() &&
-        !sourceUrl.isNullOrBlank()
-    ) {
-        val inlineId = "feed_summary_inline_chip"
+    val distinctSources = sources.distinctBy { it.key() }
+    val chipTextStyle = MaterialTheme.typography.labelLarge.copy(fontSize = 11.sp)
+    val density = LocalDensity.current
+    val textMeasurer = rememberTextMeasurer()
+    if (sourceStyle == FeedSummarySourceStyle.InlineChip && distinctSources.isNotEmpty()) {
+        val bodyFontSize = if (effectiveStyle.fontSize.isSpecified) {
+            effectiveStyle.fontSize
+        } else {
+            MaterialTheme.typography.bodyLarge.fontSize
+        }
+        val bodyFontPx = with(density) { bodyFontSize.toPx().coerceAtLeast(1f) }
+        val chipHorizontalPx = with(density) { (10.dp * 2 + 13.dp + 6.dp).toPx() }
+        val inlineContent = linkedMapOf<String, InlineTextContent>()
         val annotated = buildAnnotatedString {
             append(text)
-            append(" ")
-            appendInlineContent(inlineId, "[source]")
-        }
-        val chipWidthEm = ((sourceName.length.coerceAtMost(20) + 6) * 0.62f).em
-        BasicText(
-            text = annotated,
-            style = effectiveStyle.copy(color = MaterialTheme.colorScheme.onSurface),
-            modifier = Modifier.fillMaxWidth(),
-            inlineContent = mapOf(
-                inlineId to InlineTextContent(
+            distinctSources.forEachIndexed { index, source ->
+                val sourceName = sourceLabelMap[source.key()] ?: source.name
+                val inlineId = "feed_summary_inline_chip_$index"
+                val labelWidthPx = textMeasurer.measure(
+                    text = sourceName,
+                    style = chipTextStyle,
+                    maxLines = 1
+                ).size.width.toFloat()
+                val chipWidthEm = ((labelWidthPx + chipHorizontalPx) / bodyFontPx).em
+                inlineContent[inlineId] = InlineTextContent(
                     Placeholder(
                         width = chipWidthEm,
-                        height = 1.72.em,
+                        height = 1.48.em,
                         placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
                     )
                 ) {
                     Surface(
-                        onClick = { onOpenWebView(normalizeSummaryUrlForWebView(sourceUrl)) },
+                        onClick = { onOpenWebView(normalizeSummaryUrlForWebView(source.url)) },
                         shape = RoundedCornerShape(11.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHighest,
                         border = BorderStroke(
@@ -604,7 +718,7 @@ private fun InlineSummaryRow(
                         )
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
@@ -616,7 +730,7 @@ private fun InlineSummaryRow(
                             )
                             Text(
                                 text = sourceName,
-                                style = MaterialTheme.typography.labelLarge,
+                                style = chipTextStyle,
                                 color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -624,14 +738,23 @@ private fun InlineSummaryRow(
                         }
                     }
                 }
-            )
+                append(" ")
+                appendInlineContent(inlineId, "[source]")
+            }
+        }
+        BasicText(
+            text = annotated,
+            style = effectiveStyle.copy(color = MaterialTheme.colorScheme.onSurface),
+            modifier = Modifier.fillMaxWidth(),
+            inlineContent = inlineContent
         )
     } else {
         val annotated = buildAnnotatedString {
             append(text)
-            if (!sourceName.isNullOrBlank() && !sourceUrl.isNullOrBlank()) {
+            distinctSources.forEach { source ->
+                val sourceName = sourceLabelMap[source.key()] ?: source.name
                 append(" ")
-                pushStringAnnotation(tag = InlineSourceAnnotationTag, annotation = sourceUrl)
+                pushStringAnnotation(tag = InlineSourceAnnotationTag, annotation = source.url)
                 pushStyle(
                     SpanStyle(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.86f),

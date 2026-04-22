@@ -86,19 +86,32 @@ class SummarizationEngineUseCase @Inject constructor(
         }
 
         val contentForAi = when {
-            sourceType == SourceType.YOUTUBE && fullContent.isNotBlank() -> fullContent
+            fullContent.isNotBlank() -> fullContent
             formatted.displayContent.isNotBlank() -> formatted.displayContent
-            else -> fullContent
+            else -> representative.content
         }
-        val prep = preprocessPolicy.preprocess(
-            rawText = contentForAi,
-            prefs = prefs,
-            context = context
-        )
+        val prep = if (sourceType == SourceType.YOUTUBE && contentForAi.isNotBlank()) {
+            ArticlePreprocessorUseCase.Output(
+                textForCloud = contentForAi.take(prefs.aiMaxCharsPerArticle.coerceAtLeast(200)),
+                finalExtractiveText = null
+            )
+        } else {
+            preprocessPolicy.preprocess(
+                rawText = contentForAi,
+                prefs = prefs,
+                context = context
+            )
+        }
         DebugTrace.d(
             "summary_engine",
-            "singleArticle preprocess textForCloudChars=${prep.textForCloud.length} finalExtractive=${prep.finalExtractiveText != null} fullTextUsed=${sourceType == SourceType.YOUTUBE || formatted.displayContent.isBlank()} contentPreview=${DebugTrace.preview(prep.textForCloud, 220)}"
+            "singleArticle preprocess textForCloudChars=${prep.textForCloud.length} finalExtractive=${prep.finalExtractiveText != null} fullTextUsed=${fullContent.isNotBlank()} youtubeBypass=${sourceType == SourceType.YOUTUBE && contentForAi.isNotBlank()} contentPreview=${DebugTrace.preview(prep.textForCloud, 220)}"
         )
+        if (sourceType == SourceType.YOUTUBE) {
+            DebugTrace.d(
+                "youtube_full_content",
+                "singleArticle summarize articleId=${representative.id} fullContentChars=${fullContent.length} contentForAiChars=${contentForAi.length} textForCloudChars=${prep.textForCloud.length} usingFullContent=${contentForAi == fullContent && fullContent.isNotBlank()} preview=${DebugTrace.preview(prep.textForCloud, 260)}"
+            )
+        }
         prep.finalExtractiveText?.let {
             DebugTrace.d(
                 "summary_engine",
@@ -365,13 +378,11 @@ class SummarizationEngineUseCase @Inject constructor(
         prefs: UserPreferences
     ): String {
         val input = buildComparisonCloudInput(articles, context, prefs)
-        val languageRule = when (prefs.summaryLanguage) {
-            SummaryLanguage.UK -> "use Ukrainian language for all text."
-            SummaryLanguage.EN -> "use English language for all text."
-        }
         val raw = cloudCallPolicy.askQuestion(
             input,
-            AiPromptRules.compareJsonPrompt(languageRule).trimIndent()
+            AiPromptCatalog.buildComparePrompt(
+                summaryLanguage = prefs.summaryLanguage
+            )
         )
         val parsed = parsePolicy.parseCompare(raw)
         if (parsed.items.isEmpty()) {
@@ -400,8 +411,6 @@ class SummarizationEngineUseCase @Inject constructor(
             remaining -= content.length
             blocks += buildString {
                 append("source_id: ${article.id}\n")
-                append("source_name: ${source?.name ?: "Невідоме"}\n")
-                append("source_url: ${article.url}\n")
                 append("title: ${article.title}\n")
                 append("content: $content")
             }
@@ -506,7 +515,7 @@ class SummarizationEngineUseCase @Inject constructor(
         const val MIN_FALLBACK_THEME_ITEMS = 2
         const val MAX_FALLBACK_ITEMS_PER_THEME = 6
         const val MAX_FALLBACK_THEMES = 5
-        const val MAX_FALLBACK_TITLE_CHARS = 90
+        const val MAX_FALLBACK_TITLE_CHARS = 270
         const val FALLBACK_ITEM_MARKER = "—"
         const val LOCAL_MULTI_ARTICLE_NEWS_LIMIT = 8
 

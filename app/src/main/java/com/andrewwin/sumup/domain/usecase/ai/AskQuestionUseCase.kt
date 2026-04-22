@@ -13,8 +13,23 @@ class AskQuestionUseCase @Inject constructor(
     suspend operator fun invoke(article: Article, question: String): Result<String> {
         return try {
             val fullContent = articleRepository.fetchFullContent(article)
-            val raw = aiRepository.askQuestion(fullContent, question)
-            Result.success(formatQaJson(raw))
+            val source = articleRepository.getSourceById(article.sourceId)
+            val sourceName = source?.name?.trim().orEmpty()
+            val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
+            val structuredContent = buildStructuredArticleContent(
+                sourceId = article.id.toString(),
+                sourceName = sourceName,
+                sourceUrl = sourceUrl,
+                title = article.title,
+                content = fullContent
+            )
+            val raw = aiRepository.askQuestion(structuredContent, question)
+            Result.success(
+                formatQaJson(
+                    raw = raw,
+                    sourceRefs = extractSourceRefs(structuredContent)
+                )
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -23,13 +38,21 @@ class AskQuestionUseCase @Inject constructor(
     suspend operator fun invoke(content: String, question: String): Result<String> {
         return try {
             val raw = aiRepository.askQuestion(content, question)
-            Result.success(formatQaJson(raw))
+            Result.success(
+                formatQaJson(
+                    raw = raw,
+                    sourceRefs = extractSourceRefs(content)
+                )
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    private fun formatQaJson(raw: String): String {
+    private fun formatQaJson(
+        raw: String,
+        sourceRefs: Map<String, QaSourceRef>
+    ): String {
         val qa = AiJsonResponseParser.parseQa(raw)
         val sections = mutableListOf<String>()
 
@@ -37,18 +60,22 @@ class AskQuestionUseCase @Inject constructor(
 
         if (qa.statements.isNotEmpty()) {
             val lines = mutableListOf<String>()
-            val sourceUrls = linkedSetOf<String>()
+            val fallbackSourceIds = qa.sources
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
             qa.statements.forEach { statement ->
                 lines += "• ${statement.text.trim()}"
-                statement.sources.forEach { source ->
-                    val value = source.trim()
-                    if (value.startsWith("http://") || value.startsWith("https://")) {
-                        sourceUrls += value
+                val citedSourceId = statement.sources
+                    .asSequence()
+                    .map { it.trim() }
+                    .firstOrNull { it.isNotBlank() && sourceRefs.containsKey(it) }
+                    ?: fallbackSourceIds.firstOrNull { sourceRefs.containsKey(it) }
+
+                citedSourceId
+                    ?.let(sourceRefs::get)
+                    ?.also { ref ->
+                        lines += "${SummarySourceMeta.PREFIX}${ref.name}|${ref.url}"
                     }
-                }
-            }
-            sourceUrls.forEach { url ->
-                lines += "${SummarySourceMeta.PREFIX}$url|$url"
             }
             sections += lines.joinToString("\n")
         }
@@ -56,6 +83,67 @@ class AskQuestionUseCase @Inject constructor(
         if (sections.isEmpty()) throw IllegalStateException("QA JSON contains no answer.")
         return sections.joinToString("\n\n")
     }
+
+    private fun buildStructuredArticleContent(
+        sourceId: String,
+        sourceName: String,
+        sourceUrl: String,
+        title: String,
+        content: String
+    ): String {
+        return buildString {
+            append("source_id: ").append(sourceId).append('\n')
+            if (sourceName.isNotBlank()) {
+                append("source_name: ").append(sourceName).append('\n')
+            }
+            if (sourceUrl.isNotBlank()) {
+                append("source_url: ").append(sourceUrl).append('\n')
+            }
+            append("title: ").append(title.trim()).append('\n')
+            append("content: ").append(content.trim())
+        }
+    }
+
+    private fun extractSourceRefs(content: String): Map<String, QaSourceRef> {
+        return content
+            .split(Regex("\\n\\s*\\n"))
+            .mapNotNull { block ->
+                var sourceId: String? = null
+                var sourceName: String? = null
+                var sourceUrl: String? = null
+
+                block.lineSequence().forEach { rawLine ->
+                    val line = rawLine.trim()
+                    when {
+                        line.startsWith("source_id:", ignoreCase = true) -> {
+                            sourceId = line.substringAfter(':').trim().ifBlank { null }
+                        }
+                        line.startsWith("source_name:", ignoreCase = true) -> {
+                            sourceName = line.substringAfter(':').trim().ifBlank { null }
+                        }
+                        line.startsWith("source_url:", ignoreCase = true) -> {
+                            sourceUrl = line.substringAfter(':').trim().ifBlank { null }
+                        }
+                    }
+                }
+
+                val id = sourceId ?: return@mapNotNull null
+                val url = sourceUrl ?: return@mapNotNull null
+                val name = sourceName?.takeIf { it.isNotBlank() } ?: url
+                QaSourceRef(
+                    id = id,
+                    name = name,
+                    url = url
+                )
+            }
+            .associateBy { it.id }
+    }
+
+    private data class QaSourceRef(
+        val id: String,
+        val name: String,
+        val url: String
+    )
 }
 
 
