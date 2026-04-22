@@ -9,6 +9,9 @@ enum class AiSummaryPromptProfile {
 
 object AiPromptCatalog {
 
+    private const val RULE_NO_INTRO_PHRASES = "Omit filler, announcements, and intro phrases (e.g., 'Перші повідомлення', 'Дані про', 'Стало відомо', 'У статті йдеться', 'Зазначається'). Start directly with the core fact."
+    private const val RULE_JOURNALISTIC_STYLE = "Strict AP/Reuters journalistic style: use active voice and strong action verbs. Strip away all bureaucratic fluff, adverbs of degree (e.g., 'значно', 'надзвичайно'), modal verbs ('може', 'мабуть'), and emotional modifiers. Focus strictly on 'Who did what'."
+
     private fun promptEnvelope(role: String, goal: String, schema: String, rules: List<String>, formatInfo: String? = null, body: String? = null): String {
         return buildString {
             appendLine("ROLE")
@@ -22,7 +25,7 @@ object AiPromptCatalog {
             appendLine("2. No prose before/after JSON.")
             appendLine("3. No markdown, no code fences, no comments.")
             appendLine("4. Use only keys from schema.")
-            appendLine("5. If uncertain, omit claim (do not invent).")
+            appendLine("5. If uncertain about a fact or source binding, omit the claim (do not invent).")
             appendLine()
             appendLine("RULES")
             rules.forEachIndexed { index, rule -> appendLine("${index + 1}. $rule") }
@@ -48,48 +51,45 @@ object AiPromptCatalog {
         profile: AiSummaryPromptProfile
     ): String {
         val languageRule = languageRule(summaryLanguage)
-        
+
         return when (profile) {
             AiSummaryPromptProfile.DIGEST_ANALYTICAL -> {
                 promptEnvelope(
-                    role = "Strict news fact-checker and digest editor.",
-                    goal = "Build a short factual digest from the provided source blocks.",
+                    role = "Strict news editor (Reuters/AP style).",
+                    goal = "Build a highly condensed, hard-fact digest grouped by broad categories.",
                     schema = """{"${AiJsonContract.HEADLINE}":"optional short digest title","${AiJsonContract.THEMES}":[{"${AiJsonContract.TITLE}":"theme title","${AiJsonContract.EMOJIS}":["emoji1","emoji2"],"${AiJsonContract.ITEMS}":[{"${AiJsonContract.TITLE}":"news title","${AiJsonContract.SOURCE_ID}":"source id from input"}]}]}""",
                     rules = listOf(
-                        "One item = one event fact from one source_id. Good: 'ЄС виділив 600 млн євро'. Bad: 'ЄС допомагає та обговорює багато питань'.",
-                        "Use only explicit facts from input. Unknown fact -> omit.",
-                        "Themes: 0..4. Items per theme: 1..3.",
-                        "Theme title: 3-4 words only. Good: 'Допомога Україні від ЄС'. Bad: 'Ситуація на Близькому Сході та роль США'.",
-                        "Each theme must have 2..4 relevant emojis.",
-                        "Each item must contain: short abstractive title + one exact source_id from input.",
-                        "Each source_id can appear only once in whole response.",
-                        "No clickbait style. Rewrite to neutral factual language. Good: 'США готують нові санкції'. Bad: 'ШОК! Терміново!'.",
-                        "No announcement phrases. Banned starters: 'Перші повідомлення', 'Дані про', 'Стало відомо', 'У статті йдеться'.",
-                        "Group only by concrete shared event/actor/sector. Broad topic similarity is not enough.",
-                        "If source_id binding is uncertain -> omit item.",
+                        "One item = one concrete event fact from exactly one source_id.",
+                        "Themes constraint: 1..4. Items per theme: 2..4 (inflated limits to ensure enough output).",
+                        "Group items into broad thematic categories (e.g., 'Міжнародна політика', 'Економіка', 'Фронт').",
+                        "Theme title: 2-4 words max. Must be a broad category, not a specific event description.",
+                        "Include 2..4 highly relevant emojis per theme.",
+                        "Item title: punchy, action-oriented news ticker style (max 20-25 words). Lead with the main actor and action.",
+                        "Each source_id can appear only once in the entire response.",
+                        RULE_JOURNALISTIC_STYLE,
+                        RULE_NO_INTRO_PHRASES,
                         languageRule
                     ),
-                    formatInfo = "Example output:\n{\"headline\":\"\",\"themes\":[{\"title\":\"Допомога Україні від ЄС\",\"emojis\":[\"🇪🇺\",\"💶\"],\"items\":[{\"title\":\"ЄС розблокував 90 млрд євро підтримки\",\"source_id\":\"2299\"},{\"title\":\"ЄІБ виділяє кошти на інфраструктуру\",\"source_id\":\"2300\"}]}]}",
+                    formatInfo = "GOOD Structure Example:\n{\"headline\":\"Головне за день\",\"themes\":[{\"title\":\"Міжнародна підтримка\",\"emojis\":[\"🌍\",\"🤝\"],\"items\":[{\"title\":\"ЄС розблокував 90 млрд євро макрофінансової допомоги для України\",\"source_id\":\"2299\"},{\"title\":\"Іспанія передасть ракети для систем Patriot у межах механізму PURL\",\"source_id\":\"2300\"}]},{\"title\":\"Економіка\",\"emojis\":[\"📈\",\"💰\"],\"items\":[{\"title\":\"Нацбанк знизив облікову ставку до 13%\",\"source_id\":\"2301\"}]}]}",
                     body = basePrompt
                 )
             }
             AiSummaryPromptProfile.SINGLE_ARTICLE_ANALYTICAL -> {
                 promptEnvelope(
-                    role = "Strict single-article fact-checker.",
-                    goal = "Return short factual bullets for one article.",
+                    role = "Strict single-article news analyst.",
+                    goal = "Extract the most critical 'hard facts' into punchy bullet points.",
                     schema = """{"${AiJsonContract.ITEMS}":[{"${AiJsonContract.TITLE}":"","${AiJsonContract.BULLETS}":["point 1","point 2"],"${AiJsonContract.SOURCE}":"optional source name"}]}""",
                     rules = listOf(
-                        "One bullet = one fact. Good: one actor + one action. Bad: mixed 2-3 events.",
-                        "Use only explicit facts from input.",
-                        "Return exactly one item object and keep item title = empty string.",
-                        "Bullets count: 2..5.",
-                        "Each bullet must include concrete anchor (actor/number/date/place/decision/claim).",
-                        "Sentence length target: compact one-liner.",
-                        "No announcement phrases. Banned: 'У статті йдеться', 'Стало відомо', 'Перші повідомлення'.",
-                        "No emotional/clickbait wording.",
+                        "Return exactly one item object. Force item title to be an empty string: \"\".",
+                        "One bullet = one standalone hard fact (focus on Who, What, When, Where, Numbers).",
+                        "Bullets constraint: 4..10 (inflated limit to ensure you generate enough details).",
+                        "Sentence length: strictly compact one-liner (max 30-40 words).",
+                        "Anchor every bullet with a concrete entity. Avoid vague summaries.",
+                        RULE_JOURNALISTIC_STYLE,
+                        RULE_NO_INTRO_PHRASES,
                         languageRule
                     ),
-                    formatInfo = "Example output:\n{\"items\":[{\"title\":\"\",\"bullets\":[\"ЄС розблокував пакет допомоги Україні на 90 млрд євро.\",\"Зеленський назвав рішення сигналом для РФ завершити війну.\"],\"source\":\"\"}]}",
+                    formatInfo = "BAD Example (Fluff & Passive): [\"Було прийнято важливе рішення щодо виділення коштів\", \"Зеленський дуже позитивно оцінив цей значний крок\"]\n\nGOOD Example (AP Style): [\"ЄС схвалив пакет фінансової допомоги Україні на 90 млрд євро.\", \"Уряд спрямує кошти на підтримку макроекономічної стабільності у 2024 році.\", \"Президент Зеленський підписав відповідну угоду з керівництвом Єврокомісії.\"]",
                     body = basePrompt
                 )
             }
@@ -103,20 +103,20 @@ object AiPromptCatalog {
     ): String {
         return promptEnvelope(
             role = "Strict QA fact-checker.",
-            goal = "Answer user question using only provided sources with source-linked statements.",
+            goal = "Provide a direct, evidence-based answer to the user's question using only provided sources.",
             schema = """{"${AiJsonContract.ANSWER}":"string","${AiJsonContract.STATEMENTS}":[{"${AiJsonContract.TEXT}":"string","${AiJsonContract.SOURCES}":["source_id"]}],"${AiJsonContract.SOURCES}":["source_id"]}""",
             rules = listOf(
-                "Use only explicit facts from provided sources.",
-                "Answer length: 1-2 short sentences.",
-                "Statements count: 2..4.",
-                "Each statement must be one fact + exactly one source_id.",
-                "Root sources = unique source_ids used in statements.",
-                "No speculation and no hidden-motive interpretations.",
-                "If evidence is missing, say it directly. Good: 'У джерелах немає підтвердження X.'",
-                "No announcement phrases.",
-                "No hallucination."
+                "Use BLUF format (Bottom Line Up Front): direct answer first, supporting context second.",
+                "Answer length: 2-4 definitive sentences.",
+                "Statements constraint: 4..8 (inflated limit).",
+                "Each statement must contain one specific fact linked to exactly one source_id.",
+                "Extract root sources (unique source_ids) used in statements.",
+                "If evidence is missing, state it directly and concisely (e.g., 'У джерелах немає підтвердження цієї інформації.').",
+                "No speculation, no filler text, no interpretations.",
+                RULE_JOURNALISTIC_STYLE,
+                RULE_NO_INTRO_PHRASES
             ),
-            formatInfo = "Example output:\n{\"answer\":\"У джерелах підтверджено розблокування 90 млрд євро.\",\"statements\":[{\"text\":\"ЄС погодив пакет фінансової підтримки Україні.\",\"sources\":[\"2299\"]},{\"text\":\"Зеленський обговорив це рішення з керівництвом ЄС.\",\"sources\":[\"962\"]}],\"sources\":[\"2299\",\"962\"]}",
+            formatInfo = "Question: 'Чи дали Україні гроші?'\nBAD Answer: 'Згідно з першими повідомленнями у статтях, можливо, Україна отримає значну допомогу...'\nGOOD Answer: 'Так, ЄС офіційно розблокував 90 млрд євро макрофінансової допомоги.'\n\nJSON Output:\n{\"answer\":\"Так, ЄС офіційно розблокував 90 млрд євро.\",\"statements\":[{\"text\":\"Рада ЄС погодила виділення фінансового пакета Україні.\",\"sources\":[\"2299\"]},{\"text\":\"Президент України підтвердив домовленість із керівництвом Євросоюзу.\",\"sources\":[\"962\"]}],\"sources\":[\"2299\",\"962\"]}",
             body = """
                 $questionPrefix $question
 
@@ -129,34 +129,32 @@ object AiPromptCatalog {
         summaryLanguage: SummaryLanguage
     ): String {
         return promptEnvelope(
-            role = "Strict comparative fact-checker.",
-            goal = "Split facts into common overlaps vs source-unique details.",
+            role = "Strict comparative news analyst.",
+            goal = "Distill multiple sources into a crisp matrix of overlapping facts and unique details.",
             schema = """{"${AiJsonContract.COMMON_TOPIC}":"optional short topic label","${AiJsonContract.COMMON_FACTS}":[{"${AiJsonContract.TEXT}":"sentence 1","${AiJsonContract.SOURCES}":["source_id_1","source_id_2"]}],"${AiJsonContract.ITEMS}":[{"${AiJsonContract.SOURCE_ID}":"source id from input","${AiJsonContract.UNIQUE_DETAILS}":["sentence 1"]}]}""",
             rules = listOf(
-                "Use only explicit facts from input.",
-                "One point = one fact.",
-                "COMMON rule: fact is common only if same concrete event/number/claim appears in 2+ sources.",
-                "If source B only уточнює source A (detail/parameter/context), do NOT add second common point. Put only the new fragment into source B unique_details.",
-                "Good split: common='ЄС погодив 90 млрд євро'; unique(B)='кошти розраховані на 2 роки'. Bad: two common points about same approval.",
-                "If some sources overlap and others are off-topic, common_facts must include only overlapping subset.",
-                "If all sources are same broad topic but no concrete overlap: common_facts=[] and set common_topic short label.",
-                "If sources are unrelated: common_facts=[] and common_topic=\"\".",
-                "common_facts max=4 (if only 2 sources, max=2).",
-                "Each common_facts item must include 2+ source_ids (exact ids from input).",
-                "Reject generic overlap wording: 'обговорювалося', 'йшлося', 'брали участь' without concrete anchor.",
-                "No paraphrase duplicates in common_facts.",
-                "unique_details max=4 per source_id, only source-specific facts.",
-                "Do not include source names/channels inside fact text.",
-                "No announcement phrases.",
+                "Format: Rewrite all facts into ultra-short, abstractive one-liners (max 30-35 words to ensure completeness).",
+                "No direct quotes. Paraphrase direct speech into concise statements of fact.",
+                "COMMON_FACTS requirement: A fact is common ONLY if the exact same event/number/claim appears in 2+ sources.",
+                "IF source B only clarifies source A (adds detail/context), DO NOT create a common fact. Put the new fragment in source B's UNIQUE_DETAILS.",
+                "IF sources share a broad topic but lack concrete overlapping facts: set common_facts=[] and provide a short common_topic label.",
+                "IF sources are completely unrelated: set common_facts=[] and common_topic=\"\".",
+                "common_facts constraint: max 8 (if only 2 sources exist, max 4).",
+                "UNIQUE_DETAILS constraint: max 8 per source_id. Focus only on exclusive, high-value facts.",
+                "Each common_facts item MUST include 2+ exact source_ids.",
+                "Do not include source names/channels inside the fact text.",
+                "Reject generic overlaps without concrete anchors (e.g., skip 'Сторони обговорили співпрацю').",
+                RULE_JOURNALISTIC_STYLE,
+                RULE_NO_INTRO_PHRASES,
                 languageRule(summaryLanguage)
             ),
-            formatInfo = "Scenario A (true overlap):\n{\"common_topic\":\"\",\"common_facts\":[{\"text\":\"ЄС погодив 90 млрд євро для України\",\"sources\":[\"s1\",\"s2\"]}],\"items\":[{\"source_id\":\"s1\",\"unique_details\":[\"Пакет включає новий санкційний блок.\"]},{\"source_id\":\"s2\",\"unique_details\":[\"Кошти розраховані на 2 роки.\"]}]}\n\nScenario B (same broad topic, no shared concrete fact):\n{\"common_topic\":\"війна в Україні\",\"common_facts\":[],\"items\":[{\"source_id\":\"s1\",\"unique_details\":[\"Україна представила нову ракету.\"]},{\"source_id\":\"s2\",\"unique_details\":[\"Іран здійснив масовану атаку.\"]}]}\n\nScenario C (unrelated):\n{\"common_topic\":\"\",\"common_facts\":[],\"items\":[{\"source_id\":\"s1\",\"unique_details\":[\"...\"]},{\"source_id\":\"s2\",\"unique_details\":[\"...\"]}]}"
+            formatInfo = "Scenario A (True overlap):\n{\"common_topic\":\"\",\"common_facts\":[{\"text\":\"ЄС погодив виділення Україні 90 млрд євро\",\"sources\":[\"s1\",\"s2\"]}],\"items\":[{\"source_id\":\"s1\",\"unique_details\":[\"Пакет включає новий блок санкцій проти РФ\"]},{\"source_id\":\"s2\",\"unique_details\":[\"Уряд спрямує кошти на соціальні виплати протягом дворічного періоду\"]}]}\n\nScenario B (Broad topic, NO shared fact):\n{\"common_topic\":\"Озброєння та атаки\",\"common_facts\":[],\"items\":[{\"source_id\":\"s1\",\"unique_details\":[\"ЗСУ представили нову балістичну ракету власного виробництва\"]},{\"source_id\":\"s2\",\"unique_details\":[\"Іран здійснив масовану атаку дронами-камікадзе\"]}]}"
         )
     }
 
     private fun languageRule(summaryLanguage: SummaryLanguage): String =
         when (summaryLanguage) {
-            SummaryLanguage.UK -> "Output language: Ukrainian only."
-            SummaryLanguage.EN -> "Output language: English only."
+            SummaryLanguage.UK -> "Output language requirement: Ukrainian only. Use correct Ukrainian journalistic terminology."
+            SummaryLanguage.EN -> "Output language requirement: English only. Use correct English journalistic terminology."
         }
 }

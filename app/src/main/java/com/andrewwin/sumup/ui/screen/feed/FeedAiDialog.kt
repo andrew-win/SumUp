@@ -45,8 +45,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -510,62 +516,61 @@ private fun CompareBlocksView(
     sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        CompareBlockCard(
-            title = stringResource(R.string.summary_compare_common),
-            items = commonItems,
-            sourceLabelMap = sourceLabelMap,
-            onOpenWebView = onOpenWebView
-        )
-        CompareBlockCard(
-            title = stringResource(R.string.summary_compare_unique),
-            items = differentItems,
-            sourceLabelMap = sourceLabelMap,
-            onOpenWebView = onOpenWebView
-        )
+    val tabTitles = listOf(
+        stringResource(R.string.summary_compare_common),
+        stringResource(R.string.summary_compare_unique)
+    )
+    var selectedTabIndex by remember(commonItems, differentItems) {
+        mutableIntStateOf(0)
+    }
+    val tabItems = if (selectedTabIndex == 0) commonItems else differentItems
+
+    AppCardSurface(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            TabRow(selectedTabIndex = selectedTabIndex) {
+                tabTitles.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTabIndex == index,
+                        onClick = { selectedTabIndex = index },
+                        text = { Text(text = title) }
+                    )
+                }
+            }
+            CompareBlockCardContent(
+                items = tabItems,
+                sourceLabelMap = sourceLabelMap,
+                onOpenWebView = onOpenWebView
+            )
+        }
     }
 }
 
 @Composable
-private fun CompareBlockCard(
-    title: String,
+private fun CompareBlockCardContent(
     items: List<CompareItemUi>,
     sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
-    AppCardSurface(
-        modifier = Modifier.fillMaxWidth(),
+    Column(
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
+        if (items.isEmpty()) {
             Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface
+                text = stringResource(R.string.summary_not_enough_data),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            HorizontalDivider(
-                thickness = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-            )
-            if (items.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.summary_not_enough_data),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+        } else {
+            items.forEach { item ->
+                InlineSummaryRow(
+                    text = "— ${item.text}",
+                    sources = item.sources,
+                    sourceLabelMap = sourceLabelMap,
+                    onOpenWebView = onOpenWebView,
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    lineHeight = 26.sp
                 )
-            } else {
-                items.forEach { item ->
-                    InlineSummaryRow(
-                        text = "— ${item.text}",
-                        sources = item.sources,
-                        sourceLabelMap = sourceLabelMap,
-                        onOpenWebView = onOpenWebView,
-                        textStyle = MaterialTheme.typography.bodyLarge,
-                        lineHeight = 26.sp
-                    )
-                }
             }
         }
     }
