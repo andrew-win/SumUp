@@ -311,6 +311,7 @@ class SourceRepositoryImpl @Inject constructor(
             .trim()
         return host.ifBlank { url.trim() }.ifBlank { "RSS" }
     }
+
 }
 
 

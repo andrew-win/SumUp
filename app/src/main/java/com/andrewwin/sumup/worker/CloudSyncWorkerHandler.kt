@@ -6,13 +6,18 @@ import androidx.core.os.LocaleListCompat
 import androidx.work.ListenableWorker
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
 import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.usecase.settings.ScheduleSummaryUseCase
 import com.andrewwin.sumup.ui.screen.settings.BackupSelection
+import com.andrewwin.sumup.ui.screen.settings.SyncConflictStrategy
+import com.andrewwin.sumup.ui.screen.settings.SyncOverwritePriority
 import com.andrewwin.sumup.ui.screen.settings.toAiConfigsFromBackup
 import com.andrewwin.sumup.ui.screen.settings.toBackupJson
 import com.andrewwin.sumup.ui.screen.settings.toImportedGroupsFromBackup
+import com.andrewwin.sumup.ui.screen.settings.toSavedArticlesFromBackup
 import com.andrewwin.sumup.ui.screen.settings.toUserPreferencesFromBackup
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -27,6 +32,7 @@ class CloudSyncWorkerHandler @Inject constructor(
     @ApplicationContext private val context: Context,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val aiRepository: AiRepository,
+    private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
     private val scheduleSummaryUseCase: ScheduleSummaryUseCase,
     private val secretEncryptionManager: SecretEncryptionManager
@@ -35,13 +41,24 @@ class CloudSyncWorkerHandler @Inject constructor(
         val syncPrefs = context.getSharedPreferences(WorkerContracts.SYNC_PREFS, 0)
         val enabled = syncPrefs.getBoolean(WorkerContracts.KEY_SYNC_ENABLED, false)
         if (!enabled) return ListenableWorker.Result.success()
+        val syncStrategy = parseSyncConflictStrategy(
+            syncPrefs.getString(WorkerContracts.KEY_SYNC_STRATEGY, SyncConflictStrategy.MERGE.name)
+        )
+        val syncOverwritePriority = parseSyncOverwritePriority(
+            syncPrefs.getString(WorkerContracts.KEY_SYNC_OVERWRITE_PRIORITY, SyncOverwritePriority.LOCAL.name)
+        )
 
         val selection = BackupSelection(
             includeSources = syncPrefs.getBoolean(WorkerContracts.KEY_SYNC_INCLUDE_SOURCES, true),
             includeSubscriptions = syncPrefs.getBoolean(WorkerContracts.KEY_SYNC_INCLUDE_SUBSCRIPTIONS, true),
+            includeSavedArticles = syncPrefs.getBoolean(WorkerContracts.KEY_SYNC_INCLUDE_SAVED_ARTICLES, true),
             includeSettingsNoApi = syncPrefs.getBoolean(WorkerContracts.KEY_SYNC_INCLUDE_SETTINGS_NO_API, true),
             includeApiKeys = syncPrefs.getBoolean(WorkerContracts.KEY_SYNC_INCLUDE_API_KEYS, false) &&
                 secretEncryptionManager.hasSyncPassphrase()
+        )
+        DebugTrace.d(
+            "backup_sync",
+            "worker selection strategy=${syncStrategy.name} overwritePriority=${syncOverwritePriority.name} sources=${selection.includeSources} subscriptions=${selection.includeSubscriptions} saved=${selection.includeSavedArticles} settings=${selection.includeSettingsNoApi} apiKeys=${selection.includeApiKeys}"
         )
 
         val uid = FirebaseAuth.getInstance().currentUser?.uid
@@ -56,10 +73,22 @@ class CloudSyncWorkerHandler @Inject constructor(
                 ?.let(::JSONObject)
             val remoteUpdatedAt = remote.getLong("updatedAt") ?: 0L
             val lastSyncAt = syncPrefs.getLong(WorkerContracts.KEY_LAST_SYNC_AT, 0L)
+            val mergeMode = syncStrategy == SyncConflictStrategy.MERGE
+            val shouldApplyRemote = shouldApplyRemoteBeforePush(
+                remoteExists = remote.exists(),
+                remoteUpdatedAt = remoteUpdatedAt,
+                lastSyncAt = lastSyncAt,
+                strategy = syncStrategy,
+                overwritePriority = syncOverwritePriority
+            )
 
-            if (remote.exists() && remoteUpdatedAt > lastSyncAt) {
+            if (shouldApplyRemote) {
                 if (remoteBackupJson != null) {
-                    applyBackupJson(remoteBackupJson, merge = true, selection = selection)
+                    applyBackupJson(
+                        root = remoteBackupJson,
+                        merge = mergeMode,
+                        selection = selection
+                    )
                 }
             }
 
@@ -93,18 +122,43 @@ class CloudSyncWorkerHandler @Inject constructor(
         } else {
             emptySet()
         }
+        val savedArticlesSnapshot = if (selection.includeSavedArticles) {
+            articleRepository.getSavedArticlesSnapshot()
+        } else {
+            emptyList()
+        }
         val lastRecommendationAt = if (selection.includeSubscriptions) {
             subscriptionsPrefs.getLong(WorkerContracts.KEY_LAST_RECOMMENDATION_AT, 0L)
         } else {
             0L
         }
+        DebugTrace.d(
+            "backup_sync",
+            "worker buildBackupJson savedThemes=${savedThemes.size} savedArticles=${savedArticlesSnapshot.size}"
+        )
 
         return JSONObject().apply {
             put("schemaVersion", 1)
             put("exportedAt", System.currentTimeMillis())
+            put(
+                "syncStrategy",
+                context.getSharedPreferences(WorkerContracts.SYNC_PREFS, 0)
+                    .getString(WorkerContracts.KEY_SYNC_STRATEGY, SyncConflictStrategy.MERGE.name)
+            )
+            put(
+                "syncOverwritePriority",
+                context.getSharedPreferences(WorkerContracts.SYNC_PREFS, 0)
+                    .getString(WorkerContracts.KEY_SYNC_OVERWRITE_PRIORITY, SyncOverwritePriority.LOCAL.name)
+            )
+            put(
+                "importStrategy",
+                context.getSharedPreferences(WorkerContracts.SYNC_PREFS, 0)
+                    .getString(WorkerContracts.KEY_IMPORT_STRATEGY, SyncConflictStrategy.MERGE.name)
+            )
             put("selection", JSONObject().apply {
                 put("sources", selection.includeSources)
                 put("subscriptions", selection.includeSubscriptions)
+                put("savedArticles", selection.includeSavedArticles)
                 put("settingsNoApi", selection.includeSettingsNoApi)
                 put("apiKeys", selection.includeApiKeys)
             })
@@ -136,10 +190,29 @@ class CloudSyncWorkerHandler @Inject constructor(
                     put(WorkerContracts.KEY_LAST_RECOMMENDATION_AT, lastRecommendationAt)
                 })
             }
+            if (selection.includeSavedArticles) {
+                put("savedArticles", JSONArray().apply {
+                    savedArticlesSnapshot.forEach { put(it.toBackupJson()) }
+                })
+            }
         }
     }
 
     private suspend fun applyBackupJson(root: JSONObject, merge: Boolean, selection: BackupSelection) {
+        val importedSyncStrategy = parseSyncConflictStrategy(root.optString("syncStrategy", SyncConflictStrategy.MERGE.name))
+        val importedOverwritePriority = parseSyncOverwritePriority(
+            root.optString("syncOverwritePriority", SyncOverwritePriority.LOCAL.name)
+        )
+        val importedImportStrategy = parseSyncConflictStrategy(
+            root.optString("importStrategy", SyncConflictStrategy.MERGE.name)
+        )
+        context.getSharedPreferences(WorkerContracts.SYNC_PREFS, 0)
+            .edit()
+            .putString(WorkerContracts.KEY_SYNC_STRATEGY, importedSyncStrategy.name)
+            .putString(WorkerContracts.KEY_SYNC_OVERWRITE_PRIORITY, importedOverwritePriority.name)
+            .putString(WorkerContracts.KEY_IMPORT_STRATEGY, importedImportStrategy.name)
+            .apply()
+
         val subscriptionsPrefs = context.getSharedPreferences(WorkerContracts.SUBSCRIPTIONS_PREFS, 0)
         val importedPrefs = root.optJSONObject("userPreferences")?.toUserPreferencesFromBackup()
         val importedConfigs = if (selection.includeApiKeys) {
@@ -153,6 +226,22 @@ class CloudSyncWorkerHandler @Inject constructor(
         }
         val importedGroups = root.optJSONArray("groups").toImportedGroupsFromBackup()
         val importedSubscriptions = root.optJSONObject("subscriptions")
+        val hasSavedArticlesField = root.has("savedArticles")
+        val rawSavedArticles = root.optJSONArray("savedArticles")
+        val importedSavedArticles = rawSavedArticles.toSavedArticlesFromBackup()
+        val importedSavedArticleUrls = rawSavedArticles
+            ?.let { arr ->
+                buildList {
+                    for (index in 0 until arr.length()) {
+                        if (arr.optJSONObject(index) != null) continue
+                        arr.optString(index).trim().takeIf { it.isNotBlank() }?.let(::add)
+                    }
+                }
+            }.orEmpty()
+        DebugTrace.d(
+            "backup_sync",
+            "worker applyBackupJson merge=$merge includeSaved=${selection.includeSavedArticles} hasSavedField=$hasSavedArticlesField importedSavedArticles=${importedSavedArticles.size} importedSavedUrlsLegacy=${importedSavedArticleUrls.size}"
+        )
 
         if (selection.includeSettingsNoApi && importedPrefs != null) {
             userPreferencesRepository.updatePreferences(importedPrefs.copy(id = 0))
@@ -212,6 +301,47 @@ class CloudSyncWorkerHandler @Inject constructor(
                     .remove(WorkerContracts.KEY_LAST_RECOMMENDATION_AT)
                     .apply()
             }
+        }
+
+        if (selection.includeSavedArticles && hasSavedArticlesField) {
+            if (importedSavedArticles.isNotEmpty()) {
+                if (merge) {
+                    articleRepository.mergeSavedArticlesSnapshot(importedSavedArticles)
+                } else {
+                    articleRepository.replaceSavedArticlesSnapshot(importedSavedArticles)
+                }
+            } else if (merge) {
+                articleRepository.mergeFavoriteArticlesByUrls(importedSavedArticleUrls)
+            } else {
+                articleRepository.replaceFavoriteArticlesByUrls(importedSavedArticleUrls)
+            }
+        }
+    }
+
+    private fun parseSyncConflictStrategy(rawValue: String?): SyncConflictStrategy {
+        return runCatching { SyncConflictStrategy.valueOf(rawValue.orEmpty()) }
+            .getOrDefault(SyncConflictStrategy.MERGE)
+    }
+
+    private fun parseSyncOverwritePriority(rawValue: String?): SyncOverwritePriority {
+        return runCatching { SyncOverwritePriority.valueOf(rawValue.orEmpty()) }
+            .getOrDefault(SyncOverwritePriority.LOCAL)
+    }
+
+    private fun shouldApplyRemoteBeforePush(
+        remoteExists: Boolean,
+        remoteUpdatedAt: Long,
+        lastSyncAt: Long,
+        strategy: SyncConflictStrategy,
+        overwritePriority: SyncOverwritePriority
+    ): Boolean {
+        if (!remoteExists) return false
+        if (strategy == SyncConflictStrategy.MERGE) {
+            return remoteUpdatedAt > lastSyncAt
+        }
+        return when (overwritePriority) {
+            SyncOverwritePriority.CLOUD -> true
+            SyncOverwritePriority.LOCAL -> false
         }
     }
 }

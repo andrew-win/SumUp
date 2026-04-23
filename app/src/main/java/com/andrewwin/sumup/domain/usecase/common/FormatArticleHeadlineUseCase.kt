@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.domain.usecase.common
 
+import android.net.Uri
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.SourceType
 import javax.inject.Inject
@@ -46,7 +47,7 @@ class FormatArticleHeadlineUseCase @Inject constructor() {
                 rawDescription = ""
             }
         } else {
-            displayTitle = article.title.trim().removeSuffix(".")
+            displayTitle = article.title.trim().removeSuffix(".").ifBlank { fallbackTitle(article) }
             val content = contentForDisplay.trim()
             
             // If content starts with the title, strip it
@@ -63,6 +64,24 @@ class FormatArticleHeadlineUseCase @Inject constructor() {
             displayTitle = displayTitle,
             displayContent = rawDescription
         )
+    }
+
+    private fun fallbackTitle(article: Article): String {
+        val contentLine = article.content
+            .lineSequence()
+            .map { it.trim() }
+            .firstOrNull { it.isNotBlank() && !it.startsWith("http") }
+            ?.take(120)
+            ?.removeSuffix(".")
+            .orEmpty()
+        if (contentLine.isNotBlank()) return contentLine
+
+        return runCatching {
+            val uri = Uri.parse(article.url)
+            val host = uri.host?.removePrefix("www.")?.ifBlank { null }
+            val path = uri.path?.trim('/')?.substringBefore('/')?.ifBlank { null }
+            listOfNotNull(host, path).joinToString(" • ").ifBlank { article.url }
+        }.getOrDefault(article.url)
     }
 
     companion object {

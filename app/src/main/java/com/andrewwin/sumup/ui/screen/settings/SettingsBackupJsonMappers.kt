@@ -8,6 +8,7 @@ import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.AppThemeMode
 import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
+import com.andrewwin.sumup.data.local.entities.SavedArticle
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
@@ -17,6 +18,14 @@ import com.andrewwin.sumup.domain.repository.ImportedSource
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import org.json.JSONArray
 import org.json.JSONObject
+
+private fun JSONObject.optNullableString(name: String): String? {
+    if (isNull(name)) return null
+    val value = optString(name, "").trim()
+    if (value.isBlank()) return null
+    if (value.equals("null", ignoreCase = true)) return null
+    return value
+}
 
 private fun parseDeduplicationStrategyOrDefault(
     rawValue: String?,
@@ -307,6 +316,50 @@ internal fun JSONArray?.toImportedSourcesFromBackup(): List<ImportedSource> {
         )
     }
     return sources
+}
+
+internal fun SavedArticle.toBackupJson(): JSONObject = JSONObject().apply {
+    put("url", url)
+    put("title", title)
+    put("content", content)
+    put("mediaUrl", mediaUrl ?: JSONObject.NULL)
+    put("videoId", videoId ?: JSONObject.NULL)
+    put("publishedAt", publishedAt)
+    put("viewCount", viewCount)
+    put("sourceName", sourceName ?: JSONObject.NULL)
+    put("groupName", groupName ?: JSONObject.NULL)
+    put("savedAt", savedAt)
+    put("clusterKey", clusterKey ?: JSONObject.NULL)
+    put("clusterScore", clusterScore.toDouble())
+}
+
+internal fun JSONArray?.toSavedArticlesFromBackup(): List<SavedArticle> {
+    if (this == null) return emptyList()
+    val items = mutableListOf<SavedArticle>()
+    for (index in 0 until length()) {
+        val obj = optJSONObject(index) ?: continue
+        val url = obj.optString("url", "").trim()
+        if (url.isBlank()) continue
+        val title = obj.optString("title", "").trim()
+        val content = obj.optString("content", "").trim()
+        items.add(
+            SavedArticle(
+                url = url,
+                title = title.ifBlank { url },
+                content = content.ifBlank { title.ifBlank { url } },
+                mediaUrl = obj.optNullableString("mediaUrl"),
+                videoId = obj.optNullableString("videoId"),
+                publishedAt = obj.optLong("publishedAt", System.currentTimeMillis()),
+                viewCount = obj.optLong("viewCount", 0L),
+                sourceName = obj.optNullableString("sourceName"),
+                groupName = obj.optNullableString("groupName"),
+                savedAt = obj.optLong("savedAt", System.currentTimeMillis()),
+                clusterKey = obj.optNullableString("clusterKey"),
+                clusterScore = obj.optDouble("clusterScore", 0.0).toFloat()
+            )
+        )
+    }
+    return items
 }
 
 

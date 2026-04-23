@@ -37,6 +37,7 @@ import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.settings.UpdateCustomSummaryPromptEnabledUseCase
 import com.andrewwin.sumup.domain.usecase.settings.UpdateSummaryPromptUseCase
@@ -72,9 +73,20 @@ sealed interface TransferState {
 data class BackupSelection(
     val includeSources: Boolean = true,
     val includeSubscriptions: Boolean = true,
+    val includeSavedArticles: Boolean = true,
     val includeSettingsNoApi: Boolean = true,
     val includeApiKeys: Boolean = false
 )
+
+enum class SyncConflictStrategy {
+    OVERWRITE,
+    MERGE
+}
+
+enum class SyncOverwritePriority {
+    LOCAL,
+    CLOUD
+}
 
 data class AuthUiState(
     val isSignedIn: Boolean = false,
@@ -133,6 +145,14 @@ class SettingsViewModel @Inject constructor(
     val syncIntervalHours: StateFlow<Int> = _syncIntervalHours.asStateFlow()
     private val _syncSelection = MutableStateFlow(BackupSelection())
     val syncSelection: StateFlow<BackupSelection> = _syncSelection.asStateFlow()
+    private val _syncStrategy = MutableStateFlow(SyncConflictStrategy.MERGE)
+    val syncStrategy: StateFlow<SyncConflictStrategy> = _syncStrategy.asStateFlow()
+    private val _syncOverwritePriority = MutableStateFlow(SyncOverwritePriority.LOCAL)
+    val syncOverwritePriority: StateFlow<SyncOverwritePriority> = _syncOverwritePriority.asStateFlow()
+    private val _importStrategy = MutableStateFlow(SyncConflictStrategy.MERGE)
+    val importStrategy: StateFlow<SyncConflictStrategy> = _importStrategy.asStateFlow()
+    private val _lastSyncAt = MutableStateFlow(0L)
+    val lastSyncAt: StateFlow<Long> = _lastSyncAt.asStateFlow()
     private val _exportSelection = MutableStateFlow(BackupSelection())
     val exportSelection: StateFlow<BackupSelection> = _exportSelection.asStateFlow()
     private val _importSelection = MutableStateFlow(BackupSelection())
@@ -147,6 +167,16 @@ class SettingsViewModel @Inject constructor(
         }
         _isCloudSyncEnabled.value = syncPrefs.getBoolean(KEY_SYNC_ENABLED, false)
         _syncIntervalHours.value = syncPrefs.getInt(KEY_SYNC_INTERVAL_HOURS, DEFAULT_SYNC_INTERVAL_HOURS)
+        _syncStrategy.value = parseSyncConflictStrategy(
+            syncPrefs.getString(KEY_SYNC_STRATEGY, SyncConflictStrategy.MERGE.name)
+        )
+        _syncOverwritePriority.value = parseSyncOverwritePriority(
+            syncPrefs.getString(KEY_SYNC_OVERWRITE_PRIORITY, SyncOverwritePriority.LOCAL.name)
+        )
+        _importStrategy.value = parseSyncConflictStrategy(
+            syncPrefs.getString(KEY_IMPORT_STRATEGY, SyncConflictStrategy.MERGE.name)
+        )
+        _lastSyncAt.value = syncPrefs.getLong(KEY_LAST_SYNC_AT, 0L)
         _syncSelection.value = readSelectionFromPrefs(KEY_PREFIX_SYNC)
         _exportSelection.value = readSelectionFromPrefs(KEY_PREFIX_EXPORT)
         _importSelection.value = readSelectionFromPrefs(KEY_PREFIX_IMPORT)
@@ -529,6 +559,21 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateSyncStrategy(strategy: SyncConflictStrategy) {
+        _syncStrategy.value = strategy
+        syncPrefs.edit().putString(KEY_SYNC_STRATEGY, strategy.name).apply()
+    }
+
+    fun updateSyncOverwritePriority(priority: SyncOverwritePriority) {
+        _syncOverwritePriority.value = priority
+        syncPrefs.edit().putString(KEY_SYNC_OVERWRITE_PRIORITY, priority.name).apply()
+    }
+
+    fun updateImportStrategy(strategy: SyncConflictStrategy) {
+        _importStrategy.value = strategy
+        syncPrefs.edit().putString(KEY_IMPORT_STRATEGY, strategy.name).apply()
+    }
+
     fun syncNow(selection: BackupSelection) {
         viewModelScope.launch {
             val uid = firebaseAuth.currentUser?.uid
@@ -540,6 +585,10 @@ class SettingsViewModel @Inject constructor(
 
             _transferState.value = TransferState.Working
             runCatching {
+                DebugTrace.d(
+                    "backup_sync",
+                    "syncNow strategy=${_syncStrategy.value.name} selection sources=${selection.includeSources} subscriptions=${selection.includeSubscriptions} saved=${selection.includeSavedArticles} settings=${selection.includeSettingsNoApi} apiKeys=${selection.includeApiKeys}"
+                )
                 val docRef = firestore.collection(CLOUD_COLLECTION).document(uid)
                 val remote = docRef.get().await()
                 val remoteBackupJson = remote.getString("backup")
@@ -547,9 +596,17 @@ class SettingsViewModel @Inject constructor(
                     ?.let(::JSONObject)
                 val remoteUpdatedAt = remote.getLong("updatedAt") ?: 0L
                 val lastSyncAt = syncPrefs.getLong(KEY_LAST_SYNC_AT, 0L)
-                if (remote.exists() && remoteUpdatedAt > lastSyncAt) {
+                val mergeMode = _syncStrategy.value == SyncConflictStrategy.MERGE
+                val shouldApplyRemote = shouldApplyRemoteBeforePush(
+                    remoteExists = remote.exists(),
+                    remoteUpdatedAt = remoteUpdatedAt,
+                    lastSyncAt = lastSyncAt,
+                    strategy = _syncStrategy.value,
+                    overwritePriority = _syncOverwritePriority.value
+                )
+                if (shouldApplyRemote) {
                     if (remoteBackupJson != null) {
-                        applyBackupJson(remoteBackupJson, merge = true, selection = selection)
+                        applyBackupJson(remoteBackupJson, merge = mergeMode, selection = selection)
                     }
                 }
                 val localBackup = buildBackupJson(selection, remoteBackupJson)
@@ -561,6 +618,7 @@ class SettingsViewModel @Inject constructor(
                     )
                 ).await()
                 syncPrefs.edit().putLong(KEY_LAST_SYNC_AT, now).apply()
+                _lastSyncAt.value = now
             }.onSuccess {
                 _transferState.value = TransferState.Success("Синхронізацію завершено")
             }.onFailure { e ->
@@ -607,6 +665,7 @@ class SettingsViewModel @Inject constructor(
         syncPrefs.edit()
             .putBoolean(prefKey(prefix, KEY_INCLUDE_SOURCES_SUFFIX), selection.includeSources)
             .putBoolean(prefKey(prefix, KEY_INCLUDE_SUBSCRIPTIONS_SUFFIX), selection.includeSubscriptions)
+            .putBoolean(prefKey(prefix, KEY_INCLUDE_SAVED_ARTICLES_SUFFIX), selection.includeSavedArticles)
             .putBoolean(prefKey(prefix, KEY_INCLUDE_SETTINGS_NO_API_SUFFIX), selection.includeSettingsNoApi)
             .putBoolean(prefKey(prefix, KEY_INCLUDE_API_KEYS_SUFFIX), selection.includeApiKeys)
             .apply()
@@ -615,6 +674,7 @@ class SettingsViewModel @Inject constructor(
     private fun readSelectionFromPrefs(prefix: String): BackupSelection = BackupSelection(
         includeSources = syncPrefs.getBoolean(prefKey(prefix, KEY_INCLUDE_SOURCES_SUFFIX), true),
         includeSubscriptions = syncPrefs.getBoolean(prefKey(prefix, KEY_INCLUDE_SUBSCRIPTIONS_SUFFIX), true),
+        includeSavedArticles = syncPrefs.getBoolean(prefKey(prefix, KEY_INCLUDE_SAVED_ARTICLES_SUFFIX), true),
         includeSettingsNoApi = syncPrefs.getBoolean(prefKey(prefix, KEY_INCLUDE_SETTINGS_NO_API_SUFFIX), true),
         includeApiKeys = syncPrefs.getBoolean(prefKey(prefix, KEY_INCLUDE_API_KEYS_SUFFIX), false)
     )
@@ -673,6 +733,15 @@ class SettingsViewModel @Inject constructor(
         } else {
             emptySet()
         }
+        val savedArticlesSnapshot = if (selection.includeSavedArticles) {
+            articleRepository.getSavedArticlesSnapshot()
+        } else {
+            emptyList()
+        }
+        DebugTrace.d(
+            "backup_sync",
+            "buildBackupJson savedThemes=${savedThemes.size} savedArticles=${savedArticlesSnapshot.size} includeSaved=${selection.includeSavedArticles}"
+        )
         val lastRecommendationAt = if (selection.includeSubscriptions) {
             subscriptionsPrefs.getLong(KEY_LAST_RECOMMENDATION_AT, 0L)
         } else {
@@ -682,9 +751,13 @@ class SettingsViewModel @Inject constructor(
         return JSONObject().apply {
             put("schemaVersion", 1)
             put("exportedAt", System.currentTimeMillis())
+            put("syncStrategy", _syncStrategy.value.name)
+            put("syncOverwritePriority", _syncOverwritePriority.value.name)
+            put("importStrategy", _importStrategy.value.name)
             put("selection", JSONObject().apply {
                 put("sources", selection.includeSources)
                 put("subscriptions", selection.includeSubscriptions)
+                put("savedArticles", selection.includeSavedArticles)
                 put("settingsNoApi", selection.includeSettingsNoApi)
                 put("apiKeys", selection.includeApiKeys)
             })
@@ -716,10 +789,26 @@ class SettingsViewModel @Inject constructor(
                     put(KEY_LAST_RECOMMENDATION_AT, lastRecommendationAt)
                 })
             }
+            if (selection.includeSavedArticles) {
+                put("savedArticles", JSONArray().apply {
+                    savedArticlesSnapshot.forEach { put(it.toBackupJson()) }
+                })
+            }
         }
     }
 
     private suspend fun applyBackupJson(root: JSONObject, merge: Boolean, selection: BackupSelection) {
+        val importedSyncStrategy = parseSyncConflictStrategy(root.optString("syncStrategy", _syncStrategy.value.name))
+        updateSyncStrategy(importedSyncStrategy)
+        val importedOverwritePriority = parseSyncOverwritePriority(
+            root.optString("syncOverwritePriority", _syncOverwritePriority.value.name)
+        )
+        updateSyncOverwritePriority(importedOverwritePriority)
+        val importedImportStrategy = parseSyncConflictStrategy(
+            root.optString("importStrategy", _importStrategy.value.name)
+        )
+        updateImportStrategy(importedImportStrategy)
+
         val importedPrefs = root.optJSONObject("userPreferences")?.toUserPreferencesFromBackup()
         val importedConfigs = if (selection.includeApiKeys) {
             root.optJSONArray("aiConfigs").toAiConfigsFromBackup(
@@ -731,6 +820,22 @@ class SettingsViewModel @Inject constructor(
         }
         val importedGroups = root.optJSONArray("groups").toImportedGroupsFromBackup()
         val importedSubscriptions = root.optJSONObject("subscriptions")
+        val hasSavedArticlesField = root.has("savedArticles")
+        val rawSavedArticles = root.optJSONArray("savedArticles")
+        val importedSavedArticles = rawSavedArticles.toSavedArticlesFromBackup()
+        val importedSavedArticleUrls = rawSavedArticles
+            ?.let { arr ->
+                buildList {
+                    for (index in 0 until arr.length()) {
+                        if (arr.optJSONObject(index) != null) continue
+                        arr.optString(index).trim().takeIf { it.isNotBlank() }?.let(::add)
+                    }
+                }
+            }.orEmpty()
+        DebugTrace.d(
+            "backup_sync",
+            "applyBackupJson merge=$merge includeSaved=${selection.includeSavedArticles} hasSavedField=$hasSavedArticlesField importedSavedArticles=${importedSavedArticles.size} importedSavedUrlsLegacy=${importedSavedArticleUrls.size}"
+        )
 
         if (selection.includeSettingsNoApi && importedPrefs != null) {
             userPreferencesRepository.updatePreferences(importedPrefs.copy(id = 0))
@@ -796,6 +901,20 @@ class SettingsViewModel @Inject constructor(
                     .apply()
             }
         }
+
+        if (selection.includeSavedArticles && hasSavedArticlesField) {
+            if (importedSavedArticles.isNotEmpty()) {
+                if (merge) {
+                    articleRepository.mergeSavedArticlesSnapshot(importedSavedArticles)
+                } else {
+                    articleRepository.replaceSavedArticlesSnapshot(importedSavedArticles)
+                }
+            } else if (merge) {
+                articleRepository.mergeFavoriteArticlesByUrls(importedSavedArticleUrls)
+            } else {
+                articleRepository.replaceFavoriteArticlesByUrls(importedSavedArticleUrls)
+            }
+        }
     }
 
     private suspend fun updatePreferences(transform: (UserPreferences) -> UserPreferences) {
@@ -834,11 +953,15 @@ class SettingsViewModel @Inject constructor(
         private const val SYNC_PREFS = "sync_prefs"
         private const val KEY_SYNC_ENABLED = "sync_enabled"
         private const val KEY_SYNC_INTERVAL_HOURS = "sync_interval_hours"
+        private const val KEY_SYNC_STRATEGY = "sync_strategy"
+        private const val KEY_SYNC_OVERWRITE_PRIORITY = "sync_overwrite_priority"
+        private const val KEY_IMPORT_STRATEGY = "import_strategy"
         private const val KEY_PREFIX_SYNC = "sync"
         private const val KEY_PREFIX_EXPORT = "export"
         private const val KEY_PREFIX_IMPORT = "import"
         private const val KEY_INCLUDE_SOURCES_SUFFIX = "include_sources"
         private const val KEY_INCLUDE_SUBSCRIPTIONS_SUFFIX = "include_subscriptions"
+        private const val KEY_INCLUDE_SAVED_ARTICLES_SUFFIX = "include_saved_articles"
         private const val KEY_INCLUDE_SETTINGS_NO_API_SUFFIX = "include_settings_no_api"
         private const val KEY_INCLUDE_API_KEYS_SUFFIX = "include_api_keys"
         private const val KEY_LAST_SYNC_AT = "last_sync_at"
@@ -847,6 +970,33 @@ class SettingsViewModel @Inject constructor(
         private const val KEY_LAST_RECOMMENDATION_AT = "lastRecommendationAt"
         private const val DEFAULT_SYNC_INTERVAL_HOURS = 24
         private const val MIN_SYNC_PASSPHRASE_LENGTH = 8
+    }
+
+    private fun parseSyncConflictStrategy(rawValue: String?): SyncConflictStrategy {
+        return runCatching { SyncConflictStrategy.valueOf(rawValue.orEmpty()) }
+            .getOrDefault(SyncConflictStrategy.MERGE)
+    }
+
+    private fun parseSyncOverwritePriority(rawValue: String?): SyncOverwritePriority {
+        return runCatching { SyncOverwritePriority.valueOf(rawValue.orEmpty()) }
+            .getOrDefault(SyncOverwritePriority.LOCAL)
+    }
+
+    private fun shouldApplyRemoteBeforePush(
+        remoteExists: Boolean,
+        remoteUpdatedAt: Long,
+        lastSyncAt: Long,
+        strategy: SyncConflictStrategy,
+        overwritePriority: SyncOverwritePriority
+    ): Boolean {
+        if (!remoteExists) return false
+        if (strategy == SyncConflictStrategy.MERGE) {
+            return remoteUpdatedAt > lastSyncAt
+        }
+        return when (overwritePriority) {
+            SyncOverwritePriority.CLOUD -> true
+            SyncOverwritePriority.LOCAL -> false
+        }
     }
 }
 

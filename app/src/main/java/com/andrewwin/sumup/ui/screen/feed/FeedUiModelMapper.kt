@@ -17,6 +17,7 @@ class FeedUiModelMapper @Inject constructor(
     fun map(
         clusters: List<ArticleCluster>,
         groupsWithSources: List<GroupWithSources>,
+        favoriteSavedAt: Map<Long, Long>,
         ellipsis: String
     ): List<ArticleClusterUiModel> {
         val sourcesMap = groupsWithSources.flatMap { it.sources }.associateBy { it.id }
@@ -28,6 +29,7 @@ class FeedUiModelMapper @Inject constructor(
                     article = cluster.representative,
                     sources = sourcesMap,
                     groups = groupMap,
+                    favoriteSavedAt = favoriteSavedAt,
                     ellipsis = ellipsis,
                     includeGroup = true
                 ),
@@ -36,6 +38,7 @@ class FeedUiModelMapper @Inject constructor(
                         article = article,
                         sources = sourcesMap,
                         groups = groupMap,
+                        favoriteSavedAt = favoriteSavedAt,
                         ellipsis = ellipsis,
                         includeGroup = false
                     ) to score
@@ -48,6 +51,7 @@ class FeedUiModelMapper @Inject constructor(
         article: Article,
         sources: Map<Long, Source>,
         groups: Map<Long, SourceGroup>,
+        favoriteSavedAt: Map<Long, Long>,
         ellipsis: String,
         includeGroup: Boolean
     ): ArticleUiModel {
@@ -63,7 +67,8 @@ class FeedUiModelMapper @Inject constructor(
             displayTitle = formatted.displayTitle,
             displayContent = formatDescription(formatted.displayContent, ellipsis),
             sourceName = source?.name,
-            groupName = if (includeGroup) group?.name else null
+            groupName = if (includeGroup) group?.name else null,
+            savedAt = favoriteSavedAt[article.id]
         )
     }
 

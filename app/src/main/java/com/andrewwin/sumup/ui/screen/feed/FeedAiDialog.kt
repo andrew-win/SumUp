@@ -53,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -154,6 +155,7 @@ fun FeedAiDialog(
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
                 ) {
+                    var compareTabIndex by rememberSaveable { mutableIntStateOf(0) }
                     if (isAiLoading) {
                         Box(
                             Modifier
@@ -186,6 +188,8 @@ fun FeedAiDialog(
                                 CompareBlocksView(
                                     commonItems = compareBlocks.common,
                                     differentItems = compareBlocks.different,
+                                    selectedTabIndex = compareTabIndex,
+                                    onSelectedTabIndexChange = { compareTabIndex = it },
                                     sourceLabelMap = sourceLabelMap,
                                     onOpenWebView = onOpenWebView
                                 )
@@ -513,6 +517,8 @@ private fun parseCompareBlocks(raw: String): CompareBlocksUi? {
 private fun CompareBlocksView(
     commonItems: List<CompareItemUi>,
     differentItems: List<CompareItemUi>,
+    selectedTabIndex: Int,
+    onSelectedTabIndexChange: (Int) -> Unit,
     sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
@@ -520,18 +526,16 @@ private fun CompareBlocksView(
         stringResource(R.string.summary_compare_common),
         stringResource(R.string.summary_compare_unique)
     )
-    var selectedTabIndex by remember(commonItems, differentItems) {
-        mutableIntStateOf(0)
-    }
-    val tabItems = if (selectedTabIndex == 0) commonItems else differentItems
+    val currentTab = selectedTabIndex.coerceIn(0, 1)
+    val tabItems = if (currentTab == 0) commonItems else differentItems
 
     AppCardSurface(modifier = Modifier.fillMaxWidth()) {
         Column {
-            TabRow(selectedTabIndex = selectedTabIndex) {
+            TabRow(selectedTabIndex = currentTab) {
                 tabTitles.forEachIndexed { index, title ->
                     Tab(
-                        selected = selectedTabIndex == index,
-                        onClick = { selectedTabIndex = index },
+                        selected = currentTab == index,
+                        onClick = { onSelectedTabIndexChange(index) },
                         text = { Text(text = title) }
                     )
                 }

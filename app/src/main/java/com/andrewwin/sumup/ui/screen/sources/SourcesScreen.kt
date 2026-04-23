@@ -102,7 +102,7 @@ fun SourcesScreen(
                                 val selected = uiState
                                     .map { it.group }
                                     .filter { selectedGroupIds.contains(it.id) }
-                                selected.forEach { viewModel.deleteGroup(it) }
+                                viewModel.deleteGroups(selected)
                                 selectedGroupIds.clear()
                             },
                             clearDescription = "Exit selection mode",

@@ -80,6 +80,10 @@ fun SettingsScreen(
     val authUiState by viewModel.authUiState.collectAsState()
     val isCloudSyncEnabled by viewModel.isCloudSyncEnabled.collectAsState()
     val syncIntervalHours by viewModel.syncIntervalHours.collectAsState()
+    val syncStrategy by viewModel.syncStrategy.collectAsState()
+    val syncOverwritePriority by viewModel.syncOverwritePriority.collectAsState()
+    val importStrategy by viewModel.importStrategy.collectAsState()
+    val lastSyncAt by viewModel.lastSyncAt.collectAsState()
     val syncSelectionState by viewModel.syncSelection.collectAsState()
     val exportSelectionState by viewModel.exportSelection.collectAsState()
     val importSelectionState by viewModel.importSelection.collectAsState()
@@ -115,18 +119,21 @@ fun SettingsScreen(
     val syncSelection = BackupSelection(
         includeSources = syncSelectionState.includeSources,
         includeSubscriptions = syncSelectionState.includeSubscriptions,
+        includeSavedArticles = syncSelectionState.includeSavedArticles,
         includeSettingsNoApi = syncSelectionState.includeSettingsNoApi,
         includeApiKeys = syncSelectionState.includeApiKeys
     )
     val exportSelection = BackupSelection(
         includeSources = exportSelectionState.includeSources,
         includeSubscriptions = exportSelectionState.includeSubscriptions,
+        includeSavedArticles = exportSelectionState.includeSavedArticles,
         includeSettingsNoApi = exportSelectionState.includeSettingsNoApi,
         includeApiKeys = exportSelectionState.includeApiKeys
     )
     val importSelection = BackupSelection(
         includeSources = importSelectionState.includeSources,
         includeSubscriptions = importSelectionState.includeSubscriptions,
+        includeSavedArticles = importSelectionState.includeSavedArticles,
         includeSettingsNoApi = importSelectionState.includeSettingsNoApi,
         includeApiKeys = importSelectionState.includeApiKeys
     )
@@ -145,13 +152,13 @@ fun SettingsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            viewModel.importSettingsAndSources(
-                uri = uri,
-                merge = true,
-                selection = importSelection
-            )
+                viewModel.importSettingsAndSources(
+                    uri = uri,
+                    merge = importStrategy == SyncConflictStrategy.MERGE,
+                    selection = importSelection
+                )
+            }
         }
-    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -403,11 +410,16 @@ fun SettingsScreen(
                             authUiState = authUiState,
                             isCloudSyncEnabled = isCloudSyncEnabled,
                             syncIntervalHours = syncIntervalHours,
+                            syncStrategy = syncStrategy,
+                            syncOverwritePriority = syncOverwritePriority,
+                            lastSyncAt = lastSyncAt,
                             syncSelection = syncSelection,
                             hasSyncPassphrase = hasSyncPassphrase,
                             transferState = transferState,
                             onHelpRequest = { helpDescription = it },
                             onSyncIntervalSelect = viewModel::updateSyncIntervalHours,
+                            onSyncStrategySelect = viewModel::updateSyncStrategy,
+                            onSyncOverwritePrioritySelect = viewModel::updateSyncOverwritePriority,
                             onSyncEnabledChange = { enabled ->
                                 viewModel.setCloudSyncEnabled(enabled, syncSelection)
                             },
@@ -425,10 +437,14 @@ fun SettingsScreen(
                             isHelpMode = isHelpMode,
                             exportSelection = exportSelection,
                             importSelection = importSelection,
+                            importStrategy = importStrategy,
+                            hasSyncPassphrase = hasSyncPassphrase,
                             transferState = transferState,
                             onHelpRequest = { helpDescription = it },
                             onExportSelectionChange = viewModel::updateExportSelection,
                             onImportSelectionChange = viewModel::updateImportSelection,
+                            onImportStrategyChange = viewModel::updateImportStrategy,
+                            onManageSyncPassphrase = { showSyncPassphraseDialog = true },
                             onImportClick = {
                                 importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
                             },
@@ -744,6 +760,12 @@ private fun SettingsGroup.searchableTextResIds(): List<Int> = when (this) {
         R.string.settings_account_login_subtitle,
         R.string.settings_account_login_btn,
         R.string.settings_sync,
+        R.string.settings_sync_strategy_title,
+        R.string.settings_sync_strategy_overwrite,
+        R.string.settings_sync_strategy_merge,
+        R.string.settings_sync_overwrite_priority_title,
+        R.string.settings_sync_overwrite_priority_local,
+        R.string.settings_sync_overwrite_priority_cloud,
         R.string.settings_sync_enabled,
         R.string.settings_sync_interval_label,
         R.string.settings_sync_now,
@@ -760,6 +782,9 @@ private fun SettingsGroup.searchableTextResIds(): List<Int> = when (this) {
         R.string.settings_import_block_title,
         R.string.settings_export_button,
         R.string.settings_import_button,
+        R.string.settings_import_strategy_title,
+        R.string.settings_sync_strategy_overwrite,
+        R.string.settings_sync_strategy_merge,
         R.string.settings_backup_sources,
         R.string.settings_backup_subscriptions,
         R.string.settings_backup_settings_no_api,

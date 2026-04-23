@@ -30,6 +30,23 @@ interface ArticleDao {
     fun getEnabledArticles(): Flow<List<Article>>
 
     @Query("""
+        SELECT * FROM articles
+        ORDER BY publishedAt DESC
+        LIMIT 500
+    """)
+    fun getAllArticles(): Flow<List<Article>>
+
+    @Query("SELECT * FROM articles ORDER BY publishedAt DESC")
+    suspend fun getAllArticlesOnce(): List<Article>
+
+    @Query("""
+        SELECT * FROM articles
+        WHERE isFavorite = 1
+        ORDER BY publishedAt DESC
+    """)
+    fun getFavoriteArticles(): Flow<List<Article>>
+
+    @Query("""
         SELECT
             articles.id,
             articles.sourceId,
@@ -114,6 +131,34 @@ interface ArticleDao {
     @Update
     suspend fun updateArticles(articles: List<Article>)
 
+    @Query("UPDATE articles SET isFavorite = :isFavorite WHERE id IN (:ids)")
+    suspend fun setFavoriteByIds(ids: List<Long>, isFavorite: Boolean): Int
+
+    @Query(
+        """
+        SELECT
+            articles.id AS id,
+            articles.sourceId AS sourceId,
+            articles.title AS title,
+            articles.content AS content,
+            articles.mediaUrl AS mediaUrl,
+            articles.videoId AS videoId,
+            articles.url AS url,
+            articles.publishedAt AS publishedAt,
+            articles.viewCount AS viewCount,
+            articles.isRead AS isRead,
+            articles.isFavorite AS isFavorite,
+            NULL AS embedding,
+            sources.name AS sourceName,
+            source_groups.name AS groupName
+        FROM articles
+        LEFT JOIN sources ON sources.id = articles.sourceId
+        LEFT JOIN source_groups ON source_groups.id = sources.groupId
+        WHERE articles.id IN (:ids)
+        """
+    )
+    suspend fun getArticlesWithMetaByIds(ids: List<Long>): List<ArticleWithMeta>
+
     @Query("SELECT id, embedding FROM articles WHERE id IN (:ids)")
     suspend fun getEmbeddingsByIds(ids: List<Long>): List<ArticleEmbedding>
 
@@ -137,11 +182,37 @@ interface ArticleDao {
 
     @Query("SELECT COUNT(*) FROM articles WHERE publishedAt < :timestamp")
     suspend fun countArticlesOlderThan(timestamp: Long): Int
+
+    @Query("SELECT url FROM articles WHERE isFavorite = 1")
+    suspend fun getFavoriteArticleUrls(): List<String>
+
+    @Query("UPDATE articles SET isFavorite = 0")
+    suspend fun clearAllFavorites(): Int
+
+    @Query("UPDATE articles SET isFavorite = 1 WHERE url IN (:urls)")
+    suspend fun markFavoritesByUrls(urls: List<String>): Int
 }
 
 data class ArticleEmbedding(
     val id: Long,
     val embedding: ByteArray?
+)
+
+data class ArticleWithMeta(
+    val id: Long,
+    val sourceId: Long,
+    val title: String,
+    val content: String,
+    val mediaUrl: String?,
+    val videoId: String?,
+    val url: String,
+    val publishedAt: Long,
+    val viewCount: Long,
+    val isRead: Boolean,
+    val isFavorite: Boolean,
+    val embedding: ByteArray?,
+    val sourceName: String?,
+    val groupName: String?
 )
 
 

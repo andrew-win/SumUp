@@ -6,9 +6,13 @@ object WorkerContracts {
     const val SUBSCRIPTIONS_PREFS = "suggested_themes_prefs"
 
     const val KEY_SYNC_ENABLED = "sync_enabled"
+    const val KEY_SYNC_STRATEGY = "sync_strategy"
+    const val KEY_SYNC_OVERWRITE_PRIORITY = "sync_overwrite_priority"
+    const val KEY_IMPORT_STRATEGY = "import_strategy"
     const val KEY_LAST_SYNC_AT = "last_sync_at"
     const val KEY_SYNC_INCLUDE_SOURCES = "sync_include_sources"
     const val KEY_SYNC_INCLUDE_SUBSCRIPTIONS = "sync_include_subscriptions"
+    const val KEY_SYNC_INCLUDE_SAVED_ARTICLES = "sync_include_saved_articles"
     const val KEY_SYNC_INCLUDE_SETTINGS_NO_API = "sync_include_settings_no_api"
     const val KEY_SYNC_INCLUDE_API_KEYS = "sync_include_api_keys"
     const val KEY_SAVED_THEMES = "savedThemes"

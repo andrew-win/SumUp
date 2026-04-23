@@ -120,14 +120,28 @@ class FeedViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GetFeedArticlesUseCase.FeedResult(emptyList(), false))
 
+    private val favoriteSavedAtFlow: StateFlow<Map<Long, Long>> = feedResultFlow
+        .mapLatest { feed ->
+            val ids = buildList {
+                feed.clusters.forEach { cluster ->
+                    add(cluster.representative.id)
+                    addAll(cluster.duplicates.map { it.first.id })
+                }
+            }.distinct()
+            articleRepository.getFavoriteSavedAt(ids)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
     private val feedUiState: StateFlow<FeedUiState> = combine(
         feedResultFlow,
         groupsWithSources,
-        favoriteOverrides
-    ) { feed, groupsList, overrides ->
+        favoriteOverrides,
+        favoriteSavedAtFlow
+    ) { feed, groupsList, overrides, favoriteSavedAt ->
         val mappedClusters = feedUiModelMapper.map(
             clusters = feed.clusters,
             groupsWithSources = groupsList,
+            favoriteSavedAt = favoriteSavedAt,
             ellipsis = getApplication<Application>().getString(R.string.ellipsis)
         )
         val clusters = applyFavoriteOverrides(mappedClusters, overrides)
@@ -176,18 +190,51 @@ class FeedViewModel @Inject constructor(
     fun setSavedFilter(filter: SavedFilter) { _savedFilter.value = filter }
     fun clearAiResult() { _aiResult.value = null }
 
-    fun toggleSaved(article: Article) {
-        val newFavorite = !article.isFavorite
+    fun toggleSaved(cluster: ArticleClusterUiModel) {
+        val clusterArticles = buildList {
+            add(cluster.representative.article)
+            addAll(cluster.duplicates.map { it.first.article })
+        }
+        if (clusterArticles.isEmpty()) return
+        val clusterIds = clusterArticles.map { it.id }.distinct()
+        val newFavorite = clusterArticles.any { !it.isFavorite }
+        val previousOverrides = favoriteOverrides.value
+
         favoriteOverrides.update { current ->
-            current + (article.id to newFavorite)
+            val updated = current.toMutableMap()
+            clusterArticles.forEach { article ->
+                updated[article.id] = newFavorite
+            }
+            updated
         }
         viewModelScope.launch {
             runCatching {
-                articleRepository.updateArticle(article.copy(isFavorite = newFavorite))
-            }.onFailure {
-                favoriteOverrides.update { current ->
-                    current - article.id
+                val updated = articleRepository.setFavoriteByIds(clusterIds, newFavorite)
+                if (newFavorite) {
+                    val clusterKey = if (clusterIds.size > 1) {
+                        "cluster:${cluster.representative.article.id}"
+                    } else {
+                        ""
+                    }
+                    val scoreByArticleId = buildMap {
+                        put(cluster.representative.article.id, 0f)
+                        cluster.duplicates.forEach { (duplicate, score) ->
+                            put(duplicate.article.id, score)
+                        }
+                    }
+                    articleRepository.saveFavoriteClusterMapping(clusterIds, clusterKey)
+                    articleRepository.saveFavoriteClusterScores(scoreByArticleId)
+                    articleRepository.saveFavoriteSavedAt(clusterIds)
+                } else {
+                    articleRepository.clearFavoriteClusterMapping(clusterIds)
+                    articleRepository.clearFavoriteSavedAt(clusterIds)
                 }
+                DebugTrace.d(
+                    "favorites",
+                    "toggleSaved clusterSize=${clusterIds.size} updated=$updated newFavorite=$newFavorite representativeId=${cluster.representative.article.id}"
+                )
+            }.onFailure {
+                favoriteOverrides.value = previousOverrides
             }
         }
     }

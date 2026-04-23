@@ -9,6 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
+import com.andrewwin.sumup.data.local.dao.SavedArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
@@ -19,6 +20,7 @@ import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.data.local.entities.UserPreferences
+import com.andrewwin.sumup.data.local.entities.SavedArticle
 
 @Database(
     entities = [
@@ -26,17 +28,19 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
         Source::class, 
         Article::class, 
         ArticleSimilarity::class,
+        SavedArticle::class,
         AiModelConfig::class, 
         Summary::class,
         UserPreferences::class
     ],
-    version = 41,
+    version = 43,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sourceDao(): SourceDao
     abstract fun articleDao(): ArticleDao
     abstract fun articleSimilarityDao(): ArticleSimilarityDao
+    abstract fun savedArticleDao(): SavedArticleDao
     abstract fun aiModelDao(): AiModelDao
     abstract fun summaryDao(): SummaryDao
     abstract fun userPreferencesDao(): UserPreferencesDao
@@ -63,7 +67,9 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_37_38,
                         MIGRATION_38_39,
                         MIGRATION_39_40,
-                        MIGRATION_40_41
+                        MIGRATION_40_41,
+                        MIGRATION_41_42,
+                        MIGRATION_42_43
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -171,6 +177,72 @@ abstract class AppDatabase : RoomDatabase() {
                     SET deduplicationStrategy = 'CLOUD'
                     WHERE deduplicationStrategy = 'ADAPTIVE' OR deduplicationStrategy IS NULL
                     """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_41_42 = object : Migration(41, 42) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS saved_articles (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        url TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        mediaUrl TEXT,
+                        videoId TEXT,
+                        publishedAt INTEGER NOT NULL,
+                        viewCount INTEGER NOT NULL,
+                        sourceName TEXT,
+                        groupName TEXT,
+                        savedAt INTEGER NOT NULL,
+                        clusterKey TEXT,
+                        clusterScore REAL NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_saved_articles_url ON saved_articles(url)"
+                )
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO saved_articles (
+                        url, title, content, mediaUrl, videoId, publishedAt, viewCount, sourceName, groupName, savedAt, clusterKey, clusterScore
+                    )
+                    SELECT
+                        a.url,
+                        CASE
+                            WHEN TRIM(COALESCE(a.title, '')) != '' THEN a.title
+                            ELSE COALESCE(s.name, a.url)
+                        END AS title,
+                        COALESCE(a.content, a.url) AS content,
+                        a.mediaUrl,
+                        a.videoId,
+                        a.publishedAt,
+                        a.viewCount,
+                        s.name AS sourceName,
+                        sg.name AS groupName,
+                        CAST(strftime('%s','now') AS INTEGER) * 1000 AS savedAt,
+                        NULL AS clusterKey,
+                        0 AS clusterScore
+                    FROM articles a
+                    LEFT JOIN sources s ON s.id = a.sourceId
+                    LEFT JOIN source_groups sg ON sg.id = s.groupId
+                    WHERE a.isFavorite = 1
+                    """.trimIndent()
+                )
+                db.execSQL("UPDATE articles SET isFavorite = 0 WHERE isFavorite = 1")
+                db.execSQL("DELETE FROM sources WHERE url = 'sumup://saved-fallback'")
+                db.execSQL("DELETE FROM source_groups WHERE name = 'Saved Items'")
+                db.execSQL("DELETE FROM source_groups WHERE name = '__internal_saved_group'")
+            }
+        }
+
+        private val MIGRATION_42_43 = object : Migration(42, 43) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE saved_articles ADD COLUMN clusterScore REAL NOT NULL DEFAULT 0"
                 )
             }
         }

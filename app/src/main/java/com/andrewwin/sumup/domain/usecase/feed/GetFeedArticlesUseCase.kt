@@ -42,9 +42,13 @@ class GetFeedArticlesUseCase @Inject constructor(
     ): Flow<FeedResult> {
         val flow1 = combine(
             articleRepository.enabledArticles,
+            articleRepository.allArticles,
+            articleRepository.favoriteArticles,
             sourceRepository.groupsWithSources,
             searchQueryFlow
-        ) { articles, groups, query -> Triple(articles, groups, query) }
+        ) { enabledArticles, allArticles, favoriteArticles, groups, query ->
+            FeedData(enabledArticles, allArticles, favoriteArticles, groups, query)
+        }
 
         val flow2 = combine(
             selectedGroupIdFlow,
@@ -55,8 +59,12 @@ class GetFeedArticlesUseCase @Inject constructor(
             FeedFilterParams(groupId, dateFilterHours, savedOnly, prefs)
         }
 
-        return combine(flow1, flow2) { triple1, triple2 ->
-            val (articles, groupsWithSources, query) = triple1
+        return combine(flow1, flow2) { data, triple2 ->
+            val enabledArticles = data.enabledArticles
+            val allArticles = data.allArticles
+            val favoriteArticles = data.favoriteArticles
+            val groupsWithSources = data.groupsWithSources
+            val query = data.query
             val groupId = triple2.groupId
             val dateFilterHours = triple2.dateFilterHours
             val savedOnly = triple2.savedOnly
@@ -66,27 +74,29 @@ class GetFeedArticlesUseCase @Inject constructor(
                 .flatMap { it.sources }
                 .associate { it.id to it.type }
 
-            var processedArticles = articles
+            var processedArticles = if (savedOnly) favoriteArticles else enabledArticles
 
-            if (groupId != null) {
-                val sourceIds = groupsWithSources
-                    .firstOrNull { it.group.id == groupId }
-                    ?.sources
-                    ?.map { it.id }
-                    .orEmpty()
-                processedArticles = processedArticles.filter { it.sourceId in sourceIds }
-            }
+            if (!savedOnly) {
+                if (groupId != null) {
+                    val sourceIds = groupsWithSources
+                        .firstOrNull { it.group.id == groupId }
+                        ?.sources
+                        ?.map { it.id }
+                        .orEmpty()
+                    processedArticles = processedArticles.filter { it.sourceId in sourceIds }
+                }
 
-            dateFilterHours?.let { hours ->
-                val threshold = System.currentTimeMillis() - (hours * 60 * 60 * 1000L)
-                processedArticles = processedArticles.filter { it.publishedAt >= threshold }
+                dateFilterHours?.let { hours ->
+                    val threshold = System.currentTimeMillis() - (hours * 60 * 60 * 1000L)
+                    processedArticles = processedArticles.filter { it.publishedAt >= threshold }
+                }
             }
 
             if (savedOnly) {
                 processedArticles = processedArticles.filter { it.isFavorite }
             }
 
-            if (query.isNotBlank()) {
+            if (!savedOnly && query.isNotBlank()) {
                 val tokens = tokenizeQuery(query)
                 processedArticles = processedArticles.filter { article ->
                     matchesQueryWithTokenThreshold(
@@ -97,20 +107,22 @@ class GetFeedArticlesUseCase @Inject constructor(
                 }
             }
 
-            if (prefs.isImportanceFilterEnabled) {
+            if (!savedOnly && prefs.isImportanceFilterEnabled) {
                 processedArticles = processedArticles.filter { article ->
                     val sourceType = sourceTypeMap[article.sourceId] ?: SourceType.RSS
                     importanceScorer.score(article, sourceType) >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
                 }
             }
 
-            FeedPipelineState(processedArticles, prefs)
+            FeedPipelineState(processedArticles, prefs, savedOnly)
         }.flowOn(Dispatchers.Default)
             .flatMapLatest { state ->
                 flow {
                     coroutineScope {
                         val baseClusters = if (state.articles.isNotEmpty()) {
-                            if (!state.prefs.isDeduplicationEnabled) {
+                            if (state.savedOnly) {
+                                buildSavedFavoriteClusters(state.articles)
+                            } else if (!state.prefs.isDeduplicationEnabled) {
                                 state.articles.map { ArticleCluster(it, emptyList()) }
                             } else {
                                 withContext(Dispatchers.IO) {
@@ -127,14 +139,14 @@ class GetFeedArticlesUseCase @Inject constructor(
                             baseClusters
                         }
 
-                        val initial = applyMinMentionsFilter(initialClusters, state.prefs)
+                        val initial = applyMinMentionsFilter(initialClusters, state.prefs, state.savedOnly)
                         val shouldRunDedup = state.shouldDedup && state.articles.size >= 2
 
                         val dedupInputKey = buildDedupInputKey(state.articles, state.prefs)
                         val cachedClusters = lastDedupClusters
                         if (shouldRunDedup && dedupInputKey == lastDedupInputKey && cachedClusters != null) {
                             val rebound = rebindClustersWithLatestArticles(cachedClusters, state.articles)
-                            emit(FeedResult(applyMinMentionsFilter(rebound, state.prefs), false))
+                            emit(FeedResult(applyMinMentionsFilter(rebound, state.prefs, state.savedOnly), false))
                             return@coroutineScope
                         }
 
@@ -172,7 +184,7 @@ class GetFeedArticlesUseCase @Inject constructor(
                                 emitEvery = DEDUP_EMIT_EVERY
                             )
                             .collect { clusters ->
-                                val filtered = applyMinMentionsFilter(clusters, state.prefs)
+                                val filtered = applyMinMentionsFilter(clusters, state.prefs, state.savedOnly)
                                 lastClusters = filtered
                                 emit(FeedResult(filtered, true))
                             }
@@ -180,7 +192,7 @@ class GetFeedArticlesUseCase @Inject constructor(
                         lastClusters?.let { final ->
                             lastDedupInputKey = dedupInputKey
                             lastDedupClusters = final
-                            val filteredFinal = applyMinMentionsFilter(final, state.prefs)
+                            val filteredFinal = applyMinMentionsFilter(final, state.prefs, state.savedOnly)
                             emit(FeedResult(filteredFinal, false))
                         }
                     }
@@ -190,8 +202,10 @@ class GetFeedArticlesUseCase @Inject constructor(
 
     private fun applyMinMentionsFilter(
         clusters: List<ArticleCluster>,
-        prefs: UserPreferences
+        prefs: UserPreferences,
+        savedOnly: Boolean
     ): List<ArticleCluster> {
+        if (savedOnly) return clusters
         if (!prefs.isDeduplicationEnabled) return clusters
         if (clusters.isEmpty()) return clusters
 
@@ -270,6 +284,71 @@ class GetFeedArticlesUseCase @Inject constructor(
         return clusters.sortedByDescending { it.representative.publishedAt }
     }
 
+    private suspend fun buildSavedFavoriteClusters(
+        favoriteArticles: List<Article>
+    ): List<ArticleCluster> {
+        if (favoriteArticles.isEmpty()) return emptyList()
+        val byId = favoriteArticles.associateBy { it.id }
+        val mappings = articleRepository.getFavoriteClusterMappings(favoriteArticles.map { it.id })
+        val savedAtById = articleRepository.getFavoriteSavedAt(favoriteArticles.map { it.id })
+        val similarities = articleRepository.getFavoriteSimilarities(favoriteArticles.map { it.id })
+        val savedClusterScores = articleRepository.getFavoriteClusterScores(favoriteArticles.map { it.id })
+        val scoreMap = buildMap<Pair<Long, Long>, Float> {
+            similarities.forEach { sim ->
+                put(sim.representativeId to sim.articleId, sim.score)
+                put(sim.articleId to sim.representativeId, sim.score)
+            }
+        }
+
+        val groupedByKey = mappings.entries
+            .groupBy(
+                keySelector = { it.value },
+                valueTransform = { it.key }
+            )
+            .mapValues { (_, ids) -> ids.mapNotNull { byId[it] } }
+            .filterValues { it.size >= 2 }
+
+        val clusters = mutableListOf<ArticleCluster>()
+        val clusteredIds = mutableSetOf<Long>()
+        val clusterSavedAt = mutableMapOf<Long, Long>()
+
+        groupedByKey.values.forEach { articles ->
+            val representative = articles.maxBy { it.publishedAt }
+            val duplicates = articles
+                .asSequence()
+                .filterNot { it.id == representative.id }
+                .map { article ->
+                    val score = articles
+                        .asSequence()
+                        .map { it.id }
+                        .filter { it != article.id }
+                        .mapNotNull { otherId -> scoreMap[article.id to otherId] }
+                        .maxOrNull()
+                        ?: savedClusterScores[article.id]
+                        ?: 0f
+                    article to score
+                }
+                .toList()
+            clusters.add(ArticleCluster(representative, duplicates))
+            val savedAt = articles.maxOfOrNull { savedAtById[it.id] ?: 0L } ?: 0L
+            clusterSavedAt[representative.id] = savedAt
+            articles.forEach { clusteredIds.add(it.id) }
+        }
+
+        favoriteArticles
+            .asSequence()
+            .filterNot { it.id in clusteredIds }
+            .forEach { article ->
+                clusters.add(ArticleCluster(article, emptyList()))
+                clusterSavedAt[article.id] = savedAtById[article.id] ?: 0L
+            }
+
+        return clusters.sortedWith(
+            compareByDescending<ArticleCluster> { clusterSavedAt[it.representative.id] ?: 0L }
+                .thenByDescending { it.representative.publishedAt }
+        )
+    }
+
     private fun rebindClustersWithLatestArticles(
         clusters: List<ArticleCluster>,
         latestArticles: List<Article>
@@ -314,9 +393,10 @@ class GetFeedArticlesUseCase @Inject constructor(
 
     data class FeedPipelineState(
         val articles: List<Article>,
-        val prefs: UserPreferences
+        val prefs: UserPreferences,
+        val savedOnly: Boolean
     ) {
-        val shouldDedup = prefs.isDeduplicationEnabled
+        val shouldDedup = prefs.isDeduplicationEnabled && !savedOnly
     }
 
     data class FeedFilterParams(
@@ -324,6 +404,14 @@ class GetFeedArticlesUseCase @Inject constructor(
         val dateFilterHours: Int?,
         val savedOnly: Boolean,
         val prefs: UserPreferences
+    )
+
+    data class FeedData(
+        val enabledArticles: List<Article>,
+        val allArticles: List<Article>,
+        val favoriteArticles: List<Article>,
+        val groupsWithSources: List<com.andrewwin.sumup.data.local.dao.GroupWithSources>,
+        val query: String
     )
 
     private fun resolveModelPath(prefs: UserPreferences): String? {

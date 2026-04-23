@@ -9,7 +9,8 @@ data class ArticleUiModel(
     val displayTitle: String,
     val displayContent: String,
     val sourceName: String?,
-    val groupName: String?
+    val groupName: String?,
+    val savedAt: Long? = null
 )
 
 data class ArticleClusterUiModel(

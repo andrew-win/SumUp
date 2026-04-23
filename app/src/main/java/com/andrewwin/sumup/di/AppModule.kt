@@ -6,6 +6,7 @@ import com.andrewwin.sumup.data.local.AppDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
+import com.andrewwin.sumup.data.local.dao.SavedArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
@@ -77,6 +78,9 @@ object AppModule {
     fun provideArticleSimilarityDao(db: AppDatabase): ArticleSimilarityDao = db.articleSimilarityDao()
 
     @Provides
+    fun provideSavedArticleDao(db: AppDatabase): SavedArticleDao = db.savedArticleDao()
+
+    @Provides
     fun provideSourceDao(db: AppDatabase): SourceDao = db.sourceDao()
 
     @Provides
@@ -137,6 +141,7 @@ object AppModule {
     fun provideArticleRepository(
         articleDao: ArticleDao,
         articleSimilarityDao: ArticleSimilarityDao,
+        savedArticleDao: SavedArticleDao,
         sourceDao: SourceDao,
         userPreferencesDao: UserPreferencesDao,
         remoteArticleDataSource: RemoteArticleDataSource,
@@ -144,6 +149,7 @@ object AppModule {
     ): ArticleRepository = ArticleRepositoryImpl(
         articleDao,
         articleSimilarityDao,
+        savedArticleDao,
         sourceDao,
         userPreferencesDao,
         remoteArticleDataSource,
@@ -156,7 +162,11 @@ object AppModule {
         sourceDao: SourceDao,
         remoteArticleDataSource: RemoteArticleDataSource,
         cleanArticleTextUseCase: CleanArticleTextUseCase
-    ): SourceRepository = SourceRepositoryImpl(sourceDao, remoteArticleDataSource, cleanArticleTextUseCase)
+    ): SourceRepository = SourceRepositoryImpl(
+        sourceDao,
+        remoteArticleDataSource,
+        cleanArticleTextUseCase
+    )
 
     @Provides
     @Singleton

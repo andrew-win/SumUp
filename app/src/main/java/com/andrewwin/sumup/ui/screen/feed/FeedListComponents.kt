@@ -83,6 +83,10 @@ private fun formatClusterDate(timestamp: Long): String {
     return SimpleDateFormat("HH:mm, dd MMMM", Locale.getDefault()).format(Date(timestamp))
 }
 
+private fun formatSavedDate(timestamp: Long): String {
+    return SimpleDateFormat("HH:mm, dd MMMM", Locale.getDefault()).format(Date(timestamp))
+}
+
 @Composable
 fun FeedFilters(
     searchQuery: String,
@@ -134,22 +138,27 @@ fun FeedFilters(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            val dateLabel = stringResource(dateFilter.labelRes)
+            val savedLabel = stringResource(savedFilter.labelRes)
             FilterMenuChip(
                 icon = Icons.Filled.Today,
-                label = stringResource(dateFilter.labelRes),
-                onClick = { showDateMenu = true }
+                label = dateLabel,
+                onClick = { showDateMenu = true },
+                modifier = Modifier
             )
             FilterMenuChip(
                 icon = Icons.Filled.Bookmark,
-                label = stringResource(savedFilter.labelRes),
-                onClick = { showSavedMenu = true }
+                label = savedLabel,
+                onClick = { showSavedMenu = true },
+                modifier = Modifier
             )
             val groupName = groups.find { it.id == selectedGroupId }?.displayName()
-                ?: stringResource(R.string.filter_group)
+                ?: stringResource(R.string.all_groups)
             FilterMenuChip(
                 icon = Icons.Filled.Folder,
                 label = groupName,
-                onClick = { showGroupMenu = true }
+                onClick = { showGroupMenu = true },
+                modifier = Modifier
             )
 
             DropdownMenu(expanded = showDateMenu, onDismissRequest = { showDateMenu = false }) {
@@ -188,12 +197,14 @@ fun FeedFilters(
 private fun FilterMenuChip(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     AppFilterMenuChip(
         icon = icon,
         label = label,
-        onClick = onClick
+        onClick = onClick,
+        modifier = modifier
     )
 }
 
@@ -206,7 +217,7 @@ fun ArticleClusterCard(
     onOpenSource: (ArticleUiModel) -> Unit,
     onAiClick: (ArticleUiModel) -> Unit,
     onClusterAiClick: () -> Unit,
-    onToggleSaved: (ArticleUiModel) -> Unit,
+    onToggleSaved: () -> Unit,
     isDedupInProgress: Boolean,
     minMentions: Int
 ) {
@@ -215,12 +226,21 @@ fun ArticleClusterCard(
     val formattedDate = formatClusterDate(publishedAt)
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = formattedDate,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
-        )
+        Column(modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)) {
+            Text(
+                text = formattedDate,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+            val savedAt = cluster.representative.savedAt ?: 0L
+            if (cluster.representative.article.isFavorite && savedAt > 0L) {
+                Text(
+                    text = stringResource(R.string.feed_saved_at, formatSavedDate(savedAt)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                )
+            }
+        }
 
         Card(
             modifier = Modifier
@@ -241,7 +261,7 @@ fun ArticleClusterCard(
                     onAiClick = {
                         if (cluster.duplicates.isNotEmpty()) onClusterAiClick() else onAiClick(cluster.representative)
                     },
-                    onToggleSaved = { onToggleSaved(cluster.representative) },
+                    onToggleSaved = onToggleSaved,
                     showActions = false
                 )
 
@@ -303,7 +323,7 @@ fun ArticleClusterCard(
                     onAiClick = {
                         if (cluster.duplicates.isNotEmpty()) onClusterAiClick() else onAiClick(cluster.representative)
                     },
-                    onToggleSaved = { onToggleSaved(cluster.representative) },
+                    onToggleSaved = onToggleSaved,
                     onShare = { shareArticleLink(context, cluster.representative.article.url) }
                 )
             }
@@ -541,16 +561,18 @@ fun DuplicateItemCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
-                Surface(
-                    shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.surfaceVariant
-                ) {
-                    Text(
-                        text = "${scoreInt}%",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
+                if (score > 0f) {
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    ) {
+                        Text(
+                            text = "${scoreInt}%",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
                 }
             }
 

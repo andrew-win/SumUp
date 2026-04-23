@@ -78,9 +78,9 @@ fun FeedScreen(
     val feedEmptyHelpDescription = stringResource(R.string.feed_help_empty)
     val feedCardHelpDescription = stringResource(R.string.feed_help_article_card)
 
-    var articleForAi by remember { mutableStateOf<ArticleUiModel?>(null) }
-    var isFeedAiActive by remember { mutableStateOf(false) }
-    var userQuestion by remember { mutableStateOf("") }
+    var articleForAiId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var isFeedAiActive by rememberSaveable { mutableStateOf(false) }
+    var userQuestion by rememberSaveable { mutableStateOf("") }
     var expandedImageUrl by remember { mutableStateOf<String?>(null) }
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
@@ -146,7 +146,7 @@ fun FeedScreen(
                             helpDescription = feedAiHelpDescription
                         } else {
                             isFeedAiActive = true
-                            articleForAi = null
+                            articleForAiId = null
                             viewModel.openCachedFeedSummary()
                         }
                     }
@@ -253,19 +253,21 @@ fun FeedScreen(
                                 onMediaClick = { expandedImageUrl = it },
                                 onOpenSource = { onOpenWebView(it.article.url) },
                                 onAiClick = {
-                                    articleForAi = it
+                                    articleForAiId = it.article.id
                                     isFeedAiActive = false
                                     viewModel.openCachedArticleSummary(it.article)
                                 },
                                 onClusterAiClick = {
-                                    articleForAi = cluster.representative
+                                    articleForAiId = cluster.representative.article.id
                                     isFeedAiActive = false
                                     userQuestion = ""
                                     viewModel.openCachedClusterSummary(cluster)
                                 },
                                 onToggleSaved = {
-                                    val willBeAddedToSaved = !it.article.isFavorite
-                                    viewModel.toggleSaved(it.article)
+                                    val willBeAddedToSaved =
+                                        !cluster.representative.article.isFavorite ||
+                                            cluster.duplicates.any { duplicate -> !duplicate.first.article.isFavorite }
+                                    viewModel.toggleSaved(cluster)
                                     if (willBeAddedToSaved) {
                                         Toast.makeText(
                                             context,
@@ -289,8 +291,20 @@ fun FeedScreen(
             onDismiss = { helpDescription = null }
         )
 
+        val articleForAi = remember(articleForAiId, articleClusters) {
+            articleForAiId?.let { targetId ->
+                articleClusters.asSequence()
+                    .map { it.representative }
+                    .plus(
+                        articleClusters.asSequence()
+                            .flatMap { cluster -> cluster.duplicates.asSequence().map { it.first } }
+                    )
+                    .firstOrNull { it.article.id == targetId }
+            }
+        }
+
         FeedAiDialog(
-            isVisible = articleForAi != null || isFeedAiActive,
+            isVisible = articleForAiId != null || isFeedAiActive,
             context = context,
             isFeedAiActive = isFeedAiActive,
             articleForAi = articleForAi,
@@ -302,7 +316,7 @@ fun FeedScreen(
             userQuestion = userQuestion,
             onQuestionChange = { userQuestion = it },
             onDismiss = {
-                articleForAi = null
+                articleForAiId = null
                 isFeedAiActive = false
                 viewModel.clearAiResult()
                 userQuestion = ""
@@ -316,7 +330,7 @@ fun FeedScreen(
                     viewModel.summarizeFeed(forceRefresh = true)
                 } else {
                     val cluster = articleClusters.firstOrNull { c ->
-                        c.representative.article.id == articleForAi?.article?.id
+                        c.representative.article.id == articleForAiId
                     }
                     if (cluster != null && cluster.duplicates.isNotEmpty()) {
                         viewModel.summarizeCluster(cluster, forceRefresh = true)

@@ -251,19 +251,38 @@ class SourcesViewModel @Inject constructor(
     }
 
     fun deleteGroup(group: SourceGroup) {
+        deleteGroups(listOf(group))
+    }
+
+    fun deleteGroups(groups: List<SourceGroup>) {
+        if (groups.isEmpty()) return
         viewModelScope.launch {
-            repository.deleteGroup(group)
-            _suggestedThemes.update { themes ->
-                themes.map { suggestion ->
-                    if (suggestion.group.sources.all { source ->
-                            uiState.value.flatMap { it.sources }.none { existing ->
-                                existing.url.equals(source.url, ignoreCase = true)
-                            }
-                        }) {
-                        suggestion.copy(isSubscribed = false)
-                    } else {
-                        suggestion
-                    }
+            val deletedGroupIds = groups.map { it.id }.toSet()
+            val deletedGroupUrls = uiState.value
+                .filter { it.group.id in deletedGroupIds }
+                .flatMap { groupWithSources -> groupWithSources.sources }
+                .map { it.url.trim().lowercase() }
+                .toSet()
+
+            groups.forEach { group ->
+                repository.deleteGroup(group)
+            }
+            updateSuggestedThemesAfterDeletedUrls(deletedGroupUrls)
+        }
+    }
+
+    private fun updateSuggestedThemesAfterDeletedUrls(deletedGroupUrls: Set<String>) {
+        if (deletedGroupUrls.isEmpty()) return
+        _suggestedThemes.update { themes ->
+            themes.map { suggestion ->
+                val suggestionUrls = suggestion.group.sources
+                    .map { it.url.trim().lowercase() }
+                    .toSet()
+                if (suggestionUrls.isNotEmpty() && suggestionUrls.all { it in deletedGroupUrls }) {
+                    clearPendingOverride(suggestion.group.id)
+                    suggestion.copy(isSubscribed = false)
+                } else {
+                    suggestion
                 }
             }
         }
