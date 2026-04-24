@@ -248,9 +248,19 @@ class GetSuggestedThemesUseCase @Inject constructor(
         val userArticles = allEnabledArticles
             .groupBy { it.sourceId }
             .flatMap { entry -> 
+                val averageViews = entry.value
+                    .asSequence()
+                    .map { it.viewCount }
+                    .filter { it > 0L }
+                    .average()
+                    .toLong()
                 entry.value.sortedByDescending { it.publishedAt }
                      .filter { 
-                         val importance = articleImportanceScorer.score(it, sourceTypeMap[it.sourceId] ?: SourceType.RSS)
+                         val importance = articleImportanceScorer.score(
+                             article = it,
+                             averageViews = averageViews,
+                             sourceType = sourceTypeMap[it.sourceId] ?: SourceType.RSS
+                         )
                          importance >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
                      }
                      .take(7)
@@ -329,9 +339,20 @@ class GetSuggestedThemesUseCase @Inject constructor(
             }
             
             val themeEmbeddings = themeArticles
-                .filter {
-                    val importance = articleImportanceScorer.score(it, firstSource.type)
-                    importance >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
+                .let { articles ->
+                    val averageViews = articles
+                        .asSequence()
+                        .map { it.viewCount }
+                        .filter { it > 0L }
+                        .average()
+                        .toLong()
+                    articles to averageViews
+                }
+                .let { (articles, averageViews) ->
+                    articles.filter {
+                        val importance = articleImportanceScorer.score(it, averageViews, firstSource.type)
+                        importance >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
+                    }
                 }
                 .take(7)
                 .mapNotNull { 

@@ -376,29 +376,29 @@ fun SettingsScreen(
                 when {
                     enteringDetails -> {
                         slideInHorizontally(
-                            animationSpec = tween(180),
+                            animationSpec = tween(260, easing = FastOutSlowInEasing),
                             initialOffsetX = { it / 10 }
                         ) + fadeIn(animationSpec = tween(160)) togetherWith
                             slideOutHorizontally(
-                                animationSpec = tween(180),
+                                animationSpec = tween(240, easing = FastOutSlowInEasing),
                                 targetOffsetX = { -it / 12 }
-                            ) + fadeOut(animationSpec = tween(120))
+                            ) + fadeOut(animationSpec = tween(180, easing = FastOutSlowInEasing))
                     }
 
                     enteringList -> {
                         slideInHorizontally(
-                            animationSpec = tween(180),
+                            animationSpec = tween(260, easing = FastOutSlowInEasing),
                             initialOffsetX = { -it / 10 }
                         ) + fadeIn(animationSpec = tween(160)) togetherWith
                             slideOutHorizontally(
-                                animationSpec = tween(180),
+                                animationSpec = tween(240, easing = FastOutSlowInEasing),
                                 targetOffsetX = { it / 12 }
-                            ) + fadeOut(animationSpec = tween(120))
+                            ) + fadeOut(animationSpec = tween(180, easing = FastOutSlowInEasing))
                     }
 
                     else -> {
-                        fadeIn(animationSpec = tween(140)) togetherWith
-                            fadeOut(animationSpec = tween(100))
+                        fadeIn(animationSpec = tween(200, easing = FastOutSlowInEasing)) togetherWith
+                            fadeOut(animationSpec = tween(160, easing = FastOutSlowInEasing))
                     }
                 }
             }

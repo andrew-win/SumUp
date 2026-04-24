@@ -60,10 +60,42 @@ class FormatArticleHeadlineUseCase @Inject constructor() {
                 content
             }
         }
+        val enrichedTitle = enrichShortTitle(displayTitle, rawDescription)
+
         return FormattedArticle(
-            displayTitle = displayTitle,
+            displayTitle = enrichedTitle,
             displayContent = rawDescription
         )
+    }
+
+    private fun enrichShortTitle(title: String, description: String): String {
+        val normalizedTitle = title.replace(WHITESPACE_REGEX, " ").trim()
+        if (normalizedTitle.isBlank()) return normalizedTitle
+        if (normalizedTitle.length >= MIN_TITLE_CHARS) {
+            return truncateTitle(normalizedTitle)
+        }
+
+        val normalizedDescription = description.trim()
+        if (normalizedDescription.isBlank()) return truncateTitle(normalizedTitle)
+        val addition = extractDescriptionSnippet(normalizedDescription)
+        if (addition.isBlank()) return truncateTitle(normalizedTitle)
+        return truncateTitle("$normalizedTitle $addition".replace(WHITESPACE_REGEX, " ").trim())
+    }
+
+    private fun truncateTitle(value: String): String {
+        if (value.length <= MAX_ENRICHED_TITLE_CHARS) return value
+        return value.take(MAX_ENRICHED_TITLE_CHARS).trimEnd().removeSuffix(".") + "..."
+    }
+
+    private fun extractDescriptionSnippet(description: String): String {
+        val newlineIndex = description.indexOf('\n').takeIf { it >= 0 } ?: Int.MAX_VALUE
+        val dotIndex = description.indexOf('.').takeIf { it >= 0 } ?: Int.MAX_VALUE
+        val boundary = minOf(newlineIndex, dotIndex)
+        return if (boundary != Int.MAX_VALUE) {
+            description.take(boundary).trim()
+        } else {
+            description.take(FALLBACK_DESCRIPTION_CHARS).trim().removeSuffix(".") + "..."
+        }
     }
 
     private fun fallbackTitle(article: Article): String {
@@ -86,6 +118,10 @@ class FormatArticleHeadlineUseCase @Inject constructor() {
 
     companion object {
         private const val MAX_TELEGRAM_TITLE_LENGTH = 225
+        private const val MIN_TITLE_CHARS = 15
+        private const val MAX_ENRICHED_TITLE_CHARS = 180
+        private const val FALLBACK_DESCRIPTION_CHARS = 120
+        private val WHITESPACE_REGEX = Regex("\\s+")
     }
 }
 

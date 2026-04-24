@@ -36,11 +36,9 @@ class CleanArticleTextUseCase @Inject constructor(
 
         var cleaned = cleanBase(text)
         cleaned = removeFooter(cleaned, footerPattern)
-        val hashtagsResult = removeHashtags(cleaned)
-        cleaned = hashtagsResult.cleaned
         val phonesResult = removePhoneNumbers(cleaned)
         cleaned = phonesResult.cleaned
-        val isSpam = hashtagsResult.flagged || phonesResult.flagged
+        val isSpam = phonesResult.flagged
         if (isSpam) {
             cleaned = "$SPAM_MARKER\n$cleaned"
         }
@@ -173,14 +171,6 @@ class CleanArticleTextUseCase @Inject constructor(
         return lines.subList(0, cutIndex).joinToString("\n").trim()
     }
 
-    private fun removeHashtags(text: String): CleanResult {
-        val tagRegex = Regex("(?<!\\w)#[\\p{L}\\p{N}_]+")
-        val tags = tagRegex.findAll(text).map { it.value.drop(1).lowercase() }.toList()
-        val hasSpamTag = tags.any { it in SPAM_HASHTAGS }
-        val cleaned = normalizeText(text.replace(tagRegex, " "))
-        return CleanResult(cleaned, hasSpamTag)
-    }
-
     private fun removePhoneNumbers(text: String): CleanResult {
         val phoneRegex = Regex("\\+?\\d[\\d\\s().-]{7,}\\d")
         val found = phoneRegex.containsMatchIn(text)
@@ -217,7 +207,6 @@ class CleanArticleTextUseCase @Inject constructor(
         private val URL_REGEX = Regex("https?://\\S+|t\\.me/\\S+")
         private val NUMBER_REGEX = Regex("\\d+")
         private const val SPAM_MARKER = "[ad]"
-        private val SPAM_HASHTAGS = setOf("реклама", "промо", "промокод", "ads", "ad", "advertising")
         private val GENERIC_FOOTER_PATTERNS = listOf(
             Regex("підписатися\\s+на"),
             Regex("подписат(ь|и)ся\\s+на"),

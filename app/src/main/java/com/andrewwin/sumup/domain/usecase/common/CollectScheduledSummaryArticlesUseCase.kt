@@ -39,10 +39,16 @@ class CollectScheduledSummaryArticlesUseCase @Inject constructor(
 
         var filteredArticles = recentArticles
         if (prefs.isImportanceFilterEnabled) {
+            val averageViews = recentArticles
+                .asSequence()
+                .map { it.viewCount }
+                .filter { it > 0L }
+                .average()
+                .toLong()
             filteredArticles = filteredArticles.filter { article ->
                 val source = articleRepository.getSourceById(article.sourceId)
                 val sourceType = source?.type ?: SourceType.RSS
-                articleImportanceScorer.score(article, sourceType) >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
+                articleImportanceScorer.score(article, averageViews, sourceType) >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
             }
         }
 

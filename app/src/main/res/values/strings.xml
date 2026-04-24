@@ -52,6 +52,7 @@
     <string name="summary_system_notice">Системне сповіщення</string>
     <string name="settings_ai_strategy">Стратегія використання ШІ</string>
     <string name="settings_deduplication_strategy">Стратегія дедублікації</string>
+    <string name="settings_deduplication_strategy_recalculate_note">При зміні ембединги будуть перераховані</string>
     <string name="ai_strategy_cloud">Хмарна</string>
     <string name="ai_strategy_local">Локальна</string>
     <string name="ai_strategy_adaptive">Адаптивна</string>
@@ -275,6 +276,7 @@
     <string name="summary_pdf_item_meta">%1$s · %2$s</string>
     <string name="summary_search_placeholder">Шукайте зведення тут…</string>
     <string name="summary_history_empty_state">Ще не було згенеровано жодного зведення.</string>
+    <string name="summary_history_list_empty">Зведень не було знайдено</string>
     <string name="summary_default_title">Зведення</string>
     <string name="summary_none_short">Немає</string>
     <string name="summary_not_enough_data">Немає достатньо даних.</string>

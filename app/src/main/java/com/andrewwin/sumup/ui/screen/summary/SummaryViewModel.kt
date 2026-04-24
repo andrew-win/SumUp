@@ -144,9 +144,20 @@ class SummaryViewModel @Inject constructor(
                 }.sortedByDescending { it.value }.take(limit)
             }
             SummaryChartType.FACTUALITY -> {
+                val articles = clusters.map { it.representative }
+                val averageViews = articles
+                    .asSequence()
+                    .map { it.viewCount }
+                    .filter { it > 0L }
+                    .average()
+                    .toLong()
                 clusters.map { cluster ->
                     val article = cluster.representative
-                    val score = importanceScorer.score(article, sourceTypeMap[article.sourceId] ?: SourceType.RSS)
+                    val score = importanceScorer.score(
+                        article = article,
+                        averageViews = averageViews,
+                        sourceType = sourceTypeMap[article.sourceId] ?: SourceType.RSS
+                    )
                     val source = sourceById[article.sourceId]
                     SummaryChartItem(
                         headline = article.title,

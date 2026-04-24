@@ -84,6 +84,7 @@
     <string name="ai_error_prefix">AI error: %s</string>
     <string name="ai_generic_error">Generation error</string>
     <string name="settings_deduplication">Deduplication</string>
+    <string name="settings_deduplication_strategy_recalculate_note">Embeddings will be recalculated after strategy change</string>
     <string name="settings_feed_display">Feed display</string>
     <string name="settings_enable_deduplication">Hide similar items</string>
     <string name="settings_local_deduplication_threshold">Similarity threshold (local): %s</string>
@@ -256,6 +257,7 @@
     <string name="summary_pdf_item_meta">%1$s · %2$s</string>
     <string name="summary_search_placeholder">Search summaries here…</string>
     <string name="summary_history_empty_state">No summaries have been generated yet.</string>
+    <string name="summary_history_list_empty">No summaries were found</string>
     <string name="summary_default_title">Summary</string>
     <string name="summary_none_short">None</string>
     <string name="summary_not_enough_data">Not enough data.</string>

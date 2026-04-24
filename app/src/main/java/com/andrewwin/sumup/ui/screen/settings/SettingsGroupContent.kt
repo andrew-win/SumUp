@@ -612,6 +612,11 @@ internal fun SettingsFeedGroupContent(
                             }
                         }
                     }
+                    Text(
+                        text = stringResource(R.string.settings_deduplication_strategy_recalculate_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
                 SettingsToggleRow(

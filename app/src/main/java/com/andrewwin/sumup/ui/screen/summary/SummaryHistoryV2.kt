@@ -113,6 +113,18 @@ internal fun SummaryHistoryListSection(
                 )
             }
         }
+        if (summaries.isEmpty()) {
+            item {
+                Text(
+                    text = stringResource(R.string.summary_history_list_empty),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 24.dp)
+                )
+            }
+        }
         items(summaries, key = { it.id }) { summary ->
             AppHelpOverlayTarget(
                 isEnabled = isHelpMode,

@@ -243,17 +243,26 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun updateDeduplicationEnabled(enabled: Boolean) {
-        viewModelScope.launch { updatePreferences { it.copy(isDeduplicationEnabled = enabled) } }
+        updateFeedPreferences { it.copy(isDeduplicationEnabled = enabled) }
     }
 
     fun updateDeduplicationStrategy(strategy: DeduplicationStrategy) {
-        viewModelScope.launch { updatePreferences { it.copy(deduplicationStrategy = strategy) } }
+        viewModelScope.launch {
+            val current = userPreferencesRepository.preferences.first()
+            if (current.deduplicationStrategy != strategy) {
+                articleRepository.clearEmbeddings()
+                articleRepository.clearSimilarities()
+            }
+            userPreferencesRepository.updatePreferences(current.copy(deduplicationStrategy = strategy))
+            articleRepository.refreshArticles()
+        }
     }
 
     private fun updateThreshold(transform: (UserPreferences) -> UserPreferences) {
         viewModelScope.launch {
             articleRepository.clearSimilarities()
             updatePreferences(transform)
+            articleRepository.refreshArticles()
         }
     }
 
@@ -264,11 +273,11 @@ class SettingsViewModel @Inject constructor(
         updateThreshold { it.copy(cloudDeduplicationThreshold = threshold) }
 
     fun updateMinMentions(min: Int) {
-        viewModelScope.launch { updatePreferences { it.copy(minMentions = min) } }
+        updateFeedPreferences { it.copy(minMentions = min) }
     }
 
     fun updateHideSingleNewsEnabled(enabled: Boolean) {
-        viewModelScope.launch { updatePreferences { it.copy(isHideSingleNewsEnabled = enabled) } }
+        updateFeedPreferences { it.copy(isHideSingleNewsEnabled = enabled) }
     }
 
     fun loadModels(provider: AiProvider, apiKey: String, type: AiModelType) {
@@ -323,7 +332,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun updateImportanceFilterEnabled(enabled: Boolean) {
-        viewModelScope.launch { updatePreferences { it.copy(isImportanceFilterEnabled = enabled) } }
+        updateFeedPreferences { it.copy(isImportanceFilterEnabled = enabled) }
     }
 
     fun updateAdaptiveExtractiveOnlyBelowChars(chars: Int) {
@@ -347,15 +356,15 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun updateFeedMediaEnabled(enabled: Boolean) {
-        viewModelScope.launch { updatePreferences { it.copy(isFeedMediaEnabled = enabled) } }
+        updateFeedPreferences { it.copy(isFeedMediaEnabled = enabled) }
     }
 
     fun updateFeedDescriptionEnabled(enabled: Boolean) {
-        viewModelScope.launch { updatePreferences { it.copy(isFeedDescriptionEnabled = enabled) } }
+        updateFeedPreferences { it.copy(isFeedDescriptionEnabled = enabled) }
     }
 
     fun updateFeedSummaryUseFullTextEnabled(enabled: Boolean) {
-        viewModelScope.launch { updatePreferences { it.copy(isFeedSummaryUseFullTextEnabled = enabled) } }
+        updateFeedPreferences { it.copy(isFeedSummaryUseFullTextEnabled = enabled) }
     }
 
     fun updateRecommendationsEnabled(enabled: Boolean) {
@@ -920,6 +929,14 @@ class SettingsViewModel @Inject constructor(
     private suspend fun updatePreferences(transform: (UserPreferences) -> UserPreferences) {
         val current = userPreferencesRepository.preferences.first()
         userPreferencesRepository.updatePreferences(transform(current))
+    }
+
+    private fun updateFeedPreferences(transform: (UserPreferences) -> UserPreferences) {
+        viewModelScope.launch {
+            val current = userPreferencesRepository.preferences.first()
+            userPreferencesRepository.updatePreferences(transform(current))
+            articleRepository.refreshArticles()
+        }
     }
 
     private fun sanitizeBackupSelection(selection: BackupSelection): BackupSelection {

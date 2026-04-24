@@ -108,9 +108,15 @@ class GetFeedArticlesUseCase @Inject constructor(
             }
 
             if (!savedOnly && prefs.isImportanceFilterEnabled) {
+                val averageViews = processedArticles
+                    .asSequence()
+                    .map { it.viewCount }
+                    .filter { it > 0L }
+                    .average()
+                    .toLong()
                 processedArticles = processedArticles.filter { article ->
                     val sourceType = sourceTypeMap[article.sourceId] ?: SourceType.RSS
-                    importanceScorer.score(article, sourceType) >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
+                    importanceScorer.score(article, averageViews, sourceType) >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
                 }
             }
 

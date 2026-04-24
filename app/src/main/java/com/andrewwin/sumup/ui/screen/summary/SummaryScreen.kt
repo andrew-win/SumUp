@@ -299,7 +299,7 @@ fun SummaryScreen(
                 showHistoryBackToTop -> {
                     AppBackToTopFab(onClick = { scope.launch { historyListState.animateScrollToItem(0) } })
                 }
-                !isHistoryScreen && selectedTabIndex == 0 && historySummariesRaw.isNotEmpty() && !isSelectionMode -> {
+                !isHistoryScreen && selectedTabIndex == 0 && !isSelectionMode -> {
                     AppHelpOverlayTarget(
                         isEnabled = isHelpMode,
                         description = summaryHistoryFabHelpDescription,
