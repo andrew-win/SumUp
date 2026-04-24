@@ -3,6 +3,7 @@ package com.andrewwin.sumup.domain.usecase.ai
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import javax.inject.Inject
 
@@ -30,7 +31,12 @@ class AskQuestionUseCase @Inject constructor(
                     )
                 }
             }
+            DebugTrace.d(
+                "ai_qa",
+                "invoke(list) question=${DebugTrace.preview(question, 140)} articles=${articles.size} payloadChars=${structuredContent.length} payloadPreview=${DebugTrace.preview(structuredContent, 500)}"
+            )
             val raw = aiRepository.askQuestion(structuredContent, question)
+            DebugTrace.d("ai_qa", "rawResponse(list) preview=${DebugTrace.preview(raw, 500)}")
             Result.success(
                 formatQaJson(
                     raw = raw,
@@ -56,7 +62,12 @@ class AskQuestionUseCase @Inject constructor(
                 title = article.title,
                 content = fullContent
             )
+            DebugTrace.d(
+                "ai_qa",
+                "invoke(single) articleId=${article.id} question=${DebugTrace.preview(question, 140)} payloadChars=${structuredContent.length} payloadPreview=${DebugTrace.preview(structuredContent, 500)}"
+            )
             val raw = aiRepository.askQuestion(structuredContent, question)
+            DebugTrace.d("ai_qa", "rawResponse(single) preview=${DebugTrace.preview(raw, 500)}")
             Result.success(
                 formatQaJson(
                     raw = raw,
@@ -71,7 +82,12 @@ class AskQuestionUseCase @Inject constructor(
 
     suspend operator fun invoke(content: String, question: String): Result<String> {
         return try {
+            DebugTrace.d(
+                "ai_qa",
+                "invoke(content) question=${DebugTrace.preview(question, 140)} payloadChars=${content.length} payloadPreview=${DebugTrace.preview(content, 500)}"
+            )
             val raw = aiRepository.askQuestion(content, question)
+            DebugTrace.d("ai_qa", "rawResponse(content) preview=${DebugTrace.preview(raw, 500)}")
             Result.success(
                 formatQaJson(
                     raw = raw,
@@ -90,6 +106,7 @@ class AskQuestionUseCase @Inject constructor(
         askedQuestion: String
     ): String {
         val qa = AiJsonResponseParser.parseQa(raw)
+        val orderedSourceRefs = sourceRefs.values.toList()
         val safeQuestion = qa.question?.trim().takeUnless { it.isNullOrBlank() } ?: askedQuestion.trim()
         val shortAnswer = qa.shortAnswer?.trim()
             .takeUnless { it.isNullOrBlank() }
@@ -116,21 +133,26 @@ class AskQuestionUseCase @Inject constructor(
                 detailLines += "— $text"
                 val referenced = sourceIds
                     .asSequence()
-                    .map { it.trim() }
-                    .filter { it.isNotBlank() && sourceRefs.containsKey(it) }
-                    .ifEmpty { fallbackSourceIds.asSequence().filter { sourceRefs.containsKey(it) } }
+                    .mapNotNull { resolveQaSourceRef(it, sourceRefs, orderedSourceRefs) }
+                    .ifEmpty {
+                        fallbackSourceIds
+                            .asSequence()
+                            .mapNotNull { resolveQaSourceRef(it, sourceRefs, orderedSourceRefs) }
+                    }
                     .distinct()
                     .toList()
+                DebugTrace.d(
+                    "ai_qa",
+                    "detailResolve text=${DebugTrace.preview(text, 120)} requested=${sourceIds.joinToString(",")} fallback=${fallbackSourceIds.joinToString(",")} resolved=${referenced.joinToString(",") { it.id }}"
+                )
 
-                referenced.forEach { sourceId ->
-                    sourceRefs[sourceId]?.also { ref ->
-                        detailLines += "${SummarySourceMeta.PREFIX}${ref.name}|${ref.url}"
-                    }
+                referenced.forEach { ref ->
+                    detailLines += "${SummarySourceMeta.PREFIX}${ref.name}|${ref.url}"
                 }
             }
         }
 
-        return buildString {
+        val formatted = buildString {
             appendLine("Питання")
             appendLine("— $safeQuestion")
             appendLine()
@@ -140,6 +162,13 @@ class AskQuestionUseCase @Inject constructor(
             appendLine("Детальніше")
             detailLines.forEach { appendLine(it) }
         }.trim()
+
+        DebugTrace.d(
+            "ai_qa",
+            "formatQaJson parsed question=${DebugTrace.preview(safeQuestion, 140)} short=${DebugTrace.preview(shortAnswer, 160)} detailItems=${detailItems.size} sourceRefs=${sourceRefs.keys.joinToString(",")} formattedPreview=${DebugTrace.preview(formatted, 500)}"
+        )
+
+        return formatted
     }
 
     private fun buildStructuredArticleContent(
@@ -195,6 +224,30 @@ class AskQuestionUseCase @Inject constructor(
                 )
             }
             .associateBy { it.id }
+    }
+
+    private fun resolveQaSourceRef(
+        rawRef: String,
+        sourceRefs: Map<String, QaSourceRef>,
+        orderedSourceRefs: List<QaSourceRef>
+    ): QaSourceRef? {
+        val normalized = rawRef.trim()
+        if (normalized.isBlank()) return null
+
+        sourceRefs[normalized]?.let { return it }
+
+        val digits = Regex("\\d+").find(normalized)?.value?.toLongOrNull()
+        if (digits != null) {
+            sourceRefs[digits.toString()]?.let { return it }
+
+            // Some model responses return ordinal refs like s1/source_1.
+            val ordinalIndex = (digits - 1L).toInt()
+            if (ordinalIndex in orderedSourceRefs.indices) {
+                return orderedSourceRefs[ordinalIndex]
+            }
+        }
+
+        return null
     }
 
     private data class QaSourceRef(

@@ -18,6 +18,7 @@ import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.ai.AskQuestionUseCase
+import com.andrewwin.sumup.domain.usecase.ai.AskFeedUseCase
 import com.andrewwin.sumup.domain.usecase.ai.SummarizeContentUseCase
 import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
@@ -52,6 +53,7 @@ class FeedViewModel @Inject constructor(
     private val getFeedArticlesUseCase: GetFeedArticlesUseCase,
     private val summarizeContentUseCase: SummarizeContentUseCase,
     private val askQuestionUseCase: AskQuestionUseCase,
+    private val askFeedUseCase: AskFeedUseCase,
     private val aiRepository: AiRepository,
     private val sourceRepository: SourceRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
@@ -360,11 +362,9 @@ class FeedViewModel @Inject constructor(
     }
 
     fun askFeed(question: String) {
-        val perArticleLimit = userPreferences.value.aiMaxCharsPerFeedArticle.coerceAtLeast(200)
-        val content = articleClusters.value.joinToString("\n\n") {
-            "${it.representative.displayTitle}: ${it.representative.article.content.take(perArticleLimit)}"
-        }
-        if (content.isNotBlank()) askQuestion(content, question)
+        val representatives = articleClusters.value.map { it.representative }
+        if (representatives.isEmpty()) return
+        launchAi { askFeedUseCase(representatives, question) }
     }
 
     private fun localizeError(e: Throwable): String {

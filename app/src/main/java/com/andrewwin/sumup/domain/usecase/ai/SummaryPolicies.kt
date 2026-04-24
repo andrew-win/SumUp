@@ -54,9 +54,13 @@ class SummaryRenderPolicy @Inject constructor(
             .filter { it.text.isNotBlank() }
             .flatMap { commonFact ->
                 val factLines = mutableListOf("— ${commonFact.text.trim()}")
-                commonFact.sourceIds.mapNotNull { articleById[it] }.forEach { article ->
+                commonFact.sourceIds
+                    .mapNotNull { sourceRef -> resolveArticleBySourceRef(sourceRef, articleById, articles) }
+                    .distinctBy { it.id }
+                    .forEach { article ->
                     val sName = articleRepository.getSourceById(article.sourceId)?.name?.ifBlank { "Джерело" } ?: "Джерело"
                     val sUrl = article.url.takeIf { it.isNotBlank() } ?: articleRepository.getSourceById(article.sourceId)?.url.orEmpty()
+                    if (sUrl.isBlank()) return@forEach
                     factLines += "${SummarySourceMeta.PREFIX}$sName|$sUrl"
                 }
                 factLines
@@ -91,6 +95,30 @@ class SummaryRenderPolicy @Inject constructor(
             lines += renderUniqueCompareBlocks(differentBySource)
         }
         return lines.joinToString("\n").trim()
+    }
+
+    private fun resolveArticleBySourceRef(
+        sourceRef: String,
+        articleById: Map<String, Article>,
+        articles: List<Article>
+    ): Article? {
+        val normalized = sourceRef.trim()
+        if (normalized.isBlank()) return null
+
+        articleById[normalized]?.let { return it }
+
+        val digits = Regex("\\d+").find(normalized)?.value?.toLongOrNull()
+        if (digits != null) {
+            articleById[digits.toString()]?.let { return it }
+
+            // Some models return ordinal refs like s1/source_1 (1-based index from input order).
+            val ordinalIndex = (digits - 1L).toInt()
+            if (ordinalIndex in articles.indices) {
+                return articles[ordinalIndex]
+            }
+        }
+
+        return null
     }
 
     suspend fun renderLocalCompare(articles: List<Article>): String {

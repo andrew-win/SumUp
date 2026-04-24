@@ -78,8 +78,9 @@ class SummarizationEngineUseCase @Inject constructor(
                 sentenceLimit = context.extractiveSentencesLimit(prefs)
             )
             val withoutDuplicatedTitle = stripLeadingTitleFromSingleArticleSummary(local, formatted.displayTitle)
+            val styledSingle = enforceSingleCardStyle(withoutDuplicatedTitle, formatted.displayTitle)
             return@runCatching renderPolicy.moveSourceToEndForSingleArticle(
-                renderPolicy.appendSourceMetadata(withoutDuplicatedTitle, listOf(representative))
+                renderPolicy.appendSourceMetadata(styledSingle, listOf(representative))
             ).also {
                 DebugTrace.d("summary_engine", "singleArticle final branch=localSummary preview=${DebugTrace.preview(it)}")
             }
@@ -123,8 +124,9 @@ class SummarizationEngineUseCase @Inject constructor(
                 sentenceLimit = context.extractiveSentencesLimit(prefs)
             )
             val withoutDuplicatedTitle = stripLeadingTitleFromSingleArticleSummary(local, formatted.displayTitle)
+            val styledSingle = enforceSingleCardStyle(withoutDuplicatedTitle, formatted.displayTitle)
             return@runCatching renderPolicy.moveSourceToEndForSingleArticle(
-                renderPolicy.appendSourceMetadata(withoutDuplicatedTitle, listOf(representative))
+                renderPolicy.appendSourceMetadata(styledSingle, listOf(representative))
             ).also {
                 DebugTrace.d("summary_engine", "singleArticle final branch=preprocessExtractiveFallback preview=${DebugTrace.preview(it)}")
             }
@@ -146,8 +148,9 @@ class SummarizationEngineUseCase @Inject constructor(
             )
         }
         val withoutDuplicatedTitle = stripLeadingTitleFromSingleArticleSummary(cloud, formatted.displayTitle)
+        val styledSingle = enforceSingleCardStyle(withoutDuplicatedTitle, formatted.displayTitle)
         renderPolicy.moveSourceToEndForSingleArticle(
-            renderPolicy.appendSourceMetadata(withoutDuplicatedTitle, listOf(representative))
+            renderPolicy.appendSourceMetadata(styledSingle, listOf(representative))
         ).also {
             DebugTrace.d("summary_engine", "singleArticle final branch=cloudOrFallback preview=${DebugTrace.preview(it)}")
         }
@@ -468,6 +471,62 @@ class SummarizationEngineUseCase @Inject constructor(
             .removeSuffix(".")
     }
 
+    private fun enforceSingleCardStyle(summary: String, title: String): String {
+        val safeTitle = title.trim().removeSuffix(":").ifBlank { "Коротко" }
+        val lines = summary.lines()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .filterNot { it.startsWith(SummarySourceMeta.PREFIX) }
+
+        val bulletLines = lines
+            .mapNotNull { line ->
+                when {
+                    line.startsWith("—") || line.startsWith("-") || line.startsWith("•") -> line.drop(1).trim()
+                    else -> null
+                }
+            }
+            .map { sanitizeSingleBullet(it) }
+            .filter { it.isNotBlank() }
+
+        val items = if (bulletLines.isNotEmpty()) {
+            bulletLines.take(SINGLE_CARD_MAX_BULLETS)
+        } else {
+            SENTENCE_SPLIT_REGEX
+                .split(lines.joinToString(" "))
+                .asSequence()
+                .map { sanitizeSingleBullet(it) }
+                .filter { it.isNotBlank() }
+                .take(SINGLE_CARD_MAX_BULLETS)
+                .toList()
+        }
+
+        if (items.isEmpty()) return safeTitle
+
+        return buildString {
+            append(safeTitle)
+            items.forEach { bullet ->
+                append("\n")
+                append("— ")
+                append(bullet)
+            }
+        }
+    }
+
+    private fun sanitizeSingleBullet(text: String): String {
+        val trimmed = text.trim().trimStart('-', '—', '•').trim()
+        if (trimmed.isBlank()) return ""
+        val normalized = trimmed
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .removeSuffix(":")
+        val withoutTitleDup = if (normalized.startsWith("ОВА:", ignoreCase = true)) {
+            normalized.substringAfter(":").trim().ifBlank { normalized }
+        } else {
+            normalized
+        }
+        return withoutTitleDup
+    }
+
     private fun classifyFallbackTheme(title: String, content: String): FallbackThemeDefinition {
         val haystack = normalizeThemeText("$title $content")
         val best = FALLBACK_THEME_DEFINITIONS
@@ -518,6 +577,8 @@ class SummarizationEngineUseCase @Inject constructor(
         const val MAX_FALLBACK_TITLE_CHARS = 270
         const val FALLBACK_ITEM_MARKER = "—"
         const val LOCAL_MULTI_ARTICLE_NEWS_LIMIT = 8
+        const val SINGLE_CARD_MAX_BULLETS = 3
+        val SENTENCE_SPLIT_REGEX = Regex("(?<=[.!?…])\\s+|\\n+")
 
         val GENERIC_FALLBACK_THEME = FallbackThemeDefinition(
             key = "generic",

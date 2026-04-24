@@ -73,10 +73,14 @@ object AiJsonResponseParser {
                             is JSONObject -> {
                                 val text = item.optString(AiJsonContract.TEXT).trim()
                                 if (text.isBlank()) continue
+                                val sourcesOpt = item.opt(AiJsonContract.SOURCES)
+                                    ?: item.opt(AiJsonContract.SOURCE_ID)
+                                    ?: item.opt("source_ids")
+                                    ?: item.opt("source_id")
                                 add(
                                     QaStatementJson(
                                         text = text,
-                                        sources = readStringArray(item.opt(AiJsonContract.SOURCES))
+                                        sources = readStringArray(sourcesOpt)
                                     )
                                 )
                             }
@@ -99,7 +103,12 @@ object AiJsonResponseParser {
                     else listOf(
                         QaStatementJson(
                             text = text,
-                            sources = readStringArray(value.opt(AiJsonContract.SOURCES))
+                            sources = readStringArray(
+                                value.opt(AiJsonContract.SOURCES)
+                                    ?: value.opt(AiJsonContract.SOURCE_ID)
+                                    ?: value.opt("source_ids")
+                                    ?: value.opt("source_id")
+                            )
                         )
                     )
                 }

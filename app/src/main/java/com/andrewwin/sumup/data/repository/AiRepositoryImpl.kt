@@ -175,12 +175,17 @@ class AiRepositoryImpl @Inject constructor(
             questionPrefix = aiPromptProvider.questionPromptPrefix(),
             questionSuffix = aiPromptProvider.questionPromptSuffix()
         )
+        DebugTrace.d(
+            "ai_qa",
+            "askQuestion question=${DebugTrace.preview(question, 140)} contentChars=${content.length} promptPreview=${DebugTrace.preview(prompt, 500)}"
+        )
         return askWithPrompt(content, prompt)
     }
 
     override suspend fun askWithPrompt(content: String, prompt: String): String {
         val prefs = prefsDao.getUserPreferences().first()
         val maxTotalChars = (prefs?.aiMaxCharsTotal ?: DEFAULT_MAX_AI_CONTENT_LENGTH).coerceAtLeast(1000)
+        val truncatedContent = content.take(maxTotalChars)
 
         if (prefs?.aiStrategy == AiStrategy.LOCAL) {
             throw UnsupportedStrategyException()
@@ -189,17 +194,31 @@ class AiRepositoryImpl @Inject constructor(
         val enabledConfigs = getEnabledConfigsByTypeDecrypted(AiModelType.SUMMARY)
         if (enabledConfigs.isEmpty()) throw NoActiveModelException()
 
+        DebugTrace.d(
+            "ai_qa",
+            "askWithPrompt strategy=${prefs?.aiStrategy} models=${enabledConfigs.size} contentChars=${truncatedContent.length} contentPreview=${DebugTrace.preview(truncatedContent, 500)} promptPreview=${DebugTrace.preview(prompt, 500)}"
+        )
+
         for (config in enabledConfigs) {
             try {
+                DebugTrace.d(
+                    "ai_qa",
+                    "modelRequest provider=${config.provider} model=${config.modelName} contentChars=${truncatedContent.length}"
+                )
                 val response = aiService.generateResponse(
                     config = config,
                     prompt = prompt,
-                    content = content.take(maxTotalChars),
+                    content = truncatedContent,
                     expectJson = true
                 )
                 _lastUsedSummaryModelName.value = config.modelName.takeIf { it.isNotBlank() }
+                DebugTrace.d(
+                    "ai_qa",
+                    "modelResponse provider=${config.provider} model=${config.modelName} rawPreview=${DebugTrace.preview(response, 500)}"
+                )
                 return response
             } catch (e: AiServiceException) {
+                DebugTrace.e("ai_qa", "modelRequest failed provider=${config.provider} model=${config.modelName}", e)
                 continue
             }
         }

@@ -173,7 +173,7 @@ fun FeedAiDialog(
                             compareBlocks = compareBlocks
                         )
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            if (!summaryTitle.isNullOrBlank()) {
+                            if (compareBlocks != null && !summaryTitle.isNullOrBlank()) {
                                 Text(
                                     text = summaryTitle,
                                     style = MaterialTheme.typography.titleMedium,
@@ -193,32 +193,76 @@ fun FeedAiDialog(
                                     sourceLabelMap = sourceLabelMap,
                                     onOpenWebView = onOpenWebView
                                 )
-                            } else {
-                                SingleSummaryCard(
-                                    blocks = blocks,
-                                    sourceLabelMap = sourceLabelMap,
-                                    onOpenWebView = onOpenWebView
+                                SummaryMetaRow(
+                                    modelName = activeSummaryModelName,
+                                    aiStrategy = aiStrategy,
+                                    onCopy = {
+                                        copyTextToClipboard(context, aiResult)
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.ai_result_copied),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    },
+                                    onShare = {
+                                        shareText(
+                                            context = context,
+                                            text = aiResult,
+                                            chooserTitle = context.getString(R.string.summary_share_chooser_title)
+                                        )
+                                    }
                                 )
-                            }
-                            SummaryMetaRow(
-                                modelName = activeSummaryModelName,
-                                aiStrategy = aiStrategy,
-                                onCopy = {
-                                    copyTextToClipboard(context, aiResult)
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(R.string.ai_result_copied),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                },
-                                onShare = {
-                                    shareText(
-                                        context = context,
-                                        text = aiResult,
-                                        chooserTitle = context.getString(R.string.summary_share_chooser_title)
+                            } else {
+                                if (isFeedAiActive) {
+                                    StandardSummaryCard(
+                                        blocks = blocks,
+                                        sourceLabelMap = sourceLabelMap,
+                                        onOpenWebView = onOpenWebView
+                                    )
+                                    SummaryMetaRow(
+                                        modelName = activeSummaryModelName,
+                                        aiStrategy = aiStrategy,
+                                        onCopy = {
+                                            copyTextToClipboard(context, aiResult)
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(R.string.ai_result_copied),
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        onShare = {
+                                            shareText(
+                                                context = context,
+                                                text = aiResult,
+                                                chooserTitle = context.getString(R.string.summary_share_chooser_title)
+                                            )
+                                        }
+                                    )
+                                } else {
+                                    SingleSummaryCard(
+                                        blocks = blocks,
+                                        sourceLabelMap = sourceLabelMap,
+                                        onOpenWebView = onOpenWebView,
+                                        modelName = activeSummaryModelName,
+                                        aiStrategy = aiStrategy,
+                                        onCopy = {
+                                            copyTextToClipboard(context, aiResult)
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(R.string.ai_result_copied),
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        onShare = {
+                                            shareText(
+                                                context = context,
+                                                text = aiResult,
+                                                chooserTitle = context.getString(R.string.summary_share_chooser_title)
+                                            )
+                                        }
                                     )
                                 }
-                            )
+                            }
                         }
                     }
                 }
@@ -277,6 +321,164 @@ fun FeedAiDialog(
 private fun SingleSummaryCard(
     blocks: List<SummaryBlockUi>,
     sourceLabelMap: Map<String, String>,
+    onOpenWebView: (String) -> Unit,
+    modelName: String?,
+    aiStrategy: AiStrategy,
+    onCopy: () -> Unit,
+    onShare: () -> Unit
+) {
+    val qaSections = remember(blocks) { extractQaSections(blocks) }
+    val content = remember(blocks) { extractSingleSummaryContent(blocks) }
+    val context = LocalContext.current
+    val compactModel = modelName
+        ?.substringAfter('/', modelName)
+        ?.takeIf { it.isNotBlank() }
+    val footerText = buildString {
+        append(
+            when (aiStrategy) {
+                AiStrategy.CLOUD -> context.getString(R.string.ai_strategy_cloud)
+                AiStrategy.LOCAL -> context.getString(R.string.ai_strategy_local)
+                AiStrategy.ADAPTIVE -> context.getString(R.string.ai_strategy_adaptive)
+            }
+        )
+        if (aiStrategy != AiStrategy.LOCAL && compactModel != null) {
+            append(", ")
+            append(compactModel)
+        }
+    }
+
+    if (qaSections != null) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            qaSections.forEach { section ->
+                AppCardSurface(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = section.heading,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                        section.items.forEach { item ->
+                            InlineSummaryRow(
+                                text = "— ${item.text}",
+                                sources = item.sources,
+                                sourceLabelMap = sourceLabelMap,
+                                onOpenWebView = onOpenWebView,
+                                textStyle = MaterialTheme.typography.bodyLarge,
+                                lineHeight = 26.sp,
+                                sourceStyle = FeedSummarySourceStyle.InlineChip
+                            )
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = footerText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onCopy, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        imageVector = Icons.Outlined.ContentCopy,
+                        contentDescription = null,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                IconButton(onClick = onShare, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        imageVector = Icons.Outlined.Share,
+                        contentDescription = null,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+            }
+        }
+    } else {
+        AppCardSurface(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = content.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+
+                content.bullets.forEach { bullet ->
+                    InlineSummaryRow(
+                        text = "— $bullet",
+                        sources = content.sources,
+                        sourceLabelMap = sourceLabelMap,
+                        onOpenWebView = onOpenWebView,
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        lineHeight = 26.sp,
+                        sourceStyle = FeedSummarySourceStyle.InlineChip
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = footerText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = onCopy, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            imageVector = Icons.Outlined.ContentCopy,
+                            contentDescription = null,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(onClick = onShare, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            imageVector = Icons.Outlined.Share,
+                            contentDescription = null,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StandardSummaryCard(
+    blocks: List<SummaryBlockUi>,
+    sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
     Column(
@@ -284,25 +486,25 @@ private fun SingleSummaryCard(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         blocks.forEach { block ->
-        when (block) {
-            is SummaryBlockUi.Section -> LegacySummarySectionView(
-                text = block.body,
-                sources = block.sources,
-                sourceLabelMap = sourceLabelMap,
-                onOpenWebView = onOpenWebView
-            )
-            is SummaryBlockUi.PlainList -> PlainListSummarySectionView(
-                items = block.items,
-                sourceLabelMap = sourceLabelMap,
-                onOpenWebView = onOpenWebView
-            )
-            is SummaryBlockUi.Theme -> ThemeSummarySectionView(
-                heading = block.heading,
-                summary = block.summary,
-                items = block.items,
-                sourceLabelMap = sourceLabelMap,
-                onOpenWebView = onOpenWebView
-            )
+            when (block) {
+                is SummaryBlockUi.Section -> LegacySummarySectionView(
+                    text = block.body,
+                    sources = block.sources,
+                    sourceLabelMap = sourceLabelMap,
+                    onOpenWebView = onOpenWebView
+                )
+                is SummaryBlockUi.PlainList -> PlainListSummarySectionView(
+                    items = block.items,
+                    sourceLabelMap = sourceLabelMap,
+                    onOpenWebView = onOpenWebView
+                )
+                is SummaryBlockUi.Theme -> ThemeSummarySectionView(
+                    heading = block.heading,
+                    summary = block.summary,
+                    items = block.items,
+                    sourceLabelMap = sourceLabelMap,
+                    onOpenWebView = onOpenWebView
+                )
             }
         }
     }
@@ -383,6 +585,95 @@ private fun buildSourceLabelMap(sources: List<SummarySourceLinkUi>): Map<String,
 }
 
 private fun SummarySourceLinkUi.key(): String = "$name|$url"
+
+private data class SingleSummaryContentUi(
+    val title: String,
+    val bullets: List<String>,
+    val sources: List<SummarySourceLinkUi> = emptyList()
+)
+
+private data class QaSectionUi(
+    val heading: String,
+    val items: List<ThemeItem>
+)
+
+private fun extractQaSections(blocks: List<SummaryBlockUi>): List<QaSectionUi>? {
+    val expected = listOf("питання", "коротка відповідь", "детальніше")
+    val themes = blocks.filterIsInstance<SummaryBlockUi.Theme>()
+    if (themes.size < 3) return null
+
+    val normalizedHeadings = themes.take(3).map { it.heading.trim().lowercase() }
+    if (normalizedHeadings != expected) return null
+
+    return themes.take(3).map { theme ->
+        val directItems = theme.items.filter { it.text.isNotBlank() }
+        if (directItems.isNotEmpty()) {
+            QaSectionUi(heading = theme.heading, items = directItems)
+        } else {
+            val fallbackText = theme.summary?.takeIf { it.isNotBlank() } ?: "Немає даних."
+            QaSectionUi(
+                heading = theme.heading,
+                items = listOf(ThemeItem(marker = "—", text = fallbackText, sources = emptyList()))
+            )
+        }
+    }
+}
+
+private fun extractSingleSummaryContent(blocks: List<SummaryBlockUi>): SingleSummaryContentUi {
+    val allSources = blocks.asSequence().flatMap { block ->
+        when (block) {
+            is SummaryBlockUi.Section -> block.sources.asSequence()
+            is SummaryBlockUi.PlainList -> block.items.asSequence().flatMap { it.sources.asSequence() }
+            is SummaryBlockUi.Theme -> block.items.asSequence().flatMap { it.sources.asSequence() }
+        }
+    }.distinctBy { it.key() }.toList()
+
+    blocks.forEach { block ->
+        when (block) {
+            is SummaryBlockUi.Section -> {
+                val lines = block.body.lines().map { it.trim() }.filter { it.isNotBlank() }
+                if (lines.isNotEmpty()) {
+                    val title = lines.first().removeSuffix(":").trim()
+                    val bullets = lines
+                        .drop(1)
+                        .map { it.trim().removePrefix("—").removePrefix("-").removePrefix("•").trim() }
+                        .filter { it.isNotBlank() }
+                        .ifEmpty { lines.drop(1).takeIf { it.isNotEmpty() } ?: listOf(title) }
+                        .take(4)
+                    return SingleSummaryContentUi(
+                        title = title,
+                        bullets = bullets,
+                        sources = allSources
+                    )
+                }
+            }
+            is SummaryBlockUi.Theme -> {
+                val bullets = block.items.map { it.text.trim() }.filter { it.isNotBlank() }.take(4)
+                return SingleSummaryContentUi(
+                    title = block.heading.removeSuffix(":").trim(),
+                    bullets = bullets.ifEmpty { listOf(block.summary.orEmpty()).filter { it.isNotBlank() } },
+                    sources = allSources
+                )
+            }
+            is SummaryBlockUi.PlainList -> {
+                val bullets = block.items.map { it.text.trim() }.filter { it.isNotBlank() }.take(4)
+                if (bullets.isNotEmpty()) {
+                    return SingleSummaryContentUi(
+                        title = bullets.first(),
+                        bullets = bullets.drop(1).ifEmpty { bullets.take(1) },
+                        sources = allSources
+                    )
+                }
+            }
+        }
+    }
+
+    return SingleSummaryContentUi(
+        title = "Підсумок",
+        bullets = listOf("Немає достатньо даних для відображення."),
+        sources = allSources
+    )
+}
 
 @Composable
 private fun SummaryMetaRow(
@@ -654,6 +945,7 @@ private fun ThemeSummarySectionView(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
             summary?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     text = it,
