@@ -9,10 +9,12 @@ enum class AiSummaryPromptProfile {
 
 object AiPromptCatalog {
 
-    private const val RULE_NO_INTRO_PHRASES = "Omit filler and generic intros ('Перші повідомлення', 'Зазначається'). Start directly with the core fact. Named attribution is allowed only for accuracy."
+    private const val RULE_NO_INTRO_PHRASES = "Omit filler and generic intros ('Перші повідомлення', 'Зазначається'). Start directly with the core fact."
+    private const val RULE_STRICT_ATTRIBUTION = "Do not attribute facts to news outlets or media agencies (e.g., REMOVE 'повідомляє видання X', 'за даними ЗМІ'). Attribution is ONLY allowed for specific authoritative figures, officials, or experts (e.g., 'Президент України повідомив...', 'Міноборони заявило...')."
     private const val RULE_JOURNALISTIC_STYLE = "Strict Reuters/AP style. Remove bureaucratic fluff, hype, and emotional modifiers. Preserve original source uncertainty."
     private const val RULE_READY_UI_COPY = "Write text that is ready to be directly displayed in the UI of a mobile news summarization app: compact, neutral, and concrete."
     private const val RULE_NO_VERBATIM_COPY = "CRITICAL: DO NOT copy input text or titles verbatim. Paraphrase abstractively: rewrite the core facts into fresh, concise, and independent factual statements."
+    private const val RULE_SIMPLE_SENTENCES = "Write in simple, easy-to-read sentences. One item/bullet MUST contain exactly ONE sentence. If a fact is complex or contains multiple independent actions, you MUST either split it into multiple separate bullets/items or simplify it into one short sentence. Never put multiple sentences in a single text field. Avoid heavy subordinate clauses, complex phrasing, passive voice, and semicolons."
     private const val RULE_SOURCE_IDS_EXACT = "Use source_id values exactly as provided in INPUT."
 
     private fun promptEnvelope(role: String, goal: String, schema: String, rules: List<String>, formatInfo: String? = null, body: String? = null): String {
@@ -59,20 +61,24 @@ object AiPromptCatalog {
                     goal = "Build a condensed, hard-fact digest grouped by broad categories.",
                     schema = """{"${AiJsonContract.HEADLINE}":"optional short digest title","${AiJsonContract.THEMES}":[{"${AiJsonContract.TITLE}":"theme title","${AiJsonContract.EMOJIS}":["emoji1","emoji2"],"${AiJsonContract.ITEMS}":[{"${AiJsonContract.TITLE}":"news title","${AiJsonContract.SOURCE_ID}":"source id from input"}]}]}""",
                     rules = listOf(
-                        "Create 1..4 themes. Theme title: 2-4 words max, representing a broad category (e.g., 'Економіка', 'Спорт'), not a specific event.",
+                        "Exclude real-time tactical alerts, operational tracking, or micro-level updates. BAD: 'Тревога❗ Вылез БПЛА за 10 км от берега', '✈️✈️Вышел в море в сторону Фонтанки'. GOOD: 'Цієї ночі можлива масована атака за допомогою бомбардувальників ТУ-95', 'В Одесі сталася маштабна стрілянина, винуватця шукають'.",
+                        "Create 1..4 themes. Theme title: 2-4 words max, representing a broad category (e.g., 'Економіка', 'Спорт'). FORBIDDEN: generic meta-titles like 'Ключові новини', 'Головне', 'Важливе', 'Різне'.",
                         "Include 2..4 highly relevant emojis per theme.",
-                        "Each theme must have 2..4 distinct items. Merge or omit themes with fewer items. Skip duplicates.",
+                        "Each theme must have 2..5 distinct items. Merge or omit themes with fewer items. Skip duplicates.",
                         "Each item must represent a single concrete event from exactly one source_id.",
-                        "Item title: punchy, action-oriented news ticker style (max 20-25 words). Lead with the actor.",
+                        "Item title: punchy, action-oriented news ticker style (max 18 words). Lead with the actor.",
                         "Each source_id can appear only once in the entire response.",
                         RULE_SOURCE_IDS_EXACT,
                         RULE_READY_UI_COPY,
                         RULE_NO_VERBATIM_COPY,
+                        RULE_SIMPLE_SENTENCES,
                         RULE_JOURNALISTIC_STYLE,
                         RULE_NO_INTRO_PHRASES,
+                        RULE_STRICT_ATTRIBUTION,
                         languageRule
                     ),
-                    formatInfo = "NOTE: The example below is strictly a partial fragment demonstrating schema and style, not a complete response.\n\nExample:\n{\"headline\":\"Головне за день\",\"themes\":[{\"title\":\"Внутрішня політика\",\"emojis\":[\"🏛️\",\"🇺🇦\"],\"items\":[{\"title\":\"Верховна Рада ухвалила в другому читанні закон про мобілізацію з новими поправками\",\"source_id\":\"101\"},{\"title\":\"Президент підписав указ про призначення нового керівника Служби безпеки України\",\"source_id\":\"102\"}]},{\"title\":\"Економіка та бізнес\",\"emojis\":[\"📈\",\"💰\"],\"items\":[{\"title\":\"Національний банк України знизив облікову ставку до 13% для стимулювання кредитування\",\"source_id\":\"103\"},{\"title\":\"Світовий банк виділив додатковий транш у розмірі 1.5 млрд доларів на відновлення інфраструктури\",\"source_id\":\"104\"}]},{\"title\":\"Технології\",\"emojis\":[\"💻\",\"🚀\"],\"items\":[{\"title\":\"Компанія OpenAI представила нову мовну модель GPT-4o з покращеними можливостями голосового спілкування\",\"source_id\":\"105\"},{\"title\":\"SpaceX успішно здійснила третій тестовий запуск космічного корабля Starship на орбіту\",\"source_id\":\"106\"}]},{\"title\":\"Спорт\",\"emojis\":[\"⚽\",\"🏆\"],\"items\":[{\"title\":\"Збірна України з футболу здобула вольову перемогу над Ісландією та вийшла на Євро-2024\",\"source_id\":\"107\"},{\"title\":\"Олександр Усик став абсолютним чемпіоном світу у надважкій вазі після перемоги над Тайсоном Ф'юрі\",\"source_id\":\"108\"}]}]}",
+                    formatInfo = "NOTE: The example below is an etalon response representing high-impact news in distinct broad categories.\n\n" +
+                            "Example:\n{\"headline\":\"Головні події дня\",\"themes\":[{\"title\":\"Міжнародна політика\",\"emojis\":[\"🌍\",\"🤝\"],\"items\":[{\"title\":\"Сенат США остаточно схвалив пакет військової допомоги Україні на 60 мільярдів доларів\",\"source_id\":\"101\"},{\"title\":\"Європейська рада офіційно розпочала переговори щодо вступу України до ЄС\",\"source_id\":\"102\"}]},{\"title\":\"Безпека та оборона\",\"emojis\":[\"🛡️\",\"⚔️\"],\"items\":[{\"title\":\"ЗСУ успішно випробували нову балістичну ракету вітчизняного виробництва дальністю 700 кілометрів\",\"source_id\":\"103\"},{\"title\":\"Німеччина передала Україні третій зенітно-ракетний комплекс Patriot із боєкомплектом\",\"source_id\":\"104\"}]},{\"title\":\"Економіка\",\"emojis\":[\"📈\",\"💰\"],\"items\":[{\"title\":\"Національний банк України знизив облікову ставку до 13% для стимулювання бізнесу\",\"source_id\":\"105\"},{\"title\":\"МВФ перерахував Україні новий транш макрофінансової допомоги у розмірі 900 мільйонів доларів\",\"source_id\":\"106\"}]},{\"title\":\"Технології\",\"emojis\":[\"💻\",\"🚀\"],\"items\":[{\"title\":\"SpaceX успішно посадила перший ступінь ракети Starship під час п'ятого тестового польоту\",\"source_id\":\"107\"},{\"title\":\"OpenAI випустила нову модель штучного інтелекту з можливістю міркування в реальному часі\",\"source_id\":\"108\"}]}]}",
                     body = basePrompt
                 )
             }
@@ -83,15 +89,20 @@ object AiPromptCatalog {
                     schema = """{"${AiJsonContract.ITEMS}":[{"${AiJsonContract.BULLETS}":["point 1","point 2"],"${AiJsonContract.SOURCE}":"optional source name"}]}""",
                     rules = listOf(
                         "Return exactly one item object containing 2..5 bullets.",
-                        "Each bullet must be a distinct, standalone hard fact (max 30-40 words) anchored by a concrete entity. Do not fragment facts.",
+                        "Each bullet must be a distinct, standalone hard fact (max 20 words) anchored by a concrete entity. Do not fragment facts.",
                         "source: use explicit source name from INPUT, or an empty string.",
                         RULE_READY_UI_COPY,
                         RULE_NO_VERBATIM_COPY,
+                        RULE_SIMPLE_SENTENCES,
                         RULE_JOURNALISTIC_STYLE,
                         RULE_NO_INTRO_PHRASES,
+                        RULE_STRICT_ATTRIBUTION,
                         languageRule
                     ),
-                    formatInfo = "NOTE: The example below is strictly a partial fragment demonstrating schema and style, not a complete response.\n\nExample:\n{\"items\":[{\"bullets\":[\"Компанія Apple офіційно презентувала нову лінійку смартфонів iPhone 16 під час щорічної осінньої презентації в штаб-квартирі у Купертіно.\",\"Нові базові моделі отримали процесор A18, покращену систему охолодження та кнопку Action Button, яка раніше була ексклюзивом Pro-версій.\",\"Стартова ціна базового смартфона складатиме 799 доларів, а офіційні продажі в роздрібних магазинах США та Європи розпочнуться 20 вересня.\"],\"source\":\"Bloomberg\"}]}",
+                    formatInfo = "NOTE: The example below is an etalon response providing a multi-angled factual overview of a single news event.\n\n" +
+                            "BAD PHRASING (Too complex, 2 sentences): \"Трафік танкерів відновився до рівня, який був до українських атак, за даними фінського видання Yle, що посилається на контр-адмірала з НАТО. Десятки суден очікують завантаження.\"\n" +
+                            "GOOD PHRASING (Split or simplified into 1 simple sentence): \"За даними НАТО, трафік танкерів з портів РФ відновився до рівня перед атаками.\"\n\n" +
+                            "Example:\n{\"items\":[{\"bullets\":[\"Верховна Рада ухвалила в цілому закон про вдосконалення процесу військової мобілізації.\",\"Документ підтримали 283 народні депутати під час пленарного засідання парламенту.\",\"Новий закон скасовує статус обмежено придатних до військової служби.\",\"Військовозобов'язані повинні оновити свої облікові дані у ТЦК протягом 60 днів.\",\"Закон набере чинності через місяць після підписання президентом.\"],\"source\":\"УНІАН\"}]}",
                     body = basePrompt
                 )
             }
@@ -110,16 +121,21 @@ object AiPromptCatalog {
             rules = listOf(
                 "Answer ONLY from provided sources, in the same language as the question.",
                 "question: repeat user question concisely in one line.",
-                "short_answer: one natural sentence (8-18 words). Not just 'Так/Ні'. If sources lack info, output: 'На основі інформації із джерел не можна відповісти на питання', details=[], sources=[].",
-                "details: 2..5 short factual bullets. Each must include 1..3 valid source_ids from INPUT.",
+                "short_answer: one natural sentence (max 12 words). Not just 'Так/Ні'. If sources lack info, output: 'На основі інформації із джерел не можна відповісти на питання', details=[], sources=[].",
+                "details: 2..5 short factual bullets. Max 20 words per one. Each must include 1..3 valid source_ids from INPUT.",
                 "sources: unique union of source_id values used in details.",
                 RULE_SOURCE_IDS_EXACT,
                 RULE_READY_UI_COPY,
                 RULE_NO_VERBATIM_COPY,
+                RULE_SIMPLE_SENTENCES,
                 RULE_JOURNALISTIC_STYLE,
-                RULE_NO_INTRO_PHRASES
+                RULE_NO_INTRO_PHRASES,
+                RULE_STRICT_ATTRIBUTION
             ),
-            formatInfo = "NOTE: The example below is strictly a partial fragment demonstrating schema and style, not a complete response.\n\nExample:\n{\"question\":\"Які числа згадуються у новинах?\",\"short_answer\":\"У новинах згадані 3.7 млн грн прямих збитків, 2 млн грн цільового фінансування та 3 постраждалих місцевих жителів.\",\"details\":[{\"text\":\"Перше джерело вказує на прямі матеріальні збитки для інфраструктури у розмірі 3.7 млн грн.\",\"sources\":[\"2299\"]},{\"text\":\"Друге джерело повідомляє про виділення 2 млн грн цільового фінансування на ремонтні роботи.\",\"sources\":[\"962\"]}],\"sources\":[\"2299\",\"962\"]}",
+            formatInfo = "NOTE: The example below is an etalon response showing a clear answer without unasked details.\n\n" +
+                    "BAD PHRASING (Multiple sentences, complex): \"Перше джерело зазначає, що збитки склали 3.7 млн грн. Друге джерело підтверджує виділення 2 млн грн на ремонт; також відомо про 3 постраждалих.\"\n" +
+                    "GOOD PHRASING (Split or simplified into 1 simple sentence): \"Прямі матеріальні збитки для місцевої інфраструктури оцінюються у 3.7 млн грн.\"\n\n" +
+                    "Example:\n{\"question\":\"Які системи ППО обіцяють передати партнери?\",\"short_answer\":\"Партнери планують передати Україні системи Patriot, NASAMS та додаткові зенітні ракети.\",\"details\":[{\"text\":\"Німеччина офіційно оголосила про передачу третьої батареї ЗРК Patriot.\",\"sources\":[\"145\",\"148\"]},{\"text\":\"Норвегія пообіцяла надати дві додаткові пускові установки NASAMS.\",\"sources\":[\"146\"]}],\"sources\":[\"145\",\"148\",\"146\"]}",
             body = """
                 $questionPrefix $question
 
@@ -136,7 +152,7 @@ object AiPromptCatalog {
             goal = "Distill sources into a crisp matrix of overlapping facts and unique details.",
             schema = """{"${AiJsonContract.COMMON_TOPIC}":"optional short topic label","${AiJsonContract.COMMON_FACTS}":[{"${AiJsonContract.TEXT}":"sentence 1","${AiJsonContract.SOURCES}":["source_id_1","source_id_2"]}],"${AiJsonContract.ITEMS}":[{"${AiJsonContract.SOURCE_ID}":"source id from input","${AiJsonContract.UNIQUE_DETAILS}":["sentence 1"]}]}""",
             rules = listOf(
-                "Paraphrase all facts and direct speech into abstractive one-liners (max 30-35 words).",
+                "Paraphrase all facts and direct speech into abstractive one-liners (max 20 words).",
                 "COMMON_FACTS (max 4): requires exact event/number overlap in 2+ sources. Put mere clarifications or contradictions in unique_details.",
                 "COMMON_FACTS requirement: A fact is common ONLY if the exact same event/number/claim appears in 2+ sources.",
                 "IF source B only clarifies source A (adds detail/context), DO NOT create a common fact. Put the new fragment in source B's UNIQUE_DETAILS.",
@@ -148,11 +164,18 @@ object AiPromptCatalog {
                 RULE_SOURCE_IDS_EXACT,
                 RULE_READY_UI_COPY,
                 RULE_NO_VERBATIM_COPY,
+                RULE_SIMPLE_SENTENCES,
                 RULE_JOURNALISTIC_STYLE,
                 RULE_NO_INTRO_PHRASES,
+                RULE_STRICT_ATTRIBUTION,
                 languageRule(summaryLanguage)
             ),
-            formatInfo = "NOTE: The examples below are strictly partial fragments demonstrating schema and style, not complete responses.\n\nTrue Overlap Example:\n{\"common_topic\":\"\",\"common_facts\":[{\"text\":\"Європейський Союз офіційно погодив виділення Україні 90 млрд євро макрофінансової допомоги\",\"sources\":[\"s1\",\"s2\"]}],\"items\":[{\"source_id\":\"s1\",\"unique_details\":[\"Пакет фінансової підтримки також включає новий жорсткий блок санкцій проти енергетичного сектору РФ\"]},{\"source_id\":\"s2\",\"unique_details\":[\"Український уряд планує спрямувати отримані макрофінансові кошти на покриття соціальних виплат протягом наступного кварталу\"]}]}\n\nBroad Topic Example:\n{\"common_topic\":\"Хоча новини стосуються однієї сфери (технології), але вони описують різні події\",\"common_facts\":[],\"items\":[{\"source_id\":\"s1\",\"unique_details\":[\"Компанія Apple анонсувала випуск нового процесора M4 для лінійки планшетів iPad Pro\"]},{\"source_id\":\"s2\",\"unique_details\":[\"Microsoft інвестувала 2 мільярди доларів у розвиток дата-центрів для штучного інтелекту в Японії\"]}]}",
+            formatInfo = "NOTE: The examples below provide three etalon scenarios: true overlap, broad theme without overlap, and completely unrelated news.\n\n" +
+                    "BAD PHRASING (Complex, multiple sentences): \"Чоловік, що проходив комісію в ТЦК, втік і впав у котлован; він отримав медичну допомогу. Його стан задовільний.\"\n" +
+                    "GOOD PHRASING (Split or simplified into 1 simple sentence): \"Чоловік втік з медкомісії ТЦК та впав у технічний котлован.\"\n\n" +
+                    "Example 1 (True Overlap - Sources cover the exact same event):\n{\"common_topic\":\"\",\"common_facts\":[{\"text\":\"Уряд Швейцарії офіційно виділить 5 мільярдів франків на відновлення України до 2036 року.\",\"sources\":[\"s1\",\"s2\"]}],\"items\":[{\"source_id\":\"s1\",\"unique_details\":[\"Фінансування переважно спрямують на масштабну відбудову критичної інфраструктури.\"]},{\"source_id\":\"s2\",\"unique_details\":[\"Перший фінансовий транш за цією програмою надійде вже у 2025 році.\"]}]}\n\n" +
+                    "Example 2 (Broad Topic - Same sphere, but fundamentally different events):\n{\"common_topic\":\"Хоча новини стосуються технологічної сфери, вони описують події різних компаній.\",\"common_facts\":[],\"items\":[{\"source_id\":\"s3\",\"unique_details\":[\"Компанія Apple презентувала нове покоління планшетів iPad Pro із процесором M4.\"]},{\"source_id\":\"s4\",\"unique_details\":[\"Корпорація Microsoft інвестує 2 мільярди доларів у розвиток центрів обробки даних у Японії.\"]}]}\n\n" +
+                    "Example 3 (Completely Unrelated - No common theme at all):\n{\"common_topic\":\"\",\"common_facts\":[],\"items\":[{\"source_id\":\"s5\",\"unique_details\":[\"Футбольний клуб Реал Мадрид здобув перемогу у фіналі Ліги Чемпіонів.\"]},{\"source_id\":\"s6\",\"unique_details\":[\"На території Індонезії розпочалося масштабне виверження активного вулкана.\"]}]}",
             body = null
         )
     }
