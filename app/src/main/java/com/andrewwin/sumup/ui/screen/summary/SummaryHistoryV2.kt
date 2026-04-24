@@ -69,6 +69,7 @@ internal fun SummaryHistoryListSection(
     listState: LazyListState,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
+    onSearchFocusChanged: (Boolean) -> Unit,
     dateFilter: HistoryDateFilter,
     onDateFilterChange: (HistoryDateFilter) -> Unit,
     savedFilter: HistorySavedFilter,
@@ -101,6 +102,7 @@ internal fun SummaryHistoryListSection(
                 SummaryHistoryFiltersRow(
                     searchQuery = searchQuery,
                     onSearchQueryChange = onSearchQueryChange,
+                    onSearchFocusChanged = onSearchFocusChanged,
                     dateFilter = dateFilter,
                     onDateFilterChange = onDateFilterChange,
                     savedFilter = savedFilter,
@@ -136,6 +138,7 @@ internal fun SummaryHistoryListSection(
 private fun SummaryHistoryFiltersRow(
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
+    onSearchFocusChanged: (Boolean) -> Unit,
     dateFilter: HistoryDateFilter,
     onDateFilterChange: (HistoryDateFilter) -> Unit,
     savedFilter: HistorySavedFilter,
@@ -158,7 +161,10 @@ private fun SummaryHistoryFiltersRow(
                 onValueChange = onSearchQueryChange,
                 placeholder = stringResource(R.string.summary_search_placeholder),
                 leadingIcon = Icons.Default.Search,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                onFocusChanged = { focused ->
+                    if (focused) onSearchFocusChanged(true)
+                }
             )
             AppExportPdfButton(
                 onClick = onExportPdf,

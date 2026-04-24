@@ -5,21 +5,28 @@ import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.InlineTextContent
@@ -61,6 +68,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -115,7 +123,7 @@ internal enum class HistorySavedFilter(val labelRes: Int, val favoritesOnly: Boo
     FAVORITES(R.string.summary_history_filter_favorites, true)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SummaryScreen(
     viewModel: SummaryViewModel = hiltViewModel(),
@@ -128,6 +136,8 @@ fun SummaryScreen(
     val summaryStatusHelpDescription = stringResource(R.string.summary_help_status)
     val summaryLatestHelpDescription = stringResource(R.string.summary_help_latest)
     val summaryChartHelpDescription = stringResource(R.string.summary_help_chart)
+    val focusManager = LocalFocusManager.current
+    val imeVisible = WindowInsets.isImeVisible
     val summaries by viewModel.summaries.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
     val activeSummaryModelName by viewModel.activeSummaryModelName.collectAsState()
@@ -144,6 +154,7 @@ fun SummaryScreen(
     var isHistoryScreen by rememberSaveable { mutableStateOf(false) }
     var openedHistorySummaryId by rememberSaveable { mutableStateOf<Long?>(null) }
     var historySearchQuery by rememberSaveable { mutableStateOf("") }
+    var isHistorySearchFocused by remember { mutableStateOf(false) }
     var historyDateFilter by rememberSaveable { mutableStateOf(HistoryDateFilter.HOUR_24) }
     var historySavedFilter by rememberSaveable { mutableStateOf(HistorySavedFilter.ALL) }
     val tabIcons = listOf(Icons.Default.Schedule, Icons.Default.BarChart)
@@ -171,6 +182,29 @@ fun SummaryScreen(
         derivedStateOf {
             isHistoryScreen &&
                 (historyListState.firstVisibleItemIndex > 0 || historyListState.firstVisibleItemScrollOffset > 100)
+        }
+    }
+    var wasImeVisible by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = isHistoryScreen && isHistorySearchFocused) {
+        focusManager.clearFocus(force = true)
+        isHistorySearchFocused = false
+    }
+
+    LaunchedEffect(imeVisible, isHistorySearchFocused, isHistoryScreen) {
+        if (!isHistoryScreen) {
+            wasImeVisible = false
+            isHistorySearchFocused = false
+            return@LaunchedEffect
+        }
+        if (imeVisible) {
+            wasImeVisible = true
+        } else if (wasImeVisible && isHistorySearchFocused) {
+            focusManager.clearFocus(force = true)
+            isHistorySearchFocused = false
+            wasImeVisible = false
+        } else if (!isHistorySearchFocused) {
+            wasImeVisible = false
         }
     }
 
@@ -206,47 +240,59 @@ fun SummaryScreen(
 
     Scaffold(
         topBar = {
-            AppTopBar(
-                title = {
-                    if (isSelectionMode) {
-                        Text("Вибрано: ${selectedSummaryIds.size}")
-                    } else if (isHistoryScreen) {
-                        Text(stringResource(R.string.summary_history_title))
-                    } else {
-                        Text(stringResource(R.string.nav_summary))
-                    }
-                },
-                actions = {
-                    if (isSelectionMode) {
-                        AppSelectionActions(
-                            onClear = { selectedSummaryIds.clear() },
-                            onDelete = {
-                                viewModel.deleteSummaries(selectedSummaryIds.toList())
-                                selectedSummaryIds.clear()
-                            },
-                            clearDescription = "Exit selection mode",
-                            deleteDescription = "Delete selected summaries"
-                        )
-                    } else if (isHistoryScreen) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AnimatedVisibility(
+                visible = !(isHistoryScreen && isHistorySearchFocused),
+                enter = fadeIn(animationSpec = tween(320, easing = FastOutSlowInEasing)) +
+                    expandVertically(animationSpec = tween(380, easing = FastOutSlowInEasing)),
+                exit = fadeOut(animationSpec = tween(300, easing = FastOutSlowInEasing)) +
+                    shrinkVertically(animationSpec = tween(360, easing = FastOutSlowInEasing))
+            ) {
+                AppTopBar(
+                    title = {
+                        if (isSelectionMode) {
+                            Text("Вибрано: ${selectedSummaryIds.size}")
+                        } else if (isHistoryScreen) {
+                            Text(stringResource(R.string.summary_history_title))
+                        } else {
+                            Text(stringResource(R.string.nav_summary))
+                        }
+                    },
+                    actions = {
+                        if (isSelectionMode) {
+                            AppSelectionActions(
+                                onClear = { selectedSummaryIds.clear() },
+                                onDelete = {
+                                    viewModel.deleteSummaries(selectedSummaryIds.toList())
+                                    selectedSummaryIds.clear()
+                                },
+                                clearDescription = "Exit selection mode",
+                                deleteDescription = "Delete selected summaries"
+                            )
+                        } else if (isHistoryScreen) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                AppHelpToggleAction(
+                                    isHelpMode = isHelpMode,
+                                    onToggle = { isHelpMode = !isHelpMode }
+                                )
+                                AppFilledIconAction(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Закрити історію",
+                                    onClick = {
+                                        focusManager.clearFocus(force = true)
+                                        isHistorySearchFocused = false
+                                        isHistoryScreen = false
+                                    }
+                                )
+                            }
+                        } else {
                             AppHelpToggleAction(
                                 isHelpMode = isHelpMode,
                                 onToggle = { isHelpMode = !isHelpMode }
                             )
-                            AppFilledIconAction(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Закрити історію",
-                                onClick = { isHistoryScreen = false }
-                            )
                         }
-                    } else {
-                        AppHelpToggleAction(
-                            isHelpMode = isHelpMode,
-                            onToggle = { isHelpMode = !isHelpMode }
-                        )
                     }
-                }
-            )
+                )
+            }
         },
         floatingActionButton = {
             when {
@@ -289,6 +335,9 @@ fun SummaryScreen(
                     modifier = Modifier.fillMaxSize(),
                     searchQuery = historySearchQuery,
                     onSearchQueryChange = { historySearchQuery = it },
+                    onSearchFocusChanged = { focused ->
+                        if (focused) isHistorySearchFocused = true
+                    },
                     dateFilter = historyDateFilter,
                     onDateFilterChange = { historyDateFilter = it },
                     savedFilter = historySavedFilter,

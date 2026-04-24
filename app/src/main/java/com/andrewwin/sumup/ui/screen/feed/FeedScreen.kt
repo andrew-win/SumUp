@@ -2,14 +2,20 @@ package com.andrewwin.sumup.ui.screen.feed
 
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -20,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -53,7 +60,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun FeedScreen(
     viewModel: FeedViewModel = hiltViewModel(),
@@ -72,6 +79,8 @@ fun FeedScreen(
     val activeSummaryModelName by viewModel.activeSummaryModelName.collectAsState()
     val groups by viewModel.groups.collectAsState()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val imeVisible = WindowInsets.isImeVisible
     val feedAiHelpDescription = stringResource(R.string.feed_help_ai_fab)
     val feedFiltersHelpDescription = stringResource(R.string.feed_help_filters)
     val feedProcessingHelpDescription = stringResource(R.string.feed_help_processing)
@@ -84,6 +93,7 @@ fun FeedScreen(
     var expandedImageUrl by remember { mutableStateOf<String?>(null) }
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
+    var isSearchFocused by remember { mutableStateOf(false) }
 
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -113,20 +123,46 @@ fun FeedScreen(
             listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 100
         }
     }
+    var wasImeVisible by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = isSearchFocused) {
+        focusManager.clearFocus(force = true)
+        isSearchFocused = false
+    }
+
+    LaunchedEffect(imeVisible, isSearchFocused) {
+        if (imeVisible) {
+            wasImeVisible = true
+        } else if (wasImeVisible && isSearchFocused) {
+            focusManager.clearFocus(force = true)
+            isSearchFocused = false
+            wasImeVisible = false
+        } else if (!isSearchFocused) {
+            wasImeVisible = false
+        }
+    }
 
     Scaffold(
         topBar = {
-            AppTopBar(
-                title = {
-                    Text(text = stringResource(R.string.nav_feed))
-                },
-                actions = {
-                    AppHelpToggleAction(
-                        isHelpMode = isHelpMode,
-                        onToggle = { isHelpMode = !isHelpMode }
-                    )
-                }
-            )
+            AnimatedVisibility(
+                visible = !isSearchFocused,
+                enter = fadeIn(animationSpec = tween(320, easing = FastOutSlowInEasing)) +
+                    expandVertically(animationSpec = tween(380, easing = FastOutSlowInEasing)),
+                exit = fadeOut(animationSpec = tween(300, easing = FastOutSlowInEasing)) +
+                    shrinkVertically(animationSpec = tween(360, easing = FastOutSlowInEasing))
+            ) {
+                AppTopBar(
+                    title = {
+                        Text(text = stringResource(R.string.nav_feed))
+                    },
+                    actions = {
+                        AppHelpToggleAction(
+                            isHelpMode = isHelpMode,
+                            onToggle = { isHelpMode = !isHelpMode }
+                        )
+                    }
+                )
+            }
         },
         floatingActionButton = {
             Column(
@@ -187,6 +223,9 @@ fun FeedScreen(
                         FeedFilters(
                             searchQuery = searchQuery,
                             onSearchQueryChange = viewModel::onSearchQueryChange,
+                            onSearchFocusChanged = { focused ->
+                                if (focused) isSearchFocused = true
+                            },
                             dateFilter = dateFilter,
                             onDateFilterChange = viewModel::setDateFilter,
                             savedFilter = savedFilter,

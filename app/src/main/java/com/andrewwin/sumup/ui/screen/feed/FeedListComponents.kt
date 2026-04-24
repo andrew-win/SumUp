@@ -2,6 +2,10 @@ package com.andrewwin.sumup.ui.screen.feed
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -53,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -91,6 +97,7 @@ private fun formatSavedDate(timestamp: Long): String {
 fun FeedFilters(
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
+    onSearchFocusChanged: (Boolean) -> Unit,
     dateFilter: DateFilter,
     onDateFilterChange: (DateFilter) -> Unit,
     savedFilter: SavedFilter,
@@ -122,8 +129,12 @@ fun FeedFilters(
                 onValueChange = onSearchQueryChange,
                 placeholder = stringResource(R.string.search_placeholder),
                 leadingIcon = Icons.Default.Search,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                onFocusChanged = { focused ->
+                    onSearchFocusChanged(focused)
+                }
             )
+
             AppExportPdfButton(
                 onClick = onExportPdf,
                 enabled = isExportEnabled,
@@ -140,20 +151,23 @@ fun FeedFilters(
         ) {
             val dateLabel = stringResource(dateFilter.labelRes)
             val savedLabel = stringResource(savedFilter.labelRes)
+            val groupName = groups.find { it.id == selectedGroupId }?.displayName()
+                ?: stringResource(R.string.all_groups)
+
             FilterMenuChip(
                 icon = Icons.Filled.Today,
                 label = dateLabel,
                 onClick = { showDateMenu = true },
                 modifier = Modifier
             )
+
             FilterMenuChip(
                 icon = Icons.Filled.Bookmark,
                 label = savedLabel,
                 onClick = { showSavedMenu = true },
                 modifier = Modifier
             )
-            val groupName = groups.find { it.id == selectedGroupId }?.displayName()
-                ?: stringResource(R.string.all_groups)
+
             FilterMenuChip(
                 icon = Icons.Filled.Folder,
                 label = groupName,
@@ -161,31 +175,55 @@ fun FeedFilters(
                 modifier = Modifier
             )
 
-            DropdownMenu(expanded = showDateMenu, onDismissRequest = { showDateMenu = false }) {
+            DropdownMenu(
+                expanded = showDateMenu,
+                onDismissRequest = { showDateMenu = false }
+            ) {
                 DateFilter.entries.forEach { filter ->
                     DropdownMenuItem(
                         text = { Text(stringResource(filter.labelRes)) },
-                        onClick = { onDateFilterChange(filter); showDateMenu = false }
+                        onClick = {
+                            onDateFilterChange(filter)
+                            showDateMenu = false
+                        }
                     )
                 }
             }
-            DropdownMenu(expanded = showSavedMenu, onDismissRequest = { showSavedMenu = false }) {
+
+            DropdownMenu(
+                expanded = showSavedMenu,
+                onDismissRequest = { showSavedMenu = false }
+            ) {
                 SavedFilter.entries.forEach { filter ->
                     DropdownMenuItem(
                         text = { Text(stringResource(filter.labelRes)) },
-                        onClick = { onSavedFilterChange(filter); showSavedMenu = false }
+                        onClick = {
+                            onSavedFilterChange(filter)
+                            showSavedMenu = false
+                        }
                     )
                 }
             }
-            DropdownMenu(expanded = showGroupMenu, onDismissRequest = { showGroupMenu = false }) {
+
+            DropdownMenu(
+                expanded = showGroupMenu,
+                onDismissRequest = { showGroupMenu = false }
+            ) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.all_groups)) },
-                    onClick = { onGroupSelect(null); showGroupMenu = false }
+                    onClick = {
+                        onGroupSelect(null)
+                        showGroupMenu = false
+                    }
                 )
+
                 groups.forEach { group ->
                     DropdownMenuItem(
                         text = { Text(group.displayName()) },
-                        onClick = { onGroupSelect(group.id); showGroupMenu = false }
+                        onClick = {
+                            onGroupSelect(group.id)
+                            showGroupMenu = false
+                        }
                     )
                 }
             }

@@ -10,6 +10,7 @@ import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,6 +31,7 @@ class SourcesViewModel @Inject constructor(
     private val repository: SourceRepository,
     private val manageModelUseCase: ManageModelUseCase,
     private val publicSubscriptionsSyncManager: PublicSubscriptionsSyncManager,
+    private val refreshFeedUseCase: RefreshFeedUseCase,
     userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
@@ -200,6 +202,7 @@ class SourcesViewModel @Inject constructor(
                                     detectFooterPattern = false
                                 )
                             }
+                            refreshFeedUseCase()
                         }
                     } else {
                         val groupsWithSources = repository.groupsWithSources.first()
@@ -291,6 +294,7 @@ class SourcesViewModel @Inject constructor(
     fun addSource(groupId: Long, name: String, url: String, type: SourceType) {
         viewModelScope.launch {
             repository.addSource(groupId, name, url, type)
+            refreshFeedUseCase()
         }
     }
 
@@ -317,6 +321,7 @@ class SourcesViewModel @Inject constructor(
                 dateSelector = dateSelector,
                 useHeadlessBrowser = useHeadlessBrowser
             )
+            refreshFeedUseCase()
         }
     }
 

@@ -21,7 +21,8 @@
             android:name="com.andrewwin.sumup.ui.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.SumUp" >
+            android:theme="@style/Theme.SumUp"
+            android:windowSoftInputMode="adjustNothing" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -33,12 +34,15 @@ fun AppSearchField(
     placeholder: String,
     leadingIcon: ImageVector,
     modifier: Modifier = Modifier,
-    placeholderStyle: TextStyle = MaterialTheme.typography.bodyLarge
+    placeholderStyle: TextStyle = MaterialTheme.typography.bodyLarge,
+    onFocusChanged: ((Boolean) -> Unit)? = null
 ) {
     TextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.height(56.dp),
+        modifier = modifier
+            .height(56.dp)
+            .onFocusChanged { state -> onFocusChanged?.invoke(state.hasFocus) },
         shape = MaterialTheme.shapes.extraLarge,
         placeholder = {
             Text(

@@ -8,13 +8,20 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -66,12 +74,14 @@ val AiProvider.iconRes: Int
         AiProvider.CLAUDE -> R.drawable.ic_claude_ai_provider
     }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val imeVisible = WindowInsets.isImeVisible
     val summaryConfigs by viewModel.summaryConfigs.collectAsState()
     val embeddingConfigs by viewModel.embeddingConfigs.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
@@ -95,6 +105,7 @@ fun SettingsScreen(
     var showTimePicker by remember { mutableStateOf(false) }
     var summaryPrompt by remember(userPreferences.summaryPrompt) { mutableStateOf(userPreferences.summaryPrompt) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    var isSearchFocused by remember { mutableStateOf(false) }
     var selectedGroup by rememberSaveable { mutableStateOf<SettingsGroup?>(null) }
 
     var showClearArticlesDialog by remember { mutableStateOf(false) }
@@ -105,14 +116,39 @@ fun SettingsScreen(
     var showSyncPassphraseDialog by remember { mutableStateOf(false) }
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
+    var wasImeVisible by remember { mutableStateOf(false) }
 
     BackHandler(enabled = selectedGroup != null) {
         selectedGroup = null
+    }
+    BackHandler(enabled = isSearchFocused && selectedGroup == null) {
+        focusManager.clearFocus(force = true)
+        isSearchFocused = false
     }
 
     LaunchedEffect(selectedGroup) {
         if (selectedGroup != null && isHelpMode) {
             isHelpMode = false
+        }
+        if (selectedGroup != null) {
+            focusManager.clearFocus(force = true)
+            isSearchFocused = false
+        }
+    }
+
+    LaunchedEffect(imeVisible, isSearchFocused, selectedGroup) {
+        if (selectedGroup != null) {
+            wasImeVisible = false
+            return@LaunchedEffect
+        }
+        if (imeVisible) {
+            wasImeVisible = true
+        } else if (wasImeVisible && isSearchFocused) {
+            focusManager.clearFocus(force = true)
+            isSearchFocused = false
+            wasImeVisible = false
+        } else if (!isSearchFocused) {
+            wasImeVisible = false
         }
     }
 
@@ -305,22 +341,30 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            AppTopBar(
-                title = { Text(stringResource(selectedGroup?.titleRes ?: R.string.nav_settings)) },
-                navigationIcon = {
-                    if (selectedGroup != null) {
-                        androidx.compose.material3.IconButton(onClick = { selectedGroup = null }) {
-                            androidx.compose.material3.Icon(Icons.Default.ArrowBack, contentDescription = null)
+            AnimatedVisibility(
+                visible = !(selectedGroup == null && isSearchFocused),
+                enter = fadeIn(animationSpec = tween(320, easing = FastOutSlowInEasing)) +
+                    expandVertically(animationSpec = tween(380, easing = FastOutSlowInEasing)),
+                exit = fadeOut(animationSpec = tween(300, easing = FastOutSlowInEasing)) +
+                    shrinkVertically(animationSpec = tween(360, easing = FastOutSlowInEasing))
+            ) {
+                AppTopBar(
+                    title = { Text(stringResource(selectedGroup?.titleRes ?: R.string.nav_settings)) },
+                    navigationIcon = {
+                        if (selectedGroup != null) {
+                            androidx.compose.material3.IconButton(onClick = { selectedGroup = null }) {
+                                androidx.compose.material3.Icon(Icons.Default.ArrowBack, contentDescription = null)
+                            }
                         }
+                    },
+                    actions = {
+                        AppHelpToggleAction(
+                            isHelpMode = isHelpMode,
+                            onToggle = { isHelpMode = !isHelpMode }
+                        )
                     }
-                },
-                actions = {
-                    AppHelpToggleAction(
-                        isHelpMode = isHelpMode,
-                        onToggle = { isHelpMode = !isHelpMode }
-                    )
-                }
-            )
+                )
+            }
         }
     ) { innerPadding ->
         AnimatedContent(
@@ -373,7 +417,10 @@ fun SettingsScreen(
                             onValueChange = { searchQuery = it },
                             placeholder = stringResource(R.string.settings_search_placeholder),
                             leadingIcon = Icons.Default.Search,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            onFocusChanged = { focused ->
+                                if (focused) isSearchFocused = true
+                            }
                         )
                     }
                     if (filteredGroups.isEmpty()) {
