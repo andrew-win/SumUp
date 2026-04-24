@@ -10,6 +10,39 @@ class AskQuestionUseCase @Inject constructor(
     private val aiRepository: AiRepository,
     private val articleRepository: ArticleRepository
 ) {
+    suspend operator fun invoke(articles: List<Article>, question: String): Result<String> {
+        return try {
+            val structuredContent = buildString {
+                articles.distinctBy { it.id }.forEachIndexed { index, article ->
+                    val fullContent = articleRepository.fetchFullContent(article)
+                    val source = articleRepository.getSourceById(article.sourceId)
+                    val sourceName = source?.name?.trim().orEmpty()
+                    val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
+                    if (index > 0) append("\n\n")
+                    append(
+                        buildStructuredArticleContent(
+                            sourceId = article.id.toString(),
+                            sourceName = sourceName,
+                            sourceUrl = sourceUrl,
+                            title = article.title,
+                            content = fullContent
+                        )
+                    )
+                }
+            }
+            val raw = aiRepository.askQuestion(structuredContent, question)
+            Result.success(
+                formatQaJson(
+                    raw = raw,
+                    sourceRefs = extractSourceRefs(structuredContent),
+                    askedQuestion = question
+                )
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend operator fun invoke(article: Article, question: String): Result<String> {
         return try {
             val fullContent = articleRepository.fetchFullContent(article)
@@ -27,7 +60,8 @@ class AskQuestionUseCase @Inject constructor(
             Result.success(
                 formatQaJson(
                     raw = raw,
-                    sourceRefs = extractSourceRefs(structuredContent)
+                    sourceRefs = extractSourceRefs(structuredContent),
+                    askedQuestion = question
                 )
             )
         } catch (e: Exception) {
@@ -41,7 +75,8 @@ class AskQuestionUseCase @Inject constructor(
             Result.success(
                 formatQaJson(
                     raw = raw,
-                    sourceRefs = extractSourceRefs(content)
+                    sourceRefs = extractSourceRefs(content),
+                    askedQuestion = question
                 )
             )
         } catch (e: Exception) {
@@ -51,37 +86,60 @@ class AskQuestionUseCase @Inject constructor(
 
     private fun formatQaJson(
         raw: String,
-        sourceRefs: Map<String, QaSourceRef>
+        sourceRefs: Map<String, QaSourceRef>,
+        askedQuestion: String
     ): String {
         val qa = AiJsonResponseParser.parseQa(raw)
-        val sections = mutableListOf<String>()
+        val safeQuestion = qa.question?.trim().takeUnless { it.isNullOrBlank() } ?: askedQuestion.trim()
+        val shortAnswer = qa.shortAnswer?.trim()
+            .takeUnless { it.isNullOrBlank() }
+            ?: qa.answer?.trim().takeUnless { it.isNullOrBlank() }
+            ?: "Недостатньо даних."
 
-        qa.answer?.takeIf { it.isNotBlank() }?.let { sections += it.trim() }
+        val detailItems = (if (qa.details.isNotEmpty()) qa.details else qa.statements)
+            .mapNotNull { statement ->
+                val text = statement.text.trim().takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                text to statement.sources
+            }
 
-        if (qa.statements.isNotEmpty()) {
-            val lines = mutableListOf<String>()
+        val detailLines = mutableListOf<String>()
+        if (detailItems.isEmpty()) {
+            detailLines += "— У джерелах немає достатнього підтвердження для детального пояснення."
+        } else {
             val fallbackSourceIds = qa.sources
+                .asSequence()
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
-            qa.statements.forEach { statement ->
-                lines += "• ${statement.text.trim()}"
-                val citedSourceId = statement.sources
+                .toList()
+
+            detailItems.forEach { (text, sourceIds) ->
+                detailLines += "— $text"
+                val referenced = sourceIds
                     .asSequence()
                     .map { it.trim() }
-                    .firstOrNull { it.isNotBlank() && sourceRefs.containsKey(it) }
-                    ?: fallbackSourceIds.firstOrNull { sourceRefs.containsKey(it) }
+                    .filter { it.isNotBlank() && sourceRefs.containsKey(it) }
+                    .ifEmpty { fallbackSourceIds.asSequence().filter { sourceRefs.containsKey(it) } }
+                    .distinct()
+                    .toList()
 
-                citedSourceId
-                    ?.let(sourceRefs::get)
-                    ?.also { ref ->
-                        lines += "${SummarySourceMeta.PREFIX}${ref.name}|${ref.url}"
+                referenced.forEach { sourceId ->
+                    sourceRefs[sourceId]?.also { ref ->
+                        detailLines += "${SummarySourceMeta.PREFIX}${ref.name}|${ref.url}"
                     }
+                }
             }
-            sections += lines.joinToString("\n")
         }
 
-        if (sections.isEmpty()) throw IllegalStateException("QA JSON contains no answer.")
-        return sections.joinToString("\n\n")
+        return buildString {
+            appendLine("Питання")
+            appendLine("— $safeQuestion")
+            appendLine()
+            appendLine("Коротка відповідь")
+            appendLine("— $shortAnswer")
+            appendLine()
+            appendLine("Детальніше")
+            detailLines.forEach { appendLine(it) }
+        }.trim()
     }
 
     private fun buildStructuredArticleContent(

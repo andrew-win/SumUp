@@ -361,8 +361,18 @@ fun FeedScreen(
                 userQuestion = ""
             },
             onAsk = {
-                if (isFeedAiActive) viewModel.askFeed(userQuestion)
-                else articleForAi?.let { viewModel.askQuestion(it.article, userQuestion) }
+                if (isFeedAiActive) {
+                    viewModel.askFeed(userQuestion)
+                } else {
+                    val cluster = articleClusters.firstOrNull { c ->
+                        c.representative.article.id == articleForAiId
+                    }
+                    if (cluster != null) {
+                        viewModel.askClusterQuestion(cluster, userQuestion)
+                    } else {
+                        articleForAi?.let { viewModel.askQuestion(it.article, userQuestion) }
+                    }
+                }
             },
             onRegenerate = {
                 if (isFeedAiActive) {

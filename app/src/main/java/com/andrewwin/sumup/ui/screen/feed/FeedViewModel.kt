@@ -279,6 +279,14 @@ class FeedViewModel @Inject constructor(
 
     fun askQuestion(content: String, question: String) = launchAi { askQuestionUseCase(content, question) }
 
+    fun askClusterQuestion(cluster: ArticleClusterUiModel, question: String) = launchAi {
+        val clusterArticles = buildList {
+            add(cluster.representative.article)
+            addAll(cluster.duplicates.map { it.first.article })
+        }
+        askQuestionUseCase(clusterArticles, question)
+    }
+
     fun openCachedArticleSummary(article: Article) {
         DebugTrace.d("feed_ai", "openCachedArticleSummary articleId=${article.id} title=${DebugTrace.preview(article.title, 120)}")
         _aiResult.value = aiSessionCache.getArticleSummary(article.id)

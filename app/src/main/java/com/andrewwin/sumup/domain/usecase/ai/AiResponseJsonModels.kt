@@ -43,8 +43,11 @@ data class CompareItemJson(
 )
 
 data class QaResponseJson(
+    val question: String? = null,
+    val shortAnswer: String? = null,
     val answer: String? = null,
     val sources: List<String> = emptyList(),
+    val details: List<QaStatementJson> = emptyList(),
     val statements: List<QaStatementJson> = emptyList()
 )
 

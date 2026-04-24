@@ -65,23 +65,59 @@ object AiJsonResponseParser {
 
     fun parseQa(raw: String): QaResponseJson {
         val obj = JSONObject(extractJson(raw))
-        val statementsArray = obj.optJSONArray(AiJsonContract.STATEMENTS) ?: JSONArray()
-        val statements = buildList {
-            for (i in 0 until statementsArray.length()) {
-                val item = statementsArray.optJSONObject(i) ?: continue
-                val text = item.optString(AiJsonContract.TEXT).trim()
-                if (text.isBlank()) continue
-                add(
-                    QaStatementJson(
-                        text = text,
-                        sources = readStringArray(item.opt(AiJsonContract.SOURCES))
+        fun parseQaStatements(value: Any?): List<QaStatementJson> {
+            return when (value) {
+                is JSONArray -> buildList {
+                    for (i in 0 until value.length()) {
+                        when (val item = value.opt(i)) {
+                            is JSONObject -> {
+                                val text = item.optString(AiJsonContract.TEXT).trim()
+                                if (text.isBlank()) continue
+                                add(
+                                    QaStatementJson(
+                                        text = text,
+                                        sources = readStringArray(item.opt(AiJsonContract.SOURCES))
+                                    )
+                                )
+                            }
+                            else -> {
+                                val text = readJsonValueAsText(item)
+                                if (text.isBlank()) continue
+                                add(
+                                    QaStatementJson(
+                                        text = text,
+                                        sources = emptyList()
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+                is JSONObject -> {
+                    val text = value.optString(AiJsonContract.TEXT).trim()
+                    if (text.isBlank()) emptyList()
+                    else listOf(
+                        QaStatementJson(
+                            text = text,
+                            sources = readStringArray(value.opt(AiJsonContract.SOURCES))
+                        )
                     )
-                )
+                }
+                else -> {
+                    val text = readJsonValueAsText(value)
+                    if (text.isBlank()) emptyList() else listOf(QaStatementJson(text = text))
+                }
             }
         }
+
+        val details = parseQaStatements(obj.opt(AiJsonContract.DETAILS))
+        val statements = parseQaStatements(obj.opt(AiJsonContract.STATEMENTS))
         return QaResponseJson(
+            question = obj.optString(AiJsonContract.QUESTION).ifBlank { null },
+            shortAnswer = obj.optString(AiJsonContract.SHORT_ANSWER).ifBlank { null },
             answer = obj.optString(AiJsonContract.ANSWER).ifBlank { null },
             sources = readStringArray(obj.opt(AiJsonContract.SOURCES)),
+            details = details,
             statements = statements
         )
     }

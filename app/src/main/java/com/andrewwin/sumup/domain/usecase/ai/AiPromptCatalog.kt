@@ -103,20 +103,22 @@ object AiPromptCatalog {
     ): String {
         return promptEnvelope(
             role = "Strict QA fact-checker.",
-            goal = "Provide a direct, evidence-based answer to the user's question using only provided sources.",
-            schema = """{"${AiJsonContract.ANSWER}":"string","${AiJsonContract.STATEMENTS}":[{"${AiJsonContract.TEXT}":"string","${AiJsonContract.SOURCES}":["source_id"]}],"${AiJsonContract.SOURCES}":["source_id"]}""",
+            goal = "Return a strict 3-block answer: question, very short direct answer, then evidence-backed details from sources.",
+            schema = """{"${AiJsonContract.QUESTION}":"string","${AiJsonContract.SHORT_ANSWER}":"string","${AiJsonContract.DETAILS}":[{"${AiJsonContract.TEXT}":"string","${AiJsonContract.SOURCES}":["source_id"]}],"${AiJsonContract.SOURCES}":["source_id"]}""",
             rules = listOf(
-                "Use BLUF format (Bottom Line Up Front): direct answer first, supporting context second.",
-                "Answer length: 2-4 definitive sentences.",
-                "Statements constraint: 4..8 (inflated limit).",
-                "Each statement must contain one specific fact linked to exactly one source_id.",
-                "Extract root sources (unique source_ids) used in statements.",
+                "Return JSON only and follow schema exactly.",
+                "question: repeat user question concisely in one line (do not add new claims).",
+                "short_answer: one natural concise sentence (about 8-18 words) with a direct factual answer. Not just 'Так/Ні'.",
+                "details: 2..5 short factual bullets, each with concrete evidence.",
+                "Each details item must include 1..3 valid source_id values from input.",
+                "If a claim has no evidence in sources, do not include it.",
+                "sources: unique union of source_id values used in details.",
                 "If evidence is missing, state it directly and concisely (e.g., 'У джерелах немає підтвердження цієї інформації.').",
                 "No speculation, no filler text, no interpretations.",
                 RULE_JOURNALISTIC_STYLE,
                 RULE_NO_INTRO_PHRASES
             ),
-            formatInfo = "Question: 'Чи дали Україні гроші?'\nBAD Answer: 'Згідно з першими повідомленнями у статтях, можливо, Україна отримає значну допомогу...'\nGOOD Answer: 'Так, ЄС офіційно розблокував 90 млрд євро макрофінансової допомоги.'\n\nJSON Output:\n{\"answer\":\"Так, ЄС офіційно розблокував 90 млрд євро.\",\"statements\":[{\"text\":\"Рада ЄС погодила виділення фінансового пакета Україні.\",\"sources\":[\"2299\"]},{\"text\":\"Президент України підтвердив домовленість із керівництвом Євросоюзу.\",\"sources\":[\"962\"]}],\"sources\":[\"2299\",\"962\"]}",
+            formatInfo = "Question: 'Які числа згадуються у новинах?'\nBAD short_answer: 'Так, згадуються числа.'\nGOOD short_answer: 'У новинах згадані 3.7 млн грн, 2 млн грн та 3 постраждалих.'\n\nJSON Output:\n{\"question\":\"Які числа згадуються у новинах?\",\"short_answer\":\"У новинах згадані 3.7 млн грн, 2 млн грн та 3 постраждалих.\",\"details\":[{\"text\":\"У першому джерелі йдеться про збитки на 3.7 млн грн.\",\"sources\":[\"2299\"]},{\"text\":\"Інше джерело повідомляє про 2 млн грн фінансування та 3 постраждалих.\",\"sources\":[\"962\",\"963\"]}],\"sources\":[\"2299\",\"962\",\"963\"]}",
             body = """
                 $questionPrefix $question
 
