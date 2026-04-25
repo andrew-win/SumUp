@@ -20,6 +20,16 @@ class YouTubeParser {
         }
     }
 
+    fun parseChannelDisplayName(inputStream: InputStream): String? {
+        inputStream.use {
+            val parser = Xml.newPullParser()
+            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+            parser.setInput(it, null)
+            parser.nextTag()
+            return readFeedDisplayName(parser)
+        }
+    }
+
     private fun readFeed(parser: XmlPullParser, sourceId: Long): List<Article> {
         val articles = mutableListOf<Article>()
         parser.require(XmlPullParser.START_TAG, null, "feed")
@@ -35,6 +45,32 @@ class YouTubeParser {
             }
         }
         return articles
+    }
+
+    private fun readFeedDisplayName(parser: XmlPullParser): String? {
+        var title: String? = null
+        var authorName: String? = null
+        parser.require(XmlPullParser.START_TAG, null, "feed")
+        while (parser.next() != XmlPullParser.END_TAG) {
+            if (parser.eventType != XmlPullParser.START_TAG) continue
+            when (parser.name.localTagName()) {
+                "entry" -> {
+                    skip(parser)
+                }
+                "title" -> {
+                    if (title.isNullOrBlank()) {
+                        title = readText(parser).trim().ifBlank { null }
+                    } else {
+                        skip(parser)
+                    }
+                }
+                "author" -> {
+                    authorName = readAuthorName(parser) ?: authorName
+                }
+                else -> skip(parser)
+            }
+        }
+        return title?.takeIf { it.isNotBlank() } ?: authorName?.takeIf { it.isNotBlank() }
     }
 
     private fun readEntry(parser: XmlPullParser, sourceId: Long): Article {
@@ -142,6 +178,18 @@ class YouTubeParser {
             parser.nextTag()
         }
         return result
+    }
+
+    private fun readAuthorName(parser: XmlPullParser): String? {
+        var name: String? = null
+        while (parser.next() != XmlPullParser.END_TAG) {
+            if (parser.eventType != XmlPullParser.START_TAG) continue
+            when (parser.name.localTagName()) {
+                "name" -> name = readText(parser).trim().ifBlank { null }
+                else -> skip(parser)
+            }
+        }
+        return name
     }
 
     private val formattersThreadLocal = ThreadLocal.withInitial {

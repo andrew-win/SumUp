@@ -250,13 +250,15 @@ class SourceRepositoryImpl @Inject constructor(
     private fun normalizeSelector(selector: String?): String? =
         selector?.trim()?.takeIf { it.isNotEmpty() }
 
-    private fun generateEffectiveName(
+    private suspend fun generateEffectiveName(
         explicitName: String,
         normalizedUrl: String,
         type: SourceType,
         existingNames: List<String>
     ): String {
-        val baseName = explicitName.ifBlank { generateSourceName(normalizedUrl, type) }.trim()
+        val baseName = explicitName.ifBlank {
+            generateSourceName(normalizedUrl, type)
+        }.trim()
         if (baseName.isBlank()) return ""
 
         val normalizedExisting = existingNames.map { it.trim().lowercase() }.toSet()
@@ -270,7 +272,7 @@ class SourceRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun generateSourceName(url: String, type: SourceType): String {
+    private suspend fun generateSourceName(url: String, type: SourceType): String {
         val trimmed = url.trim()
         return when (type) {
             SourceType.TELEGRAM -> generateTelegramName(trimmed)
@@ -291,7 +293,12 @@ class SourceRepositoryImpl @Inject constructor(
         return cleaned.ifBlank { "Telegram" }
     }
 
-    private fun generateYouTubeName(url: String): String {
+    private suspend fun generateYouTubeName(url: String): String {
+        remoteArticleDataSource.fetchYouTubeChannelDisplayName(url)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return it }
+
         val cleaned = url
             .removePrefix("https://")
             .removePrefix("http://")

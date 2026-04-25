@@ -339,12 +339,16 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(adaptiveExtractiveOnlyBelowChars = chars) } }
     }
 
-    fun updateAdaptiveExtractiveCompressAboveChars(chars: Int) {
-        viewModelScope.launch { updatePreferences { it.copy(adaptiveExtractiveCompressAboveChars = chars) } }
+    fun updateAdaptiveExtractiveHighCompressionAboveChars(chars: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(adaptiveExtractiveHighCompressionAboveChars = chars) } }
     }
 
-    fun updateAdaptiveExtractiveCompressionPercent(percent: Int) {
-        viewModelScope.launch { updatePreferences { it.copy(adaptiveExtractiveCompressionPercent = percent) } }
+    fun updateAdaptiveExtractiveCompressionPercentMedium(percent: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(adaptiveExtractiveCompressionPercentMedium = percent) } }
+    }
+
+    fun updateAdaptiveExtractiveCompressionPercentHigh(percent: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(adaptiveExtractiveCompressionPercentHigh = percent) } }
     }
 
     fun updateSummaryPrompt(prompt: String) {

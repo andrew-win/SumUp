@@ -68,8 +68,9 @@ class CompareArticlesUseCase @Inject constructor(
     ): String {
         val maxTotalChars = prefs.aiMaxCharsTotal.coerceAtLeast(1000)
         val perArticleLimit = prefs.aiMaxCharsPerFeedArticle.coerceAtLeast(200)
-        val adaptiveExtractiveCompressAboveChars = prefs.adaptiveExtractiveCompressAboveChars.coerceAtLeast(1)
-        val adaptiveExtractiveCompressionPercent = prefs.adaptiveExtractiveCompressionPercent.coerceIn(1, 100)
+        val adaptiveExtractiveOnlyBelowChars = prefs.adaptiveExtractiveOnlyBelowChars.coerceAtLeast(200)
+        val adaptiveExtractiveHighCompressionAboveChars = prefs.adaptiveExtractiveHighCompressionAboveChars
+            .coerceAtLeast(adaptiveExtractiveOnlyBelowChars + 1)
         var remainingTotal = maxTotalChars
         val blocks = mutableListOf<String>()
 
@@ -83,10 +84,15 @@ class CompareArticlesUseCase @Inject constructor(
             val base = baseSource.take(perArticleLimit)
             val prepared = if (
                 strategy == AiStrategy.ADAPTIVE &&
-                base.length > adaptiveExtractiveCompressAboveChars
+                base.length > adaptiveExtractiveOnlyBelowChars
             ) {
+                val compressionPercent = if (base.length < adaptiveExtractiveHighCompressionAboveChars) {
+                    prefs.adaptiveExtractiveCompressionPercentMedium
+                } else {
+                    prefs.adaptiveExtractiveCompressionPercentHigh
+                }.coerceIn(1, 100)
                 val extractiveChars =
-                    (base.length * (adaptiveExtractiveCompressionPercent.toFloat() / 100f)).toInt().coerceAtLeast(1)
+                    (base.length * (compressionPercent.toFloat() / 100f)).toInt().coerceAtLeast(1)
                 val extractiveSentenceEstimate = estimateSentenceCountByTargetLength(base, extractiveChars)
                 ExtractiveSummarizer.summarize(base, extractiveSentenceEstimate).joinToString(" ")
             } else {

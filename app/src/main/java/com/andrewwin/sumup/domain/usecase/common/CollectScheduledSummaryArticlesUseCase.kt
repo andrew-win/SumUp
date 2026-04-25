@@ -28,6 +28,18 @@ class CollectScheduledSummaryArticlesUseCase @Inject constructor(
         val prefs = userPreferencesRepository.preferences.first()
         val sinceTimestamp = System.currentTimeMillis() - LAST_24_HOURS_MS
         val recentArticles = articleRepository.getEnabledArticlesSince(sinceTimestamp)
+        val averageViews = recentArticles
+            .asSequence()
+            .map { it.viewCount }
+            .filter { it > 0L }
+            .average()
+            .toLong()
+        val sourceTypeById = recentArticles
+            .map { it.sourceId }
+            .distinct()
+            .associateWith { sourceId ->
+                articleRepository.getSourceById(sourceId)?.type ?: SourceType.RSS
+            }
 
         val hasCloudEmbedding = aiRepository.hasEnabledEmbeddingConfig()
         val resolvedModelPath = resolveModelPath(prefs)
@@ -39,15 +51,8 @@ class CollectScheduledSummaryArticlesUseCase @Inject constructor(
 
         var filteredArticles = recentArticles
         if (prefs.isImportanceFilterEnabled) {
-            val averageViews = recentArticles
-                .asSequence()
-                .map { it.viewCount }
-                .filter { it > 0L }
-                .average()
-                .toLong()
             filteredArticles = filteredArticles.filter { article ->
-                val source = articleRepository.getSourceById(article.sourceId)
-                val sourceType = source?.type ?: SourceType.RSS
+                val sourceType = sourceTypeById[article.sourceId] ?: SourceType.RSS
                 articleImportanceScorer.score(article, averageViews, sourceType) >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
             }
         }
@@ -76,6 +81,41 @@ class CollectScheduledSummaryArticlesUseCase @Inject constructor(
             "baseClusters=${baseClusters.size} mentions=${baseClusters.joinToString(",") { (it.duplicates.size + 1).toString() }} visibilityFilterBypassed=true"
         )
 
+        if (prefs.aiStrategy == com.andrewwin.sumup.data.local.entities.AiStrategy.LOCAL) {
+            val ranked = baseClusters
+                .map { cluster ->
+                    val representative = cluster.representative
+                    val sourceType = sourceTypeById[representative.sourceId] ?: SourceType.RSS
+                    val baseScore = articleImportanceScorer.score(
+                        article = representative,
+                        averageViews = averageViews,
+                        sourceType = sourceType
+                    )
+                    val extendedScore = baseScore + (
+                        if (prefs.isDeduplicationEnabled && canDeduplicate) {
+                            cluster.duplicates.size * DEDUPLICATION_SIMILARITY_BOOST
+                        } else {
+                            0f
+                        }
+                    )
+                    representative to extendedScore
+                }
+                .sortedWith(
+                    compareByDescending<Pair<Article, Float>> { it.second }
+                        .thenByDescending { it.first.publishedAt }
+                )
+
+            val selected = ranked
+                .take(MAX_LOCAL_SCHEDULED_SUMMARY_ARTICLES)
+                .map { it.first }
+
+            DebugTrace.d(
+                "scheduled_selection",
+                "localRanked=${ranked.size} selected=${selected.size} scores=${ranked.take(MAX_LOCAL_SCHEDULED_SUMMARY_ARTICLES).joinToString(",") { "${it.first.id}:${"%.2f".format(it.second)}" }}"
+            )
+            return selected
+        }
+
         val representatives = baseClusters
             .map { it.representative }
             .sortedByDescending { it.publishedAt }
@@ -96,5 +136,7 @@ class CollectScheduledSummaryArticlesUseCase @Inject constructor(
     private companion object {
         const val LAST_24_HOURS_MS = 24 * 60 * 60 * 1000L
         const val MAX_SCHEDULED_SUMMARY_ARTICLES = 15
+        const val MAX_LOCAL_SCHEDULED_SUMMARY_ARTICLES = 7
+        const val DEDUPLICATION_SIMILARITY_BOOST = 0.35f
     }
 }

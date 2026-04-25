@@ -121,8 +121,8 @@ object AiPromptCatalog {
             rules = listOf(
                 "Answer ONLY from provided sources, in the same language as the question.",
                 "question: repeat user question concisely in one line.",
-                "short_answer: one natural sentence (max 12 words). Not just 'Так/Ні'. If sources lack info, output: 'На основі інформації із джерел не можна відповісти на питання', details=[], sources=[].",
-                "details: 2..5 short factual bullets. Max 20 words per one. Each must include 1..3 valid source_ids from INPUT.",
+                "short_answer: one natural sentence (max 12 words). Not just 'Так/Ні'. If sources lack info, output ONLY a short answer and leave details empty. For Ukrainian questions use exactly: 'За даними поданих джерел не можна дати відповідь на ваше питання'. For English questions use exactly: 'The provided sources do not contain enough information to answer your question'. In that case details=[], sources=[].",
+                "details: 2..5 short factual bullets. Max 20 words per one. Each must include 1..3 valid source_ids from INPUT. If the answer cannot be supported from sources, details must be [].",
                 "sources: unique union of source_id values used in details.",
                 RULE_SOURCE_IDS_EXACT,
                 RULE_READY_UI_COPY,
@@ -153,13 +153,13 @@ object AiPromptCatalog {
             schema = """{"${AiJsonContract.COMMON_TOPIC}":"optional short topic label","${AiJsonContract.COMMON_FACTS}":[{"${AiJsonContract.TEXT}":"sentence 1","${AiJsonContract.SOURCES}":["source_id_1","source_id_2"]}],"${AiJsonContract.ITEMS}":[{"${AiJsonContract.SOURCE_ID}":"source id from input","${AiJsonContract.UNIQUE_DETAILS}":["sentence 1"]}]}""",
             rules = listOf(
                 "Paraphrase all facts and direct speech into abstractive one-liners (max 20 words).",
-                "COMMON_FACTS (max 4): requires exact event/number overlap in 2+ sources. Put mere clarifications or contradictions in unique_details.",
+                "COMMON_FACTS (max 5): requires exact event/number overlap in 2+ sources. Put mere clarifications or contradictions in unique_details.",
                 "COMMON_FACTS requirement: A fact is common ONLY if the exact same event/number/claim appears in 2+ sources.",
                 "IF source B only clarifies source A (adds detail/context), DO NOT create a common fact. Put the new fragment in source B's UNIQUE_DETAILS.",
-                "If sources share a broad theme but cover completely different events: common_facts=[], and set common_topic to a descriptive label like 'Хоча новини стосуються однієї сфери, але вони описують різні події'.",
+                "If sources share a broad theme but cover completely different events: common_facts=[], and set common_topic to a descriptive label like 'Новини стосуються широкої тематики X, але не мають виражених спільних рис'.",
                 "If sources are totally unrelated: common_facts=[], common_topic=\"\".",
                 "Include exactly one items object for each input source_id, even if unique_details is empty.",
-                "unique_details constraint: max 4 total across all items combined.",
+                "unique_details constraint: max 5 total across all items combined.",
                 "Reject generic overlaps without concrete anchors (e.g., skip 'Сторони обговорили співпрацю').",
                 RULE_SOURCE_IDS_EXACT,
                 RULE_READY_UI_COPY,
@@ -174,7 +174,7 @@ object AiPromptCatalog {
                     "BAD PHRASING (Complex, multiple sentences): \"Чоловік, що проходив комісію в ТЦК, втік і впав у котлован; він отримав медичну допомогу. Його стан задовільний.\"\n" +
                     "GOOD PHRASING (Split or simplified into 1 simple sentence): \"Чоловік втік з медкомісії ТЦК та впав у технічний котлован.\"\n\n" +
                     "Example 1 (True Overlap - Sources cover the exact same event):\n{\"common_topic\":\"\",\"common_facts\":[{\"text\":\"Уряд Швейцарії офіційно виділить 5 мільярдів франків на відновлення України до 2036 року.\",\"sources\":[\"s1\",\"s2\"]}],\"items\":[{\"source_id\":\"s1\",\"unique_details\":[\"Фінансування переважно спрямують на масштабну відбудову критичної інфраструктури.\"]},{\"source_id\":\"s2\",\"unique_details\":[\"Перший фінансовий транш за цією програмою надійде вже у 2025 році.\"]}]}\n\n" +
-                    "Example 2 (Broad Topic - Same sphere, but fundamentally different events):\n{\"common_topic\":\"Хоча новини стосуються технологічної сфери, вони описують події різних компаній.\",\"common_facts\":[],\"items\":[{\"source_id\":\"s3\",\"unique_details\":[\"Компанія Apple презентувала нове покоління планшетів iPad Pro із процесором M4.\"]},{\"source_id\":\"s4\",\"unique_details\":[\"Корпорація Microsoft інвестує 2 мільярди доларів у розвиток центрів обробки даних у Японії.\"]}]}\n\n" +
+                    "Example 2 (Broad Topic - Same sphere, but fundamentally different events):\n{\"common_topic\":\"Новини стосуються широкої тематики технологій, але не мають виражених спільних рис.\",\"common_facts\":[],\"items\":[{\"source_id\":\"s3\",\"unique_details\":[\"Компанія Apple презентувала нове покоління планшетів iPad Pro із процесором M4.\"]},{\"source_id\":\"s4\",\"unique_details\":[\"Корпорація Microsoft інвестує 2 мільярди доларів у розвиток центрів обробки даних у Японії.\"]}]}\n\n" +
                     "Example 3 (Completely Unrelated - No common theme at all):\n{\"common_topic\":\"\",\"common_facts\":[],\"items\":[{\"source_id\":\"s5\",\"unique_details\":[\"Футбольний клуб Реал Мадрид здобув перемогу у фіналі Ліги Чемпіонів.\"]},{\"source_id\":\"s6\",\"unique_details\":[\"На території Індонезії розпочалося масштабне виверження активного вулкана.\"]}]}",
             body = null
         )

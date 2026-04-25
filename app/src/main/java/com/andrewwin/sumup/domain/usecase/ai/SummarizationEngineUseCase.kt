@@ -68,14 +68,15 @@ class SummarizationEngineUseCase @Inject constructor(
         }
 
         if (prefs.aiStrategy == AiStrategy.LOCAL) {
+            val sentenceLimit = singleArticleSentenceLimit(prefs)
             DebugTrace.d(
                 "summary_engine",
-                "singleArticle branch=localSummary sentenceLimit=${context.extractiveSentencesLimit(prefs)}"
+                "singleArticle branch=localSummary sentenceLimit=$sentenceLimit"
             )
             val local = fallbackPolicy.singleArticleFallback(
                 title = formatted.displayTitle,
                 fullContent = fullContent,
-                sentenceLimit = context.extractiveSentencesLimit(prefs)
+                sentenceLimit = sentenceLimit
             )
             val withoutDuplicatedTitle = stripLeadingTitleFromSingleArticleSummary(local, formatted.displayTitle)
             val styledSingle = enforceSingleCardStyle(withoutDuplicatedTitle, formatted.displayTitle)
@@ -114,14 +115,15 @@ class SummarizationEngineUseCase @Inject constructor(
             )
         }
         prep.finalExtractiveText?.let {
+            val sentenceLimit = singleArticleSentenceLimit(prefs)
             DebugTrace.d(
                 "summary_engine",
-                "singleArticle branch=preprocessExtractiveFallback extractiveChars=${it.length} sentenceLimit=${context.extractiveSentencesLimit(prefs)}"
+                "singleArticle branch=preprocessExtractiveFallback extractiveChars=${it.length} sentenceLimit=$sentenceLimit"
             )
             val local = fallbackPolicy.singleArticleFallback(
                 title = formatted.displayTitle,
                 fullContent = it,
-                sentenceLimit = context.extractiveSentencesLimit(prefs)
+                sentenceLimit = sentenceLimit
             )
             val withoutDuplicatedTitle = stripLeadingTitleFromSingleArticleSummary(local, formatted.displayTitle)
             val styledSingle = enforceSingleCardStyle(withoutDuplicatedTitle, formatted.displayTitle)
@@ -140,11 +142,12 @@ class SummarizationEngineUseCase @Inject constructor(
         val cloud = try {
             cloudCallPolicy.summarize(content = cloudInput)
         } catch (e: Exception) {
+            val sentenceLimit = singleArticleSentenceLimit(prefs)
             DebugTrace.e("summary_engine", "singleArticle cloudSummary failed, fallback=singleArticleFallback", e)
             fallbackPolicy.singleArticleFallback(
                 title = formatted.displayTitle,
                 fullContent = fullContent,
-                sentenceLimit = context.extractiveSentencesLimit(prefs)
+                sentenceLimit = sentenceLimit
             )
         }
         val withoutDuplicatedTitle = stripLeadingTitleFromSingleArticleSummary(cloud, formatted.displayTitle)
@@ -471,6 +474,9 @@ class SummarizationEngineUseCase @Inject constructor(
             .removeSuffix(".")
     }
 
+    private fun singleArticleSentenceLimit(prefs: UserPreferences): Int =
+        SummaryContext.SingleArticle().extractiveSentencesLimit(prefs).coerceIn(1, SINGLE_ARTICLE_MAX_BULLETS)
+
     private fun enforceSingleCardStyle(summary: String, title: String): String {
         val safeTitle = title.trim().removeSuffix(":").ifBlank { "Коротко" }
         val lines = summary.lines()
@@ -489,14 +495,14 @@ class SummarizationEngineUseCase @Inject constructor(
             .filter { it.isNotBlank() }
 
         val items = if (bulletLines.isNotEmpty()) {
-            bulletLines.take(SINGLE_CARD_MAX_BULLETS)
+            bulletLines.take(SINGLE_ARTICLE_MAX_BULLETS)
         } else {
             SENTENCE_SPLIT_REGEX
                 .split(lines.joinToString(" "))
                 .asSequence()
                 .map { sanitizeSingleBullet(it) }
                 .filter { it.isNotBlank() }
-                .take(SINGLE_CARD_MAX_BULLETS)
+                .take(SINGLE_ARTICLE_MAX_BULLETS)
                 .toList()
         }
 
@@ -577,7 +583,7 @@ class SummarizationEngineUseCase @Inject constructor(
         const val MAX_FALLBACK_TITLE_CHARS = 270
         const val FALLBACK_ITEM_MARKER = "—"
         const val LOCAL_MULTI_ARTICLE_NEWS_LIMIT = 8
-        const val SINGLE_CARD_MAX_BULLETS = 3
+        const val SINGLE_ARTICLE_MAX_BULLETS = 5
         val SENTENCE_SPLIT_REGEX = Regex("(?<=[.!?…])\\s+|\\n+")
 
         val GENERIC_FALLBACK_THEME = FallbackThemeDefinition(

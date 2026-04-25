@@ -97,7 +97,7 @@ class AiRepositoryImpl @Inject constructor(
         val strategy = prefs?.aiStrategy ?: AiStrategy.ADAPTIVE
         val maxTotalChars = (prefs?.aiMaxCharsTotal ?: DEFAULT_MAX_AI_CONTENT_LENGTH).coerceAtLeast(1000)
         val fallbackPointsPerNews = pointsPerNews
-            ?: (prefs?.extractiveSentencesInFeed ?: DEFAULT_SUMMARY_POINTS_PER_NEWS)
+            ?: DEFAULT_SUMMARY_POINTS_PER_NEWS
         val truncatedContent = content.take(maxTotalChars)
         if (strategy == AiStrategy.LOCAL) {
             return formatExtractiveFallback(truncatedContent, fallbackPointsPerNews)
@@ -984,7 +984,7 @@ class AiRepositoryImpl @Inject constructor(
         private const val MIN_CLOUD_BULLET_CHARS = 100
         private const val MAX_SINGLE_ARTICLE_BULLET_CHARS = 250
         private const val MIN_THEME_ITEMS = 1
-        private const val MAX_THEME_ITEMS = 3
+        private const val MAX_THEME_ITEMS = 5
         private const val MAX_THEMES = 4
         private const val MAX_THEME_EMOJIS = 4
         private const val MAX_THEME_ITEM_TITLE_CHARS = 125

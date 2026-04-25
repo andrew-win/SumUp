@@ -53,6 +53,26 @@ class RemoteArticleDataSource @Inject constructor(
         }
     }
 
+    suspend fun fetchYouTubeChannelDisplayName(url: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val youtubeUrl = if (url.contains("videos.xml")) url else {
+                "https://www.youtube.com/feeds/videos.xml?channel_id=${url.substringAfterLast("/")}"
+            }
+            val request = Request.Builder().url(youtubeUrl).build()
+            okHttpClient.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.byteStream()
+                    if (body != null) {
+                        return@withContext youtubeParser.parseChannelDisplayName(body)
+                    }
+                }
+            }
+            null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private suspend fun fetchRssArticles(sourceId: Long, url: String): List<Article> {
         val httpsUrl = if (url.startsWith("http://")) "https://${url.removePrefix("http://")}" else url
         val primary = rssParser.parseUrl(httpsUrl, sourceId)

@@ -46,12 +46,14 @@ class ArticlePreprocessorUseCase @Inject constructor() {
             )
         }
 
-        val compressAboveThreshold = prefs.adaptiveExtractiveCompressAboveChars.coerceAtLeast(onlyExtractiveThreshold)
-        if (text.length <= compressAboveThreshold) {
-            return Output(textForCloud = text)
-        }
-
-        val targetChars = (text.length * (prefs.adaptiveExtractiveCompressionPercent.coerceIn(1, 100) / 100f))
+        val highCompressionThreshold = prefs.adaptiveExtractiveHighCompressionAboveChars
+            .coerceAtLeast(onlyExtractiveThreshold + 1)
+        val compressionPercent = if (text.length < highCompressionThreshold) {
+            prefs.adaptiveExtractiveCompressionPercentMedium
+        } else {
+            prefs.adaptiveExtractiveCompressionPercentHigh
+        }.coerceIn(1, 100)
+        val targetChars = (text.length * (compressionPercent / 100f))
             .toInt()
             .coerceAtLeast(1)
         val estimateSentences = estimateSentenceCountByTargetLength(text, targetChars)

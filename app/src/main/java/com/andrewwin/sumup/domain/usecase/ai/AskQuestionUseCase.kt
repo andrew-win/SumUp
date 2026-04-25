@@ -3,22 +3,32 @@ package com.andrewwin.sumup.domain.usecase.ai
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.support.SummarySourceMeta
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 class AskQuestionUseCase @Inject constructor(
     private val aiRepository: AiRepository,
-    private val articleRepository: ArticleRepository
+    private val articleRepository: ArticleRepository,
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val preprocessPolicy: SummaryPreprocessPolicy
 ) {
     suspend operator fun invoke(articles: List<Article>, question: String): Result<String> {
         return try {
+            val prefs = userPreferencesRepository.preferences.first()
             val structuredContent = buildString {
                 articles.distinctBy { it.id }.forEachIndexed { index, article ->
                     val fullContent = articleRepository.fetchFullContent(article)
                     val source = articleRepository.getSourceById(article.sourceId)
                     val sourceName = source?.name?.trim().orEmpty()
                     val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
+                    val prepared = preprocessPolicy.preprocess(
+                        rawText = fullContent,
+                        prefs = prefs,
+                        context = SummaryContext.Feed(articleCount = articles.size)
+                    )
                     if (index > 0) append("\n\n")
                     append(
                         buildStructuredArticleContent(
@@ -26,7 +36,7 @@ class AskQuestionUseCase @Inject constructor(
                             sourceName = sourceName,
                             sourceUrl = sourceUrl,
                             title = article.title,
-                            content = fullContent
+                            content = prepared.textForCloud
                         )
                     )
                 }
@@ -51,16 +61,22 @@ class AskQuestionUseCase @Inject constructor(
 
     suspend operator fun invoke(article: Article, question: String): Result<String> {
         return try {
+            val prefs = userPreferencesRepository.preferences.first()
             val fullContent = articleRepository.fetchFullContent(article)
             val source = articleRepository.getSourceById(article.sourceId)
             val sourceName = source?.name?.trim().orEmpty()
             val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
+            val prepared = preprocessPolicy.preprocess(
+                rawText = fullContent,
+                prefs = prefs,
+                context = SummaryContext.SingleArticle()
+            )
             val structuredContent = buildStructuredArticleContent(
                 sourceId = article.id.toString(),
                 sourceName = sourceName,
                 sourceUrl = sourceUrl,
                 title = article.title,
-                content = fullContent
+                content = prepared.textForCloud
             )
             DebugTrace.d(
                 "ai_qa",
@@ -120,9 +136,7 @@ class AskQuestionUseCase @Inject constructor(
             }
 
         val detailLines = mutableListOf<String>()
-        if (detailItems.isEmpty()) {
-            detailLines += "— У джерелах немає достатнього підтвердження для детального пояснення."
-        } else {
+        if (detailItems.isNotEmpty()) {
             val fallbackSourceIds = qa.sources
                 .asSequence()
                 .map { it.trim() }
@@ -158,9 +172,11 @@ class AskQuestionUseCase @Inject constructor(
             appendLine()
             appendLine("Коротка відповідь")
             appendLine("— $shortAnswer")
-            appendLine()
-            appendLine("Детальніше")
-            detailLines.forEach { appendLine(it) }
+            if (detailLines.isNotEmpty()) {
+                appendLine()
+                appendLine("Детальніше")
+                detailLines.forEach { appendLine(it) }
+            }
         }.trim()
 
         DebugTrace.d(

@@ -616,23 +616,30 @@ private data class QaSectionUi(
 )
 
 private fun extractQaSections(blocks: List<SummaryBlockUi>): List<QaSectionUi>? {
-    val expected = listOf("питання", "коротка відповідь", "детальніше")
+    val questionHeadings = setOf("питання", "question")
+    val shortAnswerHeadings = setOf("коротка відповідь", "short answer")
+    val detailsHeadings = setOf("детальніше", "details")
     val themes = blocks.filterIsInstance<SummaryBlockUi.Theme>()
-    if (themes.size < 3) return null
+    if (themes.size < 2) return null
 
-    val normalizedHeadings = themes.take(3).map { it.heading.trim().lowercase() }
-    if (normalizedHeadings != expected) return null
+    val normalizedHeadings = themes.map { it.heading.trim().lowercase() }
+    if (normalizedHeadings.firstOrNull() !in questionHeadings) return null
+    if (normalizedHeadings.getOrNull(1) !in shortAnswerHeadings) return null
+    if (normalizedHeadings.size > 2 && normalizedHeadings[2] !in detailsHeadings) return null
 
-    return themes.take(3).map { theme ->
+    return themes.take(if (normalizedHeadings.size > 2) 3 else 2).mapNotNull { theme ->
         val directItems = theme.items.filter { it.text.isNotBlank() }
         if (directItems.isNotEmpty()) {
             QaSectionUi(heading = theme.heading, items = directItems)
         } else {
-            val fallbackText = theme.summary?.takeIf { it.isNotBlank() } ?: "Немає даних."
-            QaSectionUi(
-                heading = theme.heading,
-                items = listOf(ThemeItem(marker = "—", text = fallbackText, sources = emptyList()))
-            )
+            theme.summary
+                ?.takeIf { it.isNotBlank() }
+                ?.let { fallbackText ->
+                    QaSectionUi(
+                        heading = theme.heading,
+                        items = listOf(ThemeItem(marker = "—", text = fallbackText, sources = emptyList()))
+                    )
+                }
         }
     }
 }
@@ -657,7 +664,7 @@ private fun extractSingleSummaryContent(blocks: List<SummaryBlockUi>): SingleSum
                         .map { it.trim().removePrefix("—").removePrefix("-").removePrefix("•").trim() }
                         .filter { it.isNotBlank() }
                         .ifEmpty { lines.drop(1).takeIf { it.isNotEmpty() } ?: listOf(title) }
-                        .take(4)
+                        .take(5)
                     return SingleSummaryContentUi(
                         title = title,
                         bullets = bullets,
@@ -666,7 +673,7 @@ private fun extractSingleSummaryContent(blocks: List<SummaryBlockUi>): SingleSum
                 }
             }
             is SummaryBlockUi.Theme -> {
-                val bullets = block.items.map { it.text.trim() }.filter { it.isNotBlank() }.take(4)
+                val bullets = block.items.map { it.text.trim() }.filter { it.isNotBlank() }.take(5)
                 return SingleSummaryContentUi(
                     title = block.heading.removeSuffix(":").trim(),
                     bullets = bullets.ifEmpty { listOf(block.summary.orEmpty()).filter { it.isNotBlank() } },
@@ -674,7 +681,7 @@ private fun extractSingleSummaryContent(blocks: List<SummaryBlockUi>): SingleSum
                 )
             }
             is SummaryBlockUi.PlainList -> {
-                val bullets = block.items.map { it.text.trim() }.filter { it.isNotBlank() }.take(4)
+                val bullets = block.items.map { it.text.trim() }.filter { it.isNotBlank() }.take(5)
                 if (bullets.isNotEmpty()) {
                     return SingleSummaryContentUi(
                         title = bullets.first(),

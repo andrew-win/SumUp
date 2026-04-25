@@ -13,7 +13,7 @@ sealed class SummaryContext {
     }
 
     fun extractiveSentencesLimit(prefs: UserPreferences): Int = when (this) {
-        is SingleArticle, is Feed -> prefs.extractiveSentencesInFeed.coerceAtLeast(1)
+        is SingleArticle, is Feed -> DEFAULT_FEED_EXTRACTIVE_SENTENCES
         is ScheduledSummary -> prefs.extractiveSentencesInScheduled.coerceAtLeast(1)
     }
 
@@ -27,6 +27,10 @@ sealed class SummaryContext {
         is SingleArticle -> 1
         is Feed -> prefs.extractiveNewsInFeed.coerceAtLeast(1)
         is ScheduledSummary -> prefs.extractiveNewsInScheduled.coerceAtLeast(1)
+    }
+
+    private companion object {
+        const val DEFAULT_FEED_EXTRACTIVE_SENTENCES = 5
     }
 }
 

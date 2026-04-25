@@ -71,6 +71,7 @@ class SummaryRenderPolicy @Inject constructor(
         val articleById = articles.associateBy { it.id.toString() }
         val lines = mutableListOf<String>()
         val commonBlockLines = parsed.commonFacts
+            .take(MAX_COMPARE_LINES_PER_BLOCK)
             .filter { it.text.isNotBlank() }
             .flatMap { commonFact ->
                 val factLines = mutableListOf("— ${commonFact.text.trim()}")
@@ -105,9 +106,8 @@ class SummaryRenderPolicy @Inject constructor(
             val fallbackText = parsed.commonTopic
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
-                ?.let { "Хоча новини стосуються теми $it, спільних фрагментів знайдено не було" }
                 ?: parsed.fallbackMessage?.ifBlank { null }
-                ?: "Спільних фрагментів знайдено не було"
+                ?: "Новини стосуються широкої тематики, але не мають виражених спільних рис."
             listOf("— $fallbackText")
         }
         if (differentBySource.isNotEmpty()) {

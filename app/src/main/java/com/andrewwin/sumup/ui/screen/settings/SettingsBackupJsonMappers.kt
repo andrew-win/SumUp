@@ -58,15 +58,15 @@ internal fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
     put("isImportanceFilterEnabled", isImportanceFilterEnabled)
     put("isAdaptiveExtractivePreprocessingEnabled", isAdaptiveExtractivePreprocessingEnabled)
     put("adaptiveExtractiveOnlyBelowChars", adaptiveExtractiveOnlyBelowChars)
-    put("adaptiveExtractiveCompressAboveChars", adaptiveExtractiveCompressAboveChars)
-    put("adaptiveExtractiveCompressionPercent", adaptiveExtractiveCompressionPercent)
+    put("adaptiveExtractiveHighCompressionAboveChars", adaptiveExtractiveHighCompressionAboveChars)
+    put("adaptiveExtractiveCompressionPercentMedium", adaptiveExtractiveCompressionPercentMedium)
+    put("adaptiveExtractiveCompressionPercentHigh", adaptiveExtractiveCompressionPercentHigh)
     put("summaryItemsPerNewsInFeed", summaryItemsPerNewsInFeed)
     put("summaryItemsPerNewsInScheduled", summaryItemsPerNewsInScheduled)
     put("summaryNewsInFeedExtractive", summaryNewsInFeedExtractive)
     put("summaryNewsInFeedCloud", summaryNewsInFeedCloud)
     put("summaryNewsInScheduledExtractive", summaryNewsInScheduledExtractive)
     put("summaryNewsInScheduledCloud", summaryNewsInScheduledCloud)
-    put("extractiveSentencesInFeed", extractiveSentencesInFeed)
     put("extractiveNewsInFeed", extractiveNewsInFeed)
     put("extractiveSentencesInScheduled", extractiveSentencesInScheduled)
     put("extractiveNewsInScheduled", extractiveNewsInScheduled)
@@ -127,13 +127,23 @@ internal fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
             "adaptiveExtractiveOnlyBelowChars",
             defaults.adaptiveExtractiveOnlyBelowChars
         ),
-        adaptiveExtractiveCompressAboveChars = optInt(
-            "adaptiveExtractiveCompressAboveChars",
-            defaults.adaptiveExtractiveCompressAboveChars
+        adaptiveExtractiveHighCompressionAboveChars = optInt(
+            "adaptiveExtractiveHighCompressionAboveChars",
+            optInt(
+                "adaptiveExtractiveCompressAboveChars",
+                defaults.adaptiveExtractiveHighCompressionAboveChars
+            )
         ),
-        adaptiveExtractiveCompressionPercent = optInt(
-            "adaptiveExtractiveCompressionPercent",
-            defaults.adaptiveExtractiveCompressionPercent
+        adaptiveExtractiveCompressionPercentMedium = optInt(
+            "adaptiveExtractiveCompressionPercentMedium",
+            optInt(
+                "adaptiveExtractiveCompressionPercent",
+                defaults.adaptiveExtractiveCompressionPercentMedium
+            )
+        ),
+        adaptiveExtractiveCompressionPercentHigh = optInt(
+            "adaptiveExtractiveCompressionPercentHigh",
+            defaults.adaptiveExtractiveCompressionPercentHigh
         ),
         summaryItemsPerNewsInFeed = optInt("summaryItemsPerNewsInFeed", defaults.summaryItemsPerNewsInFeed),
         summaryItemsPerNewsInScheduled = optInt(
@@ -153,7 +163,6 @@ internal fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
             "summaryNewsInScheduledCloud",
             defaults.summaryNewsInScheduledCloud
         ),
-        extractiveSentencesInFeed = optInt("extractiveSentencesInFeed", defaults.extractiveSentencesInFeed),
         extractiveNewsInFeed = optInt("extractiveNewsInFeed", defaults.extractiveNewsInFeed),
         extractiveSentencesInScheduled = optInt(
             "extractiveSentencesInScheduled",

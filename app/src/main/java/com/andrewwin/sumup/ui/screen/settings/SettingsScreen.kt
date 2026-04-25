@@ -315,11 +315,14 @@ fun SettingsScreen(
     var adaptiveExtractiveOnlyBelowChars by rememberSaveable(userPreferences.adaptiveExtractiveOnlyBelowChars) {
         mutableStateOf(userPreferences.adaptiveExtractiveOnlyBelowChars.toFloat())
     }
-    var adaptiveExtractiveCompressAboveChars by rememberSaveable(userPreferences.adaptiveExtractiveCompressAboveChars) {
-        mutableStateOf(userPreferences.adaptiveExtractiveCompressAboveChars.toFloat())
+    var adaptiveExtractiveHighCompressionAboveChars by rememberSaveable(userPreferences.adaptiveExtractiveHighCompressionAboveChars) {
+        mutableStateOf(userPreferences.adaptiveExtractiveHighCompressionAboveChars.toFloat())
     }
-    var adaptiveExtractiveCompressionPercent by rememberSaveable(userPreferences.adaptiveExtractiveCompressionPercent) {
-        mutableStateOf(userPreferences.adaptiveExtractiveCompressionPercent.toFloat())
+    var adaptiveExtractiveCompressionPercentMedium by rememberSaveable(userPreferences.adaptiveExtractiveCompressionPercentMedium) {
+        mutableStateOf(userPreferences.adaptiveExtractiveCompressionPercentMedium.toFloat())
+    }
+    var adaptiveExtractiveCompressionPercentHigh by rememberSaveable(userPreferences.adaptiveExtractiveCompressionPercentHigh) {
+        mutableStateOf(userPreferences.adaptiveExtractiveCompressionPercentHigh.toFloat())
     }
 
     val settingsGroups = remember {
@@ -521,8 +524,9 @@ fun SettingsScreen(
                             summaryNewsInFeedExtractive = summaryNewsInFeedExtractive,
                             summaryNewsInScheduledExtractive = summaryNewsInScheduledExtractive,
                             adaptiveExtractiveOnlyBelowChars = adaptiveExtractiveOnlyBelowChars,
-                            adaptiveExtractiveCompressAboveChars = adaptiveExtractiveCompressAboveChars,
-                            adaptiveExtractiveCompressionPercent = adaptiveExtractiveCompressionPercent,
+                            adaptiveExtractiveHighCompressionAboveChars = adaptiveExtractiveHighCompressionAboveChars,
+                            adaptiveExtractiveCompressionPercentMedium = adaptiveExtractiveCompressionPercentMedium,
+                            adaptiveExtractiveCompressionPercentHigh = adaptiveExtractiveCompressionPercentHigh,
                             onAiStrategyChange = viewModel::updateAiStrategy,
                             onAiMaxCharsPerArticleChange = { aiMaxCharsPerArticle = it },
                             onAiMaxCharsPerArticleCommitted = {
@@ -553,14 +557,20 @@ fun SettingsScreen(
                             onAdaptiveExtractiveOnlyBelowCharsCommitted = {
                                 viewModel.updateAdaptiveExtractiveOnlyBelowChars(adaptiveExtractiveOnlyBelowChars.toInt())
                             },
-                            onAdaptiveExtractiveCompressAboveCharsChange = { adaptiveExtractiveCompressAboveChars = it },
-                            onAdaptiveExtractiveCompressAboveCharsCommitted = {
-                                viewModel.updateAdaptiveExtractiveCompressAboveChars(adaptiveExtractiveCompressAboveChars.toInt())
+                            onAdaptiveExtractiveHighCompressionAboveCharsChange = { adaptiveExtractiveHighCompressionAboveChars = it },
+                            onAdaptiveExtractiveHighCompressionAboveCharsCommitted = {
+                                viewModel.updateAdaptiveExtractiveHighCompressionAboveChars(adaptiveExtractiveHighCompressionAboveChars.toInt())
                             },
-                            onAdaptiveExtractiveCompressionPercentChange = { adaptiveExtractiveCompressionPercent = it },
-                            onAdaptiveExtractiveCompressionPercentCommitted = {
-                                viewModel.updateAdaptiveExtractiveCompressionPercent(
-                                    adaptiveExtractiveCompressionPercent.toInt()
+                            onAdaptiveExtractiveCompressionPercentMediumChange = { adaptiveExtractiveCompressionPercentMedium = it },
+                            onAdaptiveExtractiveCompressionPercentMediumCommitted = {
+                                viewModel.updateAdaptiveExtractiveCompressionPercentMedium(
+                                    adaptiveExtractiveCompressionPercentMedium.toInt()
+                                )
+                            },
+                            onAdaptiveExtractiveCompressionPercentHighChange = { adaptiveExtractiveCompressionPercentHigh = it },
+                            onAdaptiveExtractiveCompressionPercentHighCommitted = {
+                                viewModel.updateAdaptiveExtractiveCompressionPercentHigh(
+                                    adaptiveExtractiveCompressionPercentHigh.toInt()
                                 )
                             },
                             onHelpRequest = { helpDescription = it }
@@ -868,8 +878,9 @@ private fun SettingsGroup.searchableTextResIds(): List<Int> = when (this) {
         R.string.settings_summary_news_feed_extractive,
         R.string.settings_summary_news_scheduled_extractive,
         R.string.settings_adaptive_extractive_only_below_chars,
-        R.string.settings_adaptive_extractive_compress_above_chars,
-        R.string.settings_adaptive_extractive_compression_percent
+        R.string.settings_adaptive_extractive_high_compression_above_chars,
+        R.string.settings_adaptive_extractive_compression_percent_medium,
+        R.string.settings_adaptive_extractive_compression_percent_high
     )
 
     SettingsGroup.FEED -> listOf(

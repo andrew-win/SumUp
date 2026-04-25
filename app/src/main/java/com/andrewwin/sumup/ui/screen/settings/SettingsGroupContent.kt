@@ -333,8 +333,9 @@ internal fun SettingsAiProcessingGroupContent(
     summaryNewsInFeedExtractive: Float,
     summaryNewsInScheduledExtractive: Float,
     adaptiveExtractiveOnlyBelowChars: Float,
-    adaptiveExtractiveCompressAboveChars: Float,
-    adaptiveExtractiveCompressionPercent: Float,
+    adaptiveExtractiveHighCompressionAboveChars: Float,
+    adaptiveExtractiveCompressionPercentMedium: Float,
+    adaptiveExtractiveCompressionPercentHigh: Float,
     onAiStrategyChange: (AiStrategy) -> Unit,
     onAiMaxCharsPerArticleChange: (Float) -> Unit,
     onAiMaxCharsPerArticleCommitted: () -> Unit,
@@ -350,10 +351,12 @@ internal fun SettingsAiProcessingGroupContent(
     onSummaryPromptChange: (String) -> Unit,
     onAdaptiveExtractiveOnlyBelowCharsChange: (Float) -> Unit,
     onAdaptiveExtractiveOnlyBelowCharsCommitted: () -> Unit,
-    onAdaptiveExtractiveCompressAboveCharsChange: (Float) -> Unit,
-    onAdaptiveExtractiveCompressAboveCharsCommitted: () -> Unit,
-    onAdaptiveExtractiveCompressionPercentChange: (Float) -> Unit,
-    onAdaptiveExtractiveCompressionPercentCommitted: () -> Unit,
+    onAdaptiveExtractiveHighCompressionAboveCharsChange: (Float) -> Unit,
+    onAdaptiveExtractiveHighCompressionAboveCharsCommitted: () -> Unit,
+    onAdaptiveExtractiveCompressionPercentMediumChange: (Float) -> Unit,
+    onAdaptiveExtractiveCompressionPercentMediumCommitted: () -> Unit,
+    onAdaptiveExtractiveCompressionPercentHighChange: (Float) -> Unit,
+    onAdaptiveExtractiveCompressionPercentHighCommitted: () -> Unit,
     onHelpRequest: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -492,28 +495,39 @@ internal fun SettingsAiProcessingGroupContent(
                     value = adaptiveExtractiveOnlyBelowChars,
                     onValueChange = onAdaptiveExtractiveOnlyBelowCharsChange,
                     onValueChangeFinished = onAdaptiveExtractiveOnlyBelowCharsCommitted,
-                    valueRange = 500f..5000f,
-                    steps = 45
+                    valueRange = 300f..3000f,
+                    steps = 53
                 )
                 SettingsIntSliderItem(
                     label = stringResource(
-                        R.string.settings_adaptive_extractive_compress_above_chars,
-                        adaptiveExtractiveCompressAboveChars.toInt()
+                        R.string.settings_adaptive_extractive_high_compression_above_chars,
+                        adaptiveExtractiveHighCompressionAboveChars.toInt()
                     ),
-                    value = adaptiveExtractiveCompressAboveChars,
-                    onValueChange = onAdaptiveExtractiveCompressAboveCharsChange,
-                    onValueChangeFinished = onAdaptiveExtractiveCompressAboveCharsCommitted,
-                    valueRange = 1000f..10000f,
-                    steps = 90
+                    value = adaptiveExtractiveHighCompressionAboveChars,
+                    onValueChange = onAdaptiveExtractiveHighCompressionAboveCharsChange,
+                    onValueChangeFinished = onAdaptiveExtractiveHighCompressionAboveCharsCommitted,
+                    valueRange = 1000f..6000f,
+                    steps = 99
                 )
                 SettingsIntSliderItem(
                     label = stringResource(
-                        R.string.settings_adaptive_extractive_compression_percent,
-                        adaptiveExtractiveCompressionPercent.toInt()
+                        R.string.settings_adaptive_extractive_compression_percent_medium,
+                        adaptiveExtractiveCompressionPercentMedium.toInt()
                     ),
-                    value = adaptiveExtractiveCompressionPercent,
-                    onValueChange = onAdaptiveExtractiveCompressionPercentChange,
-                    onValueChangeFinished = onAdaptiveExtractiveCompressionPercentCommitted,
+                    value = adaptiveExtractiveCompressionPercentMedium,
+                    onValueChange = onAdaptiveExtractiveCompressionPercentMediumChange,
+                    onValueChangeFinished = onAdaptiveExtractiveCompressionPercentMediumCommitted,
+                    valueRange = 10f..90f,
+                    steps = 79
+                )
+                SettingsIntSliderItem(
+                    label = stringResource(
+                        R.string.settings_adaptive_extractive_compression_percent_high,
+                        adaptiveExtractiveCompressionPercentHigh.toInt()
+                    ),
+                    value = adaptiveExtractiveCompressionPercentHigh,
+                    onValueChange = onAdaptiveExtractiveCompressionPercentHighChange,
+                    onValueChangeFinished = onAdaptiveExtractiveCompressionPercentHighCommitted,
                     valueRange = 10f..90f,
                     steps = 79
                 )
