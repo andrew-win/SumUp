@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -35,6 +36,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -42,8 +44,19 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.airbnb.lottie.LottieProperty
+import com.airbnb.lottie.SimpleColorFilter
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
+import com.airbnb.lottie.compose.rememberLottieDynamicProperties
+import com.airbnb.lottie.compose.rememberLottieDynamicProperty
+import com.airbnb.lottie.model.KeyPath
 import coil.compose.AsyncImage
 import com.andrewwin.sumup.R
+import com.andrewwin.sumup.ui.components.AppCardSurface
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppBackToTopFab
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
@@ -123,6 +136,7 @@ fun FeedScreen(
             listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 100
         }
     }
+    val isFeedAiEnabled = articleClusters.isNotEmpty()
     var wasImeVisible by remember { mutableStateOf(false) }
 
     BackHandler(enabled = isSearchFocused) {
@@ -177,6 +191,7 @@ fun FeedScreen(
                     AppBackToTopFab(onClick = { scope.launch { listState.animateScrollToItem(0) } })
                 }
                 AppProminentFab(
+                    enabled = isFeedAiEnabled,
                     onClick = {
                         if (isHelpMode) {
                             helpDescription = feedAiHelpDescription
@@ -272,10 +287,68 @@ fun FeedScreen(
                             description = feedEmptyHelpDescription,
                             onShowDescription = { helpDescription = it }
                         ) {
-                            AppMessageState(
-                                message = stringResource(R.string.feed_empty_message),
-                                modifier = Modifier.fillParentMaxHeight(0.7f)
+                            val composition by rememberLottieComposition(
+                                LottieCompositionSpec.RawRes(R.raw.empty_animation)
                             )
+                            val progress by animateLottieCompositionAsState(
+                                composition = composition,
+                                iterations = LottieConstants.IterateForever
+                            )
+                            val dynamicProperties = rememberLottieDynamicProperties(
+                                rememberLottieDynamicProperty(
+                                    property = LottieProperty.COLOR_FILTER,
+                                    value = SimpleColorFilter(
+                                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.72f).toArgb()
+                                    ),
+                                    keyPath = arrayOf("**")
+                                )
+                            )
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                AppCardSurface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = MaterialTheme.colorScheme.surfaceContainer
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 18.dp, vertical = 20.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        LottieAnimation(
+                                            composition = composition,
+                                            progress = { progress },
+                                            dynamicProperties = dynamicProperties,
+                                            modifier = Modifier.size(84.dp)
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.feed_empty_title),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    text = stringResource(R.string.feed_empty_actions_title),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                FeedEmptyHintCard(
+                                    icon = Icons.Default.FilterList,
+                                    text = stringResource(R.string.feed_empty_hint_filters)
+                                )
+
+                                FeedEmptyHintCard(
+                                    icon = Icons.Default.FolderOpen,
+                                    text = stringResource(R.string.feed_empty_hint_sources)
+                                )
+                            }
                         }
                     }
                 } else {
@@ -475,6 +548,45 @@ fun FeedScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun FeedEmptyHintCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String
+) {
+    AppCardSurface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainer
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }

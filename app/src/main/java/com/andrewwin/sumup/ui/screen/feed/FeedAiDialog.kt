@@ -109,6 +109,9 @@ fun FeedAiDialog(
     onRegenerate: () -> Unit,
     onOpenWebView: (String) -> Unit
 ) {
+    val isFeedEmpty = isFeedAiActive && articleClusters.isEmpty()
+    val emptyFeedMessage = context.getString(R.string.feed_ai_empty_message)
+
     AppAnimatedDialog(
         visible = isVisible,
         onDismissRequest = onDismiss,
@@ -264,6 +267,20 @@ fun FeedAiDialog(
                                 }
                             }
                         }
+                    } else if (isFeedEmpty) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = emptyFeedMessage,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
                     }
                 }
 
@@ -281,7 +298,7 @@ fun FeedAiDialog(
                         trailingIcon = {
                             IconButton(
                                 onClick = onAsk,
-                                enabled = userQuestion.isNotBlank() && !isAiLoading
+                                enabled = userQuestion.isNotBlank() && !isAiLoading && !isFeedEmpty
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
                             }
@@ -294,6 +311,7 @@ fun FeedAiDialog(
                     Button(
                         onClick = onRegenerate,
                         modifier = Modifier.fillMaxWidth(),
+                        enabled = !isFeedEmpty,
                         shape = MaterialTheme.shapes.large,
                         contentPadding = PaddingValues(16.dp)
                     ) {

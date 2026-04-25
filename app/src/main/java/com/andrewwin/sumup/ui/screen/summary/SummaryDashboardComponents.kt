@@ -279,7 +279,9 @@ fun PrevNextStatusRow(
             )
             StatusMiniCard(
                 label = stringResource(R.string.summary_next_short),
-                status = if (isScheduledEnabled && nextScheduledAt != null) {
+                status = if (!isScheduledEnabled) {
+                    Pair(stringResource(R.string.summary_scheduling_disabled), "")
+                } else if (nextScheduledAt != null) {
                     formatStatusTimeAndDate(nextScheduledAt)
                 } else {
                     Pair(stringResource(R.string.summary_not_ready), "")
@@ -319,7 +321,7 @@ private fun StatusMiniCard(
             Spacer(Modifier.height(4.dp))
             Text(
                 text = status.first,
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
             if (status.second.isNotEmpty()) {

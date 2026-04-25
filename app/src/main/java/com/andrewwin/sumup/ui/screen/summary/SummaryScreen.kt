@@ -42,6 +42,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Link
@@ -67,6 +68,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
@@ -85,9 +87,19 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.airbnb.lottie.LottieProperty
+import com.airbnb.lottie.SimpleColorFilter
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
+import com.airbnb.lottie.compose.rememberLottieDynamicProperties
+import com.airbnb.lottie.compose.rememberLottieDynamicProperty
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Summary
+import com.andrewwin.sumup.ui.components.AppCardSurface
 import com.andrewwin.sumup.ui.components.AppAnimatedSwap
 import com.andrewwin.sumup.ui.components.AppBackToTopFab
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
@@ -146,6 +158,7 @@ fun SummaryScreen(
     val isVectorizationEnabled by viewModel.isVectorizationEnabled.collectAsState()
 
     val lastSummary = remember(summaries) { summaries.firstOrNull() }
+    val hasAnySummaries = summaries.isNotEmpty()
     val selectedSummaryIds = remember { mutableStateListOf<Long>() }
     val isSelectionMode = selectedSummaryIds.isNotEmpty()
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
@@ -305,7 +318,10 @@ fun SummaryScreen(
                         description = summaryHistoryFabHelpDescription,
                         onShowDescription = { helpDescription = it }
                     ) {
-                        AppProminentFab(onClick = { isHistoryScreen = true }) {
+                        AppProminentFab(
+                            enabled = hasAnySummaries,
+                            onClick = { isHistoryScreen = true }
+                        ) {
                             Icon(
                                 Icons.Default.History,
                                 contentDescription = stringResource(R.string.summary_history_title),
@@ -436,19 +452,67 @@ fun SummaryScreen(
                         }
                     } else {
                         item {
-                            Box(
+                            val composition by rememberLottieComposition(
+                                LottieCompositionSpec.RawRes(R.raw.empty_animation)
+                            )
+                            val progress by animateLottieCompositionAsState(
+                                composition = composition,
+                                iterations = LottieConstants.IterateForever
+                            )
+                            val dynamicProperties = rememberLottieDynamicProperties(
+                                rememberLottieDynamicProperty(
+                                    property = LottieProperty.COLOR_FILTER,
+                                    value = SimpleColorFilter(
+                                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.72f).toArgb()
+                                    ),
+                                    keyPath = arrayOf("**")
+                                )
+                            )
+                            Column(
                                 modifier = Modifier
-                                    .fillParentMaxHeight(0.6f)
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp),
-                                contentAlignment = Alignment.Center
+                                    .fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
+                                AppCardSurface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = MaterialTheme.colorScheme.surfaceContainer
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 18.dp, vertical = 20.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        LottieAnimation(
+                                            composition = composition,
+                                            progress = { progress },
+                                            dynamicProperties = dynamicProperties,
+                                            modifier = Modifier.size(84.dp)
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.summary_empty_title),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        )
+                                    }
+                                }
+
                                 Text(
-                                    text = stringResource(R.string.summary_history_empty_state),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                    lineHeight = 26.sp
+                                    text = stringResource(R.string.summary_empty_actions_title),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                SummaryEmptyHintCard(
+                                    icon = Icons.Default.FilterList,
+                                    text = stringResource(R.string.summary_empty_hint_filters)
+                                )
+
+                                SummaryEmptyHintCard(
+                                    icon = Icons.Default.Schedule,
+                                    text = stringResource(R.string.summary_empty_hint_scheduled)
                                 )
                             }
                         }
@@ -497,6 +561,45 @@ fun SummaryScreen(
             description = helpDescription.orEmpty(),
             onDismiss = { helpDescription = null }
         )
+    }
+}
+
+@Composable
+private fun SummaryEmptyHintCard(
+    icon: ImageVector,
+    text: String
+) {
+    AppCardSurface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainer
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
     }
 }
 

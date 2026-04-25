@@ -6,9 +6,12 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.service.ExtractiveSummarizer
 import com.andrewwin.sumup.domain.repository.AiRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.repository.EmbeddingService
+import com.andrewwin.sumup.domain.repository.ModelRepository
 import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import com.andrewwin.sumup.domain.usecase.common.FormatArticleHeadlineUseCase
+import kotlin.math.sqrt
 import javax.inject.Inject
 
 class SummaryPreprocessPolicy @Inject constructor(
@@ -42,8 +45,25 @@ class SummaryParsePolicy @Inject constructor() {
 
 class SummaryRenderPolicy @Inject constructor(
     private val articleRepository: ArticleRepository,
-    private val formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase
+    private val formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase,
+    private val modelRepository: ModelRepository,
+    private val embeddingService: EmbeddingService
 ) {
+    private data class CompareCandidate(
+        val text: String,
+        val source: CompareSourceMeta
+    )
+
+    private data class CompareSourceMeta(
+        val name: String,
+        val url: String
+    )
+
+    private data class CompareRenderedItem(
+        val text: String,
+        val sources: List<CompareSourceMeta>
+    )
+
     suspend fun renderCloudCompare(
         parsed: CompareResponseJson,
         articles: List<Article>
@@ -121,30 +141,34 @@ class SummaryRenderPolicy @Inject constructor(
         return null
     }
 
-    suspend fun renderLocalCompare(articles: List<Article>): String {
+    suspend fun renderLocalCompare(
+        articles: List<Article>,
+        localSimilarityThreshold: Float
+    ): String {
         if (articles.isEmpty()) return ""
-        val lines = mutableListOf<String>()
-        val commonBySource = mutableMapOf<String, MutableList<String>>()
-        val differentBySource = mutableMapOf<String, MutableList<String>>()
+        val candidates = mutableListOf<CompareCandidate>()
         for (article in articles) {
             val source = articleRepository.getSourceById(article.sourceId)
             val sourceName = source?.name?.ifBlank { null } ?: "Джерело"
             val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
-            val key = "$sourceName|$sourceUrl"
+            if (sourceUrl.isBlank()) continue
+            val sourceMeta = CompareSourceMeta(name = sourceName, url = sourceUrl)
             val sentences = ExtractiveSummarizer.summarize(
                 articleRepository.fetchFullContent(article),
-                2
+                LOCAL_COMPARE_SENTENCE_LIMIT
             )
             val prepared = sentences.map { it.trim() }.filter { it.isNotBlank() }
-            if (prepared.isNotEmpty()) commonBySource.getOrPut(key) { mutableListOf() } += prepared.take(1)
-            if (prepared.size > 1) differentBySource.getOrPut(key) { mutableListOf() } += prepared.drop(1).take(1)
+            prepared.forEach { sentence ->
+                candidates += CompareCandidate(text = sentence, source = sourceMeta)
+            }
         }
-        lines += renderCompareBlocks(
-            commonBySource = commonBySource,
-            differentBySource = differentBySource,
-            softDedupe = true
+        val hasLocalModel = modelRepository.isModelExists() &&
+            embeddingService.initialize(modelRepository.getModelPath())
+        return renderCompareBlocks(
+            candidates = candidates,
+            hasLocalModel = hasLocalModel,
+            localSimilarityThreshold = localSimilarityThreshold
         )
-        return lines.joinToString("\n").trim()
     }
 
     suspend fun appendSourceMetadata(summaryText: String, articles: List<Article>): String {
@@ -211,76 +235,100 @@ class SummaryRenderPolicy @Inject constructor(
     fun moveSourceToEndForSingleArticle(summaryText: String): String =
         normalizeSectionSourcePlacement(summaryText)
 
-    private fun renderCompareBlocks(
-        commonBySource: Map<String, List<String>>,
-        differentBySource: Map<String, List<String>>,
-        softDedupe: Boolean
+    private suspend fun renderCompareBlocks(
+        candidates: List<CompareCandidate>,
+        hasLocalModel: Boolean,
+        localSimilarityThreshold: Float
     ): String {
-        val sourceKeys = (commonBySource.keys + differentBySource.keys).distinct().toList()
-        if (sourceKeys.isEmpty()) return "Немає достатньо даних для порівняння."
+        if (candidates.isEmpty()) return "Немає достатньо даних для порівняння."
 
-        val commonLines = mutableListOf<String>()
-        val differentEntries = mutableListOf<Pair<String, String>>()
-        val seenCommonStatements = mutableSetOf<String>()
-        val seenDifferentStatements = mutableSetOf<String>()
-        val seenCommonTokenSets = mutableListOf<Set<String>>()
-        val seenDifferentTokenSets = mutableListOf<Set<String>>()
-
-        sourceKeys.forEach { sourceKey ->
-            if (commonLines.size >= MAX_COMPARE_LINES_PER_BLOCK && differentEntries.size >= MAX_COMPARE_LINES_PER_BLOCK) {
-                return@forEach
-            }
-            val sourceName = sourceKey.substringBefore('|').ifBlank { "Джерело" }
-            val sourceUrl = sourceKey.substringAfter('|', "")
-            commonBySource[sourceKey]
-                .orEmpty()
-                .distinctBy { normalizeKey(it) }
-                .take(2)
-                .forEach { statement ->
-                    if (commonLines.size >= MAX_COMPARE_LINES_PER_BLOCK) return@forEach
-                    val normalized = normalizeKey(statement)
-                    if (normalized.isBlank()) return@forEach
-                    if (!seenCommonStatements.add(normalized)) return@forEach
-                    if (softDedupe) {
-                        val tokenSet = toComparableTokenSet(normalized)
-                        if (isNearDuplicateTokenSet(tokenSet, seenCommonTokenSets)) return@forEach
-                        if (tokenSet.isNotEmpty()) seenCommonTokenSets += tokenSet
-                    }
-                    commonLines += "— ${statement.trim()}"
-                }
-            differentBySource[sourceKey]
-                .orEmpty()
-                .distinctBy { normalizeKey(it) }
-                .take(2)
-                .forEach { statement ->
-                    if (differentEntries.size >= MAX_COMPARE_LINES_PER_BLOCK) return@forEach
-                    val normalized = normalizeKey(statement)
-                    if (normalized.isBlank()) return@forEach
-                    if (!seenDifferentStatements.add(normalized)) return@forEach
-                    if (softDedupe) {
-                        val tokenSet = toComparableTokenSet(normalized)
-                        if (isNearDuplicateTokenSet(tokenSet, seenDifferentTokenSets)) return@forEach
-                        if (tokenSet.isNotEmpty()) seenDifferentTokenSets += tokenSet
-                    }
-                    differentEntries += statement.trim() to "${SummarySourceMeta.PREFIX}$sourceName|${sourceUrl.trim()}"
-                }
+        val embeddings = if (hasLocalModel) {
+            candidates.map { embeddingService.getEmbedding(it.text.trim()) }
+        } else {
+            emptyList()
         }
+        val jaccardSets = if (!hasLocalModel) {
+            candidates.map { toJaccardWordSet(it.text) }
+        } else {
+            emptyList()
+        }
+        val matchedIndexes = List(candidates.size) { mutableSetOf<Int>() }
+
+        for (left in 0 until candidates.lastIndex) {
+            for (right in left + 1 until candidates.size) {
+                val isMatch = if (hasLocalModel) {
+                    cosineSimilarity(embeddings[left], embeddings[right]) >= localSimilarityThreshold
+                } else {
+                    jaccardSimilarity(jaccardSets[left], jaccardSets[right]) >= JACCARD_COMMON_THRESHOLD
+                }
+                if (isMatch) {
+                    matchedIndexes[left] += right
+                    matchedIndexes[right] += left
+                }
+            }
+        }
+
+        val commonItems = buildList {
+            val seen = mutableSetOf<String>()
+            candidates.forEachIndexed { index, candidate ->
+                val matches = matchedIndexes[index]
+                if (matches.isEmpty()) return@forEachIndexed
+                val sources = buildList {
+                    add(candidate.source)
+                    matches.forEach { matchIndex -> add(candidates[matchIndex].source) }
+                }.distinctBy { it.url }
+                if (sources.size < 2) return@forEachIndexed
+                val normalized = normalizeKey(candidate.text)
+                val sourceKey = sources.joinToString("|") { it.url }
+                val dedupeKey = "$normalized::$sourceKey"
+                if (!seen.add(dedupeKey)) return@forEachIndexed
+                add(
+                    CompareRenderedItem(
+                        text = candidate.text.trim(),
+                        sources = sources
+                    )
+                )
+            }
+        }
+            .sortedWith(compareByDescending<CompareRenderedItem> { it.sources.size }.thenByDescending { it.text.length })
+            .take(MAX_COMPARE_LINES_PER_BLOCK)
+
+        val differentItems = buildList {
+            val seen = mutableSetOf<String>()
+            candidates.forEachIndexed { index, candidate ->
+                if (matchedIndexes[index].isNotEmpty()) return@forEachIndexed
+                val normalized = normalizeKey(candidate.text)
+                if (!seen.add(normalized)) return@forEachIndexed
+                add(CompareRenderedItem(text = candidate.text.trim(), sources = listOf(candidate.source)))
+            }
+        }.take(MAX_COMPARE_LINES_PER_BLOCK)
 
         val lines = mutableListOf<String>()
         lines += "Спільне:"
-        if (commonLines.isEmpty()) {
-            lines += "— Спільних фрагментів не було знайдено"
+        if (commonItems.isEmpty()) {
+            val fallbackItem = buildCentralFallbackItem(candidates)
+            lines += "— ${fallbackItem.text}"
+            fallbackItem.sources.forEach { source ->
+                lines += "${SummarySourceMeta.PREFIX}${source.name}|${source.url.trim()}"
+            }
         } else {
-            lines.addAll(commonLines)
+            commonItems.forEach { item ->
+                lines += "— ${item.text}"
+                item.sources.forEach { source ->
+                    lines += "${SummarySourceMeta.PREFIX}${source.name}|${source.url.trim()}"
+                }
+            }
         }
         lines += ""
         lines += "Унікальне:"
-        if (differentEntries.isEmpty()) {
+        if (differentItems.isEmpty()) {
             lines += "— Немає достатньо даних."
         } else {
-            differentEntries.forEach { (text, sourceMeta) ->
-                lines += "— $text"
-                lines += sourceMeta
+            differentItems.forEach { item ->
+                lines += "— ${item.text}"
+                item.sources.forEach { source ->
+                    lines += "${SummarySourceMeta.PREFIX}${source.name}|${source.url.trim()}"
+                }
             }
         }
         return lines.joinToString("\n").trim()
@@ -327,39 +375,70 @@ class SummaryRenderPolicy @Inject constructor(
         .replace(Regex("\\s+"), " ")
         .trim()
 
-    private fun toComparableTokenSet(normalized: String): Set<String> {
-        return normalized
-            .split(" ")
-            .asSequence()
+    private fun toJaccardWordSet(sentence: String): Set<String> {
+        return sentence
+            .lowercase()
+            .split(Regex("\\s+"))
             .map { it.trim() }
-            .filter { it.length >= 4 }
-            .filterNot { it in SOFT_DEDUP_STOPWORDS }
+            .filter { it.isNotBlank() }
             .toSet()
     }
 
-    private fun isNearDuplicateTokenSet(
-        candidate: Set<String>,
-        existing: List<Set<String>>
-    ): Boolean {
-        if (candidate.isEmpty()) return false
-        return existing.any { base ->
-            if (base.isEmpty()) return@any false
-            val intersection = candidate.intersect(base).size.toFloat()
-            val union = candidate.union(base).size.toFloat().coerceAtLeast(1f)
-            val jaccard = intersection / union
-            val overlapOnCandidate = intersection / candidate.size.toFloat()
-            val overlapOnBase = intersection / base.size.toFloat()
-            jaccard >= 0.68f || overlapOnCandidate >= 0.82f || overlapOnBase >= 0.82f
+    private fun jaccardSimilarity(candidate: Set<String>, base: Set<String>): Float {
+        if (candidate.isEmpty() || base.isEmpty()) return 0f
+        val intersection = candidate.intersect(base).size.toFloat()
+        val union = candidate.union(base).size.toFloat().coerceAtLeast(1f)
+        return intersection / union
+    }
+
+    private fun cosineSimilarity(candidate: FloatArray, base: FloatArray): Float {
+        if (candidate.isEmpty() || base.isEmpty() || candidate.size != base.size) return 0f
+        var dot = 0f
+        var candidateNorm = 0f
+        var baseNorm = 0f
+        for (index in candidate.indices) {
+            val c = candidate[index]
+            val b = base[index]
+            dot += c * b
+            candidateNorm += c * c
+            baseNorm += b * b
         }
+        val denominator = sqrt(candidateNorm) * sqrt(baseNorm)
+        if (denominator <= 0f) return 0f
+        return dot / denominator
+    }
+
+    private fun buildCentralFallbackItem(candidates: List<CompareCandidate>): CompareRenderedItem {
+        if (candidates.isEmpty()) {
+            return CompareRenderedItem(
+                text = "Немає достатньо даних.",
+                sources = emptyList()
+            )
+        }
+        val normalizedFrequencies = candidates
+            .groupingBy { normalizeKey(it.text) }
+            .eachCount()
+        val selectedText = candidates
+            .asSequence()
+            .map { it.text.trim() }
+            .filter { it.isNotBlank() }
+            .maxWithOrNull(
+                compareBy<String> { normalizedFrequencies[normalizeKey(it)] ?: 0 }
+                    .thenBy { it.length }
+            )
+            ?: "Немає достатньо даних."
+        return CompareRenderedItem(
+            text = selectedText,
+            sources = candidates
+                .map { it.source }
+                .distinctBy { it.url }
+        )
     }
 
     private companion object {
         const val MAX_COMPARE_LINES_PER_BLOCK = 5
-        val SOFT_DEDUP_STOPWORDS = setOf(
-            "який", "яка", "яке", "які", "цього", "цьому", "цьому", "цього", "цьому",
-            "було", "була", "були", "дуже", "також", "після", "через", "може", "можуть",
-            "about", "with", "from", "that", "this", "these", "those", "will", "have"
-        )
+        const val JACCARD_COMMON_THRESHOLD = 0.2f
+        const val LOCAL_COMPARE_SENTENCE_LIMIT = 5
     }
 
     private fun normalizeSectionSourcePlacement(section: String): String {

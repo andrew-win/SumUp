@@ -34,10 +34,12 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -145,16 +147,21 @@ fun AppTopBar(
 fun AppProminentFab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     FloatingActionButton(
-        onClick = onClick,
-        modifier = modifier.size(
-            width = AppDimens.ProminentFabWidth,
-            height = AppDimens.ProminentFabHeight
-        ),
-        containerColor = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary,
+        onClick = {
+            if (enabled) onClick()
+        },
+        modifier = modifier
+            .size(
+                width = AppDimens.ProminentFabWidth,
+                height = AppDimens.ProminentFabHeight
+            )
+            .alpha(if (enabled) 1f else 0.45f),
+        containerColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
         shape = RoundedCornerShape(AppDimens.ProminentFabCornerRadius)
     ) {
         content()
@@ -251,6 +258,7 @@ fun AppHelpOverlayTarget(
 fun AppMessageState(
     message: String,
     modifier: Modifier = Modifier,
+    textStyle: TextStyle = MaterialTheme.typography.bodyMedium,
     supportingContent: (@Composable () -> Unit)? = null
 ) {
     Box(
@@ -268,7 +276,7 @@ fun AppMessageState(
             }
             Text(
                 text = message,
-                style = MaterialTheme.typography.bodyMedium,
+                style = textStyle,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 lineHeight = AppDimens.StateMessageLineHeight.value.sp

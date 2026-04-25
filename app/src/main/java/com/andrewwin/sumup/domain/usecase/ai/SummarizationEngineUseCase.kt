@@ -56,13 +56,13 @@ class SummarizationEngineUseCase @Inject constructor(
         if (hasDuplicates) {
             return@runCatching if (prefs.aiStrategy == AiStrategy.LOCAL) {
                 DebugTrace.d("summary_engine", "singleArticle branch=localCompare")
-                renderPolicy.renderLocalCompare(allArticles)
+                renderPolicy.renderLocalCompare(allArticles, prefs.localDeduplicationThreshold)
             } else {
                 DebugTrace.d("summary_engine", "singleArticle branch=cloudCompare")
                 runCatching { buildCloudComparisonSummary(allArticles, context, prefs) }
                     .getOrElse {
                         DebugTrace.e("summary_engine", "singleArticle cloudCompare failed, fallback=localCompare", it)
-                        renderPolicy.renderLocalCompare(allArticles)
+                        renderPolicy.renderLocalCompare(allArticles, prefs.localDeduplicationThreshold)
                     }
             }
         }

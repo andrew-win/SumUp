@@ -41,7 +41,8 @@
     <string name="summary_empty">No scheduled summaries yet</string>
     <string name="summary_not_ready">Will be later</string>
     <string name="summary_next_at">Next at %s</string>
-    <string name="summary_scheduling_disabled">Scheduling is disabled</string>
+    <string name="summary_scheduling_disabled">Was not
+scheduled</string>
     <string name="summary_status_ready">Today’s issue is ready</string>
     <string name="summary_status_waiting">Waiting for today’s issue</string>
     <string name="summary_generate_now">Generate now</string>
@@ -222,7 +223,14 @@
     <string name="summary_extractive_intro">Here are the top news for this period:</string>
     <string name="summary_extractive_item_header">%1$d. %2$s:</string>
     <string name="summary_article_format">%1$s: %2$s</string>
-    <string name="feed_empty_message">No news found. Try refreshing by pulling down.</string>
+    <string name="feed_empty_message">No news found. Your filters or settings may be too strict, or there may be no sources.</string>
+    <string name="feed_empty_title">No news found</string>
+    <string name="feed_empty_actions_title">What you can do:</string>
+    <string name="feed_empty_hint_filters">Relax
+filters</string>
+    <string name="feed_empty_hint_sources">Check
+sources</string>
+    <string name="feed_ai_empty_message">Unable to summarize the feed or answer questions about it because the feed is empty.</string>
     <string name="settings_cloud_summary">Cloud summarization</string>
     <string name="settings_cloud_vectorization">Cloud vectorization</string>
     <string name="settings_cloud_summary_api_keys">Cloud API keys for summarization</string>
@@ -256,13 +264,20 @@
     <string name="summary_pdf_item_header">Summary #%1$d</string>
     <string name="summary_pdf_item_meta">%1$s · %2$s</string>
     <string name="summary_search_placeholder">Search summaries here…</string>
-    <string name="summary_history_empty_state">No summaries have been generated yet.</string>
-    <string name="summary_history_list_empty">No summaries were found</string>
+    <string name="summary_history_empty_state">No summaries found. Your filters or settings may be too strict, or scheduled summaries are not enabled.</string>
+    <string name="summary_history_list_empty">No summaries found. Your filters or settings may be too strict, or scheduled summaries are not enabled.</string>
+    <string name="summary_empty_title">No summaries found</string>
+    <string name="summary_empty_actions_title">What you can do:</string>
+    <string name="summary_empty_hint_filters">Relax
+filters</string>
+    <string name="summary_empty_hint_scheduled">Enable
+scheduled</string>
     <string name="summary_default_title">Summary</string>
     <string name="summary_none_short">None</string>
     <string name="summary_not_enough_data">Not enough data.</string>
     <string name="summary_compare_common">Common</string>
     <string name="summary_compare_unique">Unique</string>
+    <string name="summary_compare_no_meaningful_common">These news items cover the same topic, but no meaningful common fragments were found beyond their headlines.</string>
     <string name="summary_source_fallback">Source</string>
     <string name="summary_stat_views_count">%1$s views</string>
     <string name="summary_stat_mentions_count">%1$d similar</string>

@@ -41,7 +41,8 @@
     <string name="summary_empty">Запланованих зведень ще немає</string>
     <string name="summary_not_ready">Згенеровано пізніше</string>
     <string name="summary_next_at">Наступне о %s</string>
-    <string name="summary_scheduling_disabled">Планування вимкнено</string>
+    <string name="summary_scheduling_disabled">Не було
+заплановано</string>
     <string name="summary_status_ready">Сьогоднішній випуск готовий</string>
     <string name="summary_status_waiting">Очікуємо на випуск за сьогодні</string>
     <string name="summary_generate_now">Згенерувати зараз</string>
@@ -237,7 +238,14 @@
     <string name="summary_extractive_intro">Ось головні новини на даний період часу:</string>
     <string name="summary_extractive_item_header">%1$d. %2$s:</string>
     <string name="summary_article_format">%1$s: %2$s</string>
-    <string name="feed_empty_message">Новин не знайдено. Спробуйте оновити стрічку потянувши вниз</string>
+    <string name="feed_empty_message">Новин не знайдено. Можливо, фільтри чи налаштування занадто жорсткі або немає джерел.</string>
+    <string name="feed_empty_title">Новин не знайдено</string>
+    <string name="feed_empty_actions_title">Що можна зробити:</string>
+    <string name="feed_empty_hint_filters">Пом’якшіть
+фільтри</string>
+    <string name="feed_empty_hint_sources">Перевірте
+джерела</string>
+    <string name="feed_ai_empty_message">Неможливо сумаризувати стрічку або поставити по ній питання, оскільки стрічка пуста.</string>
     <string name="settings_cloud_summary">Хмарна сумаризація</string>
     <string name="settings_cloud_vectorization">Хмарна векторизація</string>
     <string name="settings_cloud_summary_api_keys">Хмарні API ключі для сумаризації</string>
@@ -275,13 +283,20 @@
     <string name="summary_pdf_item_header">Зведення #%1$d</string>
     <string name="summary_pdf_item_meta">%1$s · %2$s</string>
     <string name="summary_search_placeholder">Шукайте зведення тут…</string>
-    <string name="summary_history_empty_state">Ще не було згенеровано жодного зведення.</string>
-    <string name="summary_history_list_empty">Зведень не було знайдено</string>
+    <string name="summary_history_empty_state">Зведень не знайдено. Можливо, фільтри чи налаштування занадто жорсткі або не увімкнені заплановані.</string>
+    <string name="summary_history_list_empty">Зведень не знайдено. Можливо, фільтри чи налаштування занадто жорсткі або не увімкнені заплановані.</string>
+    <string name="summary_empty_title">Зведень не знайдено</string>
+    <string name="summary_empty_actions_title">Що можна зробити:</string>
+    <string name="summary_empty_hint_filters">Пом’якшіть
+фільтри</string>
+    <string name="summary_empty_hint_scheduled">Увімкніть
+заплановані</string>
     <string name="summary_default_title">Зведення</string>
     <string name="summary_none_short">Немає</string>
     <string name="summary_not_enough_data">Немає достатньо даних.</string>
     <string name="summary_compare_common">Спільне</string>
     <string name="summary_compare_unique">Унікальне</string>
+    <string name="summary_compare_no_meaningful_common">Новини стосуються однакової тематики, однак окрім їх заголовків суттєвих спільних фрагментів не знайдено.</string>
     <string name="summary_source_fallback">Джерело</string>
     <string name="summary_stat_views_count">%1$s перегл.</string>
     <string name="summary_stat_mentions_count">%1$d схож.</string>
