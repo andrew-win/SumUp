@@ -5,15 +5,16 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.work.ListenableWorker
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
-import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.data.local.entities.AiModelConfig
+import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.usecase.settings.ScheduleSummaryUseCase
 import com.andrewwin.sumup.ui.screen.settings.BackupSelection
 import com.andrewwin.sumup.ui.screen.settings.SyncConflictStrategy
 import com.andrewwin.sumup.ui.screen.settings.SyncOverwritePriority
+import com.andrewwin.sumup.ui.screen.settings.fromBackupJson
 import com.andrewwin.sumup.ui.screen.settings.toAiConfigsFromBackup
 import com.andrewwin.sumup.ui.screen.settings.toBackupJson
 import com.andrewwin.sumup.ui.screen.settings.toImportedGroupsFromBackup
@@ -31,7 +32,7 @@ import javax.inject.Inject
 class CloudSyncWorkerHandler @Inject constructor(
     @ApplicationContext private val context: Context,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val aiRepository: AiRepository,
+    private val aiModelConfigRepository: AiModelConfigRepository,
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
     private val scheduleSummaryUseCase: ScheduleSummaryUseCase,
@@ -55,10 +56,6 @@ class CloudSyncWorkerHandler @Inject constructor(
             includeSettingsNoApi = syncPrefs.getBoolean(WorkerContracts.KEY_SYNC_INCLUDE_SETTINGS_NO_API, true),
             includeApiKeys = syncPrefs.getBoolean(WorkerContracts.KEY_SYNC_INCLUDE_API_KEYS, false) &&
                 secretEncryptionManager.hasSyncPassphrase()
-        )
-        DebugTrace.d(
-            "backup_sync",
-            "worker selection strategy=${syncStrategy.name} overwritePriority=${syncOverwritePriority.name} sources=${selection.includeSources} subscriptions=${selection.includeSubscriptions} saved=${selection.includeSavedArticles} settings=${selection.includeSettingsNoApi} apiKeys=${selection.includeApiKeys}"
         )
 
         val uid = FirebaseAuth.getInstance().currentUser?.uid
@@ -107,10 +104,13 @@ class CloudSyncWorkerHandler @Inject constructor(
         )
     }
 
+    private fun requireSyncPassphrase(): String =
+        secretEncryptionManager.getSyncPassphraseOrNull() ?: error("Sync passphrase is missing.")
+
     private suspend fun buildBackupJson(selection: BackupSelection, remoteBackupRoot: JSONObject? = null): JSONObject {
         val subscriptionsPrefs = context.getSharedPreferences(WorkerContracts.SUBSCRIPTIONS_PREFS, 0)
         val prefs = if (selection.includeSettingsNoApi) userPreferencesRepository.preferences.first() else null
-        val aiConfigs = if (selection.includeApiKeys) aiRepository.allConfigs.first() else emptyList()
+        val aiConfigs = if (selection.includeApiKeys) aiModelConfigRepository.allConfigs.first() else emptyList()
         val syncPassphrase = if (selection.includeApiKeys) {
             secretEncryptionManager.getSyncPassphraseOrNull() ?: error("Sync passphrase is missing.")
         } else {
@@ -132,10 +132,6 @@ class CloudSyncWorkerHandler @Inject constructor(
         } else {
             0L
         }
-        DebugTrace.d(
-            "backup_sync",
-            "worker buildBackupJson savedThemes=${savedThemes.size} savedArticles=${savedArticlesSnapshot.size}"
-        )
 
         return JSONObject().apply {
             put("schemaVersion", 1)
@@ -215,15 +211,7 @@ class CloudSyncWorkerHandler @Inject constructor(
 
         val subscriptionsPrefs = context.getSharedPreferences(WorkerContracts.SUBSCRIPTIONS_PREFS, 0)
         val importedPrefs = root.optJSONObject("userPreferences")?.toUserPreferencesFromBackup()
-        val importedConfigs = if (selection.includeApiKeys) {
-            root.optJSONArray("aiConfigs").toAiConfigsFromBackup(
-                secretEncryptionManager = secretEncryptionManager,
-                syncPassphrase = secretEncryptionManager.getSyncPassphraseOrNull()
-                    ?: error("Sync passphrase is missing.")
-            )
-        } else {
-            emptyList()
-        }
+        val importedAiConfigs = root.optJSONArray("aiConfigs")
         val importedGroups = root.optJSONArray("groups").toImportedGroupsFromBackup()
         val importedSubscriptions = root.optJSONObject("subscriptions")
         val hasSavedArticlesField = root.has("savedArticles")
@@ -238,10 +226,6 @@ class CloudSyncWorkerHandler @Inject constructor(
                     }
                 }
             }.orEmpty()
-        DebugTrace.d(
-            "backup_sync",
-            "worker applyBackupJson merge=$merge includeSaved=${selection.includeSavedArticles} hasSavedField=$hasSavedArticlesField importedSavedArticles=${importedSavedArticles.size} importedSavedUrlsLegacy=${importedSavedArticleUrls.size}"
-        )
 
         if (selection.includeSettingsNoApi && importedPrefs != null) {
             userPreferencesRepository.updatePreferences(importedPrefs.copy(id = 0))
@@ -257,22 +241,28 @@ class CloudSyncWorkerHandler @Inject constructor(
             )
         }
 
-        if (selection.includeApiKeys) {
-            val existingConfigs = aiRepository.allConfigs.first()
-            if (!merge) existingConfigs.forEach { aiRepository.deleteConfig(it) }
-            val configsAfterClear = if (merge) existingConfigs else emptyList()
-            for (imported in importedConfigs) {
-                val matched = configsAfterClear.firstOrNull {
-                    it.type == imported.type &&
-                        it.provider == imported.provider &&
-                        it.modelName.equals(imported.modelName, ignoreCase = true) &&
-                        it.name.equals(imported.name, ignoreCase = true)
+        if (selection.includeApiKeys && importedAiConfigs != null) {
+            val syncPassphrase = requireSyncPassphrase()
+            val existingConfigs = aiModelConfigRepository.allConfigs.first()
+            val existingConfigKeys = existingConfigs.map { "${it.provider}_${it.modelName}_${it.type}" }.toSet()
+            
+            val toInsert = mutableListOf<AiModelConfig>()
+            for (i in 0 until importedAiConfigs.length()) {
+                val configJson = importedAiConfigs.optJSONObject(i) ?: continue
+                val imported = AiModelConfig.fromBackupJson(configJson, secretEncryptionManager, syncPassphrase)
+                if (merge) {
+                    if ("${imported.provider}_${imported.modelName}_${imported.type}" !in existingConfigKeys) {
+                        toInsert.add(imported)
+                    }
+                } else {
+                    toInsert.add(imported)
                 }
-                if (matched == null) aiRepository.addConfig(imported.copy(id = 0))
-                else aiRepository.updateConfig(imported.copy(id = matched.id))
             }
+            if (!merge) {
+                existingConfigs.forEach { aiModelConfigRepository.deleteConfig(it) }
+            }
+            toInsert.forEach { aiModelConfigRepository.addConfig(it) }
         }
-
         if (selection.includeSources) {
             sourceRepository.importGroupsWithSources(importedGroups, merge)
         }

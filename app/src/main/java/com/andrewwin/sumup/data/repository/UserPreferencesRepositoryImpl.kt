@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
+import kotlinx.coroutines.flow.onEach
+
 class UserPreferencesRepositoryImpl @Inject constructor(
     private val userPreferencesDao: UserPreferencesDao
 ) : UserPreferencesRepository {
@@ -14,6 +16,7 @@ class UserPreferencesRepositoryImpl @Inject constructor(
     override val preferences: Flow<UserPreferences> = userPreferencesDao
         .getUserPreferences()
         .map { it ?: UserPreferences() }
+        .onEach { com.andrewwin.sumup.domain.usecase.ai.SummaryLimits.currentPrefs = it }
 
     override suspend fun updatePreferences(preferences: UserPreferences) {
         userPreferencesDao.insertUserPreferences(preferences)

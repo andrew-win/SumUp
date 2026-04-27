@@ -22,7 +22,9 @@ data class AiModelConfig(
     val type: AiModelType = AiModelType.SUMMARY,
     val priority: AiConfigPriority = AiConfigPriority.MEDIUM,
     val isUseNow: Boolean = false
-)
+) {
+    companion object
+}
 
 
 

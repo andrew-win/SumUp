@@ -1,15 +1,16 @@
-package com.andrewwin.sumup.domain.service
+package com.andrewwin.sumup.domain.usecase.common
+
+import javax.inject.Inject
 
 private const val MMR_LAMBDA = 0.7
 
-object ExtractiveSummarizer {
+class GetExtractiveSummaryUseCase @Inject constructor() {
 
-    fun summarize(text: String, n: Int = 3): List<String> {
+    operator fun invoke(text: String, n: Int = 3): List<String> {
         if (text.isBlank()) return emptyList()
         val targetCount = n.coerceAtLeast(1)
 
         val candidateSentences = extractSentences(text, targetCount + 1)
-
         if (candidateSentences.isEmpty()) return emptyList()
 
         val topIndices = candidateSentences.indices
@@ -22,6 +23,33 @@ object ExtractiveSummarizer {
         return candidateSentences.filterIndexed { i, _ -> i in topIndices }
     }
 
+    fun getCentralHeadlines(headlines: List<String>, count: Int = 3): List<String> {
+        if (headlines.isEmpty()) return emptyList()
+        if (headlines.size <= count) return headlines
+
+        val wordSets = headlines.map { headline -> headline.lowercase().split(Regex("\\s+")).toSet() }
+        val scores = DoubleArray(headlines.size) { i ->
+            headlines.indices.sumOf { j -> if (i != j) jaccardSim(wordSets[i], wordSets[j]) else 0.0 }
+        }
+
+        val selected = mutableListOf<Int>()
+        val used = BooleanArray(headlines.size)
+
+        while (selected.size < count) {
+            val next = scores.indices.filter { !used[it] }.maxByOrNull { scores[it] } ?: break
+            selected.add(next)
+            used[next] = true
+            for (i in scores.indices) {
+                if (!used[i]) {
+                    val maxSimilarity = selected.maxOf { jaccardSim(wordSets[i], wordSets[it]) }
+                    scores[i] *= (1.0 - maxSimilarity * MMR_LAMBDA)
+                }
+            }
+        }
+
+        return selected.map { headlines[it] }
+    }
+
     private fun extractSentences(text: String, targetCount: Int): List<String> {
         val primary = text
             .split(PRIMARY_SENTENCE_SPLIT_REGEX)
@@ -31,7 +59,6 @@ object ExtractiveSummarizer {
             .filter { isValidSummarySentence(it) }
             .toList()
             .takeIf { it.size >= targetCount }
-
         if (primary != null) return primary
 
         val fallback = text
@@ -70,56 +97,23 @@ object ExtractiveSummarizer {
         return true
     }
 
-    fun getCentralHeadlines(headlines: List<String>, count: Int = 3): List<String> {
-        if (headlines.isEmpty()) return emptyList()
-        if (headlines.size <= count) return headlines
-
-        val wordSets = headlines.map { h -> h.lowercase().split(Regex("\\s+")).toSet() }
-
-        val scores = DoubleArray(headlines.size) { i ->
-            headlines.indices.sumOf { j -> if (i != j) jaccardSim(wordSets[i], wordSets[j]) else 0.0 }
-        }
-
-        val selected = mutableListOf<Int>()
-        val used = BooleanArray(headlines.size)
-
-        while (selected.size < count) {
-            val next = scores.indices.filter { !used[it] }.maxByOrNull { scores[it] } ?: break
-            selected.add(next)
-            used[next] = true
-            for (i in scores.indices) {
-                if (!used[i]) {
-                    val maxSim = selected.maxOf { jaccardSim(wordSets[i], wordSets[it]) }
-                    scores[i] *= (1.0 - maxSim * MMR_LAMBDA)
-                }
-            }
-        }
-
-        return selected.map { headlines[it] }
-    }
-
     private fun jaccardSim(a: Set<String>, b: Set<String>): Double {
         val intersection = a.intersect(b).size.toDouble()
         val union = a.union(b).size.toDouble()
         return if (union == 0.0) 0.0 else intersection / union
     }
 
-    private val PRIMARY_SENTENCE_SPLIT_REGEX = Regex("(?<=[.!?…])\\s+|(?<=[.!?…])(?=[A-ZА-ЯІЇЄҐ])|\\n+")
-    private val FALLBACK_SENTENCE_SPLIT_REGEX = Regex("(?<=[;:])\\s+|(?<=[;:])(?=[A-ZА-ЯІЇЄҐ])|\\n+")
-    private const val MIN_SUMMARY_SENTENCE_LENGTH_CHARS = 20
-    private val FOOTER_PATTERNS = listOf(
-        Regex("підписатися\\s+на"),
-        Regex("подписат(ь|и)ся\\s+на"),
-        Regex("subscribe"),
-        Regex("t\\.me/"),
-        Regex("telegram"),
-        Regex("times\\s+of\\s+ukraine")
-    )
+    private companion object {
+        val PRIMARY_SENTENCE_SPLIT_REGEX = Regex("(?<=[.!?…])\\s+|(?<=[.!?…])(?=[A-ZА-ЯІЇЄҐ])|\\n+")
+        val FALLBACK_SENTENCE_SPLIT_REGEX = Regex("(?<=[;:])\\s+|(?<=[;:])(?=[A-ZА-ЯІЇЄҐ])|\\n+")
+        const val MIN_SUMMARY_SENTENCE_LENGTH_CHARS = 20
+        val FOOTER_PATTERNS = listOf(
+            Regex("підписатися\\s+на"),
+            Regex("подписат(ь|и)ся\\s+на"),
+            Regex("subscribe"),
+            Regex("t\\.me/"),
+            Regex("telegram"),
+            Regex("times\\s+of\\s+ukraine")
+        )
+    }
 }
-
-
-
-
-
-
-

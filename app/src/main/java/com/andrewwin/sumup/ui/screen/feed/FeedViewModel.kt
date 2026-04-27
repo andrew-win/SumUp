@@ -10,18 +10,20 @@ import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
-import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.support.NoActiveModelException
 import com.andrewwin.sumup.domain.support.UnsupportedStrategyException
 import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.domain.usecase.common.FormatSummaryResultUseCase
+import com.andrewwin.sumup.domain.usecase.ai.SummarizeSingleArticleUseCase
+import com.andrewwin.sumup.domain.usecase.ai.SummarizeFeedUseCase
+import com.andrewwin.sumup.domain.usecase.ai.CompareNewsUseCase
+import com.andrewwin.sumup.domain.usecase.ai.AskQuestionAboutNewsUseCase
+import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.ai.AskQuestionUseCase
-import com.andrewwin.sumup.domain.usecase.ai.AskFeedUseCase
-import com.andrewwin.sumup.domain.usecase.ai.SummarizeContentUseCase
 import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
+import com.andrewwin.sumup.domain.usecase.ai.SummaryResult
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -51,10 +53,12 @@ class FeedViewModel @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val refreshFeedUseCase: RefreshFeedUseCase,
     private val getFeedArticlesUseCase: GetFeedArticlesUseCase,
-    private val summarizeContentUseCase: SummarizeContentUseCase,
-    private val askQuestionUseCase: AskQuestionUseCase,
-    private val askFeedUseCase: AskFeedUseCase,
-    private val aiRepository: AiRepository,
+    private val summarizeSingleArticleUseCase: SummarizeSingleArticleUseCase,
+    private val summarizeFeedUseCase: SummarizeFeedUseCase,
+    private val compareNewsUseCase: CompareNewsUseCase,
+    private val askQuestionAboutNewsUseCase: AskQuestionAboutNewsUseCase,
+    private val formatSummaryResultUseCase: FormatSummaryResultUseCase,
+    private val aiModelConfigRepository: AiModelConfigRepository,
     private val sourceRepository: SourceRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val feedUiModelMapper: FeedUiModelMapper
@@ -77,8 +81,8 @@ class FeedViewModel @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    private val _aiResult = MutableStateFlow<String?>(null)
-    val aiResult: StateFlow<String?> = _aiResult.asStateFlow()
+    private val _aiResult = MutableStateFlow<AiPresentationResult?>(null)
+    val aiResult: StateFlow<AiPresentationResult?> = _aiResult.asStateFlow()
 
     private val _isAiLoading = MutableStateFlow(false)
     val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
@@ -86,8 +90,8 @@ class FeedViewModel @Inject constructor(
     val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.preferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
 
-    val activeSummaryModelName: StateFlow<String?> = aiRepository.getConfigsByType(AiModelType.SUMMARY)
-        .combine(aiRepository.lastUsedSummaryModelName) { configs, lastUsed ->
+    val activeSummaryModelName: StateFlow<String?> = aiModelConfigRepository.getConfigsByType(AiModelType.SUMMARY)
+        .combine(aiModelConfigRepository.lastUsedSummaryModelName) { configs, lastUsed ->
             lastUsed?.takeIf { it.isNotBlank() }
                 ?: configs.firstOrNull { it.isEnabled }?.modelName?.takeIf { it.isNotBlank() }
         }
@@ -231,10 +235,6 @@ class FeedViewModel @Inject constructor(
                     articleRepository.clearFavoriteClusterMapping(clusterIds)
                     articleRepository.clearFavoriteSavedAt(clusterIds)
                 }
-                DebugTrace.d(
-                    "favorites",
-                    "toggleSaved clusterSize=${clusterIds.size} updated=$updated newFavorite=$newFavorite representativeId=${cluster.representative.article.id}"
-                )
             }.onFailure {
                 favoriteOverrides.value = previousOverrides
             }
@@ -264,38 +264,50 @@ class FeedViewModel @Inject constructor(
         return uiModel.copy(article = uiModel.article.copy(isFavorite = override))
     }
 
-    private fun launchAi(block: suspend () -> Result<String>) {
+    private fun launchAi(block: suspend () -> Result<SummaryResult>) {
         viewModelScope.launch {
             _isAiLoading.value = true
             _aiResult.value = null
-            DebugTrace.d("feed_ai", "launchAi start")
-            _aiResult.value = block().getOrElse { localizeError(it) }
-            DebugTrace.d("feed_ai", "launchAi result preview=${DebugTrace.preview(_aiResult.value)}")
+            val result = block()
+                .map { summary ->
+                    AiPresentationResult(
+                        result = summary,
+                        rawText = formatSummaryResultUseCase(summary)
+                    )
+                }
+                .getOrElse { error ->
+                    val localized = localizeError(error)
+                    AiPresentationResult(
+                        result = SummaryResult.Error(localized),
+                        rawText = localized
+                    )
+                }
+            _aiResult.value = result
             _isAiLoading.value = false
         }
     }
 
-    fun summarizeContent(content: String) = launchAi { summarizeContentUseCase(content) }
+    fun summarizeContent(content: String) = launchAi {
+        summarizeSingleArticleUseCase(title = "Текст", content = content)
+    }
 
-    fun askQuestion(article: Article, question: String) = launchAi { askQuestionUseCase(article, question) }
+    fun askQuestion(article: Article, question: String) = launchAi { askQuestionAboutNewsUseCase(listOf(article), question) }
 
-    fun askQuestion(content: String, question: String) = launchAi { askQuestionUseCase(content, question) }
+
 
     fun askClusterQuestion(cluster: ArticleClusterUiModel, question: String) = launchAi {
         val clusterArticles = buildList {
             add(cluster.representative.article)
             addAll(cluster.duplicates.map { it.first.article })
         }
-        askQuestionUseCase(clusterArticles, question)
+        askQuestionAboutNewsUseCase(clusterArticles, question)
     }
 
     fun openCachedArticleSummary(article: Article) {
-        DebugTrace.d("feed_ai", "openCachedArticleSummary articleId=${article.id} title=${DebugTrace.preview(article.title, 120)}")
         _aiResult.value = aiSessionCache.getArticleSummary(article.id)
     }
 
     fun openCachedFeedSummary() {
-        DebugTrace.d("feed_ai", "openCachedFeedSummary ids=${currentFeedArticleIds().joinToString(",")}")
         _aiResult.value = aiSessionCache.getFeedSummary(currentFeedArticleIds())
     }
 
@@ -304,21 +316,16 @@ class FeedViewModel @Inject constructor(
     }
 
     fun summarizeArticle(article: Article, forceRefresh: Boolean = false) {
-        DebugTrace.d(
-            "feed_ai",
-            "summarizeArticle forceRefresh=$forceRefresh articleId=${article.id} title=${DebugTrace.preview(article.title, 120)} contentChars=${article.content.length} strategy=${userPreferences.value.aiStrategy}"
-        )
         if (!forceRefresh) {
             aiSessionCache.getArticleSummary(article.id)?.let {
                 _aiResult.value = it
-                DebugTrace.d("feed_ai", "summarizeArticle servedFromCache=true articleId=${article.id}")
                 return
             }
         }
         launchAi {
-            summarizeContentUseCase(article).onSuccess {
-                DebugTrace.d("feed_ai", "summarizeArticle freshResult articleId=${article.id} preview=${DebugTrace.preview(it)}")
-                aiSessionCache.putArticleSummary(article.id, it)
+            summarizeSingleArticleUseCase(article).onSuccess { result ->
+                val presentation = AiPresentationResult(result = result, rawText = formatSummaryResultUseCase(result))
+                aiSessionCache.putArticleSummary(article.id, presentation)
             }
         }
     }
@@ -333,8 +340,13 @@ class FeedViewModel @Inject constructor(
             }
         }
         launchAi {
-            summarizeContentUseCase(representative, duplicates)
-                .onSuccess { aiSessionCache.putClusterSummary(cluster, it) }
+            compareNewsUseCase(listOf(representative) + duplicates)
+                .onSuccess {
+                    aiSessionCache.putClusterSummary(
+                        cluster,
+                        AiPresentationResult(result = it, rawText = formatSummaryResultUseCase(it))
+                    )
+                }
         }
     }
 
@@ -342,21 +354,16 @@ class FeedViewModel @Inject constructor(
         val articles = articleClusters.value.map { it.representative.article }
         if (articles.isEmpty()) return
         val articleIds = currentFeedArticleIds()
-        DebugTrace.d(
-            "feed_ai",
-            "summarizeFeed forceRefresh=$forceRefresh articles=${articles.size} ids=${articleIds.joinToString(",")} strategy=${userPreferences.value.aiStrategy}"
-        )
         if (!forceRefresh) {
             aiSessionCache.getFeedSummary(articleIds)?.let {
                 _aiResult.value = it
-                DebugTrace.d("feed_ai", "summarizeFeed servedFromCache=true")
                 return
             }
         }
         launchAi {
-            summarizeContentUseCase(articles).onSuccess {
-                DebugTrace.d("feed_ai", "summarizeFeed freshResult preview=${DebugTrace.preview(it)}")
-                aiSessionCache.putFeedSummary(articleIds, it)
+            summarizeFeedUseCase(articles).onSuccess { result ->
+                val presentation = AiPresentationResult(result = result, rawText = formatSummaryResultUseCase(result))
+                aiSessionCache.putFeedSummary(articleIds, presentation)
             }
         }
     }
@@ -364,7 +371,7 @@ class FeedViewModel @Inject constructor(
     fun askFeed(question: String) {
         val representatives = articleClusters.value.map { it.representative }
         if (representatives.isEmpty()) return
-        launchAi { askFeedUseCase(representatives, question) }
+        launchAi { askQuestionAboutNewsUseCase(representatives.map { it.article }, question) }
     }
 
     private fun localizeError(e: Throwable): String {

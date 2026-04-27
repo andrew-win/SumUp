@@ -30,14 +30,13 @@ import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
-import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.ImportedSource
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.settings.UpdateCustomSummaryPromptEnabledUseCase
 import com.andrewwin.sumup.domain.usecase.settings.UpdateSummaryPromptUseCase
@@ -98,7 +97,7 @@ data class AuthUiState(
 class SettingsViewModel @Inject constructor(
     application: Application,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val aiRepository: AiRepository,
+    private val aiModelConfigRepository: AiModelConfigRepository,
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
     private val summaryRepository: SummaryRepository,
@@ -117,10 +116,10 @@ class SettingsViewModel @Inject constructor(
         getApplication<Application>().getSharedPreferences(SYNC_PREFS, 0)
     }
 
-    val summaryConfigs: StateFlow<List<AiModelConfig>> = aiRepository.getConfigsByType(AiModelType.SUMMARY)
+    val summaryConfigs: StateFlow<List<AiModelConfig>> = aiModelConfigRepository.getConfigsByType(AiModelType.SUMMARY)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val embeddingConfigs: StateFlow<List<AiModelConfig>> = aiRepository.getConfigsByType(AiModelType.EMBEDDING)
+    val embeddingConfigs: StateFlow<List<AiModelConfig>> = aiModelConfigRepository.getConfigsByType(AiModelType.EMBEDDING)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.preferences
@@ -163,7 +162,7 @@ class SettingsViewModel @Inject constructor(
     init {
         checkModelExists()
         viewModelScope.launch {
-            aiRepository.migrateLegacyApiKeys()
+            aiModelConfigRepository.migrateLegacyApiKeys()
         }
         _isCloudSyncEnabled.value = syncPrefs.getBoolean(KEY_SYNC_ENABLED, false)
         _syncIntervalHours.value = syncPrefs.getInt(KEY_SYNC_INTERVAL_HOURS, DEFAULT_SYNC_INTERVAL_HOURS)
@@ -283,7 +282,7 @@ class SettingsViewModel @Inject constructor(
     fun loadModels(provider: AiProvider, apiKey: String, type: AiModelType) {
         viewModelScope.launch {
             _isLoadingModels.value = true
-            runCatching { _availableModels.value = aiRepository.fetchAvailableModels(provider, apiKey, type) }
+            runCatching { _availableModels.value = aiModelConfigRepository.fetchAvailableModels(provider, apiKey, type) }
                 .onFailure { _availableModels.value = emptyList() }
             _isLoadingModels.value = false
         }
@@ -298,7 +297,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun deleteAiConfig(config: AiModelConfig) {
-        viewModelScope.launch { aiRepository.deleteConfig(config) }
+        viewModelScope.launch { aiModelConfigRepository.deleteConfig(config) }
     }
 
     fun toggleAiConfig(config: AiModelConfig, isEnabled: Boolean) {
@@ -311,14 +310,14 @@ class SettingsViewModel @Inject constructor(
 
     private suspend fun persistAiConfigWithUseNow(config: AiModelConfig, isNew: Boolean) {
         if (config.isUseNow) {
-            val configs = aiRepository.getConfigsByType(config.type).first()
+            val configs = aiModelConfigRepository.getConfigsByType(config.type).first()
             configs
                 .filter { it.id != config.id && it.isUseNow }
                 .forEach { existing ->
-                    aiRepository.updateConfig(existing.copy(isUseNow = false))
+                    aiModelConfigRepository.updateConfig(existing.copy(isUseNow = false))
                 }
         }
-        if (isNew) aiRepository.addConfig(config) else aiRepository.updateConfig(config)
+        if (isNew) aiModelConfigRepository.addConfig(config) else aiModelConfigRepository.updateConfig(config)
     }
 
     fun updateScheduledSummary(enabled: Boolean, hour: Int, minute: Int) {
@@ -598,10 +597,6 @@ class SettingsViewModel @Inject constructor(
 
             _transferState.value = TransferState.Working
             runCatching {
-                DebugTrace.d(
-                    "backup_sync",
-                    "syncNow strategy=${_syncStrategy.value.name} selection sources=${selection.includeSources} subscriptions=${selection.includeSubscriptions} saved=${selection.includeSavedArticles} settings=${selection.includeSettingsNoApi} apiKeys=${selection.includeApiKeys}"
-                )
                 val docRef = firestore.collection(CLOUD_COLLECTION).document(uid)
                 val remote = docRef.get().await()
                 val remoteBackupJson = remote.getString("backup")
@@ -734,7 +729,7 @@ class SettingsViewModel @Inject constructor(
         } else {
             null
         }
-        val aiConfigs = if (selection.includeApiKeys) aiRepository.allConfigs.first() else emptyList()
+        val aiConfigs = if (selection.includeApiKeys) aiModelConfigRepository.allConfigs.first() else emptyList()
         val syncPassphrase = if (selection.includeApiKeys) {
             requireSyncPassphrase()
         } else {
@@ -751,10 +746,6 @@ class SettingsViewModel @Inject constructor(
         } else {
             emptyList()
         }
-        DebugTrace.d(
-            "backup_sync",
-            "buildBackupJson savedThemes=${savedThemes.size} savedArticles=${savedArticlesSnapshot.size} includeSaved=${selection.includeSavedArticles}"
-        )
         val lastRecommendationAt = if (selection.includeSubscriptions) {
             subscriptionsPrefs.getLong(KEY_LAST_RECOMMENDATION_AT, 0L)
         } else {
@@ -845,10 +836,6 @@ class SettingsViewModel @Inject constructor(
                     }
                 }
             }.orEmpty()
-        DebugTrace.d(
-            "backup_sync",
-            "applyBackupJson merge=$merge includeSaved=${selection.includeSavedArticles} hasSavedField=$hasSavedArticlesField importedSavedArticles=${importedSavedArticles.size} importedSavedUrlsLegacy=${importedSavedArticleUrls.size}"
-        )
 
         if (selection.includeSettingsNoApi && importedPrefs != null) {
             userPreferencesRepository.updatePreferences(importedPrefs.copy(id = 0))
@@ -864,27 +851,21 @@ class SettingsViewModel @Inject constructor(
             )
         }
 
-        if (selection.includeApiKeys) {
-            val existingConfigs = aiRepository.allConfigs.first()
-            if (!merge) {
-                existingConfigs.forEach { aiRepository.deleteConfig(it) }
-            }
-            val configsAfterClear = if (merge) existingConfigs else emptyList()
-            for (imported in importedConfigs) {
-                val matched = configsAfterClear.firstOrNull {
-                    it.type == imported.type &&
-                        it.provider == imported.provider &&
-                        it.modelName.equals(imported.modelName, ignoreCase = true) &&
-                        it.name.equals(imported.name, ignoreCase = true)
+        if (selection.includeApiKeys && importedConfigs.isNotEmpty()) {
+            val existingConfigs = aiModelConfigRepository.allConfigs.first()
+            val existingConfigKeys = existingConfigs.map { "${it.provider}_${it.modelName}_${it.type}" }.toSet()
+            
+            val toInsert = if (merge) {
+                importedConfigs.filter { 
+                    "${it.provider}_${it.modelName}_${it.type}" !in existingConfigKeys
                 }
-                if (matched == null) {
-                    aiRepository.addConfig(imported.copy(id = 0))
-                } else {
-                    aiRepository.updateConfig(imported.copy(id = matched.id))
-                }
+            } else {
+                existingConfigs.forEach { aiModelConfigRepository.deleteConfig(it) }
+                importedConfigs
             }
-        }
 
+            toInsert.forEach { aiModelConfigRepository.addConfig(it) }
+        }
         if (selection.includeSources) {
             sourceRepository.importGroupsWithSources(importedGroups, merge)
         }

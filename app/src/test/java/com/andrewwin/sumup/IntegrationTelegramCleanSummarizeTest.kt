@@ -2,12 +2,14 @@ package com.andrewwin.sumup
 
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.TelegramParser
-import com.andrewwin.sumup.domain.service.ExtractiveSummarizer
+import com.andrewwin.sumup.domain.usecase.common.GetExtractiveSummaryUseCase
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IntegrationTelegramCleanSummarizeTest {
+    private val getExtractiveSummaryUseCase = GetExtractiveSummaryUseCase()
+
     @Test
     fun integration_telegramToCleanToSummarize_producesNonEmptySummary() = runBlocking {
         val html = """
@@ -29,7 +31,7 @@ class IntegrationTelegramCleanSummarizeTest {
             SourceType.TELEGRAM,
             footerPattern = null
         )
-        val summarySentences = ExtractiveSummarizer.summarize(cleaned, n = 2)
+        val summarySentences = getExtractiveSummaryUseCase(cleaned, n = 2)
 
         assertTrue(cleaned.isNotBlank())
         assertTrue(summarySentences.isNotEmpty())

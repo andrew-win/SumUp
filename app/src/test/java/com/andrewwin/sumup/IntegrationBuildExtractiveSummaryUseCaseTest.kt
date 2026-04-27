@@ -2,8 +2,8 @@ package com.andrewwin.sumup
 
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.WebsiteParser
-import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.common.BuildExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.common.GetExtractiveSummaryUseCase
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -60,7 +60,7 @@ class IntegrationBuildExtractiveSummaryUseCaseTest {
         )
 
         val useCase = BuildExtractiveSummaryUseCase(
-            formatExtractiveSummaryUseCase = FormatExtractiveSummaryUseCase(),
+            getExtractiveSummaryUseCase = GetExtractiveSummaryUseCase(),
             dispatcherProvider = ContentProcessingTestSupport.dispatcherProvider
         )
 

@@ -49,7 +49,6 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -108,10 +107,12 @@ import com.andrewwin.sumup.ui.components.AppFilterMenuChip
 import com.andrewwin.sumup.ui.components.AppFilledIconAction
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.components.AppHelpToggleAction
+import com.andrewwin.sumup.ui.components.AppMessageState
 import com.andrewwin.sumup.ui.components.AppProminentFab
 import com.andrewwin.sumup.ui.components.AppSearchField
 import com.andrewwin.sumup.ui.components.AppSelectionActions
 import com.andrewwin.sumup.ui.components.AppTopBar
+import com.andrewwin.sumup.ui.theme.AppDimens
 import com.andrewwin.sumup.ui.util.SummaryBlockUi
 import com.andrewwin.sumup.ui.util.ThemeItem
 import com.andrewwin.sumup.ui.util.cleanSummaryTextForSharing
@@ -120,6 +121,7 @@ import com.andrewwin.sumup.ui.util.parseSummaryBlocks
 import com.andrewwin.sumup.ui.util.PdfExporter
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 internal enum class HistoryDateFilter(val labelRes: Int, val hours: Int?) {
@@ -170,6 +172,26 @@ fun SummaryScreen(
     var isHistorySearchFocused by remember { mutableStateOf(false) }
     var historyDateFilter by rememberSaveable { mutableStateOf(HistoryDateFilter.HOUR_24) }
     var historySavedFilter by rememberSaveable { mutableStateOf(HistorySavedFilter.ALL) }
+
+    var hasCompletedInitialEmptyDelay by rememberSaveable { mutableStateOf(false) }
+    var canShowSummaryEmptyState by rememberSaveable { mutableStateOf(hasCompletedInitialEmptyDelay) }
+
+    LaunchedEffect(hasAnySummaries) {
+        if (hasAnySummaries) {
+            canShowSummaryEmptyState = true
+            return@LaunchedEffect
+        }
+
+        if (!hasCompletedInitialEmptyDelay) {
+            canShowSummaryEmptyState = false
+            delay(2_000)
+            hasCompletedInitialEmptyDelay = true
+            canShowSummaryEmptyState = true
+        } else {
+            canShowSummaryEmptyState = true
+        }
+    }
+
     val tabIcons = listOf(Icons.Default.Schedule, Icons.Default.BarChart)
     val listState = rememberLazyListState()
     val historyListState = rememberLazyListState()
@@ -194,7 +216,7 @@ fun SummaryScreen(
     val showHistoryBackToTop by remember {
         derivedStateOf {
             isHistoryScreen &&
-                (historyListState.firstVisibleItemIndex > 0 || historyListState.firstVisibleItemScrollOffset > 100)
+                    (historyListState.firstVisibleItemIndex > 0 || historyListState.firstVisibleItemScrollOffset > 100)
         }
     }
     var wasImeVisible by remember { mutableStateOf(false) }
@@ -256,9 +278,9 @@ fun SummaryScreen(
             AnimatedVisibility(
                 visible = !(isHistoryScreen && isHistorySearchFocused),
                 enter = fadeIn(animationSpec = tween(320, easing = FastOutSlowInEasing)) +
-                    expandVertically(animationSpec = tween(380, easing = FastOutSlowInEasing)),
+                        expandVertically(animationSpec = tween(380, easing = FastOutSlowInEasing)),
                 exit = fadeOut(animationSpec = tween(300, easing = FastOutSlowInEasing)) +
-                    shrinkVertically(animationSpec = tween(360, easing = FastOutSlowInEasing))
+                        shrinkVertically(animationSpec = tween(360, easing = FastOutSlowInEasing))
             ) {
                 AppTopBar(
                     title = {
@@ -389,155 +411,167 @@ fun SummaryScreen(
                     contentPadding = PaddingValues(top = 0.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                item {
-                    TabRow(
-                        selectedTabIndex = selectedTabIndex,
-                        containerColor = Color.Transparent
-                    ) {
-                        tabIcons.forEachIndexed { index, icon ->
-                            Tab(
-                                selected = selectedTabIndex == index,
-                                onClick = { selectedTabIndex = index },
-                                icon = {
-                                    Icon(
-                                        imageVector = icon,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                            )
-                        }
-                    }
-                }
-
-                if (selectedTabIndex == 0) {
                     item {
-                        AppHelpOverlayTarget(
-                            isEnabled = isHelpMode,
-                            description = summaryStatusHelpDescription,
-                            onShowDescription = { helpDescription = it }
+                        TabRow(
+                            selectedTabIndex = selectedTabIndex,
+                            containerColor = Color.Transparent
                         ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                PrevNextStatusRow(
-                                    previousSummaryAt = lastSummary?.createdAt,
-                                    isScheduledEnabled = userPreferences.isScheduledSummaryEnabled,
-                                    nextScheduledAt = if (userPreferences.isScheduledSummaryEnabled) {
-                                        getNextScheduledTimeMillis(
-                                            userPreferences.scheduledHour,
-                                            userPreferences.scheduledMinute
+                            tabIcons.forEachIndexed { index, icon ->
+                                Tab(
+                                    selected = selectedTabIndex == index,
+                                    onClick = { selectedTabIndex = index },
+                                    icon = {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(24.dp)
                                         )
-                                    } else null
+                                    }
                                 )
                             }
                         }
                     }
 
-                    if (lastSummary != null) {
+                    if (selectedTabIndex == 0) {
                         item {
-                        AppHelpOverlayTarget(
-                            isEnabled = isHelpMode,
-                            description = summaryLatestHelpDescription,
-                            onShowDescription = { helpDescription = it }
-                        ) {
+                            AppHelpOverlayTarget(
+                                isEnabled = isHelpMode,
+                                description = summaryStatusHelpDescription,
+                                onShowDescription = { helpDescription = it }
+                            ) {
                                 Column(modifier = Modifier.fillMaxWidth()) {
-                                    LatestScheduledSummaryView(
-                                        summary = lastSummary,
-                                        activeSummaryModelName = activeSummaryModelName,
-                                        onOpenWebView = onOpenWebView,
-                                        onDelete = { viewModel.deleteSummary(lastSummary.id) },
-                                        onToggleFavorite = { viewModel.toggleFavorite(lastSummary) }
+                                    PrevNextStatusRow(
+                                        previousSummaryAt = lastSummary?.createdAt,
+                                        isScheduledEnabled = userPreferences.isScheduledSummaryEnabled,
+                                        nextScheduledAt = if (userPreferences.isScheduledSummaryEnabled) {
+                                            getNextScheduledTimeMillis(
+                                                userPreferences.scheduledHour,
+                                                userPreferences.scheduledMinute
+                                            )
+                                        } else null
                                     )
                                 }
                             }
                         }
-                    } else {
-                        item {
-                            val composition by rememberLottieComposition(
-                                LottieCompositionSpec.RawRes(R.raw.empty_animation)
-                            )
-                            val progress by animateLottieCompositionAsState(
-                                composition = composition,
-                                iterations = LottieConstants.IterateForever
-                            )
-                            val dynamicProperties = rememberLottieDynamicProperties(
-                                rememberLottieDynamicProperty(
-                                    property = LottieProperty.COLOR_FILTER,
-                                    value = SimpleColorFilter(
-                                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.72f).toArgb()
-                                    ),
-                                    keyPath = arrayOf("**")
-                                )
-                            )
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                AppCardSurface(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    color = MaterialTheme.colorScheme.surfaceContainer
+
+                        if (lastSummary != null) {
+                            item {
+                                AppHelpOverlayTarget(
+                                    isEnabled = isHelpMode,
+                                    description = summaryLatestHelpDescription,
+                                    onShowDescription = { helpDescription = it }
                                 ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 18.dp, vertical = 20.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        LottieAnimation(
-                                            composition = composition,
-                                            progress = { progress },
-                                            dynamicProperties = dynamicProperties,
-                                            modifier = Modifier.size(84.dp)
-                                        )
-                                        Text(
-                                            text = stringResource(R.string.summary_empty_title),
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        LatestScheduledSummaryView(
+                                            summary = lastSummary,
+                                            activeSummaryModelName = activeSummaryModelName,
+                                            onOpenWebView = onOpenWebView,
+                                            onDelete = { viewModel.deleteSummary(lastSummary.id) },
+                                            onToggleFavorite = { viewModel.toggleFavorite(lastSummary) }
                                         )
                                     }
                                 }
-
-                                Text(
-                                    text = stringResource(R.string.summary_empty_actions_title),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        } else if (!canShowSummaryEmptyState) {
+                            item {
+                                AppMessageState(
+                                    message = stringResource(R.string.summary_empty_title),
+                                    modifier = Modifier.fillParentMaxHeight(0.55f)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(AppDimens.StateIconSize),
+                                        strokeWidth = 2.dp
+                                    )
+                                }
+                            }
+                        } else {
+                            item {
+                                val composition by rememberLottieComposition(
+                                    LottieCompositionSpec.RawRes(R.raw.empty_animation)
                                 )
-
-                                SummaryEmptyHintCard(
-                                    icon = Icons.Default.FilterList,
-                                    text = stringResource(R.string.summary_empty_hint_filters)
+                                val progress by animateLottieCompositionAsState(
+                                    composition = composition,
+                                    iterations = LottieConstants.IterateForever
                                 )
-
-                                SummaryEmptyHintCard(
-                                    icon = Icons.Default.Schedule,
-                                    text = stringResource(R.string.summary_empty_hint_scheduled)
+                                val dynamicProperties = rememberLottieDynamicProperties(
+                                    rememberLottieDynamicProperty(
+                                        property = LottieProperty.COLOR_FILTER,
+                                        value = SimpleColorFilter(
+                                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.72f).toArgb()
+                                        ),
+                                        keyPath = arrayOf("**")
+                                    )
                                 )
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    AppCardSurface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        color = MaterialTheme.colorScheme.surfaceContainer
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 18.dp, vertical = 20.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            LottieAnimation(
+                                                composition = composition,
+                                                progress = { progress },
+                                                dynamicProperties = dynamicProperties,
+                                                modifier = Modifier.size(84.dp)
+                                            )
+                                            Text(
+                                                text = stringResource(R.string.summary_empty_title),
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                            )
+                                        }
+                                    }
+
+                                    Text(
+                                        text = stringResource(R.string.summary_empty_actions_title),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+
+                                    SummaryEmptyHintCard(
+                                        icon = Icons.Default.FilterList,
+                                        text = stringResource(R.string.summary_empty_hint_filters)
+                                    )
+
+                                    SummaryEmptyHintCard(
+                                        icon = Icons.Default.Schedule,
+                                        text = stringResource(R.string.summary_empty_hint_scheduled)
+                                    )
+                                }
                             }
                         }
                     }
-                }
 
-                if (selectedTabIndex == 1) {
-                    item {
-                        AppHelpOverlayTarget(
-                            isEnabled = isHelpMode,
-                            description = summaryChartHelpDescription,
-                            onShowDescription = { helpDescription = it }
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                SummaryChart(
-                                    items = chartData,
-                                    currentType = chartType,
-                                    onTypeChange = viewModel::setChartType,
-                                    isModelEnabled = isVectorizationEnabled,
-                                    onOpenWebView = onOpenWebView
-                                )
+                    if (selectedTabIndex == 1) {
+                        item {
+                            AppHelpOverlayTarget(
+                                isEnabled = isHelpMode,
+                                description = summaryChartHelpDescription,
+                                onShowDescription = { helpDescription = it }
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    SummaryChart(
+                                        items = chartData,
+                                        currentType = chartType,
+                                        onTypeChange = viewModel::setChartType,
+                                        isModelEnabled = isVectorizationEnabled,
+                                        onOpenWebView = onOpenWebView
+                                    )
+                                }
                             }
                         }
                     }
-                }
                 }
             }
         }
@@ -623,7 +657,7 @@ private fun isSameDay(t1: Long, t2: Long): Boolean {
     val cal1 = Calendar.getInstance().apply { timeInMillis = t1 }
     val cal2 = Calendar.getInstance().apply { timeInMillis = t2 }
     return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
-           cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+            cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
 }
 
 private fun getNextScheduledTimeMillis(hour: Int, minute: Int): Long {

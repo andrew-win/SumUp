@@ -1,11 +1,13 @@
 package com.andrewwin.sumup
 
-import com.andrewwin.sumup.domain.service.ExtractiveSummarizer
+import com.andrewwin.sumup.domain.usecase.common.GetExtractiveSummaryUseCase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ExtractiveSummarizerCentralHeadlinesTest {
+    private val getExtractiveSummaryUseCase = GetExtractiveSummaryUseCase()
+
     @Test
     fun extractiveSummarizer_getCentralHeadlines_reducesNearDuplicates() {
         val headlines = listOf(
@@ -16,7 +18,7 @@ class ExtractiveSummarizerCentralHeadlinesTest {
             "UEFA reveals Champions League schedule updates"
         )
 
-        val selected = ExtractiveSummarizer.getCentralHeadlines(headlines, count = 3)
+        val selected = getExtractiveSummaryUseCase.getCentralHeadlines(headlines, count = 3)
 
         assertEquals(3, selected.size)
         assertTrue(selected.distinct().size == selected.size)

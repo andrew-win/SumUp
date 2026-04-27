@@ -5,7 +5,6 @@ import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.domain.support.AiProviderUnavailableException
 import com.andrewwin.sumup.domain.support.AiRateLimitException
-import com.andrewwin.sumup.domain.support.DebugTrace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -82,10 +81,6 @@ class AiService(private val okHttpClient: OkHttpClient) {
         expectJson: Boolean = false
     ): String =
         withContext(Dispatchers.IO) {
-            DebugTrace.d(
-                "ai_service",
-                "generateResponse provider=${config.provider} model=${config.modelName} expectJson=$expectJson promptPreview=${DebugTrace.preview(prompt, 220)} contentPreview=${DebugTrace.preview(content, 220)}"
-            )
             when (config.provider) {
                 AiProvider.GEMINI -> callGemini(config, prompt, content, expectJson)
                 AiProvider.GROQ -> callOpenAiCompatible(config, prompt, content, "https://api.groq.com/openai/v1/chat/completions", expectJson)
@@ -240,7 +235,6 @@ class AiService(private val okHttpClient: OkHttpClient) {
         val body = json.toString().toRequestBody("application/json".toMediaType())
         val request = requestBuilder.post(body).build()
         okHttpClient.newCall(request).execute().use { response ->
-            DebugTrace.d("ai_service", "http status=${response.code} url=${request.url.redact()}")
             if (!response.isSuccessful) {
                 val message = "Запит до ШІ не вдався: ${response.code}"
                 throw when (response.code) {
@@ -250,7 +244,6 @@ class AiService(private val okHttpClient: OkHttpClient) {
                 }
             }
             val body = response.body?.string() ?: throw Exception("Порожня відповідь від сервера")
-            DebugTrace.d("ai_service", "rawBodyPreview=${DebugTrace.preview(body)}")
             return parser(body)
         }
     }

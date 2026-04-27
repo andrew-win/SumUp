@@ -13,17 +13,12 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.work.ListenableWorker
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.common.CollectScheduledSummaryArticlesUseCase
-import com.andrewwin.sumup.domain.usecase.common.NoArticlesException
-import com.andrewwin.sumup.domain.support.DebugTrace
-import com.andrewwin.sumup.domain.usecase.ai.SummaryContext
-import com.andrewwin.sumup.domain.usecase.ai.SummarizationEngineUseCase
+import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCase
 import com.andrewwin.sumup.ui.MainActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
@@ -35,64 +30,33 @@ class SummaryWorkerHandler @Inject constructor(
     private val summaryRepository: SummaryRepository,
     private val summaryScheduler: SummaryScheduler,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val collectScheduledSummaryArticlesUseCase: CollectScheduledSummaryArticlesUseCase,
-    private val summarizationEngineUseCase: SummarizationEngineUseCase,
+    private val generateSummaryUseCase: GenerateSummaryUseCase,
 ) {
     suspend fun execute(runAttemptCount: Int): ListenableWorker.Result {
         val prefs = userPreferencesRepository.preferences.first()
-        DebugTrace.d(
-            "scheduled_worker",
-            "execute start attempt=$runAttemptCount strategy=${prefs.aiStrategy} scheduled=${prefs.isScheduledSummaryEnabled} dedupEnabled=${prefs.isDeduplicationEnabled} dedupStrategy=${prefs.deduplicationStrategy} hideSingles=${prefs.isHideSingleNewsEnabled} minMentions=${prefs.minMentions} importanceFilter=${prefs.isImportanceFilterEnabled} scheduledCloudLimit=${prefs.summaryNewsInScheduledCloud} scheduledExtractiveLimit=${prefs.summaryNewsInScheduledExtractive}"
-        )
 
         userPreferencesRepository.updatePreferences(
             prefs.copy(lastWorkRunTimestamp = System.currentTimeMillis())
         )
 
         val result = try {
-            // Do not fail the scheduled run only because online refresh is temporarily unavailable.
-            runCatching { articleRepository.refreshArticles() }
-
-            val articlesToSummarize = collectScheduledSummaryArticlesUseCase()
-            DebugTrace.d("scheduled_worker", "articlesForSummary=${articlesToSummarize.size}")
-
-            if (articlesToSummarize.isEmpty()) {
-                val message = context.getString(R.string.summary_worker_no_articles_today)
-                DebugTrace.w("scheduled_worker", "no articles for scheduled summary")
-                summaryRepository.insertSummary(Summary(content = message, strategy = prefs.aiStrategy))
-                maybeShowScheduledSummaryNotification(prefs)
-                ListenableWorker.Result.success()
-            } else {
-                DebugTrace.d(
-                    "scheduled_worker",
-                    "articlesToSummarize=${articlesToSummarize.size} limit=${WorkerContracts.MAX_ARTICLES_FOR_SUMMARIZATION} ids=${articlesToSummarize.joinToString(",") { it.id.toString() }}"
-                )
-                val summaryText = summarizationEngineUseCase
-                    .summarizeArticles(
-                        articles = articlesToSummarize,
-                        context = SummaryContext.ScheduledSummary(articleCount = articlesToSummarize.size)
-                    )
-                    .getOrThrow()
+            val summaryText = generateSummaryUseCase(refresh = true)
 
                 if (summaryText.isBlank()) {
                     val message = context.getString(R.string.summary_worker_empty_response)
                     throw IllegalStateException(message)
                 }
 
-                DebugTrace.d("scheduled_worker", "summary success preview=${DebugTrace.preview(summaryText)}")
                 summaryRepository.insertSummary(Summary(content = summaryText, strategy = prefs.aiStrategy))
                 maybeShowScheduledSummaryNotification(prefs)
-                ListenableWorker.Result.success()
-            }
-        } catch (e: NoArticlesException) {
+            ListenableWorker.Result.success()
+        } catch (e: com.andrewwin.sumup.domain.usecase.common.NoArticlesException) {
             val message = context.getString(R.string.summary_worker_no_articles_today)
-            DebugTrace.w("scheduled_worker", "NoArticlesException")
             summaryRepository.insertSummary(Summary(content = message, strategy = prefs.aiStrategy))
             maybeShowScheduledSummaryNotification(prefs)
             ListenableWorker.Result.success()
         } catch (e: Exception) {
             val prefix = context.getString(R.string.summary_worker_error_prefix)
-            DebugTrace.e("scheduled_worker", "summary failed", e)
             summaryRepository.insertSummary(Summary(content = "$prefix: ${e.localizedMessage.orEmpty()}", strategy = prefs.aiStrategy))
             if (runAttemptCount < WorkerContracts.MAX_RETRY_ATTEMPTS) {
                 ListenableWorker.Result.retry()
@@ -156,7 +120,6 @@ class SummaryWorkerHandler @Inject constructor(
         manager.createNotificationChannel(channel)
     }
 }
-
 
 
 

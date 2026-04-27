@@ -1,44 +1,33 @@
 package com.andrewwin.sumup.domain.usecase.common
 
-import com.andrewwin.sumup.domain.usecase.ai.SummaryContext
-import com.andrewwin.sumup.domain.usecase.ai.SummarizationEngineUseCase
-import kotlinx.coroutines.flow.first
+import com.andrewwin.sumup.domain.usecase.ai.SummarizeFeedUseCase
+import com.andrewwin.sumup.domain.repository.ArticleRepository
 import javax.inject.Inject
 
 interface GenerateSummaryUseCase {
-    suspend operator fun invoke(): String
+    suspend operator fun invoke(refresh: Boolean = false): String
 }
 
 class GenerateSummaryUseCaseImpl @Inject constructor(
-    private val collectScheduledSummaryArticlesUseCase: CollectScheduledSummaryArticlesUseCase,
-    private val userPreferencesRepository: com.andrewwin.sumup.domain.repository.UserPreferencesRepository,
-    private val summarizationEngineUseCase: SummarizationEngineUseCase
+    private val refreshArticlesUseCase: RefreshArticlesUseCase,
+    private val summarizeFeedUseCase: SummarizeFeedUseCase,
+    private val articleRepository: ArticleRepository,
+    private val formatSummaryResultUseCase: FormatSummaryResultUseCase
 ) : GenerateSummaryUseCase {
 
-    override suspend fun invoke(): String {
-        val articles = collectScheduledSummaryArticlesUseCase()
+    override suspend fun invoke(refresh: Boolean): String {
+        if (refresh) {
+            refreshArticlesUseCase()
+        }
 
+        val articles = articleRepository.getEnabledArticlesOnce()
         if (articles.isEmpty()) {
             throw NoArticlesException()
         }
 
-        val prefs = userPreferencesRepository.preferences.first()
-        return summarizationEngineUseCase
-            .summarizeArticles(
-                articles = articles,
-                context = SummaryContext.ScheduledSummary(articleCount = articles.size)
-            )
-            .getOrThrow()
+        val result = summarizeFeedUseCase(articles).getOrThrow()
+        return formatSummaryResultUseCase(result)
     }
 }
 
 class NoArticlesException : Exception()
-
-
-
-
-
-
-
-
-

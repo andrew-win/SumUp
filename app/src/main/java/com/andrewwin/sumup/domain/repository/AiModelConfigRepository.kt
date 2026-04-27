@@ -6,24 +6,20 @@ import com.andrewwin.sumup.data.local.entities.AiProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
-interface AiRepository {
+interface AiModelConfigRepository {
     val allConfigs: Flow<List<AiModelConfig>>
     val lastUsedSummaryModelName: StateFlow<String?>
+
     fun getConfigsByType(type: AiModelType): Flow<List<AiModelConfig>>
+    suspend fun getEnabledConfigsByType(type: AiModelType): List<AiModelConfig>
+    
     suspend fun fetchAvailableModels(provider: AiProvider, apiKey: String, type: AiModelType): List<String>
+    
     suspend fun addConfig(config: AiModelConfig)
     suspend fun updateConfig(config: AiModelConfig)
     suspend fun deleteConfig(config: AiModelConfig)
+    
     suspend fun migrateLegacyApiKeys()
-    suspend fun summarize(content: String, pointsPerNews: Int? = null): String
-    suspend fun askQuestion(content: String, question: String): String
-    suspend fun askWithPrompt(content: String, prompt: String): String
-    suspend fun embed(text: String): FloatArray?
-    suspend fun hasEnabledEmbeddingConfig(): Boolean
+    
+    fun setLastUsedSummaryModelName(name: String?)
 }
-
-
-
-
-
-

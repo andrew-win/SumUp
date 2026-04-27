@@ -4,7 +4,9 @@ import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
-import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.data.local.entities.AiModelType
+import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
+import com.andrewwin.sumup.domain.usecase.ai.GenerateCloudEmbeddingUseCase
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.EmbeddingService
 import com.andrewwin.sumup.domain.repository.SourceRepository
@@ -169,7 +171,8 @@ data class ThemeSuggestion(
 class GetSuggestedThemesUseCase @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
-    private val aiRepository: AiRepository,
+    private val aiModelConfigRepository: AiModelConfigRepository,
+    private val generateCloudEmbeddingUseCase: GenerateCloudEmbeddingUseCase,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val embeddingService: EmbeddingService,
     private val manageModelUseCase: ManageModelUseCase,
@@ -213,7 +216,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
             return@flow
         }
 
-        val hasCloudEmbedding = aiRepository.hasEnabledEmbeddingConfig()
+        val hasCloudEmbedding = aiModelConfigRepository.getEnabledConfigsByType(AiModelType.EMBEDDING).isNotEmpty()
         val isModelLoaded = hasCloudEmbedding || manageModelUseCase.isModelExists()
 
         if (!isModelLoaded) {
@@ -423,7 +426,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
 
     private suspend fun getEmbedding(text: String, hasCloudEmbedding: Boolean): FloatArray {
         if (hasCloudEmbedding) {
-            aiRepository.embed(text)?.let { return it }
+            generateCloudEmbeddingUseCase(text)?.let { return it }
         }
         return embeddingService.getEmbedding(text)
     }

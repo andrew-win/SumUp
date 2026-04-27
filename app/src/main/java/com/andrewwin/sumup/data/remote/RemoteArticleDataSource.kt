@@ -3,7 +3,6 @@ package com.andrewwin.sumup.data.remote
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceType
-import com.andrewwin.sumup.domain.support.DebugTrace
 import io.github.thoroldvix.api.TranscriptApiFactory
 import io.github.thoroldvix.api.TranscriptContent
 import io.github.thoroldvix.api.YoutubeClient
@@ -124,30 +123,14 @@ class RemoteArticleDataSource @Inject constructor(
 
                         else -> url.substringAfterLast("/")
                     }
-                    DebugTrace.d(
-                        "youtube_full_content",
-                        "fetchFullContent start url=${DebugTrace.preview(url, 180)} videoId=$videoId"
-                    )
                     val transcriptList = youtubeTranscriptApi.listTranscripts(videoId)
-                    DebugTrace.d(
-                        "youtube_full_content",
-                        "transcript list fetched videoId=$videoId"
-                    )
-                    val (transcript, transcriptMode) = runCatching {
-                        transcriptList.findGeneratedTranscript("uk", "ru", "en") to "generated"
+                    val transcript = runCatching {
+                        transcriptList.findGeneratedTranscript("uk", "ru", "en")
                     }.getOrElse {
-                        transcriptList.findTranscript("uk", "ru", "en") to "manual"
+                        transcriptList.findTranscript("uk", "ru", "en")
                     }
-                    DebugTrace.d(
-                        "youtube_full_content",
-                        "transcript selected videoId=$videoId mode=$transcriptMode"
-                    )
                     val fetched = transcript.fetch()
                     val transcriptText = formatYoutubeTranscriptByTiming(fetched)
-                    DebugTrace.d(
-                        "youtube_full_content",
-                        "transcript fetched videoId=$videoId mode=$transcriptMode chars=${transcriptText.length} preview=${DebugTrace.preview(transcriptText, 260)}"
-                    )
                     return@withContext transcriptText
                 }
 
@@ -166,13 +149,6 @@ class RemoteArticleDataSource @Inject constructor(
                 val body = response.body?.string()
                 return@withContext body
             } catch (e: Exception) {
-                if (type == SourceType.YOUTUBE) {
-                    DebugTrace.e(
-                        "youtube_full_content",
-                        "fetchFullContent failed url=${DebugTrace.preview(url, 180)}",
-                        e
-                    )
-                }
                 null
             }
         }

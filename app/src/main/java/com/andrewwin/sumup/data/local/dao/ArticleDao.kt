@@ -19,6 +19,7 @@ interface ArticleDao {
             articles.viewCount,
             articles.isRead,
             articles.isFavorite,
+            articles.importanceScore,
             NULL AS embedding
         FROM articles
         INNER JOIN sources ON articles.sourceId = sources.id 
@@ -59,6 +60,7 @@ interface ArticleDao {
             articles.viewCount,
             articles.isRead,
             articles.isFavorite,
+            articles.importanceScore,
             NULL AS embedding
         FROM articles
         INNER JOIN sources ON articles.sourceId = sources.id 
@@ -82,6 +84,7 @@ interface ArticleDao {
             articles.viewCount,
             articles.isRead,
             articles.isFavorite,
+            articles.importanceScore,
             NULL AS embedding
         FROM articles
         INNER JOIN sources ON articles.sourceId = sources.id 
@@ -148,6 +151,7 @@ interface ArticleDao {
             articles.viewCount AS viewCount,
             articles.isRead AS isRead,
             articles.isFavorite AS isFavorite,
+            articles.importanceScore AS importanceScore,
             NULL AS embedding,
             sources.name AS sourceName,
             source_groups.name AS groupName
@@ -210,6 +214,7 @@ data class ArticleWithMeta(
     val viewCount: Long,
     val isRead: Boolean,
     val isFavorite: Boolean,
+    val importanceScore: Float,
     val embedding: ByteArray?,
     val sourceName: String?,
     val groupName: String?

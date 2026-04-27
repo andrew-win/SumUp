@@ -37,7 +37,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,7 +52,6 @@ import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.airbnb.lottie.compose.rememberLottieDynamicProperties
 import com.airbnb.lottie.compose.rememberLottieDynamicProperty
-import com.airbnb.lottie.model.KeyPath
 import coil.compose.AsyncImage
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.ui.components.AppCardSurface
@@ -65,10 +63,9 @@ import com.andrewwin.sumup.ui.components.AppHelpToggleAction
 import com.andrewwin.sumup.ui.components.AppMessageState
 import com.andrewwin.sumup.ui.components.AppProminentFab
 import com.andrewwin.sumup.ui.components.AppTopBar
-import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
-import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import com.andrewwin.sumup.ui.theme.AppDimens
 import com.andrewwin.sumup.ui.util.PdfExporter
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -100,6 +97,35 @@ fun FeedScreen(
     val feedEmptyHelpDescription = stringResource(R.string.feed_help_empty)
     val feedCardHelpDescription = stringResource(R.string.feed_help_article_card)
 
+    val sortedArticleClusters = remember(articleClusters) {
+        articleClusters.map { cluster ->
+            cluster.copy(
+                duplicates = cluster.duplicates.sortedByDescending { duplicate ->
+                    duplicate.second
+                }
+            )
+        }
+    }
+
+    var canShowEmptyState by remember { mutableStateOf(false) }
+
+    LaunchedEffect(
+        sortedArticleClusters.isEmpty(),
+        isRefreshing,
+        isDedupInProgress,
+        searchQuery,
+        selectedGroupId,
+        dateFilter,
+        savedFilter
+    ) {
+        canShowEmptyState = false
+
+        if (sortedArticleClusters.isEmpty() && !isRefreshing && !isDedupInProgress) {
+            delay(2_000)
+            canShowEmptyState = true
+        }
+    }
+
     var articleForAiId by rememberSaveable { mutableStateOf<Long?>(null) }
     var isFeedAiActive by rememberSaveable { mutableStateOf(false) }
     var userQuestion by rememberSaveable { mutableStateOf("") }
@@ -115,7 +141,7 @@ fun FeedScreen(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val articles = articleClusters.map { it.representative }
+        val articles = sortedArticleClusters.map { it.representative }
         scope.launch {
             val result = PdfExporter.exportFeedToPdf(
                 context = context,
@@ -136,7 +162,7 @@ fun FeedScreen(
             listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 100
         }
     }
-    val isFeedAiEnabled = articleClusters.isNotEmpty()
+    val isFeedAiEnabled = sortedArticleClusters.isNotEmpty()
     var wasImeVisible by remember { mutableStateOf(false) }
 
     BackHandler(enabled = isSearchFocused) {
@@ -161,9 +187,9 @@ fun FeedScreen(
             AnimatedVisibility(
                 visible = !isSearchFocused,
                 enter = fadeIn(animationSpec = tween(320, easing = FastOutSlowInEasing)) +
-                    expandVertically(animationSpec = tween(380, easing = FastOutSlowInEasing)),
+                        expandVertically(animationSpec = tween(380, easing = FastOutSlowInEasing)),
                 exit = fadeOut(animationSpec = tween(300, easing = FastOutSlowInEasing)) +
-                    shrinkVertically(animationSpec = tween(360, easing = FastOutSlowInEasing))
+                        shrinkVertically(animationSpec = tween(360, easing = FastOutSlowInEasing))
             ) {
                 AppTopBar(
                     title = {
@@ -253,14 +279,13 @@ fun FeedScreen(
                                 val name = context.getString(R.string.feed_pdf_file_name, date)
                                 exportLauncher.launch(name)
                             },
-                            isExportEnabled = articleClusters.isNotEmpty()
+                            isExportEnabled = sortedArticleClusters.isNotEmpty()
                         )
                     }
                 }
 
-                val showLoading = userPreferences.isDeduplicationEnabled &&
-                        articleClusters.isEmpty() &&
-                        isDedupInProgress
+                val showLoading = sortedArticleClusters.isEmpty() &&
+                        (isRefreshing || isDedupInProgress || !canShowEmptyState)
 
                 if (showLoading) {
                     item {
@@ -280,7 +305,7 @@ fun FeedScreen(
                             }
                         }
                     }
-                } else if (articleClusters.isEmpty()) {
+                } else if (sortedArticleClusters.isEmpty()) {
                     item {
                         AppHelpOverlayTarget(
                             isEnabled = isHelpMode,
@@ -352,7 +377,7 @@ fun FeedScreen(
                         }
                     }
                 } else {
-                    items(articleClusters, key = { it.representative.article.id }) { cluster ->
+                    items(sortedArticleClusters, key = { it.representative.article.id }) { cluster ->
                         AppHelpOverlayTarget(
                             isEnabled = isHelpMode,
                             description = feedCardHelpDescription,
@@ -378,7 +403,7 @@ fun FeedScreen(
                                 onToggleSaved = {
                                     val willBeAddedToSaved =
                                         !cluster.representative.article.isFavorite ||
-                                            cluster.duplicates.any { duplicate -> !duplicate.first.article.isFavorite }
+                                                cluster.duplicates.any { duplicate -> !duplicate.first.article.isFavorite }
                                     viewModel.toggleSaved(cluster)
                                     if (willBeAddedToSaved) {
                                         Toast.makeText(
@@ -403,12 +428,12 @@ fun FeedScreen(
             onDismiss = { helpDescription = null }
         )
 
-        val articleForAi = remember(articleForAiId, articleClusters) {
+        val articleForAi = remember(articleForAiId, sortedArticleClusters) {
             articleForAiId?.let { targetId ->
-                articleClusters.asSequence()
+                sortedArticleClusters.asSequence()
                     .map { it.representative }
                     .plus(
-                        articleClusters.asSequence()
+                        sortedArticleClusters.asSequence()
                             .flatMap { cluster -> cluster.duplicates.asSequence().map { it.first } }
                     )
                     .firstOrNull { it.article.id == targetId }
@@ -420,7 +445,7 @@ fun FeedScreen(
             context = context,
             isFeedAiActive = isFeedAiActive,
             articleForAi = articleForAi,
-            articleClusters = articleClusters,
+            articleClusters = sortedArticleClusters,
             aiResult = aiResult,
             isAiLoading = isAiLoading,
             aiStrategy = userPreferences.aiStrategy,
@@ -437,7 +462,7 @@ fun FeedScreen(
                 if (isFeedAiActive) {
                     viewModel.askFeed(userQuestion)
                 } else {
-                    val cluster = articleClusters.firstOrNull { c ->
+                    val cluster = sortedArticleClusters.firstOrNull { c ->
                         c.representative.article.id == articleForAiId
                     }
                     if (cluster != null) {
@@ -451,7 +476,7 @@ fun FeedScreen(
                 if (isFeedAiActive) {
                     viewModel.summarizeFeed(forceRefresh = true)
                 } else {
-                    val cluster = articleClusters.firstOrNull { c ->
+                    val cluster = sortedArticleClusters.firstOrNull { c ->
                         c.representative.article.id == articleForAiId
                     }
                     if (cluster != null && cluster.duplicates.isNotEmpty()) {
@@ -464,7 +489,6 @@ fun FeedScreen(
             onOpenWebView = onOpenWebView
         )
 
-        // Expanded image dialog
         AppAnimatedDialog(
             visible = expandedImageUrl != null,
             onDismissRequest = { expandedImageUrl = null },
@@ -606,11 +630,3 @@ private fun clampImageOffset(
         y = rawOffset.y.coerceIn(-maxY, maxY)
     )
 }
-
-
-
-
-
-
-
-

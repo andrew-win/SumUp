@@ -14,11 +14,10 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
-import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
-import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.common.NoArticlesException
 import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
@@ -54,7 +53,7 @@ class SummaryViewModel @Inject constructor(
     private val getFeedArticlesUseCase: GetFeedArticlesUseCase,
     private val importanceScorer: ArticleImportanceScorer,
     private val sourceRepository: SourceRepository,
-    private val aiRepository: AiRepository
+    private val aiModelConfigRepository: AiModelConfigRepository
 ) : ViewModel() {
 
     val summaries: StateFlow<List<Summary>> = summaryRepository.allSummaries
@@ -75,13 +74,13 @@ class SummaryViewModel @Inject constructor(
 
     val isVectorizationEnabled: StateFlow<Boolean> = combine(
         userPreferences,
-        aiRepository.getConfigsByType(AiModelType.EMBEDDING)
+        aiModelConfigRepository.getConfigsByType(AiModelType.EMBEDDING)
     ) { prefs, embeddingConfigs ->
         prefs.modelPath != null || embeddingConfigs.any { it.isEnabled }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    val activeSummaryModelName: StateFlow<String?> = aiRepository.getConfigsByType(AiModelType.SUMMARY)
-        .combine(aiRepository.lastUsedSummaryModelName) { configs, lastUsed ->
+    val activeSummaryModelName: StateFlow<String?> = aiModelConfigRepository.getConfigsByType(AiModelType.SUMMARY)
+        .combine(aiModelConfigRepository.lastUsedSummaryModelName) { configs, lastUsed ->
             lastUsed?.takeIf { it.isNotBlank() }
                 ?: configs.firstOrNull { it.isEnabled }?.modelName?.takeIf { it.isNotBlank() }
         }
@@ -179,18 +178,14 @@ class SummaryViewModel @Inject constructor(
     fun generateSummaryNow() {
         viewModelScope.launch {
             _isGenerating.value = true
-            DebugTrace.d("scheduled_summary", "generateSummaryNow start strategy=${userPreferences.value.aiStrategy}")
             runCatching {
-                refreshArticlesUseCase()
-                val summaryText = generateSummaryUseCase()
-                DebugTrace.d("scheduled_summary", "generateSummaryNow success preview=${DebugTrace.preview(summaryText)}")
+                val summaryText = generateSummaryUseCase(refresh = true)
                 summaryRepository.insertSummary(Summary(content = summaryText, strategy = userPreferences.value.aiStrategy))
             }.onFailure { e ->
                 val message = when (e) {
                     is NoArticlesException -> return@onFailure
                     else -> e.localizedMessage.orEmpty()
                 }
-                DebugTrace.e("scheduled_summary", "generateSummaryNow failure message=$message", e)
                 summaryRepository.insertSummary(Summary(content = message, strategy = userPreferences.value.aiStrategy))
             }
             _isGenerating.value = false

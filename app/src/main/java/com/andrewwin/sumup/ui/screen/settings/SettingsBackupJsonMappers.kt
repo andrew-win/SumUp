@@ -222,6 +222,41 @@ internal fun AiModelConfig.toBackupJson(
     put("isUseNow", isUseNow)
 }
 
+internal fun AiModelConfig.Companion.fromBackupJson(
+    item: JSONObject,
+    secretEncryptionManager: SecretEncryptionManager,
+    syncPassphrase: String?
+): AiModelConfig {
+    val name = item.optString("name", "").trim()
+    val modelName = item.optString("modelName", "").trim()
+    val encryptedApiKey = item.optString("apiKeyCiphertext", "").trim()
+    val apiKey = when {
+        encryptedApiKey.isNotBlank() -> {
+            val passphrase = syncPassphrase?.trim().orEmpty()
+            require(passphrase.isNotBlank()) { "Sync passphrase is required to import API keys." }
+            secretEncryptionManager.decryptFromSync(encryptedApiKey, passphrase).trim()
+        }
+        else -> item.optString("apiKey", "").trim()
+    }
+    require(name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()) { "Invalid AI config in backup." }
+    val provider = runCatching { AiProvider.valueOf(item.optString("provider")) }.getOrThrow()
+    val type = runCatching { AiModelType.valueOf(item.optString("type")) }.getOrThrow()
+    val priority = runCatching {
+        AiConfigPriority.valueOf(item.optString("priority", AiConfigPriority.MEDIUM.name))
+    }.getOrDefault(AiConfigPriority.MEDIUM)
+    
+    return AiModelConfig(
+        name = name,
+        provider = provider,
+        apiKey = apiKey,
+        modelName = modelName,
+        isEnabled = item.optBoolean("isEnabled", true),
+        type = type,
+        priority = priority,
+        isUseNow = item.optBoolean("isUseNow", false)
+    )
+}
+
 internal fun JSONArray?.toAiConfigsFromBackup(
     secretEncryptionManager: SecretEncryptionManager,
     syncPassphrase: String?
@@ -230,35 +265,9 @@ internal fun JSONArray?.toAiConfigsFromBackup(
     val result = mutableListOf<AiModelConfig>()
     for (index in 0 until length()) {
         val item = optJSONObject(index) ?: continue
-        val name = item.optString("name", "").trim()
-        val modelName = item.optString("modelName", "").trim()
-        val encryptedApiKey = item.optString("apiKeyCiphertext", "").trim()
-        val apiKey = when {
-            encryptedApiKey.isNotBlank() -> {
-                val passphrase = syncPassphrase?.trim().orEmpty()
-                require(passphrase.isNotBlank()) { "Sync passphrase is required to import API keys." }
-                secretEncryptionManager.decryptFromSync(encryptedApiKey, passphrase).trim()
-            }
-            else -> item.optString("apiKey", "").trim()
-        }
-        if (name.isBlank() || apiKey.isBlank() || modelName.isBlank()) continue
-        val provider = runCatching { AiProvider.valueOf(item.optString("provider")) }.getOrNull() ?: continue
-        val type = runCatching { AiModelType.valueOf(item.optString("type")) }.getOrNull() ?: continue
-        val priority = runCatching {
-            AiConfigPriority.valueOf(item.optString("priority", AiConfigPriority.MEDIUM.name))
-        }.getOrDefault(AiConfigPriority.MEDIUM)
-        result.add(
-            AiModelConfig(
-                name = name,
-                provider = provider,
-                apiKey = apiKey,
-                modelName = modelName,
-                isEnabled = item.optBoolean("isEnabled", true),
-                type = type,
-                priority = priority,
-                isUseNow = item.optBoolean("isUseNow", false)
-            )
-        )
+        runCatching {
+            AiModelConfig.fromBackupJson(item, secretEncryptionManager, syncPassphrase)
+        }.onSuccess { result.add(it) }
     }
     return result
 }

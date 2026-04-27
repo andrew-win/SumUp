@@ -76,6 +76,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
+import com.andrewwin.sumup.domain.usecase.ai.DigestTheme
+import com.andrewwin.sumup.domain.usecase.ai.SummaryItem
+import com.andrewwin.sumup.domain.usecase.ai.SummaryResult
+import com.andrewwin.sumup.domain.usecase.ai.SummarySourceRef
 import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppMotion
@@ -98,7 +102,7 @@ fun FeedAiDialog(
     isFeedAiActive: Boolean,
     articleForAi: ArticleUiModel?,
     articleClusters: List<ArticleClusterUiModel>,
-    aiResult: String?,
+    aiResult: AiPresentationResult?,
     isAiLoading: Boolean,
     aiStrategy: AiStrategy,
     activeSummaryModelName: String?,
@@ -108,9 +112,11 @@ fun FeedAiDialog(
     onAsk: () -> Unit,
     onRegenerate: () -> Unit,
     onOpenWebView: (String) -> Unit
-) {
+    ) {
     val isFeedEmpty = isFeedAiActive && articleClusters.isEmpty()
     val emptyFeedMessage = context.getString(R.string.feed_ai_empty_message)
+    val rawText = aiResult?.rawText
+    val summaryResult = aiResult?.result
 
     AppAnimatedDialog(
         visible = isVisible,
@@ -168,12 +174,13 @@ fun FeedAiDialog(
                         ) {
                             CircularProgressIndicator(strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
                         }
-                    } else if (aiResult != null) {
-                        val compareBlocks = parseCompareBlocks(aiResult)
-                        val blocks = parseSummaryBlocks(aiResult)
+                    } else if (summaryResult != null) {
+                        val compareBlocks = remember(summaryResult) { summaryResult.asCompareBlocksUi() }
+                        val digestBlocks = remember(summaryResult) { summaryResult.asSummaryBlocksUi() }
                         val sourceLabelMap = rememberSourceLabelMap(
-                            summaryBlocks = blocks,
-                            compareBlocks = compareBlocks
+                            summaryBlocks = digestBlocks,
+                            compareBlocks = compareBlocks,
+                            summaryResult = summaryResult
                         )
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             if (compareBlocks != null && !summaryTitle.isNullOrBlank()) {
@@ -200,7 +207,7 @@ fun FeedAiDialog(
                                     modelName = activeSummaryModelName,
                                     aiStrategy = aiStrategy,
                                     onCopy = {
-                                        copyTextToClipboard(context, aiResult)
+                                        copyTextToClipboard(context, rawText.orEmpty())
                                         Toast.makeText(
                                             context,
                                             context.getString(R.string.ai_result_copied),
@@ -210,15 +217,16 @@ fun FeedAiDialog(
                                     onShare = {
                                         shareText(
                                             context = context,
-                                            text = aiResult,
+                                            text = rawText.orEmpty(),
                                             chooserTitle = context.getString(R.string.summary_share_chooser_title)
                                         )
                                     }
                                 )
                             } else {
-                                if (isFeedAiActive) {
+                                if (summaryResult is SummaryResult.Digest || summaryResult is SummaryResult.Error) {
                                     StandardSummaryCard(
-                                        blocks = blocks,
+                                        result = summaryResult,
+                                        blocks = digestBlocks,
                                         sourceLabelMap = sourceLabelMap,
                                         onOpenWebView = onOpenWebView
                                     )
@@ -226,7 +234,7 @@ fun FeedAiDialog(
                                         modelName = activeSummaryModelName,
                                         aiStrategy = aiStrategy,
                                         onCopy = {
-                                            copyTextToClipboard(context, aiResult)
+                                            copyTextToClipboard(context, rawText.orEmpty())
                                             Toast.makeText(
                                                 context,
                                                 context.getString(R.string.ai_result_copied),
@@ -236,20 +244,20 @@ fun FeedAiDialog(
                                         onShare = {
                                             shareText(
                                                 context = context,
-                                                text = aiResult,
+                                                text = rawText.orEmpty(),
                                                 chooserTitle = context.getString(R.string.summary_share_chooser_title)
                                             )
                                         }
                                     )
                                 } else {
                                     SingleSummaryCard(
-                                        blocks = blocks,
+                                        result = summaryResult,
                                         sourceLabelMap = sourceLabelMap,
                                         onOpenWebView = onOpenWebView,
                                         modelName = activeSummaryModelName,
                                         aiStrategy = aiStrategy,
                                         onCopy = {
-                                            copyTextToClipboard(context, aiResult)
+                                            copyTextToClipboard(context, rawText.orEmpty())
                                             Toast.makeText(
                                                 context,
                                                 context.getString(R.string.ai_result_copied),
@@ -259,7 +267,7 @@ fun FeedAiDialog(
                                         onShare = {
                                             shareText(
                                                 context = context,
-                                                text = aiResult,
+                                                text = rawText.orEmpty(),
                                                 chooserTitle = context.getString(R.string.summary_share_chooser_title)
                                             )
                                         }
@@ -337,7 +345,7 @@ fun FeedAiDialog(
 
 @Composable
 private fun SingleSummaryCard(
-    blocks: List<SummaryBlockUi>,
+    result: SummaryResult,
     sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit,
     modelName: String?,
@@ -345,8 +353,6 @@ private fun SingleSummaryCard(
     onCopy: () -> Unit,
     onShare: () -> Unit
 ) {
-    val qaSections = remember(blocks) { extractQaSections(blocks) }
-    val content = remember(blocks) { extractSingleSummaryContent(blocks) }
     val context = LocalContext.current
     val compactModel = modelName
         ?.substringAfter('/', modelName)
@@ -365,12 +371,20 @@ private fun SingleSummaryCard(
         }
     }
 
-    if (qaSections != null) {
+    if (result is SummaryResult.QA) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            qaSections.forEach { section ->
+            buildList {
+                result.question?.takeIf { it.isNotBlank() }?.let { question ->
+                    add(QaSectionUi("Питання", listOf(ThemeItem(marker = "—", text = question, sources = emptyList()))))
+                }
+                add(QaSectionUi("Коротка відповідь", listOf(ThemeItem(marker = "—", text = result.shortAnswer, sources = emptyList()))))
+                if (result.details.isNotEmpty()) {
+                    add(QaSectionUi("Детальніше", result.details.take(5).map { it.toThemeItem() }))
+                }
+            }.forEach { section ->
                 AppCardSurface(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -430,6 +444,23 @@ private fun SingleSummaryCard(
             }
         }
     } else {
+        val content = when (result) {
+            is SummaryResult.Single -> SingleSummaryContentUi(
+                title = result.title?.takeIf { it.isNotBlank() } ?: "Підсумок",
+                bullets = result.points.map { it.text.trim() }.filter { it.isNotBlank() }.take(5),
+                sources = result.sources.map { it.toLinkUi() }
+            )
+            is SummaryResult.Error -> SingleSummaryContentUi(
+                title = "Підсумок",
+                bullets = listOf(result.message),
+                sources = emptyList()
+            )
+            else -> SingleSummaryContentUi(
+                title = "Підсумок",
+                bullets = listOf("Немає достатньо даних для відображення."),
+                sources = emptyList()
+            )
+        }
         AppCardSurface(modifier = Modifier.fillMaxWidth()) {
             Column(
                 modifier = Modifier
@@ -495,6 +526,7 @@ private fun SingleSummaryCard(
 
 @Composable
 private fun StandardSummaryCard(
+    result: SummaryResult,
     blocks: List<SummaryBlockUi>,
     sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
@@ -503,26 +535,49 @@ private fun StandardSummaryCard(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        blocks.forEach { block ->
-            when (block) {
-                is SummaryBlockUi.Section -> LegacySummarySectionView(
-                    text = block.body,
-                    sources = block.sources,
+        when (result) {
+            is SummaryResult.Digest -> {
+                result.themes.forEach { theme ->
+                    ThemeSummarySectionView(
+                        heading = theme.title,
+                        summary = theme.summary,
+                        items = theme.items.map { it.toThemeItem() },
+                        sourceLabelMap = sourceLabelMap,
+                        onOpenWebView = onOpenWebView
+                    )
+                }
+            }
+            is SummaryResult.Error -> {
+                LegacySummarySectionView(
+                    text = result.message,
+                    sources = emptyList(),
                     sourceLabelMap = sourceLabelMap,
                     onOpenWebView = onOpenWebView
                 )
-                is SummaryBlockUi.PlainList -> PlainListSummarySectionView(
-                    items = block.items,
-                    sourceLabelMap = sourceLabelMap,
-                    onOpenWebView = onOpenWebView
-                )
-                is SummaryBlockUi.Theme -> ThemeSummarySectionView(
-                    heading = block.heading,
-                    summary = block.summary,
-                    items = block.items,
-                    sourceLabelMap = sourceLabelMap,
-                    onOpenWebView = onOpenWebView
-                )
+            }
+            else -> {
+                blocks.forEach { block ->
+                    when (block) {
+                        is SummaryBlockUi.Section -> LegacySummarySectionView(
+                            text = block.body,
+                            sources = block.sources,
+                            sourceLabelMap = sourceLabelMap,
+                            onOpenWebView = onOpenWebView
+                        )
+                        is SummaryBlockUi.PlainList -> PlainListSummarySectionView(
+                            items = block.items,
+                            sourceLabelMap = sourceLabelMap,
+                            onOpenWebView = onOpenWebView
+                        )
+                        is SummaryBlockUi.Theme -> ThemeSummarySectionView(
+                            heading = block.heading,
+                            summary = block.summary,
+                            items = block.items,
+                            sourceLabelMap = sourceLabelMap,
+                            onOpenWebView = onOpenWebView
+                        )
+                    }
+                }
             }
         }
     }
@@ -562,7 +617,8 @@ private enum class FeedSummarySourceStyle {
 @Composable
 private fun rememberSourceLabelMap(
     summaryBlocks: List<SummaryBlockUi>,
-    compareBlocks: CompareBlocksUi?
+    compareBlocks: CompareBlocksUi?,
+    summaryResult: SummaryResult?
 ): Map<String, String> {
     val summarySources = buildList {
         summaryBlocks.forEach { block ->
@@ -577,7 +633,8 @@ private fun rememberSourceLabelMap(
         compareBlocks?.common?.forEach { addAll(it.sources) }
         compareBlocks?.different?.forEach { addAll(it.sources) }
     }
-    return buildSourceLabelMap(summarySources + compareSources)
+    val resultSources = summaryResult?.collectSourceLinks().orEmpty()
+    return buildSourceLabelMap(summarySources + compareSources + resultSources)
 }
 
 private fun buildSourceLabelMap(sources: List<SummarySourceLinkUi>): Map<String, String> {
@@ -615,90 +672,44 @@ private data class QaSectionUi(
     val items: List<ThemeItem>
 )
 
-private fun extractQaSections(blocks: List<SummaryBlockUi>): List<QaSectionUi>? {
-    val questionHeadings = setOf("питання", "question")
-    val shortAnswerHeadings = setOf("коротка відповідь", "short answer")
-    val detailsHeadings = setOf("детальніше", "details")
-    val themes = blocks.filterIsInstance<SummaryBlockUi.Theme>()
-    if (themes.size < 2) return null
-
-    val normalizedHeadings = themes.map { it.heading.trim().lowercase() }
-    if (normalizedHeadings.firstOrNull() !in questionHeadings) return null
-    if (normalizedHeadings.getOrNull(1) !in shortAnswerHeadings) return null
-    if (normalizedHeadings.size > 2 && normalizedHeadings[2] !in detailsHeadings) return null
-
-    return themes.take(if (normalizedHeadings.size > 2) 3 else 2).mapNotNull { theme ->
-        val directItems = theme.items.filter { it.text.isNotBlank() }
-        if (directItems.isNotEmpty()) {
-            QaSectionUi(heading = theme.heading, items = directItems)
-        } else {
-            theme.summary
-                ?.takeIf { it.isNotBlank() }
-                ?.let { fallbackText ->
-                    QaSectionUi(
-                        heading = theme.heading,
-                        items = listOf(ThemeItem(marker = "—", text = fallbackText, sources = emptyList()))
-                    )
-                }
-        }
-    }
-}
-
-private fun extractSingleSummaryContent(blocks: List<SummaryBlockUi>): SingleSummaryContentUi {
-    val allSources = blocks.asSequence().flatMap { block ->
-        when (block) {
-            is SummaryBlockUi.Section -> block.sources.asSequence()
-            is SummaryBlockUi.PlainList -> block.items.asSequence().flatMap { it.sources.asSequence() }
-            is SummaryBlockUi.Theme -> block.items.asSequence().flatMap { it.sources.asSequence() }
-        }
-    }.distinctBy { it.key() }.toList()
-
-    blocks.forEach { block ->
-        when (block) {
-            is SummaryBlockUi.Section -> {
-                val lines = block.body.lines().map { it.trim() }.filter { it.isNotBlank() }
-                if (lines.isNotEmpty()) {
-                    val title = lines.first().removeSuffix(":").trim()
-                    val bullets = lines
-                        .drop(1)
-                        .map { it.trim().removePrefix("—").removePrefix("-").removePrefix("•").trim() }
-                        .filter { it.isNotBlank() }
-                        .ifEmpty { lines.drop(1).takeIf { it.isNotEmpty() } ?: listOf(title) }
-                        .take(5)
-                    return SingleSummaryContentUi(
-                        title = title,
-                        bullets = bullets,
-                        sources = allSources
-                    )
-                }
-            }
-            is SummaryBlockUi.Theme -> {
-                val bullets = block.items.map { it.text.trim() }.filter { it.isNotBlank() }.take(5)
-                return SingleSummaryContentUi(
-                    title = block.heading.removeSuffix(":").trim(),
-                    bullets = bullets.ifEmpty { listOf(block.summary.orEmpty()).filter { it.isNotBlank() } },
-                    sources = allSources
-                )
-            }
-            is SummaryBlockUi.PlainList -> {
-                val bullets = block.items.map { it.text.trim() }.filter { it.isNotBlank() }.take(5)
-                if (bullets.isNotEmpty()) {
-                    return SingleSummaryContentUi(
-                        title = bullets.first(),
-                        bullets = bullets.drop(1).ifEmpty { bullets.take(1) },
-                        sources = allSources
-                    )
-                }
-            }
-        }
-    }
-
-    return SingleSummaryContentUi(
-        title = "Підсумок",
-        bullets = listOf("Немає достатньо даних для відображення."),
-        sources = allSources
+private fun SummaryResult.asCompareBlocksUi(): CompareBlocksUi? {
+    val compare = this as? SummaryResult.Compare ?: return null
+    return CompareBlocksUi(
+        common = compare.common.map { CompareItemUi(text = it.text, sources = it.sources.map(SummarySourceRef::toLinkUi)) },
+        different = compare.unique.map { CompareItemUi(text = it.text, sources = it.sources.map(SummarySourceRef::toLinkUi)) }
     )
 }
+
+private fun SummaryResult.asSummaryBlocksUi(): List<SummaryBlockUi> = when (this) {
+    is SummaryResult.Digest -> themes.map { theme ->
+        SummaryBlockUi.Theme(
+            heading = theme.title,
+            summary = theme.summary,
+            items = theme.items.map { it.toThemeItem() }
+        )
+    }
+    is SummaryResult.Error -> listOf(
+        SummaryBlockUi.Section(
+            body = message,
+            sources = emptyList()
+        )
+    )
+    else -> emptyList()
+}
+
+private fun SummaryResult.collectSourceLinks(): List<SummarySourceLinkUi> = when (this) {
+    is SummaryResult.Single -> (points.flatMap { it.sources } + sources).distinct().map { it.toLinkUi() }
+    is SummaryResult.Compare -> (common + unique).flatMap { it.sources }.distinct().map { it.toLinkUi() }
+    is SummaryResult.Digest -> themes.flatMap(DigestTheme::items).flatMap { it.sources }.distinct().map { it.toLinkUi() }
+    is SummaryResult.QA -> (details.flatMap { it.sources } + sources).distinct().map { it.toLinkUi() }
+    is SummaryResult.Error -> emptyList()
+}
+
+private fun SummaryItem.toThemeItem(): ThemeItem =
+    ThemeItem(marker = "—", text = text, sources = sources.map { it.toLinkUi() })
+
+private fun SummarySourceRef.toLinkUi(): SummarySourceLinkUi =
+    SummarySourceLinkUi(name = name, url = url)
 
 @Composable
 private fun SummaryMetaRow(
@@ -762,71 +773,6 @@ private fun SummaryMetaRow(
             )
         }
     }
-}
-
-private fun parseCompareBlocks(raw: String): CompareBlocksUi? {
-    val lines = raw.lines().map { it.trim() }
-    val commonIndex = lines.indexOfFirst { it.equals("Спільне:", ignoreCase = true) }
-    val differentIndex = lines.indexOfFirst {
-        it.equals("Унікальне:", ignoreCase = true) || it.equals("Відмінне:", ignoreCase = true)
-    }
-    if (commonIndex == -1 || differentIndex == -1 || differentIndex <= commonIndex) return null
-
-    fun parseRange(from: Int, toExclusive: Int): List<CompareItemUi> {
-        val parsed = mutableListOf<CompareItemUi>()
-        var index = from
-        while (index < toExclusive) {
-            val line = lines[index]
-            if (!(line.startsWith("•") || line.startsWith("—") || line.startsWith("-"))) {
-                index++
-                continue
-            }
-
-            val match = CompareBulletRegex.find(line)
-            if (match != null) {
-                val text = match.groupValues[2].trim()
-                val url = match.groupValues[3].trim().takeIf { it.isNotBlank() }
-                val sources = if (!url.isNullOrBlank()) {
-                    listOf(SummarySourceLinkUi(name = match.groupValues[1].trim().ifBlank { "Джерело" }, url = url))
-                } else {
-                    emptyList()
-                }
-                parsed += CompareItemUi(text = text, sources = sources)
-                index++
-                continue
-            }
-
-            val text = line.removePrefix("•").removePrefix("—").removePrefix("-").trim()
-            if (text.isBlank()) {
-                index++
-                continue
-            }
-
-            val sources = mutableListOf<SummarySourceLinkUi>()
-            while (index + 1 < toExclusive) {
-                val nextLine = lines.getOrNull(index + 1).orEmpty()
-                if (!nextLine.startsWith(SummarySourceMeta.PREFIX)) break
-                val payload = nextLine.removePrefix(SummarySourceMeta.PREFIX)
-                val separator = payload.lastIndexOf('|')
-                if (separator <= 0 || separator >= payload.lastIndex) break
-                val sourceName = payload.substring(0, separator).trim()
-                val sourceUrl = payload.substring(separator + 1).trim().ifBlank { null }
-                if (!sourceName.isBlank() && !sourceUrl.isNullOrBlank()) {
-                    sources += SummarySourceLinkUi(name = sourceName, url = sourceUrl)
-                }
-                index++
-            }
-
-            parsed += CompareItemUi(text = text, sources = sources)
-            index++
-        }
-        return parsed
-    }
-
-    val common = parseRange(commonIndex + 1, differentIndex)
-    val different = parseRange(differentIndex + 1, lines.size)
-    if (common.isEmpty() && different.isEmpty()) return null
-    return CompareBlocksUi(common = common, different = different)
 }
 
 @Composable

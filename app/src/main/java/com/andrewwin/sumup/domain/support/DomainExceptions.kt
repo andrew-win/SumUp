@@ -2,7 +2,7 @@ package com.andrewwin.sumup.domain.support
 
 class NoActiveModelException : Exception()
 
-class UnsupportedStrategyException : Exception()
+class UnsupportedStrategyException(message: String? = null) : Exception(message)
 
 open class AiServiceException(message: String, val code: Int) : Exception(message)
 

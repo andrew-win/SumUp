@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
+    alias(libs.plugins.kotlin.serialization)
     id("com.google.gms.google-services")
 }
 
@@ -115,6 +116,8 @@ dependencies {
     // Fix for NoClassDefFoundError: javax.xml.stream.XMLInputFactory on Android
     implementation("com.fasterxml:aalto-xml:1.3.3")
     implementation("stax:stax-api:1.0.1")
+
+    implementation(libs.kotlinx.serialization.json)
 
     // Readability for smart content extraction
     implementation("net.dankito.readability4j:readability4j:1.0.8")

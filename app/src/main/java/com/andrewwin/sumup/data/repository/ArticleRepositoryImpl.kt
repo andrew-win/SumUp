@@ -13,7 +13,6 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -169,12 +168,6 @@ class ArticleRepositoryImpl @Inject constructor(
         val remoteContent = fetchedRemote ?: article.content
         val mainContent = cleanArticleTextUseCase.extractMainContent(article.url, remoteContent, source.type)
         val cleaned = cleanArticleTextUseCase(mainContent, source.type, source.footerPattern)
-        if (source.type == SourceType.YOUTUBE) {
-            DebugTrace.d(
-                "youtube_full_content",
-                "repository fetchFullContent articleId=${article.id} videoId=${article.videoId} remoteFetched=${fetchedRemote != null} remoteChars=${fetchedRemote?.length ?: 0} articleContentChars=${article.content.length} finalChars=${cleaned.length} finalPreview=${DebugTrace.preview(cleaned, 260)}"
-            )
-        }
         return cleaned
     }
 
@@ -232,18 +225,10 @@ class ArticleRepositoryImpl @Inject constructor(
     override suspend fun replaceFavoriteArticlesByUrls(urls: List<String>) {
         savedArticleDao.deleteAll()
         upsertSavedByUrls(urls)
-        DebugTrace.d(
-            "backup_sync",
-            "replaceFavoriteArticlesByUrls requested=${urls.size} unique=${urls.distinct().size}"
-        )
     }
 
     override suspend fun mergeFavoriteArticlesByUrls(urls: List<String>) {
         upsertSavedByUrls(urls)
-        DebugTrace.d(
-            "backup_sync",
-            "mergeFavoriteArticlesByUrls requested=${urls.size} unique=${urls.distinct().size}"
-        )
     }
 
     override suspend fun getSavedArticlesSnapshot(): List<SavedArticle> =

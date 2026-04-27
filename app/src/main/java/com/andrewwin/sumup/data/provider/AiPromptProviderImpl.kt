@@ -12,8 +12,6 @@ class AiPromptProviderImpl @Inject constructor(
     override fun defaultSummaryPrompt(): String = context.getString(R.string.summary_prompt_default)
     override fun questionPromptPrefix(): String = context.getString(R.string.ai_question_prompt_prefix)
     override fun questionPromptSuffix(): String = context.getString(R.string.ai_question_prompt_suffix)
-    override fun strictJsonInstruction(): String =
-        "Return valid JSON only. Do not add any introduction, greeting, explanation, markdown, code fences, commentary, or text before or after the JSON."
 }
 
 

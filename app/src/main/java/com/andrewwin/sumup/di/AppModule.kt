@@ -12,12 +12,12 @@ import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.scheduler.SummarySchedulerImpl
 import com.andrewwin.sumup.data.provider.AiPromptProviderImpl
+import com.andrewwin.sumup.data.provider.AppDispatcherProvider
 import com.andrewwin.sumup.data.remote.AiService
 import com.andrewwin.sumup.data.remote.RssParser
 import com.andrewwin.sumup.data.remote.TelegramParser
 import com.andrewwin.sumup.data.remote.YouTubeParser
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
-import com.andrewwin.sumup.data.repository.AiRepositoryImpl
 import com.andrewwin.sumup.data.repository.ArticleRepositoryImpl
 import com.andrewwin.sumup.data.repository.ModelRepositoryImpl
 import com.andrewwin.sumup.data.repository.SourceRepositoryImpl
@@ -28,7 +28,7 @@ import com.andrewwin.sumup.data.security.SecretEncryptionManager
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.service.DeduplicationService
 import com.andrewwin.sumup.domain.support.AiPromptProvider
-import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.ModelRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
@@ -38,14 +38,14 @@ import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.common.BuildExtractiveSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
-import com.andrewwin.sumup.domain.usecase.common.CollectScheduledSummaryArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.common.FormatArticleHeadlineUseCase
+import com.andrewwin.sumup.domain.usecase.common.GetExtractiveSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCaseImpl
-import com.andrewwin.sumup.domain.usecase.ai.FormatExtractiveSummaryUseCase
-import com.andrewwin.sumup.domain.usecase.ai.SummarizationEngineUseCase
+import com.andrewwin.sumup.domain.usecase.common.FormatSummaryResultUseCase
+import com.andrewwin.sumup.domain.usecase.ai.SummarizeFeedUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
@@ -58,7 +58,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
-import okhttp3.Response
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
@@ -170,19 +169,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideAiRepository(
+    fun provideAiModelConfigRepository(
         aiModelDao: AiModelDao,
-        userPreferencesDao: UserPreferencesDao,
         aiService: AiService,
-        formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase,
-        aiPromptProvider: AiPromptProvider,
         secretEncryptionManager: SecretEncryptionManager
-    ): AiRepository = AiRepositoryImpl(
+    ): AiModelConfigRepository = com.andrewwin.sumup.data.repository.AiModelConfigRepositoryImpl(
         aiModelDao,
-        userPreferencesDao,
         aiService,
-        formatExtractiveSummaryUseCase,
-        aiPromptProvider,
         secretEncryptionManager
     )
 
@@ -231,9 +224,9 @@ object AppModule {
     @Singleton
     fun provideDeduplicationService(
         articleRepository: ArticleRepository,
-        aiRepository: AiRepository
+        generateCloudEmbeddingUseCase: com.andrewwin.sumup.domain.usecase.ai.GenerateCloudEmbeddingUseCase
     ): DeduplicationService =
-        DeduplicationService(articleRepository, aiRepository)
+        DeduplicationService(articleRepository, generateCloudEmbeddingUseCase)
 
     @Provides
     @Singleton
@@ -260,11 +253,6 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideFormatExtractiveSummaryUseCase(): FormatExtractiveSummaryUseCase =
-        FormatExtractiveSummaryUseCase()
-
-    @Provides
-    @Singleton
     fun provideCleanArticleTextUseCase(
         dispatcherProvider: com.andrewwin.sumup.domain.support.DispatcherProvider
     ): CleanArticleTextUseCase = CleanArticleTextUseCase(dispatcherProvider)
@@ -272,9 +260,12 @@ object AppModule {
     @Provides
     @Singleton
     fun provideBuildExtractiveSummaryUseCase(
-        formatExtractiveSummaryUseCase: FormatExtractiveSummaryUseCase,
+        getExtractiveSummaryUseCase: GetExtractiveSummaryUseCase,
         dispatcherProvider: com.andrewwin.sumup.domain.support.DispatcherProvider
-    ): BuildExtractiveSummaryUseCase = BuildExtractiveSummaryUseCase(formatExtractiveSummaryUseCase, dispatcherProvider)
+    ): BuildExtractiveSummaryUseCase = BuildExtractiveSummaryUseCase(
+        getExtractiveSummaryUseCase,
+        dispatcherProvider
+    )
 
     @Provides
     @Singleton
@@ -284,15 +275,23 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideFormatSummaryResultUseCase(): FormatSummaryResultUseCase = FormatSummaryResultUseCase()
+
+    @Provides
+    @Singleton
     fun provideGenerateSummaryUseCase(
-        collectScheduledSummaryArticlesUseCase: CollectScheduledSummaryArticlesUseCase,
-        userPreferencesRepository: UserPreferencesRepository,
-        summarizationEngineUseCase: SummarizationEngineUseCase
+        refreshArticlesUseCase: RefreshArticlesUseCase,
+        summarizeFeedUseCase: SummarizeFeedUseCase,
+        articleRepository: ArticleRepository,
+        formatSummaryResultUseCase: FormatSummaryResultUseCase
     ): GenerateSummaryUseCase = GenerateSummaryUseCaseImpl(
-        collectScheduledSummaryArticlesUseCase,
-        userPreferencesRepository,
-        summarizationEngineUseCase
+        refreshArticlesUseCase,
+        summarizeFeedUseCase,
+        articleRepository,
+        formatSummaryResultUseCase
     )
+
+
 
     @Provides
     @Singleton
@@ -307,7 +306,7 @@ object AppModule {
     @Provides
     @Singleton
     fun provideDispatcherProvider(): com.andrewwin.sumup.domain.support.DispatcherProvider =
-        com.andrewwin.sumup.data.coroutines.AppDispatcherProvider()
+        AppDispatcherProvider()
 }
 
 

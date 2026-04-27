@@ -1,45 +1,25 @@
 package com.andrewwin.sumup.ui.screen.feed
 
-import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 
 class FeedAiSessionCache {
-    private val cache = mutableMapOf<String, String>()
+    private val cache = mutableMapOf<String, AiPresentationResult>()
 
-    fun getArticleSummary(articleId: Long): String? =
-        cache[articleKey(articleId)].also { DebugTrace.d("ai_cache", "article id=$articleId hit=${it != null}") }
+    fun getArticleSummary(articleId: Long): AiPresentationResult? = cache[articleKey(articleId)]
 
-    fun putArticleSummary(articleId: Long, summary: String) {
-        DebugTrace.d("ai_cache", "article id=$articleId store preview=${DebugTrace.preview(summary)}")
+    fun putArticleSummary(articleId: Long, summary: AiPresentationResult) {
         cache[articleKey(articleId)] = summary
     }
 
-    fun getFeedSummary(articleIds: List<Long>): String? =
-        cache[feedKey(articleIds)].also {
-            DebugTrace.d("ai_cache", "feed ids=${articleIds.joinToString(",")} hit=${it != null}")
-        }
+    fun getFeedSummary(articleIds: List<Long>): AiPresentationResult? = cache[feedKey(articleIds)]
 
-    fun putFeedSummary(articleIds: List<Long>, summary: String) {
-        DebugTrace.d(
-            "ai_cache",
-            "feed ids=${articleIds.joinToString(",")} store preview=${DebugTrace.preview(summary)}"
-        )
+    fun putFeedSummary(articleIds: List<Long>, summary: AiPresentationResult) {
         cache[feedKey(articleIds)] = summary
     }
 
-    fun getClusterSummary(cluster: ArticleClusterUiModel): String? =
-        cache[compareKey(cluster)].also {
-            DebugTrace.d(
-                "ai_cache",
-                "cluster rep=${cluster.representative.article.id} dup=${cluster.duplicates.size} hit=${it != null}"
-            )
-        }
+    fun getClusterSummary(cluster: ArticleClusterUiModel): AiPresentationResult? = cache[compareKey(cluster)]
 
-    fun putClusterSummary(cluster: ArticleClusterUiModel, summary: String) {
-        DebugTrace.d(
-            "ai_cache",
-            "cluster rep=${cluster.representative.article.id} dup=${cluster.duplicates.size} store preview=${DebugTrace.preview(summary)}"
-        )
+    fun putClusterSummary(cluster: ArticleClusterUiModel, summary: AiPresentationResult) {
         cache[compareKey(cluster)] = summary
     }
 

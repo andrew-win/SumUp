@@ -33,7 +33,7 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
         Summary::class,
         UserPreferences::class
     ],
-    version = 46,
+    version = 47,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -72,7 +72,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_42_43,
                         MIGRATION_43_44,
                         MIGRATION_44_45,
-                        MIGRATION_45_46
+                        MIGRATION_45_46,
+                        MIGRATION_46_47
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -375,6 +376,14 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                 db.execSQL("DROP TABLE user_preferences")
                 db.execSQL("ALTER TABLE user_preferences_new RENAME TO user_preferences")
+            }
+        }
+
+        private val MIGRATION_46_47 = object : Migration(46, 47) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE articles ADD COLUMN importanceScore REAL NOT NULL DEFAULT 0.0"
+                )
             }
         }
     }

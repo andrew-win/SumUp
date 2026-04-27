@@ -1,6 +1,5 @@
 package com.andrewwin.sumup.ui.util
 
-import com.andrewwin.sumup.domain.support.DebugTrace
 import com.andrewwin.sumup.domain.support.SummarySourceMeta
 
 data class SummarySourceLinkUi(
@@ -41,15 +40,6 @@ fun parseSummaryBlocks(raw: String): List<SummaryBlockUi> {
         .map { it.trim() }
         .filter { it.isNotBlank() }
         .mapNotNull { block -> parseThemeBlock(block) ?: parsePlainListBlock(block) ?: parseSectionBlock(block) }
-        .also { blocks ->
-            val themeCount = blocks.count { it is SummaryBlockUi.Theme }
-            val sectionCount = blocks.count { it is SummaryBlockUi.Section }
-            val listCount = blocks.count { it is SummaryBlockUi.PlainList }
-            DebugTrace.d(
-                "summary_parser",
-                "parseSummaryBlocks themes=$themeCount sections=$sectionCount lists=$listCount preview=${DebugTrace.preview(raw, 280)}"
-            )
-        }
 }
 
 fun cleanSummaryTextForSharing(raw: String): String {

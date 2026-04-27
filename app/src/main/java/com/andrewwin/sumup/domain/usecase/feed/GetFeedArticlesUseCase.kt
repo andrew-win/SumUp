@@ -7,7 +7,7 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.service.ArticleCluster
 import com.andrewwin.sumup.domain.service.DeduplicationService
-import com.andrewwin.sumup.domain.repository.AiRepository
+import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
@@ -26,7 +26,7 @@ class GetFeedArticlesUseCase @Inject constructor(
     private val sourceRepository: SourceRepository,
     private val deduplicationService: DeduplicationService,
     private val importanceScorer: ArticleImportanceScorer,
-    private val aiRepository: AiRepository,
+    private val aiModelConfigRepository: AiModelConfigRepository,
     private val manageModelUseCase: ManageModelUseCase
 ) {
     private val tag = "GetFeedArticles"
@@ -107,16 +107,25 @@ class GetFeedArticlesUseCase @Inject constructor(
                 }
             }
 
-            if (!savedOnly && prefs.isImportanceFilterEnabled) {
-                val averageViews = processedArticles
+            val averageViews = if (processedArticles.isNotEmpty()) {
+                processedArticles
                     .asSequence()
                     .map { it.viewCount }
                     .filter { it > 0L }
                     .average()
                     .toLong()
+            } else 0L
+
+            // Calculate and bind importance scores using .copy()
+            processedArticles = processedArticles.map { article ->
+                val sourceType = sourceTypeMap[article.sourceId] ?: SourceType.RSS
+                val score = importanceScorer.score(article, averageViews, sourceType)
+                article.copy(importanceScore = score)
+            }
+
+            if (!savedOnly && prefs.isImportanceFilterEnabled) {
                 processedArticles = processedArticles.filter { article ->
-                    val sourceType = sourceTypeMap[article.sourceId] ?: SourceType.RSS
-                    importanceScorer.score(article, averageViews, sourceType) >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
+                    article.importanceScore >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
                 }
             }
 
@@ -158,29 +167,28 @@ class GetFeedArticlesUseCase @Inject constructor(
 
                         emit(FeedResult(initial, shouldRunDedup))
 
-                        if (!shouldRunDedup) return@coroutineScope
-
-                        val hasCloudEmbedding = withContext(Dispatchers.IO) {
-                            aiRepository.hasEnabledEmbeddingConfig()
-                        }
-                        val resolvedModelPath = resolveModelPath(state.prefs)
-                        val hasLocalEmbedding = resolvedModelPath
-                            ?.let { path -> deduplicationService.initialize(path) }
-                            ?: false
-
-                        val canDeduplicate = when (state.prefs.deduplicationStrategy) {
-                            DeduplicationStrategy.LOCAL -> hasLocalEmbedding
-                            DeduplicationStrategy.CLOUD -> hasCloudEmbedding
-                        }
-                        if (!canDeduplicate) {
-                            emit(FeedResult(initial, false))
+                        if (!shouldRunDedup) {
                             return@coroutineScope
                         }
 
                         var lastClusters: List<ArticleCluster>? = null
+
                         val deduplicationThreshold = when (state.prefs.deduplicationStrategy) {
                             DeduplicationStrategy.LOCAL -> state.prefs.localDeduplicationThreshold
                             DeduplicationStrategy.CLOUD -> state.prefs.cloudDeduplicationThreshold
+                        }
+
+                        val modelPath = resolveModelPath(state.prefs)
+
+                        val isModelInitialized = if (!modelPath.isNullOrBlank()) {
+                            deduplicationService.initialize(modelPath)
+                        } else {
+                            false
+                        }
+
+                        if (!isModelInitialized) {
+                            emit(FeedResult(initial, false))
+                            return@coroutineScope
                         }
 
                         deduplicationService
