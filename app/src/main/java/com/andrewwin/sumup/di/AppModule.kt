@@ -26,7 +26,10 @@ import com.andrewwin.sumup.data.repository.SummaryRepositoryImpl
 import com.andrewwin.sumup.data.repository.UserPreferencesRepositoryImpl
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
-import com.andrewwin.sumup.domain.service.DeduplicationService
+import com.andrewwin.sumup.domain.service.CloudEmbeddingService
+import com.andrewwin.sumup.domain.service.LocalEmbeddingOptimizer
+import com.andrewwin.sumup.domain.service.LocalEmbeddingService
+import com.andrewwin.sumup.domain.service.SimilarityScorer
 import com.andrewwin.sumup.domain.support.AiPromptProvider
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
@@ -222,11 +225,31 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideDeduplicationService(
-        articleRepository: ArticleRepository,
+    fun provideLocalEmbeddingService(): LocalEmbeddingService = LocalEmbeddingService()
+
+    @Provides
+    @Singleton
+    fun provideCloudEmbeddingService(
         generateCloudEmbeddingUseCase: com.andrewwin.sumup.domain.usecase.ai.GenerateCloudEmbeddingUseCase
-    ): DeduplicationService =
-        DeduplicationService(articleRepository, generateCloudEmbeddingUseCase)
+    ): CloudEmbeddingService = CloudEmbeddingService(generateCloudEmbeddingUseCase)
+
+    @Provides
+    @Singleton
+    fun provideLocalEmbeddingOptimizer(): LocalEmbeddingOptimizer = LocalEmbeddingOptimizer()
+
+    @Provides
+    @Singleton
+    fun provideSimilarityScorer(
+        articleRepository: ArticleRepository,
+        localEmbeddingService: LocalEmbeddingService,
+        cloudEmbeddingService: CloudEmbeddingService,
+        optimizer: LocalEmbeddingOptimizer
+    ): SimilarityScorer = SimilarityScorer(
+        articleRepository,
+        localEmbeddingService,
+        cloudEmbeddingService,
+        optimizer
+    )
 
     @Provides
     @Singleton

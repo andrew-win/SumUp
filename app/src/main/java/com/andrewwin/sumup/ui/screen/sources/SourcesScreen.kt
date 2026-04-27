@@ -47,6 +47,7 @@ import com.andrewwin.sumup.ui.components.AppHelpToggleAction
 import com.andrewwin.sumup.ui.components.AppProminentFab
 import com.andrewwin.sumup.ui.components.AppSelectionActions
 import com.andrewwin.sumup.ui.components.AppTopBar
+import com.andrewwin.sumup.ui.screen.settings.SettingsConfirmDeleteDialog
 import com.andrewwin.sumup.ui.theme.AppCardShape
 import com.andrewwin.sumup.ui.theme.AppDimens
 import com.andrewwin.sumup.ui.theme.appCardBorder
@@ -71,6 +72,9 @@ fun SourcesScreen(
     var showAddGroupDialog by remember { mutableStateOf(false) }
     var editGroup by remember { mutableStateOf<SourceGroup?>(null) }
     var editSource by remember { mutableStateOf<Source?>(null) }
+    var deleteGroupConfirm by remember { mutableStateOf<SourceGroup?>(null) }
+    var deleteSourceConfirm by remember { mutableStateOf<Source?>(null) }
+    var showDeleteSelectedGroupsConfirm by remember { mutableStateOf(false) }
     var selectedGroupIdForSource by remember { mutableStateOf<Long?>(null) }
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
@@ -99,11 +103,7 @@ fun SourcesScreen(
                         AppSelectionActions(
                             onClear = { selectedGroupIds.clear() },
                             onDelete = {
-                                val selected = uiState
-                                    .map { it.group }
-                                    .filter { selectedGroupIds.contains(it.id) }
-                                viewModel.deleteGroups(selected)
-                                selectedGroupIds.clear()
+                                showDeleteSelectedGroupsConfirm = true
                             },
                             clearDescription = "Exit selection mode",
                             deleteDescription = "Delete selected groups"
@@ -168,10 +168,10 @@ fun SourcesScreen(
                         onAddSource = { selectedGroupIdForSource = groupWithSources.group.id },
                         onToggleGroup = { viewModel.toggleGroup(groupWithSources.group, it) },
                         onEditGroup = { editGroup = it },
-                        onDeleteGroup = { viewModel.deleteGroup(it) },
+                        onDeleteGroup = { deleteGroupConfirm = it },
                         onToggleSource = { viewModel.updateSource(it) },
                         onEditSource = { editSource = it },
-                        onDeleteSource = { viewModel.deleteSource(it) }
+                        onDeleteSource = { deleteSourceConfirm = it }
                     )
                 }
             }
@@ -327,6 +327,46 @@ fun SourcesScreen(
                         )
                     )
                 }
+            )
+        }
+
+        deleteGroupConfirm?.let { group ->
+            SettingsConfirmDeleteDialog(
+                title = stringResource(R.string.delete),
+                text = stringResource(R.string.delete_group_confirm, group.displayName()),
+                onConfirm = {
+                    viewModel.deleteGroup(group)
+                    deleteGroupConfirm = null
+                },
+                onDismiss = { deleteGroupConfirm = null }
+            )
+        }
+
+        deleteSourceConfirm?.let { source ->
+            SettingsConfirmDeleteDialog(
+                title = stringResource(R.string.delete),
+                text = stringResource(R.string.delete_source_confirm, source.name),
+                onConfirm = {
+                    viewModel.deleteSource(source)
+                    deleteSourceConfirm = null
+                },
+                onDismiss = { deleteSourceConfirm = null }
+            )
+        }
+
+        if (showDeleteSelectedGroupsConfirm) {
+            SettingsConfirmDeleteDialog(
+                title = stringResource(R.string.delete),
+                text = stringResource(R.string.delete_selected_groups_confirm, selectedGroupIds.size),
+                onConfirm = {
+                    val selected = uiState
+                        .map { it.group }
+                        .filter { selectedGroupIds.contains(it.id) }
+                    viewModel.deleteGroups(selected)
+                    selectedGroupIds.clear()
+                    showDeleteSelectedGroupsConfirm = false
+                },
+                onDismiss = { showDeleteSelectedGroupsConfirm = false }
             )
         }
     }

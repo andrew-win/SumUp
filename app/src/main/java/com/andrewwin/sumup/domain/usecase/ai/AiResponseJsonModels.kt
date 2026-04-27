@@ -22,7 +22,6 @@ data class SummaryItemJson(
 data class SummaryThemeJson(
     val title: String? = null,
     val summary: String? = null,
-    val emojis: List<String> = emptyList(),
     val items: List<SummaryThemeItemJson> = emptyList()
 )
 

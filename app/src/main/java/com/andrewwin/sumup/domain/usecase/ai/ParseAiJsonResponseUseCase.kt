@@ -49,7 +49,6 @@ class ParseAiJsonResponseUseCase @Inject constructor() {
                     DigestTheme(
                         title = theme.title ?: "Тема",
                         summary = theme.summary,
-                        emojis = theme.emojis,
                         items = theme.items.map { item ->
                             SummaryItem(
                                 text = item.title ?: "",

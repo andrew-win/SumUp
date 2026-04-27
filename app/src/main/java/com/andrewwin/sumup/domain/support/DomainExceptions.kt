@@ -10,6 +10,8 @@ class AiRateLimitException(message: String) : AiServiceException(message, 429)
 
 class AiProviderUnavailableException(message: String, code: Int) : AiServiceException(message, code)
 
+class LocalModelMissingException : Exception()
+
 class AllAiModelsFailedException : Exception()
 
 

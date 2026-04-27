@@ -43,15 +43,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.airbnb.lottie.LottieProperty
-import com.airbnb.lottie.SimpleColorFilter
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
-import com.airbnb.lottie.compose.rememberLottieDynamicProperties
-import com.airbnb.lottie.compose.rememberLottieDynamicProperty
 import coil.compose.AsyncImage
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.ui.components.AppCardSurface
@@ -82,6 +73,8 @@ fun FeedScreen(
     val dateFilter by viewModel.dateFilter.collectAsState()
     val savedFilter by viewModel.savedFilter.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val isAnyLoading by viewModel.isAnyLoading.collectAsState()
+    val loadingMessage by viewModel.feedLoadingMessage.collectAsState()
     val aiResult by viewModel.aiResult.collectAsState()
     val isAiLoading by viewModel.isAiLoading.collectAsState()
     val isDedupInProgress by viewModel.isDedupInProgress.collectAsState()
@@ -104,25 +97,6 @@ fun FeedScreen(
                     duplicate.second
                 }
             )
-        }
-    }
-
-    var canShowEmptyState by remember { mutableStateOf(false) }
-
-    LaunchedEffect(
-        sortedArticleClusters.isEmpty(),
-        isRefreshing,
-        isDedupInProgress,
-        searchQuery,
-        selectedGroupId,
-        dateFilter,
-        savedFilter
-    ) {
-        canShowEmptyState = false
-
-        if (sortedArticleClusters.isEmpty() && !isRefreshing && !isDedupInProgress) {
-            delay(2_000)
-            canShowEmptyState = true
         }
     }
 
@@ -238,7 +212,7 @@ fun FeedScreen(
         }
     ) { innerPadding ->
         PullToRefreshBox(
-            isRefreshing = isRefreshing,
+            isRefreshing = isAnyLoading,
             onRefresh = { viewModel.refresh() },
             modifier = Modifier
                 .fillMaxSize()
@@ -284,8 +258,7 @@ fun FeedScreen(
                     }
                 }
 
-                val showLoading = sortedArticleClusters.isEmpty() &&
-                        (isRefreshing || isDedupInProgress || !canShowEmptyState)
+                val showLoading = sortedArticleClusters.isEmpty() && isAnyLoading
 
                 if (showLoading) {
                     item {
@@ -295,7 +268,7 @@ fun FeedScreen(
                             onShowDescription = { helpDescription = it }
                         ) {
                             AppMessageState(
-                                message = stringResource(R.string.feed_searching_similar),
+                                message = loadingMessage ?: "",
                                 modifier = Modifier.fillParentMaxHeight(0.7f)
                             ) {
                                 CircularProgressIndicator(
@@ -312,68 +285,10 @@ fun FeedScreen(
                             description = feedEmptyHelpDescription,
                             onShowDescription = { helpDescription = it }
                         ) {
-                            val composition by rememberLottieComposition(
-                                LottieCompositionSpec.RawRes(R.raw.empty_animation)
+                            AppMessageState(
+                                message = stringResource(R.string.feed_empty_title),
+                                modifier = Modifier.fillParentMaxHeight(0.7f)
                             )
-                            val progress by animateLottieCompositionAsState(
-                                composition = composition,
-                                iterations = LottieConstants.IterateForever
-                            )
-                            val dynamicProperties = rememberLottieDynamicProperties(
-                                rememberLottieDynamicProperty(
-                                    property = LottieProperty.COLOR_FILTER,
-                                    value = SimpleColorFilter(
-                                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.72f).toArgb()
-                                    ),
-                                    keyPath = arrayOf("**")
-                                )
-                            )
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                AppCardSurface(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    color = MaterialTheme.colorScheme.surfaceContainer
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 18.dp, vertical = 20.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        LottieAnimation(
-                                            composition = composition,
-                                            progress = { progress },
-                                            dynamicProperties = dynamicProperties,
-                                            modifier = Modifier.size(84.dp)
-                                        )
-                                        Text(
-                                            text = stringResource(R.string.feed_empty_title),
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                        )
-                                    }
-                                }
-
-                                Text(
-                                    text = stringResource(R.string.feed_empty_actions_title),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-
-                                FeedEmptyHintCard(
-                                    icon = Icons.Default.FilterList,
-                                    text = stringResource(R.string.feed_empty_hint_filters)
-                                )
-
-                                FeedEmptyHintCard(
-                                    icon = Icons.Default.FolderOpen,
-                                    text = stringResource(R.string.feed_empty_hint_sources)
-                                )
-                            }
                         }
                     }
                 } else {
@@ -572,45 +487,6 @@ fun FeedScreen(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun FeedEmptyHintCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    text: String
-) {
-    AppCardSurface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainer
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Surface(
-                modifier = Modifier.size(40.dp),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
         }
     }
 }

@@ -104,12 +104,15 @@ scheduled</string>
     <string name="settings_time_format">%1$02d:%2$02d</string>
     <string name="feed_similar_news">Similar news (%d)</string>
     <string name="feed_similarity_score">%d%%</string>
+    <string name="feed_loading_news">Loading news…</string>
+    <string name="feed_deduplicating">Performing deduplication…</string>
     <string name="feed_searching_similar">Still searching for similar news…</string>
     <string name="summary_no_articles_today">No new articles for summarization.</string>
     <string name="summary_worker_no_articles_today">No new articles for today’s summary.</string>
     <string name="summary_worker_empty_response">Empty response while generating summary</string>
     <string name="summary_worker_error_prefix">Worker error</string>
     <string name="error_no_active_model">No active AI model</string>
+    <string name="error_local_model_missing">Local model is not available. Comparison cannot be performed without it.</string>
     <string name="error_all_ai_models_failed">All available AI models failed to respond. Try again later.</string>
     <string name="error_unsupported_strategy">Local summarization does not support Q&amp;A</string>
     <string name="error_no_articles">No new articles for summarization.</string>
@@ -413,4 +416,9 @@ scheduled</string>
     <string name="validation_api_key_too_short">API key is too short</string>
     <string name="validation_api_key_exists">This API key is already added</string>
     <string name="validation_model_required">Select or enter a model</string>
+
+    <string name="delete_group_confirm">Delete group \"%s\" and all its sources?</string>
+    <string name="delete_source_confirm">Delete source \"%s\"?</string>
+    <string name="delete_api_key_confirm">Delete API key \"%s\"?</string>
+    <string name="delete_selected_groups_confirm">Delete selected groups (%d) and all their sources?</string>
 </resources>

@@ -54,8 +54,7 @@ import com.andrewwin.sumup.ui.components.AppFilterMenuChip
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.components.AppSearchField
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
-import com.andrewwin.sumup.ui.util.SummaryBlockUi
-import com.andrewwin.sumup.ui.util.parseSummaryBlocks
+import com.andrewwin.sumup.ui.util.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -368,25 +367,11 @@ internal fun SummaryHistoryDialogView(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    blocks.forEach { block ->
-                        when (block) {
-                            is SummaryBlockUi.Section -> SummaryLegacyBlock(
-                                text = block.body,
-                                sourceName = block.sources.firstOrNull()?.name,
-                                sourceUrl = block.sources.firstOrNull()?.url,
-                                onOpenWebView = onOpenWebView
-                            )
-                            is SummaryBlockUi.PlainList -> SummaryPlainListBlock(
-                                items = block.items,
-                                onOpenWebView = onOpenWebView
-                            )
-                            is SummaryBlockUi.Theme -> SummaryThemeBlock(
-                                heading = block.heading,
-                                items = block.items,
-                                onOpenWebView = onOpenWebView
-                            )
-                        }
-                    }
+                    StandardSummaryView(
+                        result = null,
+                        blocks = blocks,
+                        onOpenWebView = onOpenWebView
+                    )
                     Spacer(Modifier.height(2.dp))
                     SummaryFooterRow(
                         summary = summary,

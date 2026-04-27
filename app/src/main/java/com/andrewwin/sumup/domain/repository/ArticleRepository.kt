@@ -9,11 +9,14 @@ interface ArticleRepository {
     val enabledArticles: Flow<List<Article>>
     val allArticles: Flow<List<Article>>
     val favoriteArticles: Flow<List<Article>>
+    val dataInvalidationSignal: Flow<Long>
+    fun triggerDataInvalidation()
     suspend fun refreshArticles()
     suspend fun updateArticle(article: Article)
     suspend fun updateArticles(articles: List<Article>)
     suspend fun setFavoriteByIds(ids: List<Long>, isFavorite: Boolean): Int
     suspend fun getEmbeddingsByIds(ids: List<Long>): Map<Long, ByteArray?>
+    suspend fun getArticleEmbeddingsByIds(ids: List<Long>): List<com.andrewwin.sumup.data.local.dao.ArticleEmbedding>
     suspend fun getEnabledArticlesOnce(): List<Article>
     suspend fun getEnabledArticlesSince(timestamp: Long): List<Article>
     suspend fun getSourceById(id: Long): com.andrewwin.sumup.data.local.entities.Source?

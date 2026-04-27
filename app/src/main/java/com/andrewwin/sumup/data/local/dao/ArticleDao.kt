@@ -163,7 +163,7 @@ interface ArticleDao {
     )
     suspend fun getArticlesWithMetaByIds(ids: List<Long>): List<ArticleWithMeta>
 
-    @Query("SELECT id, embedding FROM articles WHERE id IN (:ids)")
+    @Query("SELECT id, embedding, embeddingType FROM articles WHERE id IN (:ids)")
     suspend fun getEmbeddingsByIds(ids: List<Long>): List<ArticleEmbedding>
 
     @Query("SELECT id FROM articles WHERE id IN (:ids)")
@@ -199,7 +199,8 @@ interface ArticleDao {
 
 data class ArticleEmbedding(
     val id: Long,
-    val embedding: ByteArray?
+    val embedding: ByteArray?,
+    val embeddingType: String?
 )
 
 data class ArticleWithMeta(

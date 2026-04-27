@@ -55,6 +55,7 @@ import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
 import com.andrewwin.sumup.ui.components.AppHelpToggleAction
+import com.andrewwin.sumup.ui.components.AppMotion
 import com.andrewwin.sumup.ui.components.AppSearchField
 import com.andrewwin.sumup.ui.components.AppTopBar
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -114,6 +115,7 @@ fun SettingsScreen(
     var showResetSettingsDialog by remember { mutableStateOf(false) }
     var showEmailAuthDialog by remember { mutableStateOf(false) }
     var showSyncPassphraseDialog by remember { mutableStateOf(false) }
+    var deleteAiConfigConfirm by remember { mutableStateOf<AiModelConfig?>(null) }
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
     var wasImeVisible by remember { mutableStateOf(false) }
@@ -374,36 +376,7 @@ fun SettingsScreen(
             targetState = selectedGroup,
             label = "settingsGroupTransition",
             transitionSpec = {
-                val enteringDetails = initialState == null && targetState != null
-                val enteringList = initialState != null && targetState == null
-                when {
-                    enteringDetails -> {
-                        slideInHorizontally(
-                            animationSpec = tween(260, easing = FastOutSlowInEasing),
-                            initialOffsetX = { it / 10 }
-                        ) + fadeIn(animationSpec = tween(160)) togetherWith
-                            slideOutHorizontally(
-                                animationSpec = tween(240, easing = FastOutSlowInEasing),
-                                targetOffsetX = { -it / 12 }
-                            ) + fadeOut(animationSpec = tween(180, easing = FastOutSlowInEasing))
-                    }
-
-                    enteringList -> {
-                        slideInHorizontally(
-                            animationSpec = tween(260, easing = FastOutSlowInEasing),
-                            initialOffsetX = { -it / 10 }
-                        ) + fadeIn(animationSpec = tween(160)) togetherWith
-                            slideOutHorizontally(
-                                animationSpec = tween(240, easing = FastOutSlowInEasing),
-                                targetOffsetX = { it / 12 }
-                            ) + fadeOut(animationSpec = tween(180, easing = FastOutSlowInEasing))
-                    }
-
-                    else -> {
-                        fadeIn(animationSpec = tween(200, easing = FastOutSlowInEasing)) togetherWith
-                            fadeOut(animationSpec = tween(160, easing = FastOutSlowInEasing))
-                    }
-                }
+                AppMotion.contentEnter() togetherWith AppMotion.contentExit()
             }
         ) { activeGroup ->
             LazyColumn(
@@ -587,11 +560,11 @@ fun SettingsScreen(
                             onHelpRequest = { helpDescription = it },
                             onAddSummaryConfig = { showConfigDialog = null to AiModelType.SUMMARY },
                             onEditSummaryConfig = { showConfigDialog = it to AiModelType.SUMMARY },
-                            onDeleteSummaryConfig = viewModel::deleteAiConfig,
+                            onDeleteSummaryConfig = { deleteAiConfigConfirm = it },
                             onToggleSummaryConfig = viewModel::toggleAiConfig,
                             onAddEmbeddingConfig = { showConfigDialog = null to AiModelType.EMBEDDING },
                             onEditEmbeddingConfig = { showConfigDialog = it to AiModelType.EMBEDDING },
-                            onDeleteEmbeddingConfig = viewModel::deleteAiConfig,
+                            onDeleteEmbeddingConfig = { deleteAiConfigConfirm = it },
                             onToggleEmbeddingConfig = viewModel::toggleAiConfig
                         )
                     }
@@ -788,6 +761,18 @@ fun SettingsScreen(
                 onDismiss = { showSyncPassphraseDialog = false },
                 onSave = viewModel::saveSyncPassphrase,
                 onClear = viewModel::clearSyncPassphrase
+            )
+        }
+
+        deleteAiConfigConfirm?.let { config ->
+            SettingsConfirmDeleteDialog(
+                title = stringResource(R.string.delete),
+                text = stringResource(R.string.delete_api_key_confirm, config.name),
+                onConfirm = {
+                    viewModel.deleteAiConfig(config)
+                    deleteAiConfigConfirm = null
+                },
+                onDismiss = { deleteAiConfigConfirm = null }
             )
         }
     }

@@ -1,12 +1,16 @@
 package com.andrewwin.sumup.domain.usecase.feed
 
+import android.util.Log
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.service.ArticleCluster
-import com.andrewwin.sumup.domain.service.DeduplicationService
+import com.andrewwin.sumup.domain.service.EmbeddingUtils
+import com.andrewwin.sumup.domain.service.SimilarityScorer
+import com.andrewwin.sumup.domain.service.TextOptimizationFeatures
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
@@ -15,16 +19,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 class GetFeedArticlesUseCase @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
-    private val deduplicationService: DeduplicationService,
+    private val similarityScorer: SimilarityScorer,
     private val importanceScorer: ArticleImportanceScorer,
     private val aiModelConfigRepository: AiModelConfigRepository,
     private val manageModelUseCase: ManageModelUseCase
@@ -48,18 +54,36 @@ class GetFeedArticlesUseCase @Inject constructor(
             searchQueryFlow
         ) { enabledArticles, allArticles, favoriteArticles, groups, query ->
             FeedData(enabledArticles, allArticles, favoriteArticles, groups, query)
+        }.distinctUntilChanged { old, new ->
+            old.enabledArticles.size == new.enabledArticles.size &&
+                    old.enabledArticles.zip(new.enabledArticles).all { (o, n) ->
+                        o.id == n.id &&
+                                o.title == n.title &&
+                                o.content == n.content &&
+                                o.publishedAt == n.publishedAt &&
+                                o.sourceId == n.sourceId &&
+                                o.url == n.url &&
+                                o.isFavorite == n.isFavorite &&
+                                o.isRead == n.isRead
+                    } &&
+                    old.query == new.query &&
+                    old.allArticles.size == new.allArticles.size &&
+                    old.favoriteArticles.size == new.favoriteArticles.size &&
+                    old.groupsWithSources == new.groupsWithSources
         }
 
         val flow2 = combine(
             selectedGroupIdFlow,
             dateFilterHoursFlow,
             savedOnlyFlow,
-            userPreferencesFlow
-        ) { groupId, dateFilterHours, savedOnly, prefs ->
-            FeedFilterParams(groupId, dateFilterHours, savedOnly, prefs)
+            userPreferencesFlow,
+            articleRepository.dataInvalidationSignal
+        ) { groupId, dateFilterHours, savedOnly, prefs, signal ->
+            FeedFilterParams(groupId, dateFilterHours, savedOnly, prefs, signal)
         }
 
         return combine(flow1, flow2) { data, triple2 ->
+            Log.d(tag, "Pipeline triggered: articles=${data.enabledArticles.size}, query='${data.query}'")
             val enabledArticles = data.enabledArticles
             val allArticles = data.allArticles
             val favoriteArticles = data.favoriteArticles
@@ -69,6 +93,7 @@ class GetFeedArticlesUseCase @Inject constructor(
             val dateFilterHours = triple2.dateFilterHours
             val savedOnly = triple2.savedOnly
             val prefs = triple2.prefs
+            val signal = triple2.invalidationSignal
             
             val sourceTypeMap = groupsWithSources
                 .flatMap { it.sources }
@@ -129,10 +154,11 @@ class GetFeedArticlesUseCase @Inject constructor(
                 }
             }
 
-            FeedPipelineState(processedArticles, prefs, savedOnly)
+            FeedPipelineState(processedArticles, prefs, savedOnly, signal)
         }.flowOn(Dispatchers.Default)
             .flatMapLatest { state ->
                 flow {
+                    Log.d(tag, "flatMapLatest: articles=${state.articles.size}, shouldDedup=${state.shouldDedup}")
                     coroutineScope {
                         val baseClusters = if (state.articles.isNotEmpty()) {
                             if (state.savedOnly) {
@@ -157,7 +183,7 @@ class GetFeedArticlesUseCase @Inject constructor(
                         val initial = applyMinMentionsFilter(initialClusters, state.prefs, state.savedOnly)
                         val shouldRunDedup = state.shouldDedup && state.articles.size >= 2
 
-                        val dedupInputKey = buildDedupInputKey(state.articles, state.prefs)
+                        val dedupInputKey = buildDedupInputKey(state.articles, state.prefs, state.invalidationSignal)
                         val cachedClusters = lastDedupClusters
                         if (shouldRunDedup && dedupInputKey == lastDedupInputKey && cachedClusters != null) {
                             val rebound = rebindClustersWithLatestArticles(cachedClusters, state.articles)
@@ -181,27 +207,31 @@ class GetFeedArticlesUseCase @Inject constructor(
                         val modelPath = resolveModelPath(state.prefs)
 
                         val isModelInitialized = if (!modelPath.isNullOrBlank()) {
-                            deduplicationService.initialize(modelPath)
+                            similarityScorer.initialize(modelPath)
                         } else {
-                            false
+                            Log.d(tag, "Model path is null or blank, strategy=${state.prefs.deduplicationStrategy}")
+                            state.prefs.deduplicationStrategy == DeduplicationStrategy.CLOUD
                         }
 
+                        Log.d(tag, "isModelInitialized: $isModelInitialized")
+
                         if (!isModelInitialized) {
+                            Log.d(tag, "Exiting: Model not initialized and not cloud")
                             emit(FeedResult(initial, false))
                             return@coroutineScope
                         }
 
-                        deduplicationService
-                            .clusterArticlesIncremental(
-                                articles = state.articles,
-                                threshold = deduplicationThreshold,
-                                emitEvery = DEDUP_EMIT_EVERY
-                            )
-                            .collect { clusters ->
-                                val filtered = applyMinMentionsFilter(clusters, state.prefs, state.savedOnly)
-                                lastClusters = filtered
-                                emit(FeedResult(filtered, true))
-                            }
+                        Log.d(tag, "Starting incremental clustering for ${state.articles.size} articles")
+                        clusterArticlesIncremental(
+                            articles = state.articles,
+                            strategy = state.prefs.deduplicationStrategy,
+                            threshold = deduplicationThreshold,
+                            emitEvery = DEDUP_EMIT_EVERY
+                        ).collect { clusters ->
+                            val filtered = applyMinMentionsFilter(clusters, state.prefs, state.savedOnly)
+                            lastClusters = filtered
+                            emit(FeedResult(filtered, true))
+                        }
 
                         lastClusters?.let { final ->
                             lastDedupInputKey = dedupInputKey
@@ -380,7 +410,8 @@ class GetFeedArticlesUseCase @Inject constructor(
 
     private fun buildDedupInputKey(
         articles: List<Article>,
-        prefs: UserPreferences
+        prefs: UserPreferences,
+        signal: Long
     ): String {
         val articlePart = articles
             .sortedBy { it.id }
@@ -400,7 +431,8 @@ class GetFeedArticlesUseCase @Inject constructor(
             prefs.localDeduplicationThreshold.toString(),
             prefs.cloudDeduplicationThreshold.toString(),
             prefs.minMentions.toString(),
-            prefs.isHideSingleNewsEnabled.toString()
+            prefs.isHideSingleNewsEnabled.toString(),
+            signal.toString()
         ).joinToString("::")
         return "$prefsPart##$articlePart"
     }
@@ -408,7 +440,8 @@ class GetFeedArticlesUseCase @Inject constructor(
     data class FeedPipelineState(
         val articles: List<Article>,
         val prefs: UserPreferences,
-        val savedOnly: Boolean
+        val savedOnly: Boolean,
+        val invalidationSignal: Long
     ) {
         val shouldDedup = prefs.isDeduplicationEnabled && !savedOnly
     }
@@ -417,7 +450,8 @@ class GetFeedArticlesUseCase @Inject constructor(
         val groupId: Long?,
         val dateFilterHours: Int?,
         val savedOnly: Boolean,
-        val prefs: UserPreferences
+        val prefs: UserPreferences,
+        val invalidationSignal: Long
     )
 
     data class FeedData(
@@ -445,6 +479,99 @@ class GetFeedArticlesUseCase @Inject constructor(
     companion object {
         private const val DEDUP_EMIT_EVERY = 32
         private const val SEARCH_TOKEN_MATCH_RATIO = 0.6f
+    }
+
+    private fun clusterArticlesIncremental(
+        articles: List<Article>,
+        strategy: DeduplicationStrategy,
+        threshold: Float,
+        emitEvery: Int = 32
+    ): Flow<List<ArticleCluster>> = flow {
+        if (articles.size < 2) {
+            emit(articles.map { ArticleCluster(it, emptyList()) })
+            return@flow
+        }
+
+        val embeddingsById = similarityScorer.getEmbeddingsParallel(articles, strategy)
+        
+        val featuresCache = if (strategy == DeduplicationStrategy.LOCAL) {
+            articles.associate { it.id to EmbeddingUtils.extractTextFeatures(it.title) }
+        } else {
+            null
+        }
+
+        val pairScores = mutableMapOf<ArticlePairKey, Float>()
+        val allArticles = articles.distinctBy { it.id }
+
+        for (i in 0 until allArticles.lastIndex) {
+            val left = allArticles[i]
+            val leftEmb = embeddingsById[left.id] ?: continue
+
+            for (j in i + 1 until allArticles.size) {
+                val right = allArticles[j]
+                val rightEmb = embeddingsById[right.id] ?: continue
+
+                val score = similarityScorer.calculateSimilarity(
+                    left, leftEmb, 
+                    right, rightEmb, 
+                    strategy,
+                    featuresCache?.get(left.id),
+                    featuresCache?.get(right.id)
+                )
+                if (score >= threshold) {
+                    pairScores[ArticlePairKey.of(left.id, right.id)] = score
+                }
+            }
+
+            if (emitEvery > 0 && (i + 1) % emitEvery == 0) {
+                emit(buildClusters(allArticles, embeddingsById, pairScores))
+            }
+        }
+
+        val finalClusters = buildClusters(allArticles, embeddingsById, pairScores)
+        emit(finalClusters)
+
+        val similarities = buildSimilaritiesFromClusters(finalClusters)
+        articleRepository.upsertSimilarities(similarities)
+    }.flowOn(Dispatchers.Default)
+
+    private fun buildClusters(
+        articles: List<com.andrewwin.sumup.data.local.entities.Article>,
+        embeddingsById: Map<Long, FloatArray>,
+        pairScores: Map<ArticlePairKey, Float>
+    ): List<ArticleCluster> {
+        val assignedArticleIds = mutableSetOf<Long>()
+        val result = mutableListOf<ArticleCluster>()
+
+        for (representative in articles) {
+            if (representative.id in assignedArticleIds) continue
+            assignedArticleIds.add(representative.id)
+
+            val duplicates = mutableListOf<Pair<com.andrewwin.sumup.data.local.entities.Article, Float>>()
+            for (candidate in articles) {
+                if (candidate.id == representative.id || candidate.id in assignedArticleIds) continue
+
+                val score = pairScores[ArticlePairKey.of(representative.id, candidate.id)] ?: continue
+                duplicates.add(candidate to score)
+                assignedArticleIds.add(candidate.id)
+            }
+            result.add(ArticleCluster(representative, duplicates))
+        }
+        return result
+    }
+
+    private fun buildSimilaritiesFromClusters(clusters: List<ArticleCluster>): List<ArticleSimilarity> {
+        return clusters.flatMap { cluster ->
+            cluster.duplicates.map { (article, score) ->
+                ArticleSimilarity(cluster.representative.id, article.id, score)
+            }
+        }
+    }
+
+    private data class ArticlePairKey(val firstId: Long, val secondId: Long) {
+        companion object {
+            fun of(id1: Long, id2: Long) = if (id1 <= id2) ArticlePairKey(id1, id2) else ArticlePairKey(id2, id1)
+        }
     }
 
     private fun matchesQueryWithTokenThreshold(

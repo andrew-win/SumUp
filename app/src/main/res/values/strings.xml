@@ -105,12 +105,15 @@
     <string name="settings_time_format">%1$02d:%2$02d</string>
     <string name="feed_similar_news">Схожі новини (%d)</string>
     <string name="feed_similarity_score">%d%%</string>
+    <string name="feed_loading_news">Завантажуємо новини…</string>
+    <string name="feed_deduplicating">Виконуємо дедублікацію…</string>
     <string name="feed_searching_similar">Ще шукаємо схожі новини…</string>
     <string name="summary_no_articles_today">Немає нових статей для сумаризації.</string>
     <string name="summary_worker_no_articles_today">Немає нових статей для зведення за сьогодні.</string>
     <string name="summary_worker_empty_response">Порожня відповідь при генерації зведення</string>
     <string name="summary_worker_error_prefix">Помилка воркера</string>
     <string name="error_no_active_model">Немає активної ШІ моделі</string>
+    <string name="error_local_model_missing">Локальна модель не доступна. Без неї неможливо виконати порівняння.</string>
     <string name="error_all_ai_models_failed">Всі доступні ШІ моделі не відповіли. Спробуйте пізніше.</string>
     <string name="error_unsupported_strategy">Локальна сумаризація не підтримує запитання</string>
     <string name="error_no_articles">Немає нових статей для сумаризації.</string>
@@ -174,6 +177,10 @@
     <string name="settings_clear_embeddings_confirm">Видалити всі ембедінги? Це також очистить кеш схожостей.</string>
     <string name="settings_clear_scheduled_summaries_confirm">Видалити всі збережені заплановані зведення?</string>
     <string name="settings_reset_settings_confirm">Скинути всі налаштування до значень за замовчуванням?</string>
+    <string name="delete_group_confirm">Видалити групу \"%s\" та всі її джерела?</string>
+    <string name="delete_source_confirm">Видалити джерело \"%s\"?</string>
+    <string name="delete_api_key_confirm">Видалити API-ключ \"%s\"?</string>
+    <string name="delete_selected_groups_confirm">Видалити вибрані групи (%d) та всі їхні джерела?</string>
     <string name="settings_export_import">Експорт/імпорт</string>
     <string name="settings_sync">Синхронізація</string>
     <string name="settings_sync_strategy_title">Стратегія синхронізації</string>

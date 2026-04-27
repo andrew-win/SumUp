@@ -13,7 +13,6 @@ data class SummaryItem(
 data class DigestTheme(
     val title: String,
     val summary: String? = null,
-    val emojis: List<String> = emptyList(),
     val items: List<SummaryItem> = emptyList()
 )
 

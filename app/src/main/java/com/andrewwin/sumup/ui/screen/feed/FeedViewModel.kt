@@ -10,6 +10,7 @@ import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
+import com.andrewwin.sumup.domain.support.LocalModelMissingException
 import com.andrewwin.sumup.domain.support.NoActiveModelException
 import com.andrewwin.sumup.domain.support.UnsupportedStrategyException
 import com.andrewwin.sumup.domain.repository.ArticleRepository
@@ -166,6 +167,24 @@ class FeedViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val feedLoadingMessage: StateFlow<String?> = combine(
+        _isRefreshing,
+        isDedupInProgress
+    ) { refreshing, deduping ->
+        when {
+            refreshing -> getApplication<Application>().getString(R.string.feed_loading_news)
+            deduping -> getApplication<Application>().getString(R.string.feed_deduplicating)
+            else -> null
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val isAnyLoading: StateFlow<Boolean> = combine(
+        _isRefreshing,
+        isDedupInProgress
+    ) { refreshing, deduping ->
+        refreshing || deduping
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     val articleClusters: StateFlow<List<ArticleClusterUiModel>> = feedUiState
         .map { state -> state.clusters to state.isDedupInProgress }
         .scan(emptyList<ArticleClusterUiModel>()) { previous, (clusters, inProgress) ->
@@ -180,6 +199,14 @@ class FeedViewModel @Inject constructor(
 
     init {
         refresh()
+
+        viewModelScope.launch {
+            articleRepository.dataInvalidationSignal
+                .drop(1) // Пропускаємо початкове значення 0
+                .collect {
+                    refresh()
+                }
+        }
     }
 
     fun refresh() {
@@ -379,6 +406,7 @@ class FeedViewModel @Inject constructor(
         return when (e) {
             is NoActiveModelException -> context.getString(R.string.error_no_active_model)
             is AllAiModelsFailedException -> context.getString(R.string.error_all_ai_models_failed)
+            is LocalModelMissingException -> context.getString(R.string.error_local_model_missing)
             is UnsupportedStrategyException -> context.getString(R.string.error_unsupported_strategy)
             else -> "${context.getString(R.string.ai_error_prefix)} ${e.localizedMessage.orEmpty()}"
         }

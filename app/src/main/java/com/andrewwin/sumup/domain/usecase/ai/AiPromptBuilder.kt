@@ -82,32 +82,32 @@ object AiPromptBuilder {
             role = "Strict news editor.",
             goal = "Build a condensed, hard-fact digest grouped by broad categories.",
             specificRules = listOf(
-                "Create up to ${SummaryLimits.Digest.maxThemes} broad themes (e.g., 'Економіка', 'Світ', 'Війна').",
-                "Include ${SummaryLimits.Digest.emojiesCount} highly relevant emojis per theme.",
+                "Create up to ${SummaryLimits.Digest.maxThemes} broad themes (e.g., '\uD83D\uDCB0\uD83D\uDCCA\uD83C\uDFE6 Економіка', '\uD83E\uDD16\uD83E\uDDE0⚙\uFE0F Штучний інтелект', '\uD83C\uDDFA\uD83C\uDDE6\uD83E\uDE96\uD83D\uDCA5 Війна в Україні').",
+                "Include ${SummaryLimits.Digest.emojiesCount} highly relevant emojis in theme title.",
                 "Each theme must have ${SummaryLimits.Digest.minItemsPerTheme} to ${SummaryLimits.Digest.maxItemsPerTheme} short abstractive news items (titles).",
                 "Item title: punchy, short (max ${SummaryLimits.Digest.maxWordsPerTitle} words).",
                 "Each news must have exactly one source_id.",
                 getLanguageRule(summaryLanguage)
             ),
-            schema = """{"themes":[{"title":"theme title","emojis":["emoji1","emoji2","emoji3"],"items":[{"title":"news title","source_id":"source id from input"}]}]}"""
+            schema = """{"themes":[{"title":"Emoji Theme Title","items":[{"title":"news title","source_id":"id"}]}]}"""
         )
     }
 
     fun buildQuestionPrompt(summaryLanguage: SummaryLanguage, question: String): String {
         val fallback = when (summaryLanguage) {
-            SummaryLanguage.UK -> "За даними поданих джерел не можна дати відповідь на ваше питання"
+            SummaryLanguage.UK -> "За даними поданих джерел не можна дати чітку відповідь на ваше питання"
             SummaryLanguage.EN -> "The provided sources do not contain enough information to answer your question"
         }
 
         return createPrompt(
-            role = "Strict QA fact-checker.",
-            goal = "Return a short direct answer, then evidence-backed details.",
+            role = "Helpful analyst and fact-checker.",
+            goal = "Provide the most relevant information found in the sources regarding the question.",
             specificRules = listOf(
-                "Answer ONLY from provided sources.",
                 "short_answer: one natural sentence (max ${SummaryLimits.QA.maxWordsShortAnswer} words) answering the question maximally shortly.",
-                "details: maximum ${SummaryLimits.QA.maxDetailPoints} short factual bullets. Each up to ${SummaryLimits.QA.maxWordsPerDetailedBullet} words and must include 1 to 3 valid source_ids.",
-                "If sources clearly lack relevant information, output ONLY the fallback short_answer and set details=[]. Fallback: '$fallback'.",
-                getLanguageRule(summaryLanguage)
+                "details: maximum ${SummaryLimits.QA.maxDetailPoints} short factual bullets. Each up to ${SummaryLimits.QA.maxWordsPerDetailedBullet} words and must include 1+ valid source_ids.",
+                "If the sources are ON TOPIC but don't have a direct answer (e.g., missing exact numbers), set short_answer to: 'У джерелах немає прямої відповіді на це питання.' and provide relevant context in 'details'.",
+                "If the sources are COMPLETELY UNRELATED to the question (e.g., question is about sports, but sources are about war), set short_answer to '$fallback'.",
+                "In case of completely unrelated sources, use 'details' to explain the mismatch (e.g., 'Новини стосуються різних тем: одна про війну, інша про футбол').",
             ),
             question = question,
             schema = """{"short_answer":"string","details":[{"text":"string","sources":["source_id"]}]}"""

@@ -88,12 +88,7 @@ import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import com.andrewwin.sumup.ui.theme.AppCardShape
 import com.andrewwin.sumup.ui.theme.appCardBorder
-import com.andrewwin.sumup.ui.util.SummaryBlockUi
-import com.andrewwin.sumup.ui.util.SummarySourceLinkUi
-import com.andrewwin.sumup.ui.util.ThemeItem
-import com.andrewwin.sumup.ui.util.cleanSummaryTextForSharing
-import com.andrewwin.sumup.ui.util.normalizeSummaryUrlForWebView
-import com.andrewwin.sumup.ui.util.parseSummaryBlocks
+import com.andrewwin.sumup.ui.util.*
 
 @Composable
 fun FeedAiDialog(
@@ -224,10 +219,9 @@ fun FeedAiDialog(
                                 )
                             } else {
                                 if (summaryResult is SummaryResult.Digest || summaryResult is SummaryResult.Error) {
-                                    StandardSummaryCard(
+                                    StandardSummaryView(
                                         result = summaryResult,
                                         blocks = digestBlocks,
-                                        sourceLabelMap = sourceLabelMap,
                                         onOpenWebView = onOpenWebView
                                     )
                                     SummaryMetaRow(
@@ -252,7 +246,6 @@ fun FeedAiDialog(
                                 } else {
                                     SingleSummaryCard(
                                         result = summaryResult,
-                                        sourceLabelMap = sourceLabelMap,
                                         onOpenWebView = onOpenWebView,
                                         modelName = activeSummaryModelName,
                                         aiStrategy = aiStrategy,
@@ -346,7 +339,6 @@ fun FeedAiDialog(
 @Composable
 private fun SingleSummaryCard(
     result: SummaryResult,
-    sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit,
     modelName: String?,
     aiStrategy: AiStrategy,
@@ -354,6 +346,12 @@ private fun SingleSummaryCard(
     onShare: () -> Unit
 ) {
     val context = LocalContext.current
+    val digestBlocks = remember(result) { result.asSummaryBlocksUi() }
+    val sourceLabelMap = rememberSourceLabelMap(
+        summaryBlocks = digestBlocks,
+        compareBlocks = result.asCompareBlocksUi(),
+        summaryResult = result
+    )
     val compactModel = modelName
         ?.substringAfter('/', modelName)
         ?.takeIf { it.isNotBlank() }
@@ -405,7 +403,7 @@ private fun SingleSummaryCard(
                                 onOpenWebView = onOpenWebView,
                                 textStyle = MaterialTheme.typography.bodyLarge,
                                 lineHeight = 26.sp,
-                                sourceStyle = FeedSummarySourceStyle.InlineChip
+                                sourceStyle = SummarySourceStyle.InlineChip
                             )
                         }
                     }
@@ -485,7 +483,7 @@ private fun SingleSummaryCard(
                         onOpenWebView = onOpenWebView,
                         textStyle = MaterialTheme.typography.bodyLarge,
                         lineHeight = 26.sp,
-                        sourceStyle = FeedSummarySourceStyle.InlineChip
+                        sourceStyle = SummarySourceStyle.InlineChip
                     )
                 }
 
@@ -528,59 +526,9 @@ private fun SingleSummaryCard(
 private fun StandardSummaryCard(
     result: SummaryResult,
     blocks: List<SummaryBlockUi>,
-    sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        when (result) {
-            is SummaryResult.Digest -> {
-                result.themes.forEach { theme ->
-                    ThemeSummarySectionView(
-                        heading = theme.title,
-                        summary = theme.summary,
-                        items = theme.items.map { it.toThemeItem() },
-                        sourceLabelMap = sourceLabelMap,
-                        onOpenWebView = onOpenWebView
-                    )
-                }
-            }
-            is SummaryResult.Error -> {
-                LegacySummarySectionView(
-                    text = result.message,
-                    sources = emptyList(),
-                    sourceLabelMap = sourceLabelMap,
-                    onOpenWebView = onOpenWebView
-                )
-            }
-            else -> {
-                blocks.forEach { block ->
-                    when (block) {
-                        is SummaryBlockUi.Section -> LegacySummarySectionView(
-                            text = block.body,
-                            sources = block.sources,
-                            sourceLabelMap = sourceLabelMap,
-                            onOpenWebView = onOpenWebView
-                        )
-                        is SummaryBlockUi.PlainList -> PlainListSummarySectionView(
-                            items = block.items,
-                            sourceLabelMap = sourceLabelMap,
-                            onOpenWebView = onOpenWebView
-                        )
-                        is SummaryBlockUi.Theme -> ThemeSummarySectionView(
-                            heading = block.heading,
-                            summary = block.summary,
-                            items = block.items,
-                            sourceLabelMap = sourceLabelMap,
-                            onOpenWebView = onOpenWebView
-                        )
-                    }
-                }
-            }
-        }
-    }
+    StandardSummaryView(result = result, blocks = blocks, onOpenWebView = onOpenWebView)
 }
 
 private fun copyTextToClipboard(context: Context, text: String) {

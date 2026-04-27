@@ -15,9 +15,8 @@ object SummaryLimits {
         const val maxUnique = 5
         const val maxWordsPerPoint = 20
 
-        val jaccardThreshold: Float = 0.2f
-        val localSimilarityThreshold: Float
-            get() = currentPrefs?.localDeduplicationThreshold ?: 0.55f
+        const val localSimilarityThreshold: Float = 0.6f
+        const val sentencesLocalCompare = 5
     }
 
     object Digest {

@@ -2,14 +2,19 @@ package com.andrewwin.sumup.domain.usecase.ai
 
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.service.EmbeddingUtils
+import com.andrewwin.sumup.domain.service.SimilarityScorer
 import com.andrewwin.sumup.domain.support.DispatcherProvider
+import com.andrewwin.sumup.domain.support.LocalModelMissingException
 import com.andrewwin.sumup.domain.usecase.common.GetExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
-import kotlin.math.sqrt
+
 
 class CompareNewsUseCase @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
@@ -19,6 +24,8 @@ class CompareNewsUseCase @Inject constructor(
     private val parseAiJsonResponseUseCase: ParseAiJsonResponseUseCase,
     private val generateLocalEmbeddingUseCase: GenerateLocalEmbeddingUseCase,
     private val getExtractiveSummaryUseCase: GetExtractiveSummaryUseCase,
+    private val similarityScorer: SimilarityScorer,
+    private val manageModelUseCase: ManageModelUseCase,
     private val dispatcherProvider: DispatcherProvider
 ) {
     suspend operator fun invoke(articles: List<Article>): Result<SummaryResult.Compare> = withContext(dispatcherProvider.default) {
@@ -47,7 +54,7 @@ class CompareNewsUseCase @Inject constructor(
                 val textForCloud = if (strategy == AiStrategy.ADAPTIVE) {
                     shrinkTextForAdaptiveStrategyUseCase(contentToProcess, prefs)
                 } else {
-                    contentToProcess.take(prefs.aiMaxCharsPerArticle.coerceAtLeast(1000))
+                    contentToProcess.take(prefs.aiMaxCharsPerArticle)
                 }
 
                 append("source_id: ${article.id}\n")
@@ -68,85 +75,122 @@ class CompareNewsUseCase @Inject constructor(
         }
     }
 
-    private data class CompareCandidate(val text: String, val source: SummarySourceRef)
+    private data class CompareCandidate(
+        val text: String,
+        val source: SummarySourceRef,
+        val articleId: Long
+    )
 
     private suspend fun performLocalComparison(articles: List<Article>, prefs: com.andrewwin.sumup.data.local.entities.UserPreferences): SummaryResult.Compare {
         if (articles.isEmpty()) return SummaryResult.Compare(emptyList(), emptyList())
+
+        if (!manageModelUseCase.isModelExists()) {
+            throw LocalModelMissingException()
+        }
+
         val candidates = mutableListOf<CompareCandidate>()
-        var hasLocalModel = false
         
         for (article in articles) {
             val source = articleRepository.getSourceById(article.sourceId)
             val sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело"
             val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
-            if (sourceUrl.isBlank()) continue
             val sourceMeta = SummarySourceRef(name = sourceName, url = sourceUrl)
             
             val fullContent = articleRepository.fetchFullContent(article)
-            val sentences = getExtractiveSummaryUseCase(fullContent, 5)
+            // Збільшуємо кількість речень для аналізу, щоб знайти унікальні деталі
+            val sentences = getExtractiveSummaryUseCase(fullContent, SummaryLimits.Compare.sentencesLocalCompare)
             val prepared = sentences.map { it.trim() }.filter { it.isNotBlank() }
             prepared.forEach { sentence ->
-                candidates += CompareCandidate(text = sentence, source = sourceMeta)
+                candidates += CompareCandidate(text = sentence, source = sourceMeta, articleId = article.id)
             }
         }
 
         if (candidates.isEmpty()) return SummaryResult.Compare(emptyList(), emptyList())
 
-        val embeddings = candidates.mapNotNull { candidate ->
-            val embedding = generateLocalEmbeddingUseCase(candidate.text)
-            if (embedding != null) hasLocalModel = true
-            embedding
+        val embeddings = candidates.map { candidate ->
+            generateLocalEmbeddingUseCase(candidate.text) ?: FloatArray(EmbeddingUtils.EMBEDDING_DIM)
         }
+        val featuresCache = candidates.map { EmbeddingUtils.extractTextFeatures(it.text) }
 
-        val jaccardSets = if (!hasLocalModel) {
-            candidates.map { toJaccardWordSet(it.text) }
-        } else emptyList()
+        // Попередньо розраховуємо найкращий бал схожості з іншими статтями для кожного речення
+        val bestScoreToOtherArticle = FloatArray(candidates.size) { 0f }
+        val threshold = SummaryLimits.Compare.localSimilarityThreshold
 
-        val matchedIndexes = List(candidates.size) { mutableSetOf<Int>() }
+        // Сортуємо кандидатів за довжиною, щоб довші речення ставали лідерами кластерів
+        val sortedIndices = candidates.indices.sortedByDescending { candidates[it].text.length }
+        
+        val visited = BooleanArray(candidates.size)
+        val clusters = mutableListOf<List<Int>>()
 
-        for (left in 0 until candidates.lastIndex) {
-            for (right in left + 1 until candidates.size) {
-                val isMatch = if (hasLocalModel && left < embeddings.size && right < embeddings.size) {
-                    cosineSimilarity(embeddings[left], embeddings[right]) >= SummaryLimits.Compare.localSimilarityThreshold
-                } else {
-                    jaccardSimilarity(jaccardSets[left], jaccardSets[right]) >= SummaryLimits.Compare.jaccardThreshold
+        for (leaderIdx in sortedIndices) {
+            if (visited[leaderIdx]) continue
+            
+            val cluster = mutableListOf<Int>()
+            cluster.add(leaderIdx)
+            visited[leaderIdx] = true
+
+            val leaderEmb = embeddings[leaderIdx]
+            val leaderFeatures = featuresCache[leaderIdx]
+            val leaderArticleId = candidates[leaderIdx].articleId
+
+            for (memberIdx in sortedIndices) {
+                if (visited[memberIdx]) continue
+                
+                // Порівнюємо лише з РІЗНИХ статей
+                if (candidates[memberIdx].articleId == leaderArticleId) continue
+
+                val score = similarityScorer.calculateSimilarity(
+                    articleA = Article(sourceId = 0, title = "", content = "", url = "", publishedAt = 0),
+                    embeddingA = leaderEmb,
+                    articleB = Article(sourceId = 0, title = "", content = "", url = "", publishedAt = 0),
+                    embeddingB = embeddings[memberIdx],
+                    strategy = DeduplicationStrategy.LOCAL,
+                    featuresA = leaderFeatures,
+                    featuresB = featuresCache[memberIdx]
+                )
+
+                // Оновлюємо глобальний бал схожості для обох речень
+                bestScoreToOtherArticle[leaderIdx] = maxOf(bestScoreToOtherArticle[leaderIdx], score)
+                bestScoreToOtherArticle[memberIdx] = maxOf(bestScoreToOtherArticle[memberIdx], score)
+
+                if (score >= threshold) {
+                    cluster.add(memberIdx)
+                    visited[memberIdx] = true
                 }
-                if (isMatch) {
-                    matchedIndexes[left] += right
-                    matchedIndexes[right] += left
-                }
+            }
+            clusters.add(cluster)
+        }
+
+        val commonCandidates = mutableListOf<Pair<SummaryItem, Float>>()
+        val uniqueCandidates = mutableListOf<Pair<SummaryItem, Float>>()
+
+        for (cluster in clusters) {
+            val leaderIdx = cluster.first()
+            val clusterSources = cluster.map { candidates[it].source }.distinctBy { it.url }
+            val distinctArticlesInCluster = cluster.map { candidates[it].articleId }.distinct().size
+            
+            val item = SummaryItem(text = candidates[leaderIdx].text.trim(), sources = clusterSources)
+            // Беремо максимальний бал схожості лідера з будь-якою іншою СТАТТЕЮ (не тільки всередині кластера)
+            val clusterMaxScore = bestScoreToOtherArticle[leaderIdx]
+
+            if (distinctArticlesInCluster > 1) {
+                commonCandidates.add(item to clusterMaxScore)
+            } else {
+                uniqueCandidates.add(item to clusterMaxScore)
             }
         }
 
-        val commonItems = buildList {
-            val seen = mutableSetOf<String>()
-            candidates.forEachIndexed { index, candidate ->
-                val matches = matchedIndexes[index]
-                if (matches.isEmpty()) return@forEachIndexed
-                val sources = buildList {
-                    add(candidate.source)
-                    matches.forEach { matchIndex -> add(candidates[matchIndex].source) }
-                }.distinctBy { it.url }
-                if (sources.size < 2) return@forEachIndexed
-                val normalized = normalizeKey(candidate.text)
-                val sourceKey = sources.joinToString("|") { it.url }
-                val dedupeKey = "$normalized::$sourceKey"
-                if (!seen.add(dedupeKey)) return@forEachIndexed
-                add(SummaryItem(text = candidate.text.trim(), sources = sources))
-            }
-        }
-        .sortedWith(compareByDescending<SummaryItem> { it.sources.size }.thenByDescending { it.text.length })
-        .take(5)
+        // Спільне: Топ за найбільшими балами схожості
+        val commonItems = commonCandidates
+            .sortedByDescending { it.second }
+            .map { it.first }
+            .take(SummaryLimits.Compare.maxCommon)
 
-        val differentItems = buildList {
-            val seen = mutableSetOf<String>()
-            candidates.forEachIndexed { index, candidate ->
-                if (matchedIndexes[index].isNotEmpty()) return@forEachIndexed
-                val normalized = normalizeKey(candidate.text)
-                if (!seen.add(normalized)) return@forEachIndexed
-                add(SummaryItem(text = candidate.text.trim(), sources = listOf(candidate.source)))
-            }
-        }.take(5)
+        // Унікальне: Топ за найменшими балами схожості (найбільш відмінні від інших статей речення)
+        val differentItems = uniqueCandidates
+            .sortedBy { it.second }
+            .map { it.first }
+            .take(SummaryLimits.Compare.maxUnique)
 
         if (commonItems.isEmpty()) {
             val fallbackItem = buildCentralFallbackItem(candidates)
@@ -167,39 +211,6 @@ class CompareNewsUseCase @Inject constructor(
         .replace(Regex("[^\\p{L}\\p{Nd}\\s]"), " ")
         .replace(Regex("\\s+"), " ")
         .trim()
-
-    private fun toJaccardWordSet(sentence: String): Set<String> {
-        return sentence
-            .lowercase()
-            .split(Regex("\\s+"))
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .toSet()
-    }
-
-    private fun jaccardSimilarity(candidate: Set<String>, base: Set<String>): Float {
-        if (candidate.isEmpty() || base.isEmpty()) return 0f
-        val intersection = candidate.intersect(base).size.toFloat()
-        val union = candidate.union(base).size.toFloat().coerceAtLeast(1f)
-        return intersection / union
-    }
-
-    private fun cosineSimilarity(candidate: FloatArray, base: FloatArray): Float {
-        if (candidate.isEmpty() || base.isEmpty() || candidate.size != base.size) return 0f
-        var dot = 0f
-        var candidateNorm = 0f
-        var baseNorm = 0f
-        for (index in candidate.indices) {
-            val c = candidate[index]
-            val b = base[index]
-            dot += c * b
-            candidateNorm += c * c
-            baseNorm += b * b
-        }
-        val denominator = sqrt(candidateNorm) * sqrt(baseNorm)
-        if (denominator <= 0f) return 0f
-        return dot / denominator
-    }
 
     private fun buildCentralFallbackItem(candidates: List<CompareCandidate>): SummaryItem {
         if (candidates.isEmpty()) {

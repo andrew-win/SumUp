@@ -16,6 +16,8 @@ import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -37,6 +39,13 @@ class ArticleRepositoryImpl @Inject constructor(
         articleDao.getAllArticles()
     override val favoriteArticles: Flow<List<Article>> =
         savedArticleDao.getSavedArticles().map { list -> list.map(::mapSavedToUiArticle) }
+
+    private val _dataInvalidationSignal = MutableStateFlow(0L)
+    override val dataInvalidationSignal: Flow<Long> = _dataInvalidationSignal.asStateFlow()
+
+    override fun triggerDataInvalidation() {
+        _dataInvalidationSignal.value = System.currentTimeMillis()
+    }
 
     override suspend fun refreshArticles() = withContext(Dispatchers.IO) {
         val groups = sourceDao.getGroupsWithSources().first()
@@ -152,6 +161,11 @@ class ArticleRepositoryImpl @Inject constructor(
     override suspend fun getEmbeddingsByIds(ids: List<Long>): Map<Long, ByteArray?> {
         if (ids.isEmpty()) return emptyMap()
         return articleDao.getEmbeddingsByIds(ids).associate { it.id to it.embedding }
+    }
+
+    override suspend fun getArticleEmbeddingsByIds(ids: List<Long>): List<com.andrewwin.sumup.data.local.dao.ArticleEmbedding> {
+        if (ids.isEmpty()) return emptyList()
+        return articleDao.getEmbeddingsByIds(ids)
     }
 
     override suspend fun getEnabledArticlesOnce(): List<Article> = articleDao.getEnabledArticlesOnce()

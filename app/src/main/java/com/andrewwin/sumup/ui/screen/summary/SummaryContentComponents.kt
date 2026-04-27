@@ -54,9 +54,7 @@ import androidx.compose.ui.unit.sp
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Summary
-import com.andrewwin.sumup.ui.util.SummaryBlockUi
-import com.andrewwin.sumup.ui.util.cleanSummaryTextForSharing
-import com.andrewwin.sumup.ui.util.parseSummaryBlocks
+import com.andrewwin.sumup.ui.util.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -93,34 +91,11 @@ internal fun LatestScheduledSummaryView(
                 )
             }
         } else {
-            blocks.forEach { block ->
-                when (block) {
-                    is SummaryBlockUi.Section -> SummaryLegacyBlock(
-                        text = block.body,
-                        sourceName = block.sources.firstOrNull()?.name,
-                        sourceUrl = block.sources.firstOrNull()?.url,
-                        onOpenWebView = onOpenWebView,
-                        sourceStyle = SummarySourceStyle.InlineChip,
-                        textStyle = MaterialTheme.typography.bodyLarge,
-                        lineHeight = 26.sp
-                    )
-                    is SummaryBlockUi.PlainList -> SummaryPlainListBlock(
-                        items = block.items,
-                        onOpenWebView = onOpenWebView,
-                        sourceStyle = SummarySourceStyle.InlineChip,
-                        textStyle = MaterialTheme.typography.bodyLarge,
-                        lineHeight = 26.sp
-                    )
-                    is SummaryBlockUi.Theme -> SummaryThemeBlock(
-                        heading = block.heading,
-                        items = block.items,
-                        onOpenWebView = onOpenWebView,
-                        sourceStyle = SummarySourceStyle.InlineChip,
-                        itemTextStyle = MaterialTheme.typography.bodyLarge,
-                        itemLineHeight = 26.sp
-                    )
-                }
-            }
+            StandardSummaryView(
+                result = null,
+                blocks = blocks,
+                onOpenWebView = onOpenWebView
+            )
         }
 
         SummaryFooterRow(
@@ -199,27 +174,11 @@ fun SummaryCard(
                             .animateContentSize(animationSpec = tween(durationMillis = 130))
                     ) {
                         if (isExpanded && !isError) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                blocks.forEach { block ->
-                                    when (block) {
-                                        is SummaryBlockUi.Section -> SummaryLegacyBlock(
-                                            text = block.body,
-                                            sourceName = block.sources.firstOrNull()?.name,
-                                            sourceUrl = block.sources.firstOrNull()?.url,
-                                            onOpenWebView = onOpenWebView
-                                        )
-                                        is SummaryBlockUi.PlainList -> SummaryPlainListBlock(
-                                            items = block.items,
-                                            onOpenWebView = onOpenWebView
-                                        )
-                                        is SummaryBlockUi.Theme -> SummaryThemeBlock(
-                                            heading = block.heading,
-                                            items = block.items,
-                                            onOpenWebView = onOpenWebView
-                                        )
-                                    }
-                                }
-                            }
+                            StandardSummaryView(
+                                result = null,
+                                blocks = blocks,
+                                onOpenWebView = onOpenWebView
+                            )
                         } else {
                             SummaryCollapsedPreview(blocks = blocks, isError = isError)
                         }

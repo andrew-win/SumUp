@@ -36,7 +36,9 @@ data class Article(
     val isFavorite: Boolean = false,
     val importanceScore: Float = 0f,
     @ColumnInfo(name = "embedding", typeAffinity = ColumnInfo.BLOB)
-    val embedding: ByteArray? = null
+    val embedding: ByteArray? = null,
+    @ColumnInfo(name = "embeddingType", defaultValue = "NULL")
+    val embeddingType: String? = null
 )
 
 

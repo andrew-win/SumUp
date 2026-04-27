@@ -39,8 +39,7 @@ class SummarizeFeedUseCase @Inject constructor(
             return@runCatching SummaryResult.Digest(
                 themes = listOf(
                     DigestTheme(
-                        title = "Головні новини",
-                        emojis = listOf("📰", "📌", "🧭"),
+                        title = "📰📌🧭 Головні новини",
                         items = items
                     )
                 )

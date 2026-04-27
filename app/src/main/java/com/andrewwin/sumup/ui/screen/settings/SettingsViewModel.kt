@@ -436,12 +436,14 @@ class SettingsViewModel @Inject constructor(
     fun clearAllArticles() {
         viewModelScope.launch {
             articleRepository.clearAllArticles()
+            articleRepository.triggerDataInvalidation()
         }
     }
 
     fun clearEmbeddings() {
         viewModelScope.launch {
             articleRepository.clearEmbeddings()
+            articleRepository.triggerDataInvalidation()
         }
     }
 

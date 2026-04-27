@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.domain.usecase.common
 
 import com.andrewwin.sumup.domain.usecase.ai.SummaryResult
+import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import javax.inject.Inject
 
 class FormatSummaryResultUseCase @Inject constructor() {
@@ -9,14 +10,12 @@ class FormatSummaryResultUseCase @Inject constructor() {
             when (result) {
                 is SummaryResult.Digest -> {
                     result.themes.forEach { theme ->
-                        val emojiStr = theme.emojis.joinToString(" ")
-                        append("### $emojiStr ${theme.title}\n\n")
-                        theme.summary?.let { append("$it\n\n") }
+                        append("${theme.title}\n")
+                        theme.summary?.let { append("$it\n") }
                         theme.items.forEach { item ->
-                            append("- ${item.text}\n")
-                            if (item.sources.isNotEmpty()) {
-                                val links = item.sources.joinToString(", ") { "[${it.name}](${it.url})" }
-                                append("  *Джерела: $links*\n")
+                            append("— ${item.text}\n")
+                            item.sources.forEach { source ->
+                                append("${SummarySourceMeta.PREFIX}${source.name}|${source.url}\n")
                             }
                         }
                         append("\n")
@@ -24,47 +23,52 @@ class FormatSummaryResultUseCase @Inject constructor() {
                 }
                 is SummaryResult.Compare -> {
                     if (result.common.isNotEmpty()) {
-                        append("### Спільне\n\n")
+                        append("Спільне\n")
                         result.common.forEach { fact ->
-                            append("- ${fact.text}\n")
-                            if (fact.sources.isNotEmpty()) {
-                                val links = fact.sources.joinToString(", ") { "[${it.name}](${it.url})" }
-                                append("  *Джерела: $links*\n")
+                            append("— ${fact.text}\n")
+                            fact.sources.forEach { source ->
+                                append("${SummarySourceMeta.PREFIX}${source.name}|${source.url}\n")
                             }
                         }
                         append("\n")
                     }
                     if (result.unique.isNotEmpty()) {
-                        append("### Унікальне\n\n")
+                        append("Унікальне\n")
                         result.unique.forEach { fact ->
-                            append("- ${fact.text}\n")
-                            if (fact.sources.isNotEmpty()) {
-                                val links = fact.sources.joinToString(", ") { "[${it.name}](${it.url})" }
-                                append("  *Джерела: $links*\n")
+                            append("— ${fact.text}\n")
+                            fact.sources.forEach { source ->
+                                append("${SummarySourceMeta.PREFIX}${source.name}|${source.url}\n")
                             }
                         }
                         append("\n")
                     }
                 }
                 is SummaryResult.Single -> {
-                    result.title?.let { append("## $it\n\n") }
+                    result.title?.let { append("${it}\n") }
                     result.points.forEach { point ->
-                        append("- ${point.text}\n")
-                        if (point.sources.isNotEmpty()) {
-                            val links = point.sources.joinToString(", ") { "[${it.name}](${it.url})" }
-                            append("  *Джерела: $links*\n")
+                        append("— ${point.text}\n")
+                        point.sources.forEach { source ->
+                            append("${SummarySourceMeta.PREFIX}${source.name}|${source.url}\n")
                         }
+                    }
+                    result.sources.forEach { source ->
+                        append("${SummarySourceMeta.PREFIX}${source.name}|${source.url}\n")
                     }
                 }
                 is SummaryResult.QA -> {
-                    append("### ${result.question}\n\n")
+                    result.question?.let { append("${it}\n\n") }
                     append("${result.shortAnswer}\n\n")
-                    result.details.forEach { detail ->
-                        append("- ${detail.text}\n")
-                        if (detail.sources.isNotEmpty()) {
-                            val links = detail.sources.joinToString(", ") { "[${it.name}](${it.url})" }
-                            append("  *Джерела: $links*\n")
+                    if (result.details.isNotEmpty()) {
+                        append("Детальніше\n")
+                        result.details.forEach { detail ->
+                            append("— ${detail.text}\n")
+                            detail.sources.forEach { source ->
+                                append("${SummarySourceMeta.PREFIX}${source.name}|${source.url}\n")
+                            }
                         }
+                    }
+                    result.sources.forEach { source ->
+                        append("${SummarySourceMeta.PREFIX}${source.name}|${source.url}\n")
                     }
                 }
                 is SummaryResult.Error -> {
