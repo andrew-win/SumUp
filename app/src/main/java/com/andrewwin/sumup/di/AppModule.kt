@@ -48,7 +48,7 @@ import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.common.FormatSummaryResultUseCase
-import com.andrewwin.sumup.domain.usecase.ai.SummarizeFeedUseCase
+import com.andrewwin.sumup.domain.usecase.ai.GetScheduledSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
@@ -303,14 +303,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideGenerateSummaryUseCase(
-        refreshArticlesUseCase: RefreshArticlesUseCase,
-        summarizeFeedUseCase: SummarizeFeedUseCase,
-        articleRepository: ArticleRepository,
+        getScheduledSummaryUseCase: GetScheduledSummaryUseCase,
         formatSummaryResultUseCase: FormatSummaryResultUseCase
     ): GenerateSummaryUseCase = GenerateSummaryUseCaseImpl(
-        refreshArticlesUseCase,
-        summarizeFeedUseCase,
-        articleRepository,
+        getScheduledSummaryUseCase,
         formatSummaryResultUseCase
     )
 
@@ -331,7 +327,6 @@ object AppModule {
     fun provideDispatcherProvider(): com.andrewwin.sumup.domain.support.DispatcherProvider =
         AppDispatcherProvider()
 }
-
 
 
 

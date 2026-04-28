@@ -162,12 +162,23 @@ class CompareNewsUseCase @Inject constructor(
         val uniqueCandidates = mutableListOf<Pair<SummaryItem, Float>>()
 
         for (cluster in clusters) {
-            val representativeIdx = selectRepresentativeCandidateIndex(cluster, graphEdges, bestScoreToOtherArticle)
-            val clusterSources = cluster.map { candidates[it].source }.distinctBy { it.url }
-            val distinctArticlesInCluster = cluster.map { candidates[it].articleId }.distinct().size
+            val initialRepresentativeIdx = selectRepresentativeCandidateIndex(cluster, graphEdges, bestScoreToOtherArticle)
+            val tightenedCluster = tightenClusterAroundRepresentative(
+                cluster = cluster,
+                representativeIdx = initialRepresentativeIdx,
+                graphEdges = graphEdges,
+                minScore = threshold
+            )
+            val representativeIdx = selectRepresentativeCandidateIndex(
+                cluster = tightenedCluster,
+                graphEdges = graphEdges,
+                bestScoreToOtherArticle = bestScoreToOtherArticle
+            )
+            val clusterSources = tightenedCluster.map { candidates[it].source }.distinctBy { it.url }
+            val distinctArticlesInCluster = tightenedCluster.map { candidates[it].articleId }.distinct().size
             
             val item = SummaryItem(text = candidates[representativeIdx].text.trim(), sources = clusterSources)
-            val clusterMaxScore = cluster.maxOf { bestScoreToOtherArticle[it] }
+            val clusterMaxScore = tightenedCluster.maxOf { bestScoreToOtherArticle[it] }
 
             if (distinctArticlesInCluster > 1) {
                 commonCandidates.add(item to clusterMaxScore)
@@ -288,6 +299,31 @@ class CompareNewsUseCase @Inject constructor(
                 .thenBy { bestScoreToOtherArticle[it] }
                 .thenBy { -it }
         ) ?: cluster.first()
+    }
+
+    private fun tightenClusterAroundRepresentative(
+        cluster: List<Int>,
+        representativeIdx: Int,
+        graphEdges: List<ScoredSentenceMatch>,
+        minScore: Float
+    ): List<Int> {
+        if (cluster.size <= 2) return cluster
+
+        val clusterSet = cluster.toSet()
+        val directMatches = graphEdges
+            .asSequence()
+            .filter { edge ->
+                edge.score >= minScore && (
+                    (edge.leftIndex == representativeIdx && edge.rightIndex in clusterSet) ||
+                        (edge.rightIndex == representativeIdx && edge.leftIndex in clusterSet)
+                    )
+            }
+            .map { edge ->
+                if (edge.leftIndex == representativeIdx) edge.rightIndex else edge.leftIndex
+            }
+            .toSet()
+
+        return cluster.filter { it == representativeIdx || it in directMatches }
     }
 
     private fun normalizeKey(value: String): String = value

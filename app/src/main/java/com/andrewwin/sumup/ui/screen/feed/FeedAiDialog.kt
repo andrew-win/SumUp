@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -43,7 +45,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -120,217 +121,222 @@ fun FeedAiDialog(
         enter = AppMotion.contentEnter(),
         exit = AppMotion.contentExit()
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(),
-            color = MaterialTheme.colorScheme.background
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .navigationBarsPadding()
-            ) {
-                val summaryTitle = articleForAi?.displayTitle
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (isFeedAiActive) {
-                            context.getString(R.string.ai_summarize_feed)
-                        } else {
-                            context.getString(R.string.ai_summarize_article)
-                        },
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = null)
-                    }
-                }
+        FeedAiSummaryContent(
+            context = context,
+            isFeedAiActive = isFeedAiActive,
+            summaryTitle = articleForAi?.displayTitle,
+            isFeedEmpty = isFeedEmpty,
+            emptyFeedMessage = emptyFeedMessage,
+            aiResult = aiResult,
+            isAiLoading = isAiLoading,
+            aiStrategy = aiStrategy,
+            activeSummaryModelName = activeSummaryModelName,
+            userQuestion = userQuestion,
+            onQuestionChange = onQuestionChange,
+            onClose = onDismiss,
+            onAsk = onAsk,
+            onRegenerate = onRegenerate,
+            onOpenWebView = onOpenWebView
+        )
+    }
+}
 
-                Box(
-                    modifier = Modifier
-                        .weight(1f, fill = true)
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    var compareTabIndex by rememberSaveable { mutableIntStateOf(0) }
-                    if (isAiLoading) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(150.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
+@Composable
+internal fun FeedAiSummaryContent(
+    context: Context,
+    isFeedAiActive: Boolean,
+    summaryTitle: String?,
+    isFeedEmpty: Boolean,
+    emptyFeedMessage: String,
+    aiResult: AiPresentationResult?,
+    isAiLoading: Boolean,
+    aiStrategy: AiStrategy,
+    activeSummaryModelName: String?,
+    userQuestion: String,
+    onQuestionChange: (String) -> Unit,
+    onClose: () -> Unit,
+    onAsk: () -> Unit,
+    onRegenerate: () -> Unit,
+    onOpenWebView: (String) -> Unit
+) {
+    val rawText = aiResult?.rawText
+    val summaryResult = aiResult?.result
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp)
+                .padding(top = 12.dp, bottom = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isFeedAiActive) {
+                        context.getString(R.string.ai_summarize_feed)
+                    } else {
+                        context.getString(R.string.ai_summarize_article)
+                    },
+                    style = MaterialTheme.typography.titleLarge
+                )
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Default.Close, contentDescription = null)
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f, fill = true)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .imePadding()
+            ) {
+                var compareTabIndex by rememberSaveable { mutableIntStateOf(0) }
+                if (isAiLoading) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(150.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(strokeCap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    }
+                } else if (summaryResult != null) {
+                    val compareBlocks = remember(summaryResult) { summaryResult.asCompareBlocksUi() }
+                    val digestBlocks = remember(summaryResult) { summaryResult.asSummaryBlocksUi() }
+                    val sourceLabelMap = rememberSourceLabelMap(
+                        summaryBlocks = digestBlocks,
+                        compareBlocks = compareBlocks,
+                        summaryResult = summaryResult
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (compareBlocks != null && !summaryTitle.isNullOrBlank()) {
+                            Text(
+                                text = summaryTitle,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp)
+                            )
                         }
-                    } else if (summaryResult != null) {
-                        val compareBlocks = remember(summaryResult) { summaryResult.asCompareBlocksUi() }
-                        val digestBlocks = remember(summaryResult) { summaryResult.asSummaryBlocksUi() }
-                        val sourceLabelMap = rememberSourceLabelMap(
-                            summaryBlocks = digestBlocks,
-                            compareBlocks = compareBlocks,
-                            summaryResult = summaryResult
-                        )
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            if (compareBlocks != null && !summaryTitle.isNullOrBlank()) {
-                                Text(
-                                    text = summaryTitle,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 8.dp)
-                                )
-                            }
-                            if (compareBlocks != null) {
-                                CompareBlocksView(
-                                    commonItems = compareBlocks.common,
-                                    differentItems = compareBlocks.different,
-                                    selectedTabIndex = compareTabIndex,
-                                    onSelectedTabIndexChange = { compareTabIndex = it },
-                                    sourceLabelMap = sourceLabelMap,
-                                    onOpenWebView = onOpenWebView
-                                )
-                                SummaryMetaRow(
-                                    modelName = activeSummaryModelName,
-                                    aiStrategy = aiStrategy,
-                                    onCopy = {
-                                        copyTextToClipboard(context, rawText.orEmpty())
-                                        Toast.makeText(
-                                            context,
-                                            context.getString(R.string.ai_result_copied),
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    },
-                                    onShare = {
-                                        shareText(
-                                            context = context,
-                                            text = rawText.orEmpty(),
-                                            chooserTitle = context.getString(R.string.summary_share_chooser_title)
-                                        )
-                                    }
-                                )
-                            } else {
-                                if (summaryResult is SummaryResult.Digest || summaryResult is SummaryResult.Error) {
-                                    StandardSummaryView(
-                                        result = summaryResult,
-                                        blocks = digestBlocks,
-                                        onOpenWebView = onOpenWebView
-                                    )
-                                    SummaryMetaRow(
-                                        modelName = activeSummaryModelName,
-                                        aiStrategy = aiStrategy,
-                                        onCopy = {
-                                            copyTextToClipboard(context, rawText.orEmpty())
-                                            Toast.makeText(
-                                                context,
-                                                context.getString(R.string.ai_result_copied),
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        },
-                                        onShare = {
-                                            shareText(
-                                                context = context,
-                                                text = rawText.orEmpty(),
-                                                chooserTitle = context.getString(R.string.summary_share_chooser_title)
-                                            )
-                                        }
-                                    )
-                                } else {
-                                    SingleSummaryCard(
-                                        result = summaryResult,
-                                        onOpenWebView = onOpenWebView,
-                                        modelName = activeSummaryModelName,
-                                        aiStrategy = aiStrategy,
-                                        onCopy = {
-                                            copyTextToClipboard(context, rawText.orEmpty())
-                                            Toast.makeText(
-                                                context,
-                                                context.getString(R.string.ai_result_copied),
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        },
-                                        onShare = {
-                                            shareText(
-                                                context = context,
-                                                text = rawText.orEmpty(),
-                                                chooserTitle = context.getString(R.string.summary_share_chooser_title)
-                                            )
-                                        }
+                        if (compareBlocks != null) {
+                            CompareBlocksView(
+                                commonItems = compareBlocks.common,
+                                differentItems = compareBlocks.different,
+                                selectedTabIndex = compareTabIndex,
+                                onSelectedTabIndexChange = { compareTabIndex = it },
+                                sourceLabelMap = sourceLabelMap,
+                                onOpenWebView = onOpenWebView
+                            )
+                            SummaryMetaRow(
+                                modelName = activeSummaryModelName,
+                                aiStrategy = aiStrategy,
+                                onCopy = {
+                                    copyTextToClipboard(context, rawText.orEmpty())
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.ai_result_copied),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                onShare = {
+                                    shareText(
+                                        context = context,
+                                        text = rawText.orEmpty(),
+                                        chooserTitle = context.getString(R.string.summary_share_chooser_title)
                                     )
                                 }
-                            }
-                        }
-                    } else if (isFeedEmpty) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = emptyFeedMessage,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        } else if (summaryResult is SummaryResult.Digest || summaryResult is SummaryResult.Error) {
+                            StandardSummaryView(
+                                result = summaryResult,
+                                blocks = digestBlocks,
+                                onOpenWebView = onOpenWebView
+                            )
+                            SummaryMetaRow(
+                                modelName = activeSummaryModelName,
+                                aiStrategy = aiStrategy,
+                                onCopy = {
+                                    copyTextToClipboard(context, rawText.orEmpty())
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.ai_result_copied),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                onShare = {
+                                    shareText(
+                                        context = context,
+                                        text = rawText.orEmpty(),
+                                        chooserTitle = context.getString(R.string.summary_share_chooser_title)
+                                    )
+                                }
+                            )
+                        } else {
+                            SingleSummaryCard(
+                                result = summaryResult,
+                                onOpenWebView = onOpenWebView,
+                                modelName = activeSummaryModelName,
+                                aiStrategy = aiStrategy,
+                                onCopy = {
+                                    copyTextToClipboard(context, rawText.orEmpty())
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.ai_result_copied),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                onShare = {
+                                    shareText(
+                                        context = context,
+                                        text = rawText.orEmpty(),
+                                        chooserTitle = context.getString(R.string.summary_share_chooser_title)
+                                    )
+                                }
                             )
                         }
                     }
-                }
-
-                if (aiStrategy != AiStrategy.LOCAL) {
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = userQuestion,
-                        onValueChange = onQuestionChange,
-                        label = null,
-                        placeholder = {
-                            Text(text = context.getString(R.string.ai_question_input_placeholder))
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large,
-                        trailingIcon = {
-                            IconButton(
-                                onClick = onAsk,
-                                enabled = userQuestion.isNotBlank() && !isAiLoading && !isFeedEmpty
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
-                            }
-                        }
-                    )
-                }
-
-                if (aiResult != null || !isAiLoading) {
-                    Spacer(Modifier.height(12.dp))
-                    Button(
-                        onClick = onRegenerate,
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isFeedEmpty,
-                        shape = MaterialTheme.shapes.large,
-                        contentPadding = PaddingValues(16.dp)
+                } else if (isFeedEmpty) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 16.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_ask_ai),
-                            contentDescription = null
-                        )
-                        Spacer(Modifier.size(12.dp))
                         Text(
-                            text = if (isFeedAiActive) {
-                                context.getString(R.string.ai_summarize_feed)
-                            } else {
-                                context.getString(R.string.ai_summarize_article)
-                            },
-                            style = MaterialTheme.typography.labelLarge
+                            text = emptyFeedMessage,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
                 }
+            }
+
+            if (aiResult != null || !isAiLoading) {
+                FeedAiSummaryBottomActions(
+                    isFeedAiActive = isFeedAiActive,
+                    isAiLoading = isAiLoading,
+                    isFeedEmpty = isFeedEmpty,
+                    aiStrategy = aiStrategy,
+                    userQuestion = userQuestion,
+                    onQuestionChange = onQuestionChange,
+                    onAsk = onAsk,
+                    onRegenerate = onRegenerate
+                )
             }
         }
     }

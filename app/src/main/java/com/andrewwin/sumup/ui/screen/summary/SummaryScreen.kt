@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -24,9 +23,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.InlineTextContent
@@ -55,8 +51,6 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.filled.Search
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.*
@@ -69,7 +63,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -83,24 +76,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.ui.components.AppCardSurface
-import com.andrewwin.sumup.ui.components.AppAnimatedSwap
-import com.andrewwin.sumup.ui.components.AppBackToTopFab
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
-import com.andrewwin.sumup.ui.components.AppExportPdfButton
-import com.andrewwin.sumup.ui.components.AppFilterMenuChip
-import com.andrewwin.sumup.ui.components.AppFilledIconAction
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.components.AppHelpToggleAction
 import com.andrewwin.sumup.ui.components.AppMessageState
 import com.andrewwin.sumup.ui.components.AppProminentFab
-import com.andrewwin.sumup.ui.components.AppSearchField
 import com.andrewwin.sumup.ui.components.AppSelectionActions
 import com.andrewwin.sumup.ui.components.AppTopBar
 import com.andrewwin.sumup.ui.theme.AppDimens
@@ -109,10 +95,8 @@ import com.andrewwin.sumup.ui.util.ThemeItem
 import com.andrewwin.sumup.ui.util.cleanSummaryTextForSharing
 import com.andrewwin.sumup.ui.util.normalizeSummaryUrlForWebView
 import com.andrewwin.sumup.ui.util.parseSummaryBlocks
-import com.andrewwin.sumup.ui.util.PdfExporter
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 internal enum class HistoryDateFilter(val labelRes: Int, val hours: Int?) {
@@ -132,17 +116,14 @@ internal enum class HistorySavedFilter(val labelRes: Int, val favoritesOnly: Boo
 @Composable
 fun SummaryScreen(
     viewModel: SummaryViewModel = hiltViewModel(),
-    onOpenWebView: (String) -> Unit = {}
+    onOpenWebView: (String) -> Unit = {},
+    onOpenSummaryHistory: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val summaryHistoryFabHelpDescription = stringResource(R.string.summary_help_history_fab)
-    val summaryHistoryFiltersHelpDescription = stringResource(R.string.summary_help_history_filters)
-    val summaryHistoryCardHelpDescription = stringResource(R.string.summary_help_history_card)
     val summaryStatusHelpDescription = stringResource(R.string.summary_help_status)
     val summaryLatestHelpDescription = stringResource(R.string.summary_help_latest)
     val summaryChartHelpDescription = stringResource(R.string.summary_help_chart)
-    val focusManager = LocalFocusManager.current
-    val imeVisible = WindowInsets.isImeVisible
     val summaries by viewModel.summaries.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
     val activeSummaryModelName by viewModel.activeSummaryModelName.collectAsState()
@@ -157,87 +138,10 @@ fun SummaryScreen(
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
     var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
-    var isHistoryScreen by rememberSaveable { mutableStateOf(false) }
-    var openedHistorySummaryId by rememberSaveable { mutableStateOf<Long?>(null) }
-    var historySearchQuery by rememberSaveable { mutableStateOf("") }
-    var isHistorySearchFocused by remember { mutableStateOf(false) }
-    var historyDateFilter by rememberSaveable { mutableStateOf(HistoryDateFilter.HOUR_24) }
-    var historySavedFilter by rememberSaveable { mutableStateOf(HistorySavedFilter.ALL) }
 
     val tabIcons = listOf(Icons.Default.Schedule, Icons.Default.BarChart)
     val listState = rememberLazyListState()
-    val historyListState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    val historySummariesRaw = remember(summaries) { summaries }
-    val historySummaries = remember(
-        historySummariesRaw,
-        historySearchQuery,
-        historyDateFilter,
-        historySavedFilter
-    ) {
-        filterHistorySummariesV2(
-            summaries = historySummariesRaw,
-            query = historySearchQuery,
-            dateFilter = historyDateFilter,
-            savedFilter = historySavedFilter
-        )
-    }
-    val openedHistorySummary = remember(openedHistorySummaryId, summaries) {
-        summaries.firstOrNull { it.id == openedHistorySummaryId }
-    }
-    val showHistoryBackToTop by remember {
-        derivedStateOf {
-            isHistoryScreen &&
-                    (historyListState.firstVisibleItemIndex > 0 || historyListState.firstVisibleItemScrollOffset > 100)
-        }
-    }
-    var wasImeVisible by remember { mutableStateOf(false) }
-
-    BackHandler(enabled = isHistoryScreen && isHistorySearchFocused) {
-        focusManager.clearFocus(force = true)
-        isHistorySearchFocused = false
-    }
-
-    LaunchedEffect(imeVisible, isHistorySearchFocused, isHistoryScreen) {
-        if (!isHistoryScreen) {
-            wasImeVisible = false
-            isHistorySearchFocused = false
-            return@LaunchedEffect
-        }
-        if (imeVisible) {
-            wasImeVisible = true
-        } else if (wasImeVisible && isHistorySearchFocused) {
-            focusManager.clearFocus(force = true)
-            isHistorySearchFocused = false
-            wasImeVisible = false
-        } else if (!isHistorySearchFocused) {
-            wasImeVisible = false
-        }
-    }
-
-    val exportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/pdf")
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val summariesToExport = when {
-            isHistoryScreen -> historySummaries
-            selectedTabIndex == 0 && lastSummary != null -> listOf(lastSummary)
-            else -> emptyList()
-        }
-        if (summariesToExport.isEmpty()) return@rememberLauncherForActivityResult
-        scope.launch {
-            val result = PdfExporter.exportSummariesToPdf(
-                context = context,
-                summaries = summariesToExport,
-                uri = uri
-            )
-            if (result.isFailure) {
-                Toast
-                    .makeText(context, context.getString(R.string.export_pdf_error), Toast.LENGTH_SHORT)
-                    .show()
-            }
-        }
-    }
 
     LaunchedEffect(isSelectionMode) {
         if (isSelectionMode && isHelpMode) {
@@ -248,7 +152,7 @@ fun SummaryScreen(
     Scaffold(
         topBar = {
             AnimatedVisibility(
-                visible = !(isHistoryScreen && isHistorySearchFocused),
+                visible = true,
                 enter = fadeIn(animationSpec = tween(320, easing = FastOutSlowInEasing)) +
                         expandVertically(animationSpec = tween(380, easing = FastOutSlowInEasing)),
                 exit = fadeOut(animationSpec = tween(300, easing = FastOutSlowInEasing)) +
@@ -257,9 +161,7 @@ fun SummaryScreen(
                 AppTopBar(
                     title = {
                         if (isSelectionMode) {
-                            Text("Вибрано: ${selectedSummaryIds.size}")
-                        } else if (isHistoryScreen) {
-                            Text(stringResource(R.string.summary_history_title))
+                            Text(stringResource(R.string.summary_selected_count, selectedSummaryIds.size))
                         } else {
                             Text(stringResource(R.string.nav_summary))
                         }
@@ -272,25 +174,9 @@ fun SummaryScreen(
                                     viewModel.deleteSummaries(selectedSummaryIds.toList())
                                     selectedSummaryIds.clear()
                                 },
-                                clearDescription = "Exit selection mode",
-                                deleteDescription = "Delete selected summaries"
+                                clearDescription = stringResource(R.string.summary_selection_clear),
+                                deleteDescription = stringResource(R.string.summary_selection_delete)
                             )
-                        } else if (isHistoryScreen) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                AppHelpToggleAction(
-                                    isHelpMode = isHelpMode,
-                                    onToggle = { isHelpMode = !isHelpMode }
-                                )
-                                AppFilledIconAction(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Закрити історію",
-                                    onClick = {
-                                        focusManager.clearFocus(force = true)
-                                        isHistorySearchFocused = false
-                                        isHistoryScreen = false
-                                    }
-                                )
-                            }
                         } else {
                             AppHelpToggleAction(
                                 isHelpMode = isHelpMode,
@@ -303,10 +189,7 @@ fun SummaryScreen(
         },
         floatingActionButton = {
             when {
-                showHistoryBackToTop -> {
-                    AppBackToTopFab(onClick = { scope.launch { historyListState.animateScrollToItem(0) } })
-                }
-                !isHistoryScreen && selectedTabIndex == 0 && !isSelectionMode -> {
+                selectedTabIndex == 0 && !isSelectionMode -> {
                     AppHelpOverlayTarget(
                         isEnabled = isHelpMode,
                         description = summaryHistoryFabHelpDescription,
@@ -314,7 +197,7 @@ fun SummaryScreen(
                     ) {
                         AppProminentFab(
                             enabled = hasAnySummaries,
-                            onClick = { isHistoryScreen = true }
+                            onClick = onOpenSummaryHistory
                         ) {
                             Icon(
                                 Icons.Default.History,
@@ -328,167 +211,104 @@ fun SummaryScreen(
             }
         }
     ) { innerPadding ->
-        AppAnimatedSwap(
-            targetState = isHistoryScreen,
+        LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            label = "summaryMainContent"
-        ) { showHistory ->
-            if (showHistory) {
-                SummaryHistoryListSection(
-                    summaries = historySummaries,
-                    selectedSummaryIds = selectedSummaryIds,
-                    isSelectionMode = isSelectionMode,
-                    activeSummaryModelName = activeSummaryModelName,
-                    listState = historyListState,
-                    modifier = Modifier.fillMaxSize(),
-                    searchQuery = historySearchQuery,
-                    onSearchQueryChange = { historySearchQuery = it },
-                    onSearchFocusChanged = { focused ->
-                        if (focused) isHistorySearchFocused = true
-                    },
-                    dateFilter = historyDateFilter,
-                    onDateFilterChange = { historyDateFilter = it },
-                    savedFilter = historySavedFilter,
-                    onSavedFilterChange = { historySavedFilter = it },
-                    onExportPdf = {
-                        val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                        val name = context.getString(R.string.summary_pdf_file_name, date)
-                        exportLauncher.launch(name)
-                    },
-                    isExportEnabled = historySummaries.isNotEmpty(),
-                    onOpenSummary = { openedHistorySummaryId = it.id },
-                    onToggleFavorite = viewModel::toggleFavorite,
-                    onDeleteSummary = { summary ->
-                        if (openedHistorySummaryId == summary.id) openedHistorySummaryId = null
-                        viewModel.deleteSummary(summary.id)
-                    },
-                    onLongSelect = { summary ->
-                        if (!selectedSummaryIds.contains(summary.id)) selectedSummaryIds.add(summary.id)
-                    },
-                    onToggleSelect = { summary ->
-                        if (selectedSummaryIds.contains(summary.id)) selectedSummaryIds.remove(summary.id)
-                        else selectedSummaryIds.add(summary.id)
-                    },
-                    isHelpMode = isHelpMode,
-                    historyFiltersHelpDescription = summaryHistoryFiltersHelpDescription,
-                    historyCardHelpDescription = summaryHistoryCardHelpDescription,
-                    onShowHelpDescription = { helpDescription = it }
-                )
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 0.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
+            contentPadding = PaddingValues(top = 0.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            item {
+                TabRow(
+                    selectedTabIndex = selectedTabIndex,
+                    containerColor = Color.Transparent
                 ) {
+                    tabIcons.forEachIndexed { index, icon ->
+                        Tab(
+                            selected = selectedTabIndex == index,
+                            onClick = { selectedTabIndex = index },
+                            icon = {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
+            if (selectedTabIndex == 0) {
+                item {
+                    AppHelpOverlayTarget(
+                        isEnabled = isHelpMode,
+                        description = summaryStatusHelpDescription,
+                        onShowDescription = { helpDescription = it }
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            PrevNextStatusRow(
+                                previousSummaryAt = lastSummary?.createdAt,
+                                isScheduledEnabled = userPreferences.isScheduledSummaryEnabled,
+                                nextScheduledAt = if (userPreferences.isScheduledSummaryEnabled) {
+                                    getNextScheduledTimeMillis(
+                                        userPreferences.scheduledHour,
+                                        userPreferences.scheduledMinute
+                                    )
+                                } else null
+                            )
+                        }
+                    }
+                }
+
+                if (lastSummary != null) {
                     item {
-                        TabRow(
-                            selectedTabIndex = selectedTabIndex,
-                            containerColor = Color.Transparent
+                        AppHelpOverlayTarget(
+                            isEnabled = isHelpMode,
+                            description = summaryLatestHelpDescription,
+                            onShowDescription = { helpDescription = it }
                         ) {
-                            tabIcons.forEachIndexed { index, icon ->
-                                Tab(
-                                    selected = selectedTabIndex == index,
-                                    onClick = { selectedTabIndex = index },
-                                    icon = {
-                                        Icon(
-                                            imageVector = icon,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                LatestScheduledSummaryView(
+                                    summary = lastSummary,
+                                    activeSummaryModelName = activeSummaryModelName,
+                                    onOpenWebView = onOpenWebView,
+                                    onDelete = { viewModel.deleteSummary(lastSummary.id) },
+                                    onToggleFavorite = { viewModel.toggleFavorite(lastSummary) }
                                 )
                             }
                         }
                     }
-
-                    if (selectedTabIndex == 0) {
-                        item {
-                            AppHelpOverlayTarget(
-                                isEnabled = isHelpMode,
-                                description = summaryStatusHelpDescription,
-                                onShowDescription = { helpDescription = it }
-                            ) {
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    PrevNextStatusRow(
-                                        previousSummaryAt = lastSummary?.createdAt,
-                                        isScheduledEnabled = userPreferences.isScheduledSummaryEnabled,
-                                        nextScheduledAt = if (userPreferences.isScheduledSummaryEnabled) {
-                                            getNextScheduledTimeMillis(
-                                                userPreferences.scheduledHour,
-                                                userPreferences.scheduledMinute
-                                            )
-                                        } else null
-                                    )
-                                }
-                            }
-                        }
-
-                        if (lastSummary != null) {
-                            item {
-                                AppHelpOverlayTarget(
-                                    isEnabled = isHelpMode,
-                                    description = summaryLatestHelpDescription,
-                                    onShowDescription = { helpDescription = it }
-                                ) {
-                                    Column(modifier = Modifier.fillMaxWidth()) {
-                                        LatestScheduledSummaryView(
-                                            summary = lastSummary,
-                                            activeSummaryModelName = activeSummaryModelName,
-                                            onOpenWebView = onOpenWebView,
-                                            onDelete = { viewModel.deleteSummary(lastSummary.id) },
-                                            onToggleFavorite = { viewModel.toggleFavorite(lastSummary) }
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            item {
-                                AppMessageState(
-                                    message = stringResource(R.string.summary_empty_title),
-                                    modifier = Modifier.fillParentMaxHeight(0.55f)
-                                )
-                            }
-                        }
+                } else {
+                    item {
+                        AppMessageState(
+                            message = stringResource(R.string.summary_empty_title),
+                            modifier = Modifier.fillParentMaxHeight(0.55f)
+                        )
                     }
+                }
+            }
 
-                    if (selectedTabIndex == 1) {
-                        item {
-                            AppHelpOverlayTarget(
-                                isEnabled = isHelpMode,
-                                description = summaryChartHelpDescription,
-                                onShowDescription = { helpDescription = it }
-                            ) {
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    SummaryChart(
-                                        items = chartData,
-                                        currentType = chartType,
-                                        onTypeChange = viewModel::setChartType,
-                                        isModelEnabled = isVectorizationEnabled,
-                                        onOpenWebView = onOpenWebView
-                                    )
-                                }
-                            }
+            if (selectedTabIndex == 1) {
+                item {
+                    AppHelpOverlayTarget(
+                        isEnabled = isHelpMode,
+                        description = summaryChartHelpDescription,
+                        onShowDescription = { helpDescription = it }
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            SummaryChart(
+                                items = chartData,
+                                currentType = chartType,
+                                onTypeChange = viewModel::setChartType,
+                                isModelEnabled = isVectorizationEnabled,
+                                onOpenWebView = onOpenWebView
+                            )
                         }
                     }
                 }
             }
-        }
-
-        if (openedHistorySummary != null) {
-            SummaryHistoryDialogView(
-                summary = openedHistorySummary,
-                activeSummaryModelName = activeSummaryModelName,
-                onDismiss = { openedHistorySummaryId = null },
-                onOpenWebView = onOpenWebView,
-                onDelete = {
-                    viewModel.deleteSummary(openedHistorySummary.id)
-                    openedHistorySummaryId = null
-                },
-                onToggleFavorite = { viewModel.toggleFavorite(openedHistorySummary) }
-            )
         }
 
         AppExplanationDialog(
@@ -496,22 +316,6 @@ fun SummaryScreen(
             description = helpDescription.orEmpty(),
             onDismiss = { helpDescription = null }
         )
-    }
-}
-
-private fun filterHistorySummaries(
-    summaries: List<Summary>,
-    query: String,
-    dateFilter: HistoryDateFilter,
-    savedFilter: HistorySavedFilter
-): List<Summary> {
-    val now = System.currentTimeMillis()
-    val queryText = query.trim()
-    return summaries.filter { summary ->
-        val matchesQuery = queryText.isBlank() || summary.content.contains(queryText, ignoreCase = true)
-        val matchesSaved = !savedFilter.favoritesOnly || summary.isFavorite
-        val matchesDate = dateFilter.hours == null || summary.createdAt >= now - dateFilter.hours * 60L * 60L * 1000L
-        matchesQuery && matchesSaved && matchesDate
     }
 }
 

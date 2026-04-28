@@ -1,8 +1,11 @@
 package com.andrewwin.sumup.ui.screen.feed
 
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class FeedAiSessionCache {
+@Singleton
+class FeedAiSessionCache @Inject constructor() {
     private val cache = mutableMapOf<String, AiPresentationResult>()
 
     fun getArticleSummary(articleId: Long): AiPresentationResult? = cache[articleKey(articleId)]
@@ -23,6 +26,12 @@ class FeedAiSessionCache {
         cache[compareKey(cluster)] = summary
     }
 
+    fun getClusterSummary(articleIds: List<Long>): AiPresentationResult? = cache[compareKey(articleIds)]
+
+    fun putClusterSummary(articleIds: List<Long>, summary: AiPresentationResult) {
+        cache[compareKey(articleIds)] = summary
+    }
+
     private fun articleKey(articleId: Long): String = "$CACHE_VERSION:article:$articleId"
 
     private fun feedKey(articleIds: List<Long>): String = "$CACHE_VERSION:feed:${articleIds.joinToString(",")}"
@@ -32,12 +41,17 @@ class FeedAiSessionCache {
         return "$CACHE_VERSION:compare:${cluster.representative.article.id}:${duplicateIds.joinToString(",")}"
     }
 
+    private fun compareKey(articleIds: List<Long>): String {
+        if (articleIds.isEmpty()) return "$CACHE_VERSION:compare:"
+        val representativeId = articleIds.first()
+        val duplicateIds = articleIds.drop(1).sorted()
+        return "$CACHE_VERSION:compare:$representativeId:${duplicateIds.joinToString(",")}"
+    }
+
     private companion object {
         const val CACHE_VERSION = "v2"
     }
 }
-
-
 
 
 

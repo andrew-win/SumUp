@@ -6,6 +6,7 @@
     <string name="nav_sources">Джерела</string>
     <string name="nav_settings">Параметри</string>
     <string name="nav_webview">Перегляд</string>
+    <string name="nav_ai_summary">AI підсумок</string>
     <string name="content_help">Допомога</string>
     <string name="add_group">Додати групу</string>
     <string name="add_source">Додати джерело</string>
@@ -38,6 +39,10 @@
     <string name="direct_text">Прямий текст</string>
     <string name="summary_today_title">Зведення</string>
     <string name="summary_history_title">Згенеровані раніше</string>
+    <string name="summary_history_close">Закрити історію</string>
+    <string name="summary_selected_count">Вибрано: %1$d</string>
+    <string name="summary_selection_clear">Вийти з режиму вибору</string>
+    <string name="summary_selection_delete">Видалити вибрані зведення</string>
     <string name="summary_empty">Запланованих зведень ще немає</string>
     <string name="summary_not_ready">Згенеровано пізніше</string>
     <string name="summary_next_at">Наступне о %s</string>
@@ -244,6 +249,7 @@
     <string name="ellipsis">…</string>
 
     <string name="summary_extractive_intro">Ось головні новини на даний період часу:</string>
+    <string name="summary_digest_main_news_title">📰📌🧭 Головні новини</string>
     <string name="summary_extractive_item_header">%1$d. %2$s:</string>
     <string name="summary_article_format">%1$s: %2$s</string>
     <string name="feed_empty_message">Новин не знайдено. Можливо, фільтри чи налаштування занадто жорсткі або немає джерел.</string>

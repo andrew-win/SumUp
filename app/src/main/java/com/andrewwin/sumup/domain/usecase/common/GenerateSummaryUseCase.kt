@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.domain.usecase.common
 
-import com.andrewwin.sumup.domain.usecase.ai.SummarizeFeedUseCase
-import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.usecase.ai.SummaryResult
+import com.andrewwin.sumup.domain.usecase.ai.GetScheduledSummaryUseCase
 import javax.inject.Inject
 
 interface GenerateSummaryUseCase {
@@ -9,23 +9,15 @@ interface GenerateSummaryUseCase {
 }
 
 class GenerateSummaryUseCaseImpl @Inject constructor(
-    private val refreshArticlesUseCase: RefreshArticlesUseCase,
-    private val summarizeFeedUseCase: SummarizeFeedUseCase,
-    private val articleRepository: ArticleRepository,
+    private val getScheduledSummaryUseCase: GetScheduledSummaryUseCase,
     private val formatSummaryResultUseCase: FormatSummaryResultUseCase
 ) : GenerateSummaryUseCase {
 
     override suspend fun invoke(refresh: Boolean): String {
-        if (refresh) {
-            refreshArticlesUseCase()
-        }
-
-        val articles = articleRepository.getEnabledArticlesOnce()
-        if (articles.isEmpty()) {
+        val result = getScheduledSummaryUseCase(refresh).getOrThrow()
+        if (result is SummaryResult.Digest && result.themes.isEmpty()) {
             throw NoArticlesException()
         }
-
-        val result = summarizeFeedUseCase(articles).getOrThrow()
         return formatSummaryResultUseCase(result)
     }
 }

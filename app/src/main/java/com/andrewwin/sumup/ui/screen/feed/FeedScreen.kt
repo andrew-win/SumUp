@@ -65,7 +65,10 @@ import java.util.*
 @Composable
 fun FeedScreen(
     viewModel: FeedViewModel = hiltViewModel(),
-    onOpenWebView: (String) -> Unit
+    onOpenWebView: (String) -> Unit,
+    onOpenAiArticleSummary: (Long) -> Unit,
+    onOpenAiClusterSummary: (List<Long>) -> Unit,
+    onOpenAiFeedSummary: (List<Long>) -> Unit
 ) {
     val articleClusters by viewModel.articleClusters.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -75,11 +78,8 @@ fun FeedScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val isAnyLoading by viewModel.isAnyLoading.collectAsState()
     val loadingMessage by viewModel.feedLoadingMessage.collectAsState()
-    val aiResult by viewModel.aiResult.collectAsState()
-    val isAiLoading by viewModel.isAiLoading.collectAsState()
     val isDedupInProgress by viewModel.isDedupInProgress.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
-    val activeSummaryModelName by viewModel.activeSummaryModelName.collectAsState()
     val groups by viewModel.groups.collectAsState()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -100,9 +100,6 @@ fun FeedScreen(
         }
     }
 
-    var articleForAiId by rememberSaveable { mutableStateOf<Long?>(null) }
-    var isFeedAiActive by rememberSaveable { mutableStateOf(false) }
-    var userQuestion by rememberSaveable { mutableStateOf("") }
     var expandedImageUrl by remember { mutableStateOf<String?>(null) }
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
@@ -196,9 +193,7 @@ fun FeedScreen(
                         if (isHelpMode) {
                             helpDescription = feedAiHelpDescription
                         } else {
-                            isFeedAiActive = true
-                            articleForAiId = null
-                            viewModel.openCachedFeedSummary()
+                            onOpenAiFeedSummary(sortedArticleClusters.map { it.representative.article.id })
                         }
                     }
                 ) {
@@ -305,15 +300,15 @@ fun FeedScreen(
                                 onMediaClick = { expandedImageUrl = it },
                                 onOpenSource = { onOpenWebView(it.article.url) },
                                 onAiClick = {
-                                    articleForAiId = it.article.id
-                                    isFeedAiActive = false
-                                    viewModel.openCachedArticleSummary(it.article)
+                                    onOpenAiArticleSummary(it.article.id)
                                 },
                                 onClusterAiClick = {
-                                    articleForAiId = cluster.representative.article.id
-                                    isFeedAiActive = false
-                                    userQuestion = ""
-                                    viewModel.openCachedClusterSummary(cluster)
+                                    onOpenAiClusterSummary(
+                                        buildList {
+                                            add(cluster.representative.article.id)
+                                            addAll(cluster.duplicates.map { it.first.article.id })
+                                        }
+                                    )
                                 },
                                 onToggleSaved = {
                                     val willBeAddedToSaved =
@@ -341,67 +336,6 @@ fun FeedScreen(
             visible = helpDescription != null,
             description = helpDescription.orEmpty(),
             onDismiss = { helpDescription = null }
-        )
-
-        val articleForAi = remember(articleForAiId, sortedArticleClusters) {
-            articleForAiId?.let { targetId ->
-                sortedArticleClusters.asSequence()
-                    .map { it.representative }
-                    .plus(
-                        sortedArticleClusters.asSequence()
-                            .flatMap { cluster -> cluster.duplicates.asSequence().map { it.first } }
-                    )
-                    .firstOrNull { it.article.id == targetId }
-            }
-        }
-
-        FeedAiDialog(
-            isVisible = articleForAiId != null || isFeedAiActive,
-            context = context,
-            isFeedAiActive = isFeedAiActive,
-            articleForAi = articleForAi,
-            articleClusters = sortedArticleClusters,
-            aiResult = aiResult,
-            isAiLoading = isAiLoading,
-            aiStrategy = userPreferences.aiStrategy,
-            activeSummaryModelName = activeSummaryModelName,
-            userQuestion = userQuestion,
-            onQuestionChange = { userQuestion = it },
-            onDismiss = {
-                articleForAiId = null
-                isFeedAiActive = false
-                viewModel.clearAiResult()
-                userQuestion = ""
-            },
-            onAsk = {
-                if (isFeedAiActive) {
-                    viewModel.askFeed(userQuestion)
-                } else {
-                    val cluster = sortedArticleClusters.firstOrNull { c ->
-                        c.representative.article.id == articleForAiId
-                    }
-                    if (cluster != null) {
-                        viewModel.askClusterQuestion(cluster, userQuestion)
-                    } else {
-                        articleForAi?.let { viewModel.askQuestion(it.article, userQuestion) }
-                    }
-                }
-            },
-            onRegenerate = {
-                if (isFeedAiActive) {
-                    viewModel.summarizeFeed(forceRefresh = true)
-                } else {
-                    val cluster = sortedArticleClusters.firstOrNull { c ->
-                        c.representative.article.id == articleForAiId
-                    }
-                    if (cluster != null && cluster.duplicates.isNotEmpty()) {
-                        viewModel.summarizeCluster(cluster, forceRefresh = true)
-                    } else {
-                        articleForAi?.let { viewModel.summarizeArticle(it.article, forceRefresh = true) }
-                    }
-                }
-            },
-            onOpenWebView = onOpenWebView
         )
 
         AppAnimatedDialog(

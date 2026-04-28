@@ -7,11 +7,13 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Feed
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Source
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.andrewwin.sumup.R
+import com.andrewwin.sumup.ui.screen.feed.FeedAiSummaryMode
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -59,6 +61,23 @@ sealed class Screen(
             return "webview/$encodedUrl"
         }
     }
+
+    data object FeedAiSummary : Screen(
+        route = "feed_ai_summary/{mode}/{ids}",
+        resourceId = R.string.nav_ai_summary,
+        icon = NavigationIcon.Vector(Icons.Default.AutoAwesome)
+    ) {
+        fun createRoute(mode: FeedAiSummaryMode, articleIds: List<Long>): String {
+            val encodedIds = URLEncoder.encode(articleIds.joinToString(","), StandardCharsets.UTF_8.toString())
+            return "feed_ai_summary/${mode.name.lowercase()}/$encodedIds"
+        }
+    }
+
+    data object SummaryHistory : Screen(
+        route = "summary_history",
+        resourceId = R.string.summary_history_title,
+        icon = NavigationIcon.Vector(Icons.Default.History)
+    )
 }
 
 val navItems = listOf(

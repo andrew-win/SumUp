@@ -7,24 +7,12 @@ import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.dao.GroupWithSources
 import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
-import com.andrewwin.sumup.domain.support.LocalModelMissingException
-import com.andrewwin.sumup.domain.support.NoActiveModelException
-import com.andrewwin.sumup.domain.support.UnsupportedStrategyException
 import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.usecase.common.FormatSummaryResultUseCase
-import com.andrewwin.sumup.domain.usecase.ai.SummarizeSingleArticleUseCase
-import com.andrewwin.sumup.domain.usecase.ai.SummarizeFeedUseCase
-import com.andrewwin.sumup.domain.usecase.ai.CompareNewsUseCase
-import com.andrewwin.sumup.domain.usecase.ai.AskQuestionAboutNewsUseCase
-import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
-import com.andrewwin.sumup.domain.usecase.ai.SummaryResult
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -54,17 +42,10 @@ class FeedViewModel @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val refreshFeedUseCase: RefreshFeedUseCase,
     private val getFeedArticlesUseCase: GetFeedArticlesUseCase,
-    private val summarizeSingleArticleUseCase: SummarizeSingleArticleUseCase,
-    private val summarizeFeedUseCase: SummarizeFeedUseCase,
-    private val compareNewsUseCase: CompareNewsUseCase,
-    private val askQuestionAboutNewsUseCase: AskQuestionAboutNewsUseCase,
-    private val formatSummaryResultUseCase: FormatSummaryResultUseCase,
-    private val aiModelConfigRepository: AiModelConfigRepository,
     private val sourceRepository: SourceRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val feedUiModelMapper: FeedUiModelMapper
 ) : AndroidViewModel(application) {
-    private val aiSessionCache = FeedAiSessionCache()
     private val favoriteOverrides = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
 
     private val _searchQuery = MutableStateFlow("")
@@ -82,21 +63,8 @@ class FeedViewModel @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    private val _aiResult = MutableStateFlow<AiPresentationResult?>(null)
-    val aiResult: StateFlow<AiPresentationResult?> = _aiResult.asStateFlow()
-
-    private val _isAiLoading = MutableStateFlow(false)
-    val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
-
     val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.preferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
-
-    val activeSummaryModelName: StateFlow<String?> = aiModelConfigRepository.getConfigsByType(AiModelType.SUMMARY)
-        .combine(aiModelConfigRepository.lastUsedSummaryModelName) { configs, lastUsed ->
-            lastUsed?.takeIf { it.isNotBlank() }
-                ?: configs.firstOrNull { it.isEnabled }?.modelName?.takeIf { it.isNotBlank() }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val groupsWithSources: StateFlow<List<GroupWithSources>> = sourceRepository.groupsWithSources
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -221,8 +189,6 @@ class FeedViewModel @Inject constructor(
     fun selectGroup(groupId: Long?) { _selectedGroupId.value = groupId }
     fun setDateFilter(filter: DateFilter) { _dateFilter.value = filter }
     fun setSavedFilter(filter: SavedFilter) { _savedFilter.value = filter }
-    fun clearAiResult() { _aiResult.value = null }
-
     fun toggleSaved(cluster: ArticleClusterUiModel) {
         val clusterArticles = buildList {
             add(cluster.representative.article)
@@ -290,129 +256,6 @@ class FeedViewModel @Inject constructor(
         if (uiModel.article.isFavorite == override) return uiModel
         return uiModel.copy(article = uiModel.article.copy(isFavorite = override))
     }
-
-    private fun launchAi(block: suspend () -> Result<SummaryResult>) {
-        viewModelScope.launch {
-            _isAiLoading.value = true
-            _aiResult.value = null
-            val result = block()
-                .map { summary ->
-                    AiPresentationResult(
-                        result = summary,
-                        rawText = formatSummaryResultUseCase(summary)
-                    )
-                }
-                .getOrElse { error ->
-                    val localized = localizeError(error)
-                    AiPresentationResult(
-                        result = SummaryResult.Error(localized),
-                        rawText = localized
-                    )
-                }
-            _aiResult.value = result
-            _isAiLoading.value = false
-        }
-    }
-
-    fun summarizeContent(content: String) = launchAi {
-        summarizeSingleArticleUseCase(title = "Текст", content = content)
-    }
-
-    fun askQuestion(article: Article, question: String) = launchAi { askQuestionAboutNewsUseCase(listOf(article), question) }
-
-
-
-    fun askClusterQuestion(cluster: ArticleClusterUiModel, question: String) = launchAi {
-        val clusterArticles = buildList {
-            add(cluster.representative.article)
-            addAll(cluster.duplicates.map { it.first.article })
-        }
-        askQuestionAboutNewsUseCase(clusterArticles, question)
-    }
-
-    fun openCachedArticleSummary(article: Article) {
-        _aiResult.value = aiSessionCache.getArticleSummary(article.id)
-    }
-
-    fun openCachedFeedSummary() {
-        _aiResult.value = aiSessionCache.getFeedSummary(currentFeedArticleIds())
-    }
-
-    fun openCachedClusterSummary(cluster: ArticleClusterUiModel) {
-        _aiResult.value = aiSessionCache.getClusterSummary(cluster)
-    }
-
-    fun summarizeArticle(article: Article, forceRefresh: Boolean = false) {
-        if (!forceRefresh) {
-            aiSessionCache.getArticleSummary(article.id)?.let {
-                _aiResult.value = it
-                return
-            }
-        }
-        launchAi {
-            summarizeSingleArticleUseCase(article).onSuccess { result ->
-                val presentation = AiPresentationResult(result = result, rawText = formatSummaryResultUseCase(result))
-                aiSessionCache.putArticleSummary(article.id, presentation)
-            }
-        }
-    }
-
-    fun summarizeCluster(cluster: ArticleClusterUiModel, forceRefresh: Boolean = false) {
-        val representative = cluster.representative.article
-        val duplicates = cluster.duplicates.map { it.first.article }
-        if (!forceRefresh) {
-            aiSessionCache.getClusterSummary(cluster)?.let {
-                _aiResult.value = it
-                return
-            }
-        }
-        launchAi {
-            compareNewsUseCase(listOf(representative) + duplicates)
-                .onSuccess {
-                    aiSessionCache.putClusterSummary(
-                        cluster,
-                        AiPresentationResult(result = it, rawText = formatSummaryResultUseCase(it))
-                    )
-                }
-        }
-    }
-
-    fun summarizeFeed(forceRefresh: Boolean = false) {
-        val articles = articleClusters.value.map { it.representative.article }
-        if (articles.isEmpty()) return
-        val articleIds = currentFeedArticleIds()
-        if (!forceRefresh) {
-            aiSessionCache.getFeedSummary(articleIds)?.let {
-                _aiResult.value = it
-                return
-            }
-        }
-        launchAi {
-            summarizeFeedUseCase(articles).onSuccess { result ->
-                val presentation = AiPresentationResult(result = result, rawText = formatSummaryResultUseCase(result))
-                aiSessionCache.putFeedSummary(articleIds, presentation)
-            }
-        }
-    }
-
-    fun askFeed(question: String) {
-        val representatives = articleClusters.value.map { it.representative }
-        if (representatives.isEmpty()) return
-        launchAi { askQuestionAboutNewsUseCase(representatives.map { it.article }, question) }
-    }
-
-    private fun localizeError(e: Throwable): String {
-        val context = getApplication<Application>()
-        return when (e) {
-            is NoActiveModelException -> context.getString(R.string.error_no_active_model)
-            is AllAiModelsFailedException -> context.getString(R.string.error_all_ai_models_failed)
-            is LocalModelMissingException -> context.getString(R.string.error_local_model_missing)
-            is UnsupportedStrategyException -> context.getString(R.string.error_unsupported_strategy)
-            else -> "${context.getString(R.string.ai_error_prefix)} ${e.localizedMessage.orEmpty()}"
-        }
-    }
-
-    private fun currentFeedArticleIds(): List<Long> = articleClusters.value.map { it.representative.article.id }
 
     private data class FeedUiState(
         val clusters: List<ArticleClusterUiModel>,
