@@ -1,6 +1,6 @@
 package com.andrewwin.sumup
 
-import com.andrewwin.sumup.domain.usecase.common.GetExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.ai.GetExtractiveSummaryUseCase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

@@ -59,6 +59,12 @@ class PublicSourcesCatalogService @Inject constructor(
             )
         }
 
+        val recommendationAnchors = (groupMap["anchors"] as? List<*>)
+            ?.mapNotNull { (it as? String)?.trim()?.takeIf(String::isNotEmpty) }
+            ?: (groupMap["examples"] as? List<*>)
+                ?.mapNotNull { (it as? String)?.trim()?.takeIf(String::isNotEmpty) }
+                .orEmpty()
+
         return ImportedSourceGroup(
             id = groupId,
             name = name,
@@ -66,7 +72,9 @@ class PublicSourcesCatalogService @Inject constructor(
             nameEn = nameEn,
             isEnabled = groupMap["isEnabled"] as? Boolean ?: true,
             isDeletable = groupMap["isDeletable"] as? Boolean ?: true,
-            sources = sources
+            sources = sources,
+            recommendationAnchors = recommendationAnchors,
+            sortOrder = (groupMap["sortOrder"] as? Number)?.toInt() ?: 0
         )
     }
 

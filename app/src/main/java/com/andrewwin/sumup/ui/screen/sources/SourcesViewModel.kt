@@ -11,6 +11,8 @@ import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
+import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
+import com.andrewwin.sumup.domain.usecase.sources.ThemeSuggestion
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,7 +25,8 @@ import javax.inject.Inject
 
 data class FirebaseThemeSuggestion(
     val group: ImportedSourceGroup,
-    val isSubscribed: Boolean
+    val isSubscribed: Boolean,
+    val isRecommended: Boolean
 )
 
 @HiltViewModel
@@ -32,6 +35,7 @@ class SourcesViewModel @Inject constructor(
     private val manageModelUseCase: ManageModelUseCase,
     private val publicSubscriptionsSyncManager: PublicSubscriptionsSyncManager,
     private val refreshFeedUseCase: RefreshFeedUseCase,
+    private val getSuggestedThemesUseCase: GetSuggestedThemesUseCase,
     userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
@@ -50,6 +54,8 @@ class SourcesViewModel @Inject constructor(
     val isModelLoaded: StateFlow<Boolean> = _isModelLoaded.asStateFlow()
     private val _subscriptionsSyncFailed = MutableStateFlow(publicSubscriptionsSyncManager.hasSyncFailure())
     val subscriptionsSyncFailed: StateFlow<Boolean> = _subscriptionsSyncFailed.asStateFlow()
+    private val _isRefreshingThemeRecommendations = MutableStateFlow(false)
+    val isRefreshingThemeRecommendations: StateFlow<Boolean> = _isRefreshingThemeRecommendations.asStateFlow()
     val isRecommendationsEnabled: StateFlow<Boolean> = userPreferencesRepository.preferences
         .map { it.isRecommendationsEnabled }
         .stateIn(
@@ -70,7 +76,6 @@ class SourcesViewModel @Inject constructor(
     init {
         checkModelStatus()
         viewModelScope.launch {
-            publicSubscriptionsSyncManager.syncIfDue()
             _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
             loadSuggestedThemes()
         }
@@ -92,42 +97,40 @@ class SourcesViewModel @Inject constructor(
     fun loadSuggestedThemes() {
         suggestedThemesJob?.cancel()
         suggestedThemesJob = viewModelScope.launch {
-            publicSubscriptionsSyncManager.syncIfDue()
             _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
-            val groups = repository.groupsWithSources.first()
-            val existingUrls = groups.flatMap { it.sources }.map { it.url.trim() }.toSet()
-            val themes = publicSubscriptionsSyncManager.getCachedGroups()
-                .filter { it.name.isNotBlank() }
-                .map { theme ->
-                    FirebaseThemeSuggestion(
-                        group = theme,
-                        isSubscribed = theme.sources.all { it.url.trim() in existingUrls }
-                    )
-                }
-            _suggestedThemes.value = applyPendingOverrides(themes)
+            val suggestions = getSuggestedThemesUseCase(forceRefresh = false).first()
+            _suggestedThemes.value = applyPendingOverrides(suggestions.toFirebaseThemeSuggestions())
         }
     }
 
     fun refreshSuggestedThemes(forceRefresh: Boolean) {
         suggestedThemesJob?.cancel()
         suggestedThemesJob = viewModelScope.launch {
-            if (forceRefresh) {
-                publicSubscriptionsSyncManager.sync(force = true)
-            } else {
-                publicSubscriptionsSyncManager.syncIfDue()
-            }
-            _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
-            val groups = repository.groupsWithSources.first()
-            val existingUrls = groups.flatMap { it.sources }.map { it.url.trim() }.toSet()
-            val themes = publicSubscriptionsSyncManager.getCachedGroups()
-                .filter { it.name.isNotBlank() }
-                .map { theme ->
-                    FirebaseThemeSuggestion(
-                        group = theme,
-                        isSubscribed = theme.sources.all { it.url.trim() in existingUrls }
-                    )
+            try {
+                if (forceRefresh) {
+                    publicSubscriptionsSyncManager.sync(force = true)
+                } else {
+                    publicSubscriptionsSyncManager.syncIfDue()
                 }
-            _suggestedThemes.value = applyPendingOverrides(themes)
+                _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
+                if (forceRefresh) {
+                    _isRefreshingThemeRecommendations.value = true
+                    try {
+                        getSuggestedThemesUseCase(forceRefresh = true).collect { suggestions ->
+                            _suggestedThemes.value = applyPendingOverrides(suggestions.toFirebaseThemeSuggestions())
+                        }
+                    } finally {
+                        _isRefreshingThemeRecommendations.value = false
+                    }
+                } else {
+                    val suggestions = getSuggestedThemesUseCase(forceRefresh = false).first()
+                    _suggestedThemes.value = applyPendingOverrides(suggestions.toFirebaseThemeSuggestions())
+                }
+            } finally {
+                if (!forceRefresh) {
+                    _isRefreshingThemeRecommendations.value = false
+                }
+            }
         }
     }
 
@@ -147,6 +150,17 @@ class SourcesViewModel @Inject constructor(
         }
         matchedOverrides.forEach { pendingSubscriptionOverrides.remove(it) }
         return mapped
+    }
+
+    private fun List<ThemeSuggestion>.toFirebaseThemeSuggestions(): List<FirebaseThemeSuggestion> {
+        return filter { it.theme.name.isNotBlank() }
+            .map { suggestion ->
+                FirebaseThemeSuggestion(
+                    group = suggestion.theme,
+                    isSubscribed = suggestion.isSubscribed,
+                    isRecommended = suggestion.isRecommended
+                )
+            }
     }
 
     private fun setPendingOverride(themeTitle: String, isSubscribed: Boolean) {

@@ -12,20 +12,22 @@ class SuggestedThemesStateRepositoryImpl @Inject constructor(
 ) : SuggestedThemesStateRepository {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    override fun getSavedThemeTitles(): Set<String>? = prefs.getStringSet(KEY_SAVED_THEMES, null)
+    override fun getSavedThemeIds(): Set<String>? = prefs.getStringSet(KEY_SAVED_THEME_IDS, null)
+
+    override fun getSavedThemeTitlesLegacy(): Set<String>? = prefs.getStringSet(KEY_SAVED_THEMES, null)
 
     override fun getLastRecommendationAt(): Long = prefs.getLong(KEY_LAST_RECOMMENDATION_AT, 0L)
 
     override fun getLastFeedRefreshAt(): Long = prefs.getLong(KEY_LAST_FEED_REFRESH_AT, 0L)
 
     override fun saveRecommendationState(
-        savedThemeTitles: Set<String>,
+        savedThemeIds: Set<String>,
         sourcesHash: Int,
         timestamp: Long
     ) {
         prefs.edit()
             .putInt(KEY_SOURCES_HASH, sourcesHash)
-            .putStringSet(KEY_SAVED_THEMES, savedThemeTitles)
+            .putStringSet(KEY_SAVED_THEME_IDS, savedThemeIds)
             .putLong(KEY_LAST_RECOMMENDATION_AT, timestamp)
             .apply()
     }
@@ -39,6 +41,7 @@ class SuggestedThemesStateRepositoryImpl @Inject constructor(
     private companion object {
         private const val PREFS_NAME = "suggested_themes_prefs"
         private const val KEY_SAVED_THEMES = "savedThemes"
+        private const val KEY_SAVED_THEME_IDS = "savedThemeIds"
         private const val KEY_SOURCES_HASH = "sourcesHash"
         private const val KEY_LAST_RECOMMENDATION_AT = "lastRecommendationAt"
         private const val KEY_LAST_FEED_REFRESH_AT = "lastFeedRefreshAt"

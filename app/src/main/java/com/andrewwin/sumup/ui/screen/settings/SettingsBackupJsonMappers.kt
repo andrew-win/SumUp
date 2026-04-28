@@ -300,7 +300,9 @@ internal fun JSONArray?.toImportedGroupsFromBackup(): List<ImportedSourceGroup> 
                 nameEn = name,
                 isEnabled = item.optBoolean("isEnabled", true),
                 isDeletable = item.optBoolean("isDeletable", true),
-                sources = item.optJSONArray("sources").toImportedSourcesFromBackup()
+                sources = item.optJSONArray("sources").toImportedSourcesFromBackup(),
+                recommendationAnchors = item.optJSONArray("anchors").toStringListFromBackup(),
+                sortOrder = item.optInt("sortOrder", 0)
             )
         )
     }
@@ -334,6 +336,16 @@ internal fun JSONArray?.toImportedSourcesFromBackup(): List<ImportedSource> {
         )
     }
     return sources
+}
+
+private fun JSONArray?.toStringListFromBackup(): List<String> {
+    if (this == null) return emptyList()
+    val items = mutableListOf<String>()
+    for (index in 0 until length()) {
+        val value = optString(index, "").trim()
+        if (value.isNotBlank()) items.add(value)
+    }
+    return items
 }
 
 internal fun SavedArticle.toBackupJson(): JSONObject = JSONObject().apply {
@@ -379,7 +391,6 @@ internal fun JSONArray?.toSavedArticlesFromBackup(): List<SavedArticle> {
     }
     return items
 }
-
 
 
 

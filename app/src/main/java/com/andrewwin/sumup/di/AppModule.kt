@@ -39,10 +39,10 @@ import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.common.BuildExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.ai.BuildExtractiveSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
 import com.andrewwin.sumup.domain.usecase.common.FormatArticleHeadlineUseCase
-import com.andrewwin.sumup.domain.usecase.common.GetExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.ai.GetExtractiveSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase

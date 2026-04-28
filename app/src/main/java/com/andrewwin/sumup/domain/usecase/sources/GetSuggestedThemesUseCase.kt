@@ -3,9 +3,11 @@ package com.andrewwin.sumup.domain.usecase.sources
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
+import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
+import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.usecase.ai.GenerateCloudEmbeddingUseCase
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.EmbeddingService
@@ -20,148 +22,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.sqrt
 
-data class ThemeSource(val url: String, val type: SourceType)
-
-enum class SuggestedTheme(val title: String, val sources: List<ThemeSource>, val anchors: List<String>) {
-    SPORT(
-        "Спорт",
-        listOf(
-            ThemeSource("t.me/right_inside_ua", SourceType.TELEGRAM),
-            ThemeSource("https://www.suspilne.media/sport/rss/latest.rss", SourceType.RSS),
-            ThemeSource("https://www.rss.ua.tribuna.com/ru/feed.xml", SourceType.RSS)
-        ),
-        listOf(
-            "Збірна виграла матч у фіналі чемпіонату з футболу.",
-            "Спортсмен здобув золоту медаль на олімпійських іграх.",
-            "Баскетбольна команда перемогла у турнірі.",
-            "футбол баскетбол олімпіада турнір чемпіонат гравець тренер матч"
-        )
-    ),
-    TECH(
-        "Технології",
-        listOf(
-            ThemeSource("https://www.ilenta.com/uk/news/news.rss", SourceType.RSS),
-            ThemeSource("https://www.mezha.ua/feed/", SourceType.RSS),
-            ThemeSource("https://www.holosameryky.com/api/zvoypl-vomx-tpeuktm", SourceType.RSS)
-        ),
-        listOf(
-            "Процесор із вбудованим відеоядром: представили значно потужнішу модель.",
-            "Компанія представила революційний смартфон з новим чипом із можливостями штучного інтелекту.",
-            "Інновація у сфері космосу: дослідники відкрили нову планету за допомогою телескопа.",
-            "технології наука штучний інтелект гаджети програмування дослідження"
-        )
-    ),
-    POLITICS(
-        "Політика",
-        listOf(
-            ThemeSource("https://www.rbc.ua/static/rss/ukrnet.politics.ukr.rss.xml", SourceType.RSS),
-            ThemeSource("https://www.suspilne.media/rss/all.rss", SourceType.RSS),
-            ThemeSource("https://www.holosameryky.com/api/zqoy_l-vomx-tpeikty", SourceType.RSS)
-        ),
-        listOf(
-            "Парламент прийняв новий закон після голосування.",
-            "Президент підписав указ і призначив нового міністра.",
-            "Опозиція вимагає проведення дострокових виборів.",
-            "вибори уряд парламент депутат міністр президент закон голосування партія"
-        )
-    ),
-    WEATHER(
-        "Погода",
-        listOf(
-            ThemeSource("t.me/uhmc2022", SourceType.TELEGRAM),
-            ThemeSource("t.me/lviv_rchm", SourceType.TELEGRAM),
-            ThemeSource("t.me/HMC_Odesa", SourceType.TELEGRAM)
-        ),
-        listOf(
-            "Синоптики прогнозують сильний дощ і похолодання.",
-            "Завтра очікується сніг та мороз до -15 градусів.",
-            "Циклон принесе штормовий вітер і грозу.",
-            "температура опади сніг дощ вітер хмарно сонячно прогноз погоди"
-        )
-    ),
-    ECONOMY(
-        "Економіка",
-        listOf(
-            ThemeSource("https://www.holosameryky.com/api/zpoytl-vomx-tpe_ktr", SourceType.RSS),
-            ThemeSource("t.me/fair_price_channel", SourceType.TELEGRAM),
-            ThemeSource("https://t.me/MSUa_official", SourceType.TELEGRAM)
-        ),
-        listOf(
-            "Національний банк підвищив облікову ставку до 15 відсотків.",
-            "Курс долара зріс на міжбанківському ринку.",
-            "ВВП країни скоротився на два відсотки у третьому кварталі.",
-            "гривня долар євро інфляція бюджет кредит банк ставка ринок економіка"
-        )
-    ),
-    HEALTH(
-        "Здоров'я",
-        listOf(
-            ThemeSource("https://t.me/PHC_Ukraine", SourceType.TELEGRAM),
-            ThemeSource("https://t.me/zemits_ukraine_official", SourceType.TELEGRAM),
-        ),
-        listOf(
-            "Лікарі розробили нову методику лікування онкологічних захворювань.",
-            "МОЗ рекомендує вакцинуватися від грипу перед зимовим сезоном.",
-            "Вчені провели клінічні випробування нового препарату.",
-            "лікар лікарня вакцина хвороба лікування медицина здоров'я препарат вірус"
-        )
-    ),
-    CRYPTO(
-        "Крипта",
-        listOf(
-            ThemeSource("https://t.me/probitcoinua", SourceType.TELEGRAM),
-            ThemeSource("https://https://t.me/Kripta_Ukraina", SourceType.TELEGRAM),
-        ),
-        listOf(
-            "Біткоїн досяг нового історичного максимуму і перевищив сто тисяч доларів.",
-            "Ethereum оновив мережу і знизив комісії за транзакції.",
-            "SEC схвалила перший біткоїн ETF для роздрібних інвесторів.",
-            "біткоїн ethereum крипто блокчейн токен defi гаманець майнінг altcoin"
-        )
-    ),
-    SPACE(
-        "Космос",
-        listOf(
-            ThemeSource("https://www.nasa.gov/rss/dyn/breaking_news.rss", SourceType.RSS),
-            ThemeSource("https://www.space.com/feeds/all", SourceType.RSS)
-        ),
-        listOf(
-            "SpaceX успішно запустила ракету Starship на навколоземну орбіту.",
-            "Телескоп Джеймс Вебб сфотографував нову екзопланету.",
-            "Астронавти МКС провели вихід у відкритий космос для ремонту.",
-            "ракета орбіта NASA SpaceX астронавт супутник місяць марс телескоп запуск"
-        )
-    ),
-    CARS(
-        "Автомобілі",
-        listOf(
-            ThemeSource("https://t.me/w8shippingukraine", SourceType.TELEGRAM),
-            ThemeSource("https://https://t.me/AUTOSCOUTCOMUA", SourceType.TELEGRAM)
-        ),
-        listOf(
-            "Tesla представила нову модель електромобіля з запасом ходу 700 км.",
-            "BMW відкликає тисячі автомобілів через несправність гальм.",
-            "Продажі електромобілів в Україні зросли на тридцять відсотків.",
-            "автомобіль електромобіль tesla двигун салон тест-драйв колеса кузов пробіг"
-        )
-    ),
-    BOOKS(
-        "Книги",
-        listOf(
-            ThemeSource("https://t.me/ukrlib", SourceType.TELEGRAM),
-            ThemeSource("https://t.me/booksua11", SourceType.TELEGRAM)
-        ),
-        listOf(
-            "Новий роман відомого письменника став бестселером місяця.",
-            "Букерівську премію отримала книга про події Другої світової війни.",
-            "Видавництво випустило перший переклад класичного твору українською.",
-            "книга роман автор письменник видавництво читання бестселер премія літературa"
-        )
-    ),
-}
-
 data class ThemeSuggestion(
-    val theme: SuggestedTheme,
+    val theme: ImportedSourceGroup,
     val score: Float,
     val isSubscribed: Boolean = false,
     val isRecommended: Boolean = false
@@ -178,11 +40,20 @@ class GetSuggestedThemesUseCase @Inject constructor(
     private val manageModelUseCase: ManageModelUseCase,
     private val remoteArticleDataSource: RemoteArticleDataSource,
     private val articleImportanceScorer: ArticleImportanceScorer,
-    private val suggestedThemesStateRepository: SuggestedThemesStateRepository
+    private val suggestedThemesStateRepository: SuggestedThemesStateRepository,
+    private val publicSubscriptionsSyncManager: PublicSubscriptionsSyncManager
 ) {
     operator fun invoke(forceRefresh: Boolean = false): Flow<List<ThemeSuggestion>> = flow {
         val prefsData = userPreferencesRepository.preferences.first()
         if (!prefsData.isRecommendationsEnabled) {
+            emit(emptyList())
+            return@flow
+        }
+
+        val themeProfiles = publicSubscriptionsSyncManager.getCachedGroups()
+            .filter { it.isEnabled && it.recommendationAnchors.isNotEmpty() }
+            .sortedBy { it.sortOrder }
+        if (themeProfiles.isEmpty()) {
             emit(emptyList())
             return@flow
         }
@@ -194,22 +65,23 @@ class GetSuggestedThemesUseCase @Inject constructor(
         val currentSourcesHash = allSourcesUrls.hashCode()
         val sourceTypeMap = allSources.associate { it.id to it.type }
 
-        val savedThemeUrls = suggestedThemesStateRepository.getSavedThemeTitles()
+        val savedThemeIds = suggestedThemesStateRepository.getSavedThemeIds()
+        val savedThemeTitlesLegacy = suggestedThemesStateRepository.getSavedThemeTitlesLegacy()
         val lastRecommendationAt = suggestedThemesStateRepository.getLastRecommendationAt()
         val lastFeedRefreshAt = suggestedThemesStateRepository.getLastFeedRefreshAt()
         val now = System.currentTimeMillis()
         val shouldRecalculate = forceRefresh || (
-            (now - lastRecommendationAt) >= ONE_DAY_MS &&
+            (now - lastRecommendationAt) >= SuggestedThemesRefreshConstants.REFRESH_INTERVAL_MS &&
             lastFeedRefreshAt > lastRecommendationAt
         )
 
         if (!shouldRecalculate) {
-            val cached = SuggestedTheme.entries.map {
+            val cached = themeProfiles.map {
                 ThemeSuggestion(
                     it,
                     score = 10f,
                     isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) },
-                    isRecommended = savedThemeUrls?.contains(it.title) == true
+                    isRecommended = isThemeSaved(it, savedThemeIds, savedThemeTitlesLegacy)
                 )
             }.sortedByDescending { if (it.isRecommended) 1 else 0 }
             emit(cached)
@@ -220,29 +92,39 @@ class GetSuggestedThemesUseCase @Inject constructor(
         val isModelLoaded = hasCloudEmbedding || manageModelUseCase.isModelExists()
 
         if (!isModelLoaded) {
-            emit(SuggestedTheme.entries.map { 
+            emit(themeProfiles.map { 
                 ThemeSuggestion(it, 0f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) })
             })
             return@flow
         }
         
         // If we have cache and refresh window has not passed, return cache.
-        if (!forceRefresh && savedThemeUrls != null && !shouldRecalculate) {
-            val cached = SuggestedTheme.entries.map {
-                 ThemeSuggestion(it, score = 10f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) }, isRecommended = savedThemeUrls.contains(it.title)) 
+        if (!forceRefresh && (savedThemeIds != null || savedThemeTitlesLegacy != null) && !shouldRecalculate) {
+            val cached = themeProfiles.map {
+                 ThemeSuggestion(
+                     it,
+                     score = 10f,
+                     isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) },
+                     isRecommended = isThemeSaved(it, savedThemeIds, savedThemeTitlesLegacy)
+                 ) 
             }.sortedByDescending { if (it.isRecommended) 1 else 0 }
             emit(cached)
             return@flow
         }
 
         // Initial emit: if no cache, emit all. If cache exists (even if out of date or forcing), emit it while recalculating
-        if (savedThemeUrls == null) {
-            emit(SuggestedTheme.entries.map { 
+        if (savedThemeIds == null && savedThemeTitlesLegacy == null) {
+            emit(themeProfiles.map { 
                 ThemeSuggestion(it, 0f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) })
             })
         } else {
-            val cached = SuggestedTheme.entries.map { 
-                 ThemeSuggestion(it, score = 10f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) }, isRecommended = savedThemeUrls.contains(it.title)) 
+            val cached = themeProfiles.map { 
+                 ThemeSuggestion(
+                     it,
+                     score = 10f,
+                     isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) },
+                     isRecommended = isThemeSaved(it, savedThemeIds, savedThemeTitlesLegacy)
+                 ) 
             }.sortedByDescending { if (it.isRecommended) 1 else 0 }
             emit(cached)
         }
@@ -266,11 +148,11 @@ class GetSuggestedThemesUseCase @Inject constructor(
                          )
                          importance >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
                      }
-                     .take(7)
+                     .take(MAX_ARTICLES_PER_SOURCE_FOR_THEME_RECOMMENDATIONS)
             }
 
         if (userArticles.isEmpty()) {
-            emit(SuggestedTheme.entries.map { 
+            emit(themeProfiles.map { 
                 ThemeSuggestion(it, 0f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) })
             })
             return@flow
@@ -283,7 +165,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
             embeddingService.initialize(modelPath)
         }
         if (!localEmbeddingReady) {
-            emit(SuggestedTheme.entries.map { 
+            emit(themeProfiles.map { 
                 ThemeSuggestion(it, 0f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) })
             })
             return@flow
@@ -291,9 +173,9 @@ class GetSuggestedThemesUseCase @Inject constructor(
 
         val simThreshold = (
             if (hasCloudEmbedding) {
-                prefsData.cloudDeduplicationThreshold - 0.01f
+                prefsData.cloudDeduplicationThreshold - CLOUD_RECOMMENDATION_SIMILARITY_THRESHOLD_OFFSET
             } else {
-                prefsData.localDeduplicationThreshold - 0.2f
+                prefsData.localDeduplicationThreshold - LOCAL_RECOMMENDATION_SIMILARITY_THRESHOLD_OFFSET
             }
         ).coerceIn(0f, 0.99f)
 
@@ -302,8 +184,8 @@ class GetSuggestedThemesUseCase @Inject constructor(
            it.title to normalize(emb)
         }
 
-        val staticAnchorEmbeddings: Map<SuggestedTheme, FloatArray> = SuggestedTheme.entries.associateWith { theme ->
-            val anchorEmbs = theme.anchors.map { normalize(getEmbedding(it, hasCloudEmbedding)) }
+        val staticAnchorEmbeddings: Map<ImportedSourceGroup, FloatArray> = themeProfiles.associateWith { theme ->
+            val anchorEmbs = theme.recommendationAnchors.map { normalize(getEmbedding(it, hasCloudEmbedding)) }
             val vectorSize = anchorEmbs.first().size
             val sumVector = FloatArray(vectorSize)
             for (emb in anchorEmbs) {
@@ -313,8 +195,12 @@ class GetSuggestedThemesUseCase @Inject constructor(
         }
 
         val suggestions = mutableListOf<ThemeSuggestion>()
-        for (theme in SuggestedTheme.entries) {
-            val firstSource = theme.sources.first()
+        for (theme in themeProfiles) {
+            val firstSource = theme.sources.firstOrNull()
+            if (firstSource == null) {
+                suggestions.add(ThemeSuggestion(theme, 0f, isSubscribed = false))
+                continue
+            }
             
             // Optimization: if we already have articles for this source, use them instead of fetching
             val themeArticles = if (allSourcesUrls.contains(firstSource.url)) {
@@ -357,20 +243,9 @@ class GetSuggestedThemesUseCase @Inject constructor(
                         importance >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
                     }
                 }
-                .take(7)
+                .take(MAX_ARTICLES_PER_SOURCE_FOR_THEME_RECOMMENDATIONS)
                 .mapNotNull { 
-                    var titleForEmbedding = it.title
-                    if (theme == SuggestedTheme.WEATHER) {
-                        titleForEmbedding = titleForEmbedding.split(Regex("\\s+"))
-                            .filter { word ->
-                                val cleanWord = word.trim { !it.isLetter() }
-                                cleanWord.isEmpty() || !cleanWord.first().isUpperCase()
-                            }
-                            .joinToString(" ")
-                            .trim()
-                        if (titleForEmbedding.isBlank()) titleForEmbedding = "погода"
-                    }
-                    val emb = getEmbedding(titleForEmbedding, hasCloudEmbedding)
+                    val emb = getEmbedding(it.title, hasCloudEmbedding)
                     normalize(emb)
                 }
 
@@ -402,10 +277,12 @@ class GetSuggestedThemesUseCase @Inject constructor(
         }
 
         val sorted = suggestions.sortedByDescending { it.score }
-        val resultList = sorted.map { it.copy(isRecommended = it.score >= 1.5f) }.sortedByDescending { if (it.isRecommended) 1 else 0 }
+        val resultList = sorted
+            .map { it.copy(isRecommended = it.score >= RECOMMENDED_THEME_MIN_SCORE) }
+            .sortedByDescending { if (it.isRecommended) 1 else 0 }
 
         suggestedThemesStateRepository.saveRecommendationState(
-            savedThemeTitles = resultList.filter { it.isRecommended }.map { it.theme.title }.toSet(),
+            savedThemeIds = resultList.filter { it.isRecommended }.map { it.theme.id }.toSet(),
             sourcesHash = currentSourcesHash,
             timestamp = now
         )
@@ -431,8 +308,22 @@ class GetSuggestedThemesUseCase @Inject constructor(
         return embeddingService.getEmbedding(text)
     }
 
+    private fun isThemeSaved(
+        theme: ImportedSourceGroup,
+        savedThemeIds: Set<String>?,
+        savedThemeTitlesLegacy: Set<String>?
+    ): Boolean {
+        return savedThemeIds?.contains(theme.id) == true ||
+            savedThemeTitlesLegacy?.contains(theme.name) == true ||
+            savedThemeTitlesLegacy?.contains(theme.nameUk) == true ||
+            savedThemeTitlesLegacy?.contains(theme.nameEn) == true
+    }
+
     private companion object {
-        private const val ONE_DAY_MS = 24L * 60 * 60 * 1000
+        private const val MAX_ARTICLES_PER_SOURCE_FOR_THEME_RECOMMENDATIONS = 7
+        private const val CLOUD_RECOMMENDATION_SIMILARITY_THRESHOLD_OFFSET = 0.015f
+        private const val LOCAL_RECOMMENDATION_SIMILARITY_THRESHOLD_OFFSET = 0.2f
+        private const val RECOMMENDED_THEME_MIN_SCORE = 2.5f
     }
 }
 

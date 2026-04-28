@@ -1,11 +1,12 @@
 package com.andrewwin.sumup.domain.repository
 
 interface SuggestedThemesStateRepository {
-    fun getSavedThemeTitles(): Set<String>?
+    fun getSavedThemeIds(): Set<String>?
+    fun getSavedThemeTitlesLegacy(): Set<String>?
     fun getLastRecommendationAt(): Long
     fun getLastFeedRefreshAt(): Long
     fun saveRecommendationState(
-        savedThemeTitles: Set<String>,
+        savedThemeIds: Set<String>,
         sourcesHash: Int,
         timestamp: Long
     )

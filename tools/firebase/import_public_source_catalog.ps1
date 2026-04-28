@@ -31,6 +31,26 @@ if (-not $catalog.groups) {
     throw "Catalog JSON must contain a top-level 'groups' field."
 }
 
+foreach ($group in $catalog.groups) {
+    if ([string]::IsNullOrWhiteSpace($group.id)) {
+        throw "Each group must contain a non-empty 'id'."
+    }
+
+    $titleUk = $group.title.uk
+    $titleEn = $group.title.en
+    if ([string]::IsNullOrWhiteSpace($titleUk) -and [string]::IsNullOrWhiteSpace($group.nameUk) -and [string]::IsNullOrWhiteSpace($group.name)) {
+        throw "Group '$($group.id)' must contain a Ukrainian title in 'title.uk', 'nameUk', or 'name'."
+    }
+
+    if (-not $group.sources -or $group.sources.Count -eq 0) {
+        throw "Group '$($group.id)' must contain at least one source."
+    }
+
+    if (-not $group.anchors -or $group.anchors.Count -eq 0) {
+        throw "Group '$($group.id)' must contain non-empty 'anchors' for recommendations."
+    }
+}
+
 function ConvertTo-Base64Url([byte[]]$bytes) {
     [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 }

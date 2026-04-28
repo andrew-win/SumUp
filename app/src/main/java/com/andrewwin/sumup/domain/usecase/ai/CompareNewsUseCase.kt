@@ -9,7 +9,6 @@ import com.andrewwin.sumup.domain.service.EmbeddingUtils
 import com.andrewwin.sumup.domain.service.SimilarityScorer
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.support.LocalModelMissingException
-import com.andrewwin.sumup.domain.usecase.common.GetExtractiveSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -81,6 +80,12 @@ class CompareNewsUseCase @Inject constructor(
         val articleId: Long
     )
 
+    private data class ScoredSentenceMatch(
+        val leftIndex: Int,
+        val rightIndex: Int,
+        val score: Float
+    )
+
     private suspend fun performLocalComparison(articles: List<Article>, prefs: com.andrewwin.sumup.data.local.entities.UserPreferences): SummaryResult.Compare {
         if (articles.isEmpty()) return SummaryResult.Compare(emptyList(), emptyList())
 
@@ -115,63 +120,54 @@ class CompareNewsUseCase @Inject constructor(
         // Попередньо розраховуємо найкращий бал схожості з іншими статтями для кожного речення
         val bestScoreToOtherArticle = FloatArray(candidates.size) { 0f }
         val threshold = SummaryLimits.Compare.localSimilarityThreshold
+        val graphEdges = mutableListOf<ScoredSentenceMatch>()
 
-        // Сортуємо кандидатів за довжиною, щоб довші речення ставали лідерами кластерів
-        val sortedIndices = candidates.indices.sortedByDescending { candidates[it].text.length }
-        
-        val visited = BooleanArray(candidates.size)
-        val clusters = mutableListOf<List<Int>>()
+        for (candidateIdx in candidates.indices) {
+            val bestMatchesByArticle = mutableMapOf<Long, ScoredSentenceMatch>()
 
-        for (leaderIdx in sortedIndices) {
-            if (visited[leaderIdx]) continue
-            
-            val cluster = mutableListOf<Int>()
-            cluster.add(leaderIdx)
-            visited[leaderIdx] = true
+            for (otherIdx in candidates.indices) {
+                if (candidateIdx == otherIdx) continue
 
-            val leaderEmb = embeddings[leaderIdx]
-            val leaderFeatures = featuresCache[leaderIdx]
-            val leaderArticleId = candidates[leaderIdx].articleId
+                val candidateArticleId = candidates[candidateIdx].articleId
+                val otherArticleId = candidates[otherIdx].articleId
+                if (candidateArticleId == otherArticleId) continue
 
-            for (memberIdx in sortedIndices) {
-                if (visited[memberIdx]) continue
-                
-                // Порівнюємо лише з РІЗНИХ статей
-                if (candidates[memberIdx].articleId == leaderArticleId) continue
-
-                val score = similarityScorer.calculateSimilarity(
-                    articleA = Article(sourceId = 0, title = "", content = "", url = "", publishedAt = 0),
-                    embeddingA = leaderEmb,
-                    articleB = Article(sourceId = 0, title = "", content = "", url = "", publishedAt = 0),
-                    embeddingB = embeddings[memberIdx],
-                    strategy = DeduplicationStrategy.LOCAL,
-                    featuresA = leaderFeatures,
-                    featuresB = featuresCache[memberIdx]
+                val score = calculateCandidateSimilarity(
+                    leftIndex = candidateIdx,
+                    rightIndex = otherIdx,
+                    embeddings = embeddings,
+                    featuresCache = featuresCache,
+                    bestScoreToOtherArticle = bestScoreToOtherArticle
                 )
 
-                // Оновлюємо глобальний бал схожості для обох речень
-                bestScoreToOtherArticle[leaderIdx] = maxOf(bestScoreToOtherArticle[leaderIdx], score)
-                bestScoreToOtherArticle[memberIdx] = maxOf(bestScoreToOtherArticle[memberIdx], score)
+                if (score < threshold) continue
 
-                if (score >= threshold) {
-                    cluster.add(memberIdx)
-                    visited[memberIdx] = true
+                val currentBest = bestMatchesByArticle[otherArticleId]
+                if (currentBest == null || score > currentBest.score) {
+                    bestMatchesByArticle[otherArticleId] = ScoredSentenceMatch(
+                        leftIndex = candidateIdx,
+                        rightIndex = otherIdx,
+                        score = score
+                    )
                 }
             }
-            clusters.add(cluster)
+
+            graphEdges += bestMatchesByArticle.values
         }
+
+        val clusters = buildBestMatchClusters(candidates.size, graphEdges)
+            .ifEmpty { candidates.indices.map { listOf(it) } }
 
         val commonCandidates = mutableListOf<Pair<SummaryItem, Float>>()
         val uniqueCandidates = mutableListOf<Pair<SummaryItem, Float>>()
 
         for (cluster in clusters) {
-            val leaderIdx = cluster.first()
+            val representativeIdx = selectRepresentativeCandidateIndex(cluster, graphEdges, bestScoreToOtherArticle)
             val clusterSources = cluster.map { candidates[it].source }.distinctBy { it.url }
             val distinctArticlesInCluster = cluster.map { candidates[it].articleId }.distinct().size
             
-            val item = SummaryItem(text = candidates[leaderIdx].text.trim(), sources = clusterSources)
-            // Беремо максимальний бал схожості лідера з будь-якою іншою СТАТТЕЮ (не тільки всередині кластера)
-            val clusterMaxScore = bestScoreToOtherArticle[leaderIdx]
+            val item = SummaryItem(text = candidates[representativeIdx].text.trim(), sources = clusterSources)
+            val clusterMaxScore = cluster.maxOf { bestScoreToOtherArticle[it] }
 
             if (distinctArticlesInCluster > 1) {
                 commonCandidates.add(item to clusterMaxScore)
@@ -204,6 +200,94 @@ class CompareNewsUseCase @Inject constructor(
             common = commonItems,
             unique = differentItems
         )
+    }
+
+    private fun calculateCandidateSimilarity(
+        leftIndex: Int,
+        rightIndex: Int,
+        embeddings: List<FloatArray>,
+        featuresCache: List<com.andrewwin.sumup.domain.service.TextOptimizationFeatures>,
+        bestScoreToOtherArticle: FloatArray
+    ): Float {
+        val score = similarityScorer.calculateSimilarity(
+            articleA = Article(sourceId = 0, title = "", content = "", url = "", publishedAt = 0),
+            embeddingA = embeddings[leftIndex],
+            articleB = Article(sourceId = 0, title = "", content = "", url = "", publishedAt = 0),
+            embeddingB = embeddings[rightIndex],
+            strategy = DeduplicationStrategy.LOCAL,
+            featuresA = featuresCache[leftIndex],
+            featuresB = featuresCache[rightIndex]
+        )
+
+        bestScoreToOtherArticle[leftIndex] = maxOf(bestScoreToOtherArticle[leftIndex], score)
+        bestScoreToOtherArticle[rightIndex] = maxOf(bestScoreToOtherArticle[rightIndex], score)
+        return score
+    }
+
+    private fun buildBestMatchClusters(
+        candidateCount: Int,
+        graphEdges: List<ScoredSentenceMatch>
+    ): List<List<Int>> {
+        val adjacency = Array(candidateCount) { mutableSetOf<Int>() }
+
+        graphEdges.forEach { edge ->
+            adjacency[edge.leftIndex].add(edge.rightIndex)
+            adjacency[edge.rightIndex].add(edge.leftIndex)
+        }
+
+        val visited = BooleanArray(candidateCount)
+        val clusters = mutableListOf<List<Int>>()
+
+        for (startIndex in 0 until candidateCount) {
+            if (visited[startIndex]) continue
+
+            val stack = ArrayDeque<Int>()
+            val cluster = mutableListOf<Int>()
+            stack.add(startIndex)
+            visited[startIndex] = true
+
+            while (stack.isNotEmpty()) {
+                val currentIndex = stack.removeLast()
+                cluster.add(currentIndex)
+
+                adjacency[currentIndex].forEach { nextIndex ->
+                    if (!visited[nextIndex]) {
+                        visited[nextIndex] = true
+                        stack.add(nextIndex)
+                    }
+                }
+            }
+
+            clusters.add(cluster)
+        }
+
+        return clusters
+    }
+
+    private fun selectRepresentativeCandidateIndex(
+        cluster: List<Int>,
+        graphEdges: List<ScoredSentenceMatch>,
+        bestScoreToOtherArticle: FloatArray
+    ): Int {
+        if (cluster.size == 1) return cluster.first()
+
+        val clusterSet = cluster.toSet()
+        val summedClusterEdgeScores = mutableMapOf<Int, Float>()
+
+        graphEdges.forEach { edge ->
+            if (edge.leftIndex in clusterSet && edge.rightIndex in clusterSet) {
+                summedClusterEdgeScores[edge.leftIndex] =
+                    (summedClusterEdgeScores[edge.leftIndex] ?: 0f) + edge.score
+                summedClusterEdgeScores[edge.rightIndex] =
+                    (summedClusterEdgeScores[edge.rightIndex] ?: 0f) + edge.score
+            }
+        }
+
+        return cluster.maxWithOrNull(
+            compareBy<Int> { summedClusterEdgeScores[it] ?: 0f }
+                .thenBy { bestScoreToOtherArticle[it] }
+                .thenBy { -it }
+        ) ?: cluster.first()
     }
 
     private fun normalizeKey(value: String): String = value

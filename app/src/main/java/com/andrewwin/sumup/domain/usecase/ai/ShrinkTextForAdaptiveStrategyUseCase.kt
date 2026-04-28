@@ -1,6 +1,5 @@
 package com.andrewwin.sumup.domain.usecase.ai
 
-import com.andrewwin.sumup.domain.usecase.common.GetExtractiveSummaryUseCase
 import javax.inject.Inject
 
 import com.andrewwin.sumup.data.local.entities.UserPreferences

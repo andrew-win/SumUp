@@ -4,7 +4,6 @@ import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.common.GetExtractiveSummaryUseCase
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 

@@ -43,7 +43,9 @@ data class ImportedSourceGroup(
     val nameEn: String,
     val isEnabled: Boolean,
     val isDeletable: Boolean,
-    val sources: List<ImportedSource>
+    val sources: List<ImportedSource>,
+    val recommendationAnchors: List<String> = emptyList(),
+    val sortOrder: Int = 0
 ) {
     fun displayName(language: AppLanguage): String = when (language) {
         AppLanguage.UK -> nameUk.ifBlank { name }.ifBlank { nameEn }

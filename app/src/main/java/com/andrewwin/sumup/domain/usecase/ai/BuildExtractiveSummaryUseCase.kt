@@ -1,7 +1,6 @@
-package com.andrewwin.sumup.domain.usecase.common
+package com.andrewwin.sumup.domain.usecase.ai
 
 import com.andrewwin.sumup.domain.support.DispatcherProvider
-import com.andrewwin.sumup.domain.usecase.ai.SummaryLimits
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 

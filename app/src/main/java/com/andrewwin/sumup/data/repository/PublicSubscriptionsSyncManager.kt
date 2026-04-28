@@ -4,6 +4,9 @@ import android.content.Context
 import com.andrewwin.sumup.data.remote.PublicSourcesCatalogService
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import javax.inject.Inject
@@ -15,31 +18,46 @@ class PublicSubscriptionsSyncManager @Inject constructor(
     private val publicSourcesCatalogService: PublicSourcesCatalogService
 ) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val syncStateMutex = Mutex()
+    private var activeSync: CompletableDeferred<Boolean>? = null
 
     suspend fun syncIfDue(): Boolean {
         val lastAttemptAt = prefs.getLong(KEY_LAST_ATTEMPT_AT, 0L)
         val isDue = System.currentTimeMillis() - lastAttemptAt >= SYNC_COOLDOWN_MS
-        return if (isDue) sync(force = true) else true
+        return if (isDue) sync(force = false) else true
     }
 
     suspend fun sync(force: Boolean): Boolean {
-        val lastAttemptAt = prefs.getLong(KEY_LAST_ATTEMPT_AT, 0L)
-        if (!force && System.currentTimeMillis() - lastAttemptAt < SYNC_COOLDOWN_MS) return true
+        val (syncResult, shouldStartSync) = registerOrJoinActiveSync()
+        if (!shouldStartSync) return syncResult.await()
 
-        prefs.edit()
-            .putLong(KEY_LAST_ATTEMPT_AT, System.currentTimeMillis())
-            .apply()
-
-        return runCatching {
-            val remoteGroups = publicSourcesCatalogService.fetchGroups()
-            saveSuccessState(remoteGroups)
-        }.isSuccess.also { success ->
-            if (!success) {
+        val success = try {
+            val lastAttemptAt = prefs.getLong(KEY_LAST_ATTEMPT_AT, 0L)
+            if (!force && System.currentTimeMillis() - lastAttemptAt < SYNC_COOLDOWN_MS) {
+                true
+            } else {
                 prefs.edit()
-                    .putBoolean(KEY_LAST_SYNC_FAILED, true)
+                    .putLong(KEY_LAST_ATTEMPT_AT, System.currentTimeMillis())
                     .apply()
+
+                runCatching {
+                    val remoteGroups = publicSourcesCatalogService.fetchGroups()
+                    saveSuccessState(remoteGroups)
+                }.isSuccess.also { syncSucceeded ->
+                    if (!syncSucceeded) {
+                        prefs.edit()
+                            .putBoolean(KEY_LAST_SYNC_FAILED, true)
+                            .apply()
+                    }
+                }
             }
+        } catch (_: Exception) {
+            false
         }
+
+        syncResult.complete(success)
+        clearActiveSync(syncResult)
+        return success
     }
 
     fun hasSyncFailure(): Boolean = prefs.getBoolean(KEY_LAST_SYNC_FAILED, false)
@@ -93,6 +111,10 @@ class PublicSubscriptionsSyncManager @Inject constructor(
                         })
                     }
                 })
+                put("anchors", JSONArray().apply {
+                    group.recommendationAnchors.forEach { put(it) }
+                })
+                put("sortOrder", group.sortOrder)
             })
         }
     }
@@ -136,6 +158,16 @@ class PublicSubscriptionsSyncManager @Inject constructor(
                 )
             }
         }
+        val recommendationAnchors = optJSONArray("anchors")
+            ?.let { anchorsJson ->
+                buildList {
+                    for (index in 0 until anchorsJson.length()) {
+                        val anchor = anchorsJson.optString(index).trim()
+                        if (anchor.isNotEmpty()) add(anchor)
+                    }
+                }
+            }
+            ?: emptyList()
         return ImportedSourceGroup(
             id = groupId,
             name = name,
@@ -143,8 +175,24 @@ class PublicSubscriptionsSyncManager @Inject constructor(
             nameEn = nameEn,
             isEnabled = optBoolean("isEnabled", true),
             isDeletable = optBoolean("isDeletable", true),
-            sources = sources
+            sources = sources,
+            recommendationAnchors = recommendationAnchors,
+            sortOrder = optInt("sortOrder", 0)
         )
+    }
+
+    private suspend fun registerOrJoinActiveSync(): Pair<CompletableDeferred<Boolean>, Boolean> =
+        syncStateMutex.withLock {
+            activeSync?.let { return it to false }
+            CompletableDeferred<Boolean>().also { activeSync = it } to true
+        }
+
+    private suspend fun clearActiveSync(syncResult: CompletableDeferred<Boolean>) {
+        syncStateMutex.withLock {
+            if (activeSync === syncResult) {
+                activeSync = null
+            }
+        }
     }
 
     companion object {

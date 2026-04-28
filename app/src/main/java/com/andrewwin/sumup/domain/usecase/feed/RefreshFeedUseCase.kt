@@ -4,7 +4,11 @@ import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
 import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
+import com.andrewwin.sumup.domain.usecase.sources.SuggestedThemesRefreshConstants
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -22,30 +26,37 @@ class RefreshFeedUseCaseImpl @Inject constructor(
 ) : RefreshFeedUseCase {
     private val mutex = Mutex()
     private var lastRefreshAt: Long = 0
+    private val backgroundScope = CoroutineScope(SupervisorJob() + dispatcherProvider.io)
 
     override suspend fun invoke(): Result<Unit> = withContext(dispatcherProvider.io) {
-        mutex.withLock {
+        var shouldRefreshSuggestedThemes = false
+        val result = mutex.withLock {
             val now = System.currentTimeMillis()
             if (now - lastRefreshAt < MIN_REFRESH_INTERVAL_MS) return@withLock Result.success(Unit)
-            val result = runCatching { refreshArticlesUseCase() }
+            val refreshResult = runCatching { refreshArticlesUseCase() }
             
-            if (result.isSuccess) {
+            if (refreshResult.isSuccess) {
                 lastRefreshAt = now
                 suggestedThemesStateRepository.setLastFeedRefreshAt(now)
                 val lastRecommendationAt = suggestedThemesStateRepository.getLastRecommendationAt()
-                val shouldRefreshSuggestedThemes = (now - lastRecommendationAt) >= SUGGESTED_THEMES_REFRESH_INTERVAL_MS
-                if (shouldRefreshSuggestedThemes) {
-                    runCatching { getSuggestedThemesUseCase(forceRefresh = false).collect() }
-                }
+                shouldRefreshSuggestedThemes =
+                    (now - lastRecommendationAt) >= SuggestedThemesRefreshConstants.REFRESH_INTERVAL_MS
             }
 
-            result
+            refreshResult
         }
+
+        if (result.isSuccess && shouldRefreshSuggestedThemes) {
+            backgroundScope.launch {
+                runCatching { getSuggestedThemesUseCase(forceRefresh = false).collect() }
+            }
+        }
+
+        result
     }
 
     companion object {
         private const val MIN_REFRESH_INTERVAL_MS = 5_000L
-        private const val SUGGESTED_THEMES_REFRESH_INTERVAL_MS = 24L * 60 * 60 * 1000
     }
 }
 

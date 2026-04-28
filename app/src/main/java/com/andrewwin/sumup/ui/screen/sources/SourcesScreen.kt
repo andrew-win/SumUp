@@ -180,6 +180,7 @@ fun SourcesScreen(
                 val isRecommendationsEnabled by viewModel.isRecommendationsEnabled.collectAsState()
                 val suggestedThemes by viewModel.suggestedThemes.collectAsState()
                 val subscriptionsSyncFailed by viewModel.subscriptionsSyncFailed.collectAsState()
+                val isRefreshingThemeRecommendations by viewModel.isRefreshingThemeRecommendations.collectAsState()
                 
                 if (isRecommendationsEnabled) {
                     AppHelpOverlayTarget(
@@ -233,6 +234,26 @@ fun SourcesScreen(
                                     if (rowItems.size == 1) {
                                         Spacer(modifier = Modifier.weight(1f))
                                     }
+                                }
+                            }
+
+                            if (isRefreshingThemeRecommendations) {
+                                Row(
+                                    modifier = Modifier
+                                        .padding(start = 4.dp, top = 4.dp, bottom = 8.dp)
+                                        .animateContentSize(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = stringResource(R.string.sources_refreshing_recommendations),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                             }
 
@@ -912,10 +933,10 @@ fun SuggestedThemeItem(
         border = appCardBorder(),
         modifier = modifier.padding(vertical = 4.dp).heightIn(min = 72.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.Center
-        ) {
+          Column(
+              modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+              verticalArrangement = Arrangement.Center
+          ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -934,8 +955,17 @@ fun SuggestedThemeItem(
                     contentDescription = null,
                     modifier = Modifier.size(20.dp),
                     tint = if (suggestion.isSubscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
+                  )
+              }
+              if (suggestion.isRecommended) {
+                  Spacer(modifier = Modifier.height(6.dp))
+                  Text(
+                      text = stringResource(R.string.sources_recommended_badge),
+                      style = MaterialTheme.typography.labelSmall,
+                      color = MaterialTheme.colorScheme.primary.copy(alpha = 0.78f),
+                      fontWeight = FontWeight.SemiBold
+                  )
+              }
+          }
+      }
+  }

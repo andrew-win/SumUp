@@ -397,8 +397,9 @@
     <string name="sources_suggested_themes_title">Підписуйтесь на теми:</string>
     <string name="sources_suggested_themes_hint">Підписуйтесь на теми:</string>
     <string name="sources_sync_failed">Не вдалося завантажити підписки</string>
+    <string name="sources_refreshing_recommendations">Перераховуємо рекомендації</string>
     <string name="sources_refresh_themes">Оновити теми</string>
-    <string name="sources_recommended_badge">⭐️ Рекомендовано</string>
+    <string name="sources_recommended_badge">Рекомендовано</string>
     <string name="sources_subscribed">Підписано</string>
 
     <string name="settings_section_account">Акаунт</string>

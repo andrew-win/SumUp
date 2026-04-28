@@ -372,8 +372,9 @@ scheduled</string>
     <string name="sources_suggested_themes_title">Subscribe to themes:</string>
     <string name="sources_suggested_themes_hint">Subscribe to themes:</string>
     <string name="sources_sync_failed">Failed to load subscriptions</string>
+    <string name="sources_refreshing_recommendations">Recalculating recommendations</string>
     <string name="sources_refresh_themes">Refresh themes</string>
-    <string name="sources_recommended_badge">⭐️ Recommended</string>
+    <string name="sources_recommended_badge">Recommended</string>
     <string name="sources_subscribed">Subscribed</string>
     <string name="settings_section_account">Account</string>
     <string name="settings_section_content_ai">Content &amp; AI</string>
