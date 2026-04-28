@@ -282,11 +282,15 @@ sources</string>
 filters</string>
     <string name="summary_empty_hint_scheduled">Enable
 scheduled</string>
+    <string name="summary_tab_scheduled">Scheduled</string>
+    <string name="summary_tab_statistics">Statistics</string>
     <string name="summary_default_title">Summary</string>
     <string name="summary_none_short">None</string>
     <string name="summary_not_enough_data">Not enough data.</string>
     <string name="summary_compare_common">Common</string>
     <string name="summary_compare_unique">Unique</string>
+    <string name="summary_compare_common_empty_local">Although the news items cover the same topics or events, no shared fragments could be identified beyond their headlines.</string>
+    <string name="summary_compare_unique_empty_local">No unique fragments were detected. The news may be heavily rephrasing one another, very similar, or too short.</string>
     <string name="summary_compare_no_meaningful_common">These news items cover the same topic, but no meaningful common fragments were found beyond their headlines.</string>
     <string name="summary_source_fallback">Source</string>
     <string name="summary_stat_views_count">%1$s views</string>
@@ -305,6 +309,9 @@ scheduled</string>
     <string name="source_theme_space">Space</string>
     <string name="source_theme_cars">Cars</string>
     <string name="source_theme_books">Books</string>
+    <string name="sources_tab_custom">Custom</string>
+    <string name="sources_tab_presets">Presets</string>
+    <string name="sources_search_placeholder">Search sources here…</string>
     <string name="sources_group_empty">There are no sources in this group</string>
     <string name="settings_help_account">— This section contains account sign-in, synchronization, and data transfer controls.\n— In the sync block you choose strategy, overwrite priority, interval, and included data.\n— In the import block you separately choose strategy: merge or overwrite local data.\n— These choices define which side becomes the source of truth on conflicts between local, cloud, and backup data.</string>
     <string name="settings_help_ai_processing">— This section contains AI strategy, limits, local summary, deduplication, and adaptive logic.\n— It directly affects quality, speed, and cost of AI processing.\n— Inside, each block opens its own short explanation for its settings.</string>

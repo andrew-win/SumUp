@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -76,7 +76,9 @@ fun SummaryHistoryScreen(
     var isHistorySearchFocused by remember { mutableStateOf(false) }
     var historyDateFilter by rememberSaveable { mutableStateOf(HistoryDateFilter.HOUR_24) }
     var historySavedFilter by rememberSaveable { mutableStateOf(HistorySavedFilter.ALL) }
-    val historyListState = rememberLazyListState()
+    val historyListState = rememberSaveable(saver = LazyListState.Saver) {
+        LazyListState()
+    }
     val scope = rememberCoroutineScope()
     val historySummaries = remember(
         summaries,

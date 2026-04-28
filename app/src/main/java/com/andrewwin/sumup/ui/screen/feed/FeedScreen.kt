@@ -8,9 +8,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.animation.*
@@ -105,7 +105,9 @@ fun FeedScreen(
     var helpDescription by remember { mutableStateOf<String?>(null) }
     var isSearchFocused by remember { mutableStateOf(false) }
 
-    val listState = rememberLazyListState()
+    val listState = rememberSaveable(saver = LazyListState.Saver) {
+        LazyListState()
+    }
     val scope = rememberCoroutineScope()
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -188,6 +190,7 @@ fun FeedScreen(
                     AppBackToTopFab(onClick = { scope.launch { listState.animateScrollToItem(0) } })
                 }
                 AppProminentFab(
+                    modifier = Modifier.padding(bottom = AppDimens.ScreenBottomPadding),
                     enabled = isFeedAiEnabled,
                     onClick = {
                         if (isHelpMode) {

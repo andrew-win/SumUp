@@ -15,7 +15,8 @@ object SummaryLimits {
         const val maxUnique = 5
         const val maxWordsPerPoint = 20
 
-        const val localSimilarityThreshold: Float = 0.6f
+        const val localSimilarityThreshold: Float = 0.5f
+        const val localUniqueThreshold: Float = 0.45f
         const val sentencesLocalCompare = 5
     }
 

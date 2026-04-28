@@ -45,6 +45,7 @@ import com.andrewwin.sumup.ui.components.AppExplanationDialog
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.components.AppHelpToggleAction
 import com.andrewwin.sumup.ui.components.AppProminentFab
+import com.andrewwin.sumup.ui.components.AppSearchField
 import com.andrewwin.sumup.ui.components.AppSelectionActions
 import com.andrewwin.sumup.ui.components.AppTopBar
 import com.andrewwin.sumup.ui.screen.settings.SettingsConfirmDeleteDialog
@@ -66,6 +67,7 @@ fun SourcesScreen(
     viewModel: SourcesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
     val appLanguage by viewModel.appLanguage.collectAsState()
     val selectedGroupIds = remember { mutableStateListOf<Long>() }
     val isSelectionMode = selectedGroupIds.isNotEmpty()
@@ -78,6 +80,12 @@ fun SourcesScreen(
     var selectedGroupIdForSource by remember { mutableStateOf<Long?>(null) }
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
+    var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
+    val tabIcons = listOf(Icons.Default.PersonAddAlt1, Icons.Default.LibraryBooks)
+    val tabLabels = listOf(
+        stringResource(R.string.sources_tab_custom),
+        stringResource(R.string.sources_tab_presets)
+    )
     val addGroupHelpDescription = stringResource(R.string.sources_help_add_group)
     val groupCardHelpDescription = stringResource(R.string.sources_help_group_card)
     val suggestedThemesHelpDescription = stringResource(R.string.sources_help_recommended_themes)
@@ -118,20 +126,23 @@ fun SourcesScreen(
             )
         },
         floatingActionButton = {
-            AppProminentFab(
-                onClick = {
-                    if (isHelpMode) {
-                        helpDescription = addGroupHelpDescription
-                    } else {
-                        showAddGroupDialog = true
+            if (selectedTabIndex == 0) {
+                AppProminentFab(
+                    modifier = Modifier.padding(bottom = AppDimens.ScreenBottomPadding),
+                    onClick = {
+                        if (isHelpMode) {
+                            helpDescription = addGroupHelpDescription
+                        } else {
+                            showAddGroupDialog = true
+                        }
                     }
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = stringResource(R.string.add_group),
+                        modifier = Modifier.size(48.dp)
+                    )
                 }
-            ) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = stringResource(R.string.add_group),
-                    modifier = Modifier.size(48.dp)
-                )
             }
         }
     ) { innerPadding ->
@@ -147,137 +158,163 @@ fun SourcesScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(AppDimens.ScreenItemSpacing)
         ) {
-            items(uiState, key = { it.group.id }) { groupWithSources ->
-                AppHelpOverlayTarget(
-                    isEnabled = isHelpMode,
-                    description = groupCardHelpDescription,
-                    onShowDescription = { helpDescription = it }
+            item {
+                TabRow(
+                    selectedTabIndex = selectedTabIndex,
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    modifier = Modifier.padding(bottom = 8.dp)
                 ) {
-                    GroupCard(
-                        groupWithSources = groupWithSources,
-                        isSelected = selectedGroupIds.contains(groupWithSources.group.id),
-                        isSelectionMode = isSelectionMode,
-                        onLongSelectGroup = {
-                            val id = groupWithSources.group.id
-                            if (!selectedGroupIds.contains(id)) selectedGroupIds.add(id)
-                        },
-                        onToggleSelectGroup = {
-                            val id = groupWithSources.group.id
-                            if (selectedGroupIds.contains(id)) selectedGroupIds.remove(id) else selectedGroupIds.add(id)
-                        },
-                        onAddSource = { selectedGroupIdForSource = groupWithSources.group.id },
-                        onToggleGroup = { viewModel.toggleGroup(groupWithSources.group, it) },
-                        onEditGroup = { editGroup = it },
-                        onDeleteGroup = { deleteGroupConfirm = it },
-                        onToggleSource = { viewModel.updateSource(it) },
-                        onEditSource = { editSource = it },
-                        onDeleteSource = { deleteSourceConfirm = it }
-                    )
+                    tabIcons.forEachIndexed { index, icon ->
+                        LeadingIconTab(
+                            selected = selectedTabIndex == index,
+                            onClick = { selectedTabIndex = index },
+                            text = {
+                                Text(
+                                    text = tabLabels[index],
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            },
+                            icon = {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+                    }
                 }
             }
 
-            item {
-                val isRecommendationsEnabled by viewModel.isRecommendationsEnabled.collectAsState()
-                val suggestedThemes by viewModel.suggestedThemes.collectAsState()
-                val subscriptionsSyncFailed by viewModel.subscriptionsSyncFailed.collectAsState()
-                val isRefreshingThemeRecommendations by viewModel.isRefreshingThemeRecommendations.collectAsState()
-                
-                if (isRecommendationsEnabled) {
+            if (selectedTabIndex == 0) {
+                item {
+                    AppSearchField(
+                        value = searchQuery,
+                        onValueChange = { viewModel.onSearchQueryChange(it) },
+                        placeholder = stringResource(R.string.sources_search_placeholder),
+                        leadingIcon = Icons.Default.Search,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+                }
+
+                items(uiState, key = { it.group.id }) { groupWithSources ->
                     AppHelpOverlayTarget(
                         isEnabled = isHelpMode,
-                        description = suggestedThemesHelpDescription,
+                        description = groupCardHelpDescription,
                         onShowDescription = { helpDescription = it }
                     ) {
-                        Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                            Row(
-                                modifier = Modifier.padding(start = 4.dp, bottom = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_recommend),
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = stringResource(R.string.sources_suggested_themes_title),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
+                        GroupCard(
+                            groupWithSources = groupWithSources,
+                            isSelected = selectedGroupIds.contains(groupWithSources.group.id),
+                            isSelectionMode = isSelectionMode,
+                            onLongSelectGroup = {
+                                val id = groupWithSources.group.id
+                                if (!selectedGroupIds.contains(id)) selectedGroupIds.add(id)
+                            },
+                            onToggleSelectGroup = {
+                                val id = groupWithSources.group.id
+                                if (selectedGroupIds.contains(id)) selectedGroupIds.remove(id) else selectedGroupIds.add(id)
+                            },
+                            onAddSource = { selectedGroupIdForSource = groupWithSources.group.id },
+                            onToggleGroup = { viewModel.toggleGroup(groupWithSources.group, it) },
+                            onEditGroup = { editGroup = it },
+                            onDeleteGroup = { deleteGroupConfirm = it },
+                            onToggleSource = { viewModel.updateSource(it) },
+                            onEditSource = { editSource = it },
+                            onDeleteSource = { deleteSourceConfirm = it }
+                        )
+                    }
+                }
+            }
 
-                            if (subscriptionsSyncFailed) {
-                                Text(
-                                    text = stringResource(R.string.sources_sync_failed),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
-                                )
-                            }
+            if (selectedTabIndex == 1) {
+                item {
+                    val isRecommendationsEnabled by viewModel.isRecommendationsEnabled.collectAsState()
+                    val suggestedThemes by viewModel.suggestedThemes.collectAsState()
+                    val subscriptionsSyncFailed by viewModel.subscriptionsSyncFailed.collectAsState()
+                    val isRefreshingThemeRecommendations by viewModel.isRefreshingThemeRecommendations.collectAsState()
+                    
+                    if (isRecommendationsEnabled) {
+                        AppHelpOverlayTarget(
+                            isEnabled = isHelpMode,
+                            description = suggestedThemesHelpDescription,
+                            onShowDescription = { helpDescription = it }
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                if (subscriptionsSyncFailed) {
+                                    Text(
+                                        text = stringResource(R.string.sources_sync_failed),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
+                                    )
+                                }
 
-                            suggestedThemes.chunked(2).forEach { rowItems ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    rowItems.forEach { suggestion ->
-                                        SuggestedThemeItem(
-                                            suggestion = suggestion,
-                                            appLanguage = appLanguage,
-                                            modifier = Modifier.weight(1f),
-                                            onToggle = { isSubscribed ->
-                                                viewModel.toggleThemeSubscription(suggestion, isSubscribed)
-                                            }
+                                suggestedThemes.chunked(2).forEach { rowItems ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        rowItems.forEach { suggestion ->
+                                            SuggestedThemeItem(
+                                                suggestion = suggestion,
+                                                appLanguage = appLanguage,
+                                                modifier = Modifier.weight(1f),
+                                                onToggle = { isSubscribed ->
+                                                    viewModel.toggleThemeSubscription(suggestion, isSubscribed)
+                                                }
+                                            )
+                                        }
+                                        if (rowItems.size == 1) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+
+                                if (isRefreshingThemeRecommendations) {
+                                    Row(
+                                        modifier = Modifier
+                                            .padding(start = 4.dp, top = 4.dp, bottom = 8.dp)
+                                            .animateContentSize(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(14.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = stringResource(R.string.sources_refreshing_recommendations),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    if (rowItems.size == 1) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
                                 }
-                            }
 
-                            if (isRefreshingThemeRecommendations) {
-                                Row(
+                                FilledTonalButton(
+                                    onClick = { viewModel.refreshSuggestedThemes(forceRefresh = true) },
                                     modifier = Modifier
-                                        .padding(start = 4.dp, top = 4.dp, bottom = 8.dp)
-                                        .animateContentSize(),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .align(Alignment.Start)
+                                        .padding(top = 8.dp),
+                                    shape = MaterialTheme.shapes.medium,
+                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    )
                                 ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(14.dp),
-                                        strokeWidth = 2.dp
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = stringResource(R.string.sources_refreshing_recommendations),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(stringResource(R.string.sources_refresh_themes))
                                 }
                             }
-
-                            FilledTonalButton(
-                                onClick = { viewModel.refreshSuggestedThemes(forceRefresh = true) },
-                                modifier = Modifier
-                                    .align(Alignment.Start)
-                                    .padding(top = 8.dp),
-                                shape = MaterialTheme.shapes.medium,
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                                    contentColor = MaterialTheme.colorScheme.primary
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(stringResource(R.string.sources_refresh_themes))
-                            }
-                        }
-                    }                
+                        }                
+                    }
                 }
             }
         }

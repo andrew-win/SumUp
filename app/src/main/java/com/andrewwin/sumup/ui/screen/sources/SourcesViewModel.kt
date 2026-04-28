@@ -39,7 +39,29 @@ class SourcesViewModel @Inject constructor(
     userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
-    val uiState: StateFlow<List<GroupWithSources>> = repository.groupsWithSources
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    val uiState: StateFlow<List<GroupWithSources>> = combine(
+        repository.groupsWithSources,
+        _searchQuery.debounce(300)
+    ) { groups, query ->
+        if (query.isBlank()) return@combine groups
+
+        val tokens = tokenizeQuery(query)
+        groups.mapNotNull { groupWithSources ->
+            val matchesGroup = matchesQuery(groupWithSources.group.name, tokens)
+            val filteredSources = groupWithSources.sources.filter { source ->
+                matchesQuery(source.name, tokens)
+            }
+
+            if (matchesGroup || filteredSources.isNotEmpty()) {
+                groupWithSources.copy(sources = if (matchesGroup) groupWithSources.sources else filteredSources)
+            } else {
+                null
+            }
+        }
+    }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -356,6 +378,34 @@ class SourcesViewModel @Inject constructor(
             repository.toggleGroup(group, isEnabled)
         }
     }
+
+    fun onSearchQueryChange(query: String) {
+        _searchQuery.value = query
+    }
+
+    private fun matchesQuery(text: String, queryTokens: List<String>): Boolean {
+        if (queryTokens.isEmpty()) return true
+        val normalizedText = normalizeForSearch(text)
+        if (normalizedText.isBlank()) return false
+
+        val matchedCount = queryTokens.count { token -> normalizedText.contains(token) }
+        val requiredMatches = kotlin.math.ceil(queryTokens.size * 0.6f).toInt().coerceAtLeast(1)
+        return matchedCount >= requiredMatches
+    }
+
+    private fun tokenizeQuery(query: String): List<String> =
+        normalizeForSearch(query)
+            .split(" ")
+            .map { it.trim() }
+            .filter { it.length >= 2 }
+            .distinct()
+
+    private fun normalizeForSearch(value: String): String =
+        value
+            .lowercase()
+            .replace(Regex("[\\p{Punct}\\p{S}]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
 }
 
 

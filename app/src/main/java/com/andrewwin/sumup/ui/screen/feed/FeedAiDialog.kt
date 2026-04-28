@@ -744,6 +744,11 @@ private fun CompareBlocksView(
     )
     val currentTab = selectedTabIndex.coerceIn(0, 1)
     val tabItems = if (currentTab == 0) commonItems else differentItems
+    val emptyMessage = if (currentTab == 0) {
+        stringResource(R.string.summary_compare_common_empty_local)
+    } else {
+        stringResource(R.string.summary_compare_unique_empty_local)
+    }
 
     AppCardSurface(modifier = Modifier.fillMaxWidth()) {
         Column {
@@ -758,6 +763,7 @@ private fun CompareBlocksView(
             }
             CompareBlockCardContent(
                 items = tabItems,
+                emptyMessage = emptyMessage,
                 sourceLabelMap = sourceLabelMap,
                 onOpenWebView = onOpenWebView
             )
@@ -768,6 +774,7 @@ private fun CompareBlocksView(
 @Composable
 private fun CompareBlockCardContent(
     items: List<CompareItemUi>,
+    emptyMessage: String,
     sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
@@ -776,10 +783,13 @@ private fun CompareBlockCardContent(
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         if (items.isEmpty()) {
-            Text(
-                text = stringResource(R.string.summary_not_enough_data),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            InlineSummaryRow(
+                text = "— $emptyMessage",
+                sources = emptyList(),
+                sourceLabelMap = sourceLabelMap,
+                onOpenWebView = onOpenWebView,
+                textStyle = MaterialTheme.typography.bodyLarge,
+                lineHeight = 26.sp
             )
         } else {
             items.forEach { item ->

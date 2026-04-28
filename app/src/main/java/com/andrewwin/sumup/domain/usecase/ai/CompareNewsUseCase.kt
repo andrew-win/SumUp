@@ -46,10 +46,10 @@ class CompareNewsUseCase @Inject constructor(
                 val source = articleRepository.getSourceById(article.sourceId)
                 val sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело"
                 val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
-                
+
                 val fullContent = articleRepository.fetchFullContent(article)
                 val contentToProcess = fullContent.ifBlank { article.content }
-                
+
                 val textForCloud = if (strategy == AiStrategy.ADAPTIVE) {
                     shrinkTextForAdaptiveStrategyUseCase(contentToProcess, prefs)
                 } else {
@@ -94,13 +94,13 @@ class CompareNewsUseCase @Inject constructor(
         }
 
         val candidates = mutableListOf<CompareCandidate>()
-        
+
         for (article in articles) {
             val source = articleRepository.getSourceById(article.sourceId)
             val sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело"
             val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
             val sourceMeta = SummarySourceRef(name = sourceName, url = sourceUrl)
-            
+
             val fullContent = articleRepository.fetchFullContent(article)
             // Збільшуємо кількість речень для аналізу, щоб знайти унікальні деталі
             val sentences = getExtractiveSummaryUseCase(fullContent, SummaryLimits.Compare.sentencesLocalCompare)
@@ -113,13 +113,16 @@ class CompareNewsUseCase @Inject constructor(
         if (candidates.isEmpty()) return SummaryResult.Compare(emptyList(), emptyList())
 
         val embeddings = candidates.map { candidate ->
-            generateLocalEmbeddingUseCase(candidate.text) ?: FloatArray(EmbeddingUtils.EMBEDDING_DIM)
+            val raw = generateLocalEmbeddingUseCase(candidate.text) ?: FloatArray(EmbeddingUtils.EMBEDDING_DIM)
+            EmbeddingUtils.normalize(raw)
         }
         val featuresCache = candidates.map { EmbeddingUtils.extractTextFeatures(it.text) }
 
-        // Попередньо розраховуємо найкращий бал схожості з іншими статтями для кожного речення
         val bestScoreToOtherArticle = FloatArray(candidates.size) { 0f }
-        val threshold = SummaryLimits.Compare.localSimilarityThreshold
+        // Окремий масив для слабких збігів (нижче commonThreshold) — використовується для оцінки унікальності
+        val bestScoreBelowThreshold = FloatArray(candidates.size) { 0f }
+        val commonThreshold = SummaryLimits.Compare.localSimilarityThreshold
+        val uniqueThreshold = SummaryLimits.Compare.localUniqueThreshold
         val graphEdges = mutableListOf<ScoredSentenceMatch>()
 
         for (candidateIdx in candidates.indices) {
@@ -137,10 +140,12 @@ class CompareNewsUseCase @Inject constructor(
                     rightIndex = otherIdx,
                     embeddings = embeddings,
                     featuresCache = featuresCache,
-                    bestScoreToOtherArticle = bestScoreToOtherArticle
+                    bestScoreToOtherArticle = bestScoreToOtherArticle,
+                    bestScoreBelowThreshold = bestScoreBelowThreshold,
+                    commonThreshold = commonThreshold
                 )
 
-                if (score < threshold) continue
+                if (score < commonThreshold) continue
 
                 val currentBest = bestMatchesByArticle[otherArticleId]
                 if (currentBest == null || score > currentBest.score) {
@@ -161,29 +166,42 @@ class CompareNewsUseCase @Inject constructor(
         val commonCandidates = mutableListOf<Pair<SummaryItem, Float>>()
         val uniqueCandidates = mutableListOf<Pair<SummaryItem, Float>>()
 
-        for (cluster in clusters) {
+        for ((clusterIdx, cluster) in clusters.withIndex()) {
             val initialRepresentativeIdx = selectRepresentativeCandidateIndex(cluster, graphEdges, bestScoreToOtherArticle)
             val tightenedCluster = tightenClusterAroundRepresentative(
                 cluster = cluster,
                 representativeIdx = initialRepresentativeIdx,
                 graphEdges = graphEdges,
-                minScore = threshold
+                minScore = commonThreshold
+            )
+            val limitedCluster = limitClusterToOneSentencePerArticle(
+                cluster = tightenedCluster,
+                representativeIdx = initialRepresentativeIdx,
+                candidates = candidates,
+                graphEdges = graphEdges,
+                bestScoreToOtherArticle = bestScoreToOtherArticle,
+                maxClusterSize = articles.size
             )
             val representativeIdx = selectRepresentativeCandidateIndex(
-                cluster = tightenedCluster,
+                cluster = limitedCluster,
                 graphEdges = graphEdges,
                 bestScoreToOtherArticle = bestScoreToOtherArticle
             )
-            val clusterSources = tightenedCluster.map { candidates[it].source }.distinctBy { it.url }
-            val distinctArticlesInCluster = tightenedCluster.map { candidates[it].articleId }.distinct().size
-            
+            val clusterSources = limitedCluster.map { candidates[it].source }.distinctBy { it.url }
+            val distinctArticlesInCluster = limitedCluster.map { candidates[it].articleId }.distinct().size
+
             val item = SummaryItem(text = candidates[representativeIdx].text.trim(), sources = clusterSources)
-            val clusterMaxScore = tightenedCluster.maxOf { bestScoreToOtherArticle[it] }
+            val clusterMaxScore = limitedCluster.maxOf { bestScoreToOtherArticle[it] }
 
             if (distinctArticlesInCluster > 1) {
                 commonCandidates.add(item to clusterMaxScore)
             } else {
-                uniqueCandidates.add(item to clusterMaxScore)
+                // Для унікального використовуємо bestScoreBelowThreshold —
+                // тільки слабкі збіги, що не "забруднені" сильними парами зі спільного
+                val uniqueScore = limitedCluster.maxOf { bestScoreBelowThreshold[it] }
+                if (uniqueScore <= uniqueThreshold) {
+                    uniqueCandidates.add(item to uniqueScore)
+                }
             }
         }
 
@@ -199,14 +217,6 @@ class CompareNewsUseCase @Inject constructor(
             .map { it.first }
             .take(SummaryLimits.Compare.maxUnique)
 
-        if (commonItems.isEmpty()) {
-            val fallbackItem = buildCentralFallbackItem(candidates)
-            return SummaryResult.Compare(
-                common = listOf(fallbackItem),
-                unique = differentItems
-            )
-        }
-
         return SummaryResult.Compare(
             common = commonItems,
             unique = differentItems
@@ -218,7 +228,9 @@ class CompareNewsUseCase @Inject constructor(
         rightIndex: Int,
         embeddings: List<FloatArray>,
         featuresCache: List<com.andrewwin.sumup.domain.service.TextOptimizationFeatures>,
-        bestScoreToOtherArticle: FloatArray
+        bestScoreToOtherArticle: FloatArray,
+        bestScoreBelowThreshold: FloatArray,
+        commonThreshold: Float
     ): Float {
         val score = similarityScorer.calculateSimilarity(
             articleA = Article(sourceId = 0, title = "", content = "", url = "", publishedAt = 0),
@@ -230,8 +242,14 @@ class CompareNewsUseCase @Inject constructor(
             featuresB = featuresCache[rightIndex]
         )
 
-        bestScoreToOtherArticle[leftIndex] = maxOf(bestScoreToOtherArticle[leftIndex], score)
-        bestScoreToOtherArticle[rightIndex] = maxOf(bestScoreToOtherArticle[rightIndex], score)
+        if (score >= commonThreshold) {
+            bestScoreToOtherArticle[leftIndex] = maxOf(bestScoreToOtherArticle[leftIndex], score)
+            bestScoreToOtherArticle[rightIndex] = maxOf(bestScoreToOtherArticle[rightIndex], score)
+        } else {
+            bestScoreBelowThreshold[leftIndex] = maxOf(bestScoreBelowThreshold[leftIndex], score)
+            bestScoreBelowThreshold[rightIndex] = maxOf(bestScoreBelowThreshold[rightIndex], score)
+        }
+
         return score
     }
 
@@ -314,9 +332,9 @@ class CompareNewsUseCase @Inject constructor(
             .asSequence()
             .filter { edge ->
                 edge.score >= minScore && (
-                    (edge.leftIndex == representativeIdx && edge.rightIndex in clusterSet) ||
-                        (edge.rightIndex == representativeIdx && edge.leftIndex in clusterSet)
-                    )
+                        (edge.leftIndex == representativeIdx && edge.rightIndex in clusterSet) ||
+                                (edge.rightIndex == representativeIdx && edge.leftIndex in clusterSet)
+                        )
             }
             .map { edge ->
                 if (edge.leftIndex == representativeIdx) edge.rightIndex else edge.leftIndex
@@ -326,31 +344,51 @@ class CompareNewsUseCase @Inject constructor(
         return cluster.filter { it == representativeIdx || it in directMatches }
     }
 
-    private fun normalizeKey(value: String): String = value
-        .lowercase()
-        .replace(Regex("[^\\p{L}\\p{Nd}\\s]"), " ")
-        .replace(Regex("\\s+"), " ")
-        .trim()
+    private fun limitClusterToOneSentencePerArticle(
+        cluster: List<Int>,
+        representativeIdx: Int,
+        candidates: List<CompareCandidate>,
+        graphEdges: List<ScoredSentenceMatch>,
+        bestScoreToOtherArticle: FloatArray,
+        maxClusterSize: Int
+    ): List<Int> {
+        if (cluster.size <= 1) return cluster
 
-    private fun buildCentralFallbackItem(candidates: List<CompareCandidate>): SummaryItem {
-        if (candidates.isEmpty()) {
-            return SummaryItem(text = "Немає достатньо даних.", sources = emptyList())
+        val representativeArticleId = candidates[representativeIdx].articleId
+        val clusterSet = cluster.toSet()
+        val directScoreToRepresentative = buildMap {
+            graphEdges.forEach { edge ->
+                when {
+                    edge.leftIndex == representativeIdx && edge.rightIndex in clusterSet -> {
+                        put(edge.rightIndex, edge.score)
+                    }
+                    edge.rightIndex == representativeIdx && edge.leftIndex in clusterSet -> {
+                        put(edge.leftIndex, edge.score)
+                    }
+                }
+            }
         }
-        val normalizedFrequencies = candidates
-            .groupingBy { normalizeKey(it.text) }
-            .eachCount()
-        val selectedText = candidates
-            .asSequence()
-            .map { it.text.trim() }
-            .filter { it.isNotBlank() }
-            .maxWithOrNull(
-                compareBy<String> { normalizedFrequencies[normalizeKey(it)] ?: 0 }
-                    .thenBy { it.length }
+
+        val oneCandidatePerArticle = cluster
+            .filter { it != representativeIdx }
+            .groupBy { candidates[it].articleId }
+            .mapNotNull { (articleId, indices) ->
+                if (articleId == representativeArticleId) return@mapNotNull null
+                indices.maxWithOrNull(
+                    compareBy<Int> { directScoreToRepresentative[it] ?: 0f }
+                        .thenBy { bestScoreToOtherArticle[it] }
+                        .thenBy { -it }
+                )
+            }
+            .sortedWith(
+                compareByDescending<Int> { directScoreToRepresentative[it] ?: 0f }
+                    .thenByDescending { bestScoreToOtherArticle[it] }
+                    .thenBy { it }
             )
-            ?: "Немає достатньо даних."
-        return SummaryItem(
-            text = selectedText,
-            sources = candidates.map { it.source }.distinctBy { it.url }
-        )
+
+        return buildList {
+            add(representativeIdx)
+            addAll(oneCandidatePerArticle.take((maxClusterSize - 1).coerceAtLeast(0)))
+        }
     }
 }

@@ -2,8 +2,11 @@ package com.andrewwin.sumup.ui
 
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -77,57 +80,53 @@ fun MainScreen() {
         )
     }
 
-    if (shouldShowNavigationSuite) {
-        NavigationSuiteScaffold(
-            navigationSuiteItems = {
-                navItems.forEach { screen ->
-                    val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-                    item(
-                        icon = {
-                            when (val icon = screen.icon) {
-                                is NavigationIcon.Vector -> Icon(
-                                    imageVector = icon.imageVector,
-                                    contentDescription = null
-                                )
-                                is NavigationIcon.Custom -> Icon(
-                                    painter = painterResource(icon.resId),
-                                    contentDescription = null
-                                )
-                            }
-                        },
-                        label = {
-                            Text(
-                                text = stringResource(screen.resourceId),
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        },
-                        selected = selected,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        bottomBar = {
+            if (shouldShowNavigationSuite) {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ) {
+                    navItems.forEach { screen ->
+                        val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                        NavigationBarItem(
+                            icon = {
+                                when (val icon = screen.icon) {
+                                    is NavigationIcon.Vector -> Icon(
+                                        imageVector = icon.imageVector,
+                                        contentDescription = null
+                                    )
+                                    is NavigationIcon.Custom -> Icon(
+                                        painter = painterResource(icon.resId),
+                                        contentDescription = null
+                                    )
                                 }
-                                launchSingleTop = true
-                                restoreState = true
+                            },
+                            label = {
+                                Text(
+                                    text = stringResource(screen.resourceId),
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            },
+                            selected = selected,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
-            },
-            containerColor = MaterialTheme.colorScheme.background,
-            contentColor = MaterialTheme.colorScheme.onBackground,
-            navigationSuiteColors = androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults.colors(
-                navigationBarContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                navigationBarContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        ) {
-            MainNavHost(
-                navController = navController,
-                mainRoutes = mainRoutes,
-                navigationActions = navigationActions
-            )
+            }
         }
-    } else {
+    ) {
         MainNavHost(
             navController = navController,
             mainRoutes = mainRoutes,

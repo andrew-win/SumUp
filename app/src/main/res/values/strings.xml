@@ -305,11 +305,15 @@
 фільтри</string>
     <string name="summary_empty_hint_scheduled">Увімкніть
 заплановані</string>
+    <string name="summary_tab_scheduled">Заплановані</string>
+    <string name="summary_tab_statistics">Статистика</string>
     <string name="summary_default_title">Зведення</string>
     <string name="summary_none_short">Немає</string>
     <string name="summary_not_enough_data">Немає достатньо даних.</string>
     <string name="summary_compare_common">Спільне</string>
     <string name="summary_compare_unique">Унікальне</string>
+    <string name="summary_compare_common_empty_local">Хоча новини стосуються однакових тем чи подій, окрім заголовків не вдалося виділити спільні фрагменти</string>
+    <string name="summary_compare_unique_empty_local">Не вдалося виявити унікальні фрагменти. Можливо новини перефразують одна одну, дуже схожі або надто короткі</string>
     <string name="summary_compare_no_meaningful_common">Новини стосуються однакової тематики, однак окрім їх заголовків суттєвих спільних фрагментів не знайдено.</string>
     <string name="summary_source_fallback">Джерело</string>
     <string name="summary_stat_views_count">%1$s перегл.</string>
@@ -328,6 +332,9 @@
     <string name="source_theme_space">Космос</string>
     <string name="source_theme_cars">Автомобілі</string>
     <string name="source_theme_books">Книги</string>
+    <string name="sources_tab_custom">Користувацькі</string>
+    <string name="sources_tab_presets">Пресети</string>
+    <string name="sources_search_placeholder">Шукайте джерела тут…</string>
     <string name="sources_group_empty">Немає джерел у цій групі</string>
     <string name="settings_help_account">— Тут зібрані вхід у акаунт, синхронізація та перенесення даних.\n— У блоці синхронізації ви обираєте стратегію, пріоритет перезапису, інтервал і склад даних.\n— У блоці імпорту окремо задається стратегія: злиття або перезапис локальних даних.\n— Усі ці параметри впливають на те, що буде джерелом правди при конфліктах між локальними, хмарними і backup-даними.</string>
     <string name="settings_help_ai_processing">— Тут зосереджені стратегія ШІ, ліміти, локальна summary, дедублікація та adaptive-логіка.\n— Розділ напряму впливає на якість, швидкість і вартість AI-обробки.\n— Усередині кожен блок відкривається окремо й пояснює свої параметри.</string>

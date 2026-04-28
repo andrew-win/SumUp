@@ -71,7 +71,8 @@ object AiPromptBuilder {
                 "Each fact must be exactly one short sentence (max ${SummaryLimits.Compare.maxWordsPerPoint} words).",
                 "Prioritize finding commonalities. Only use the 'no common traits' fallback (common_facts=[]) if sources are absolutely unrelated (e.g., sports vs cooking).",
                 "Every unique fact must have exactly one source_id.",
-                "Every common fact must have 2+ source_ids. Ensure the text of common facts is generalized enough to cover all linked sources.",                getLanguageRule(summaryLanguage)
+                "Every common fact must have 2+ source_ids. Ensure the text of common facts is generalized enough to cover all linked sources.",
+                "If all news are too small or it's really impossible to identify unique facts write something like 'Не вдалося виявити унікальні фрагменти. Можливо новини перефразують одна одну, дуже схожі або надто короткі'. But avoid it in most cases.",
             ),
             schema = """{"common_topic":"optional short topic label","common_facts":[{"text":"sentence 1","source_ids":["source_id_1","source_id_2"]}],"items":[{"source_id":"source id from input","unique_details":["sentence 1"]}]}"""
         )
