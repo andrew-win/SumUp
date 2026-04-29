@@ -76,7 +76,8 @@ class SummarizeSingleArticleUseCase @Inject constructor(
         }
 
         // 3. Build Prompt & Cloud Input
-        val prompt = AiPromptBuilder.buildSingleArticlePrompt(prefs.summaryLanguage)
+        val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
+        val prompt = AiPromptBuilder.buildSingleArticlePrompt(prefs.summaryLanguage, customPrompt)
         val cloudInput = buildString {
             append("source_id: $articleId\n")
             append("source_name: $sourceName\n")

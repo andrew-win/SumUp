@@ -113,7 +113,8 @@ class GetFeedSummaryUseCase @Inject constructor(
             }
         }
 
-        val prompt = AiPromptBuilder.buildFeedDigestPrompt(prefs.summaryLanguage)
+        val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
+        val prompt = AiPromptBuilder.buildFeedDigestPrompt(prefs.summaryLanguage, customPrompt)
         val jsonResponse = sendCloudAiRequestUseCase(prompt, cloudInput)
         return parseAiJsonResponseUseCase.parseFeed(jsonResponse, cloudInput)
     }

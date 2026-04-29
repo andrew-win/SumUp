@@ -41,7 +41,8 @@ class AskQuestionAboutNewsUseCase @Inject constructor(
 
         val cloudInput = processedArticles.joinToString(separator = "\n\n")
 
-        val prompt = AiPromptBuilder.buildQuestionPrompt(prefs.summaryLanguage, question)
+        val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
+        val prompt = AiPromptBuilder.buildQuestionPrompt(prefs.summaryLanguage, question, customPrompt)
         val jsonResponse = sendCloudAiRequestUseCase(prompt, cloudInput)
         val parsed = parseAiJsonResponseUseCase.parseQuestion(jsonResponse, cloudInput, question)
 

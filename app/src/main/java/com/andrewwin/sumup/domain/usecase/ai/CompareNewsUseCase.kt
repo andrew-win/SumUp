@@ -64,7 +64,8 @@ class CompareNewsUseCase @Inject constructor(
             }
         }
 
-        val prompt = AiPromptBuilder.buildComparePrompt(prefs.summaryLanguage)
+        val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
+        val prompt = AiPromptBuilder.buildComparePrompt(prefs.summaryLanguage, customPrompt)
 
         return@withContext runCatching {
             val jsonResponse = sendCloudAiRequestUseCase(prompt, cloudInput)

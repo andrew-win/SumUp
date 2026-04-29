@@ -23,31 +23,46 @@ object AiPromptBuilder {
         goal: String,
         specificRules: List<String>,
         schema: String,
-        question: String? = null
+        question: String? = null,
+        customInstructions: String? = null
     ): String {
-        val allRules = listOf(
-            RULE_JSON_ONLY,
-            RULE_ABSTRACTIVE,
-            specificRules
-        )
+        val allRules = mutableListOf<String>().apply {
+            add(RULE_JSON_ONLY)
+            add(RULE_ABSTRACTIVE)
+            addAll(specificRules)
+        }
 
-        return """
-            ROLE
-            $role
+        return buildString {
+            append("ROLE\n")
+            append(role)
+            append("\n\nGOAL\n")
+            append(goal)
+            append("\n\nRULES\n")
+            allRules.forEachIndexed { index, rule ->
+                append("${index + 1}. $rule\n")
+            }
 
-            GOAL
-            $goal
+            if (!customInstructions.isNullOrBlank()) {
+                append("\nUSER SPECIFIC RULES\n")
+                append(customInstructions)
+                append("\n")
+            }
 
-            RULES
-            ${allRules.mapIndexed { index, rule -> "${index + 1}. $rule" }.joinToString("\n")}
-            
-            ${if (question != null) "QUESTION\n$question\n" else ""}
-            SCHEMA
-            $schema
-        """.trimIndent()
+            if (question != null) {
+                append("\nQUESTION\n")
+                append(question)
+                append("\n")
+            }
+
+            append("\nSCHEMA\n")
+            append(schema)
+        }.trimIndent()
     }
 
-    fun buildSingleArticlePrompt(summaryLanguage: SummaryLanguage): String {
+    fun buildSingleArticlePrompt(
+        summaryLanguage: SummaryLanguage,
+        customInstructions: String? = null
+    ): String {
         return createPrompt(
             role = "Strict news analyst.",
             goal = "Extract the critical hard facts into punchy bullet points.",
@@ -57,11 +72,15 @@ object AiPromptBuilder {
                 "Each bullet must be exactly one short sentence (max ${SummaryLimits.Single.maxWordsPerPoint} words).",
                 getLanguageRule(summaryLanguage)
             ),
-            schema = """{"items":[{"bullets":["point 1","point 2"]}]}"""
+            schema = """{"items":[{"bullets":["point 1","point 2"]}]}""",
+            customInstructions = customInstructions
         )
     }
 
-    fun buildComparePrompt(summaryLanguage: SummaryLanguage): String {
+    fun buildComparePrompt(
+        summaryLanguage: SummaryLanguage,
+        customInstructions: String? = null
+    ): String {
         val fallback = when (summaryLanguage) {
             SummaryLanguage.UK -> "Не вдалося виявити унікальні фрагменти. Можливо новини перефразують одна одну, дуже схожі або надто короткі."
             SummaryLanguage.EN -> "No unique fragments were found. The news articles may be paraphrasing each other, very similar, or too short."
@@ -80,11 +99,15 @@ object AiPromptBuilder {
                 "Use single item with fallback text ('$fallback') if NO unique details were found across ALL sources combined. But avoid in most cases.",
                 getLanguageRule(summaryLanguage)
             ),
-            schema = """{"common_topic":"optional short topic label","common_facts":[{"text":"sentence 1","source_ids":["source_id_1","source_id_2"]}],"items":[{"source_id":"source id from input","unique_details":["sentence 1"]}]}"""
+            schema = """{"common_topic":"optional short topic label","common_facts":[{"text":"sentence 1","source_ids":["source_id_1","source_id_2"]}],"items":[{"source_id":"source id from input","unique_details":["sentence 1"]}]}""",
+            customInstructions = customInstructions
         )
     }
 
-    fun buildFeedDigestPrompt(summaryLanguage: SummaryLanguage): String {
+    fun buildFeedDigestPrompt(
+        summaryLanguage: SummaryLanguage,
+        customInstructions: String? = null
+    ): String {
         return createPrompt(
             role = "Strict news editor.",
             goal = "Build a condensed, hard-fact digest grouped by broad categories.",
@@ -96,11 +119,16 @@ object AiPromptBuilder {
                 "Each news must have exactly one source_id.",
                 getLanguageRule(summaryLanguage)
             ),
-            schema = """{"themes":[{"title":"Emoji Theme Title","items":[{"title":"news title","source_id":"id"}]}]}"""
+            schema = """{"themes":[{"title":"Emoji Theme Title","items":[{"title":"news title","source_id":"id"}]}]}""",
+            customInstructions = customInstructions
         )
     }
 
-    fun buildQuestionPrompt(summaryLanguage: SummaryLanguage, question: String): String {
+    fun buildQuestionPrompt(
+        summaryLanguage: SummaryLanguage,
+        question: String,
+        customInstructions: String? = null
+    ): String {
         val fallback = when (summaryLanguage) {
             SummaryLanguage.UK -> "За даними поданих джерел не можна дати чітку відповідь на ваше питання"
             SummaryLanguage.EN -> "The provided sources do not contain enough information to answer your question"
@@ -118,7 +146,8 @@ object AiPromptBuilder {
                 getLanguageRule(summaryLanguage)
             ),
             question = question,
-            schema = """{"short_answer":"string","details":[{"text":"string","sources":["source_id"]}]}"""
+            schema = """{"short_answer":"string","details":[{"text":"string","sources":["source_id"]}]}""",
+            customInstructions = customInstructions
         )
     }
 }
