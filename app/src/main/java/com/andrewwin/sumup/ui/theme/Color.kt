@@ -82,20 +82,27 @@ val OnPrimaryContainerLight = Primary10            // #001B3D
 val SecondaryContainerLight = Secondary90          // #DDE3FF
 val OnSecondaryContainerLight = Secondary30         // #29447A
 
-val BackgroundLight = Neutral95            // #F1F0FA
+//val BackgroundLight = Neutral95            // #F1F0FA
+val BackgroundLight = Color(0xFFF5F6FA)      // трохи холодніший
+
 val OnBackgroundLight = Neutral10            // #181C23
 
-val SurfaceLight = Neutral99            // #FFFBFF
+//val SurfaceLight = Neutral99            // #FFFBFF
+val SurfaceLight = Color(0xFFFFFFFF)         // чистий білий
+
 val SurfaceVariantLight = NeutralVariant90     // #DCE3FF
 val OnSurfaceVariantLight = NeutralVariant30     // #424659
 
 val SurfaceContainerLowLight = Neutral95        // #F1F0FA
 val SurfaceContainerLight_ = Neutral99        // #FFFBFF
-val SurfaceContainerHighLight = Color(0xFFE6E5EF)
-val SurfaceContainerHighestLight = Color(0xFFE0DFE9)
-
+//val SurfaceContainerHighLight = Color(0xFFE6E5EF)
+val SurfaceContainerHighLight = Color(0xFFE2E6F0)
+//val SurfaceContainerHighestLight = Color(0xFFE0DFE9)
+val SurfaceContainerHighestLight = Color(0xFFD6DAE6)
 val OutlineLight = NeutralVariant50     // #6C7088
 val OutlineVariantLight = NeutralVariant80     // #BFC2DC
+
+
 
 // ════════════════════════════════════════════════════════════════════════════
 // Category tags — tonal, не брудні
