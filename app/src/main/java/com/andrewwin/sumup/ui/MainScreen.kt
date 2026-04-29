@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.ui
 
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -126,11 +127,12 @@ fun MainScreen() {
                 }
             }
         }
-    ) {
+    ) { innerPadding ->
         MainNavHost(
             navController = navController,
             mainRoutes = mainRoutes,
-            navigationActions = navigationActions
+            navigationActions = navigationActions,
+            modifier = Modifier.padding(innerPadding)
         )
     }
 }
@@ -149,11 +151,13 @@ private data class FeedNavigationActions(
 private fun MainNavHost(
     navController: androidx.navigation.NavHostController,
     mainRoutes: Set<String>,
-    navigationActions: FeedNavigationActions
+    navigationActions: FeedNavigationActions,
+    modifier: Modifier = Modifier
 ) {
     NavHost(
         navController = navController,
         startDestination = Screen.Summary.route,
+        modifier = modifier,
         enterTransition = {
             val fromRoute = initialState.destination.route
             val toRoute = targetState.destination.route

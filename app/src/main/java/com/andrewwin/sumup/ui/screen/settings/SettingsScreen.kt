@@ -345,6 +345,7 @@ fun SettingsScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             AnimatedVisibility(
                 visible = !(selectedGroup == null && isSearchFocused),

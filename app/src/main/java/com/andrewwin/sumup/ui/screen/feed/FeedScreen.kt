@@ -156,6 +156,7 @@ fun FeedScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             AnimatedVisibility(
                 visible = !isSearchFocused,
@@ -190,7 +191,6 @@ fun FeedScreen(
                     AppBackToTopFab(onClick = { scope.launch { listState.animateScrollToItem(0) } })
                 }
                 AppProminentFab(
-                    modifier = Modifier.padding(bottom = AppDimens.ScreenBottomPadding),
                     enabled = isFeedAiEnabled,
                     onClick = {
                         if (isHelpMode) {

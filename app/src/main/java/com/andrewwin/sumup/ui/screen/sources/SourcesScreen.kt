@@ -5,6 +5,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -97,6 +98,7 @@ fun SourcesScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             AppTopBar(
                 title = {
@@ -128,7 +130,6 @@ fun SourcesScreen(
         floatingActionButton = {
             if (selectedTabIndex == 0) {
                 AppProminentFab(
-                    modifier = Modifier.padding(bottom = AppDimens.ScreenBottomPadding),
                     onClick = {
                         if (isHelpMode) {
                             helpDescription = addGroupHelpDescription
@@ -154,7 +155,7 @@ fun SourcesScreen(
                 start = AppDimens.ScreenHorizontalPadding,
                 end = AppDimens.ScreenHorizontalPadding,
                 top = 8.dp,
-                bottom = AppDimens.ScreenBottomPadding
+                bottom = 16.dp
             ),
             verticalArrangement = Arrangement.spacedBy(AppDimens.ScreenItemSpacing)
         ) {
@@ -197,6 +198,49 @@ fun SourcesScreen(
                             .fillMaxWidth()
                             .padding(bottom = 8.dp)
                     )
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp, bottom = 4.dp, start = 4.dp, end = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.sources_header_folders),
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+
+                        val sortOrder by viewModel.sortOrder.collectAsState()
+                        Row(
+                            modifier = Modifier.clickable {
+                                viewModel.setSortOrder(
+                                    if (sortOrder == SourceSortOrder.BY_NAME) SourceSortOrder.BY_DATE
+                                    else SourceSortOrder.BY_NAME
+                                )
+                            },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(
+                                    if (sortOrder == SourceSortOrder.BY_NAME) R.string.sources_sort_name
+                                    else R.string.sources_sort_date
+                                ),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Default.SwapVert,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
                 }
 
                 items(uiState, key = { it.group.id }) { groupWithSources ->
@@ -488,14 +532,20 @@ fun GroupCard(
                     imageVector = Icons.Outlined.Folder,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(32.dp)
                 )
                 Spacer(Modifier.width(AppDimens.InlineItemSpacing))
-                Text(
-                    text = groupWithSources.group.displayName(),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    modifier = Modifier.weight(1f)
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = groupWithSources.group.displayName(),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                    Text(
+                        text = stringResource(R.string.sources_count, groupWithSources.sources.size),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box {
@@ -582,15 +632,8 @@ fun GroupCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = AppDimens.CardContentPadding),
-                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = stringResource(R.string.sources_count, groupWithSources.sources.size),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                        
                         FilledTonalButton(
                             onClick = onAddSource,
                             enabled = groupWithSources.group.isEnabled,

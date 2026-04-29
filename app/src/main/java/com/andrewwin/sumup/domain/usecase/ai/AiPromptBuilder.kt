@@ -13,8 +13,8 @@ object AiPromptBuilder {
 
     private fun getLanguageRule(summaryLanguage: SummaryLanguage): String {
         return when (summaryLanguage) {
-            SummaryLanguage.UK -> "Output language: Ukrainian only."
-            SummaryLanguage.EN -> "Output language: English only."
+            SummaryLanguage.UK -> "Output language: ONLY Ukrainian."
+            SummaryLanguage.EN -> "Output language: ONLY English."
         }
     }
 
@@ -62,6 +62,10 @@ object AiPromptBuilder {
     }
 
     fun buildComparePrompt(summaryLanguage: SummaryLanguage): String {
+        val fallback = when (summaryLanguage) {
+            SummaryLanguage.UK -> "Не вдалося виявити унікальні фрагменти. Можливо новини перефразують одна одну, дуже схожі або надто короткі."
+            SummaryLanguage.EN -> "No unique fragments were found. The news articles may be paraphrasing each other, very similar, or too short."
+        }
         return createPrompt(
             role = "Synthetical news analyst.",
             goal = "Identify the unifying narrative and extract shared trends or facts across sources, while highlighting specific nuances.",
@@ -72,7 +76,9 @@ object AiPromptBuilder {
                 "Prioritize finding commonalities. Only use the 'no common traits' fallback (common_facts=[]) if sources are absolutely unrelated (e.g., sports vs cooking).",
                 "Every unique fact must have exactly one source_id.",
                 "Every common fact must have 2+ source_ids. Ensure the text of common facts is generalized enough to cover all linked sources.",
-                "If all news are too small or it's really impossible to identify unique facts write something like 'Не вдалося виявити унікальні фрагменти. Можливо новини перефразують одна одну, дуже схожі або надто короткі'. But avoid it in most cases.",
+                "If a specific source has no unique details, return an empty array [] for its unique_details field.",
+                "Use single item with fallback text ('$fallback') if NO unique details were found across ALL sources combined. But avoid in most cases.",
+                getLanguageRule(summaryLanguage)
             ),
             schema = """{"common_topic":"optional short topic label","common_facts":[{"text":"sentence 1","source_ids":["source_id_1","source_id_2"]}],"items":[{"source_id":"source id from input","unique_details":["sentence 1"]}]}"""
         )
@@ -109,6 +115,7 @@ object AiPromptBuilder {
                 "If the sources are ON TOPIC but don't have a direct answer (e.g., missing exact numbers), set short_answer to: 'У джерелах немає прямої відповіді на це питання.' and provide relevant context in 'details'.",
                 "If the sources are COMPLETELY UNRELATED to the question (e.g., question is about sports, but sources are about war), set short_answer to '$fallback'.",
                 "In case of completely unrelated sources, use 'details' to explain the mismatch (e.g., 'Новини стосуються різних тем: одна про війну, інша про футбол').",
+                getLanguageRule(summaryLanguage)
             ),
             question = question,
             schema = """{"short_answer":"string","details":[{"text":"string","sources":["source_id"]}]}"""

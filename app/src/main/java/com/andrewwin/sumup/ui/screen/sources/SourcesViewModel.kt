@@ -18,6 +18,7 @@ import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -29,7 +30,13 @@ data class FirebaseThemeSuggestion(
     val isRecommended: Boolean
 )
 
+enum class SourceSortOrder {
+    BY_NAME,
+    BY_DATE
+}
+
 @HiltViewModel
+@OptIn(FlowPreview::class)
 class SourcesViewModel @Inject constructor(
     private val repository: SourceRepository,
     private val manageModelUseCase: ManageModelUseCase,
@@ -42,24 +49,35 @@ class SourcesViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _sortOrder = MutableStateFlow(SourceSortOrder.BY_NAME)
+    val sortOrder: StateFlow<SourceSortOrder> = _sortOrder.asStateFlow()
+
     val uiState: StateFlow<List<GroupWithSources>> = combine(
         repository.groupsWithSources,
-        _searchQuery.debounce(300)
-    ) { groups, query ->
-        if (query.isBlank()) return@combine groups
+        _searchQuery.debounce(300),
+        _sortOrder
+    ) { groups, query, sort ->
+        val filtered = if (query.isBlank()) {
+            groups
+        } else {
+            val tokens = tokenizeQuery(query)
+            groups.mapNotNull { groupWithSources ->
+                val matchesGroup = matchesQuery(groupWithSources.group.name, tokens)
+                val filteredSources = groupWithSources.sources.filter { source ->
+                    matchesQuery(source.name, tokens)
+                }
 
-        val tokens = tokenizeQuery(query)
-        groups.mapNotNull { groupWithSources ->
-            val matchesGroup = matchesQuery(groupWithSources.group.name, tokens)
-            val filteredSources = groupWithSources.sources.filter { source ->
-                matchesQuery(source.name, tokens)
+                if (matchesGroup || filteredSources.isNotEmpty()) {
+                    groupWithSources.copy(sources = if (matchesGroup) groupWithSources.sources else filteredSources)
+                } else {
+                    null
+                }
             }
+        }
 
-            if (matchesGroup || filteredSources.isNotEmpty()) {
-                groupWithSources.copy(sources = if (matchesGroup) groupWithSources.sources else filteredSources)
-            } else {
-                null
-            }
+        when (sort) {
+            SourceSortOrder.BY_NAME -> filtered.sortedBy { it.group.name }
+            SourceSortOrder.BY_DATE -> filtered.sortedByDescending { it.group.id }
         }
     }
         .stateIn(
@@ -381,6 +399,10 @@ class SourcesViewModel @Inject constructor(
 
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
+    }
+
+    fun setSortOrder(order: SourceSortOrder) {
+        _sortOrder.value = order
     }
 
     private fun matchesQuery(text: String, queryTokens: List<String>): Boolean {

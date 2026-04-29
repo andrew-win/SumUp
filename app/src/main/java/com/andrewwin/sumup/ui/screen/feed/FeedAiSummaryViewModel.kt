@@ -122,10 +122,7 @@ class FeedAiSummaryViewModel @Inject constructor(
         }
         if (cached != null) {
             _aiResult.value = cached
-            return
         }
-
-        regenerate()
     }
 
     private fun summarizeArticle(forceRefresh: Boolean) {

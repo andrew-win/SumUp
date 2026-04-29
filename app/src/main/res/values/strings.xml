@@ -36,6 +36,7 @@
     <string name="ai_ask_placeholder">Запитайте щось…</string>
     <string name="ai_summarize_feed">Підсумувати стрічку</string>
     <string name="ai_summarize_article">Зробити підсумок</string>
+    <string name="ai_summary_start_prompt">Натисніть кнопку нижче, щоб отримати стислий переказ контенту за допомогою ШІ</string>
     <string name="direct_text">Прямий текст</string>
     <string name="summary_today_title">Зведення</string>
     <string name="summary_history_title">Згенеровані раніше</string>
@@ -336,6 +337,9 @@
     <string name="sources_tab_presets">Пресети</string>
     <string name="sources_search_placeholder">Шукайте джерела тут…</string>
     <string name="sources_group_empty">Немає джерел у цій групі</string>
+    <string name="sources_header_folders">Папки</string>
+    <string name="sources_sort_name">Ім’я (А-Я)</string>
+    <string name="sources_sort_date">Дата додавання</string>
     <string name="settings_help_account">— Тут зібрані вхід у акаунт, синхронізація та перенесення даних.\n— У блоці синхронізації ви обираєте стратегію, пріоритет перезапису, інтервал і склад даних.\n— У блоці імпорту окремо задається стратегія: злиття або перезапис локальних даних.\n— Усі ці параметри впливають на те, що буде джерелом правди при конфліктах між локальними, хмарними і backup-даними.</string>
     <string name="settings_help_ai_processing">— Тут зосереджені стратегія ШІ, ліміти, локальна summary, дедублікація та adaptive-логіка.\n— Розділ напряму впливає на якість, швидкість і вартість AI-обробки.\n— Усередині кожен блок відкривається окремо й пояснює свої параметри.</string>
     <string name="settings_help_api_keys">— Тут керуються ключі та моделі для summary й embedding-задач.\n— Розділ визначає, які AI-конфіги доступні застосунку.\n— Усередині кожен блок окремо пояснює свої моделі та ключі.</string>

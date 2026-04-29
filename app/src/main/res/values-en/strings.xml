@@ -36,6 +36,7 @@
     <string name="ai_ask_placeholder">Ask something…</string>
     <string name="ai_summarize_feed">Summarize feed</string>
     <string name="ai_summarize_article">Summarize article</string>
+    <string name="ai_summary_start_prompt">Press the button below to get an AI-powered summary of the content</string>
     <string name="direct_text">Direct text</string>
     <string name="summary_today_title">Summary</string>
     <string name="summary_digest_main_news_title">📰📌🧭 Main news</string>
@@ -313,6 +314,9 @@ scheduled</string>
     <string name="sources_tab_presets">Presets</string>
     <string name="sources_search_placeholder">Search sources here…</string>
     <string name="sources_group_empty">There are no sources in this group</string>
+    <string name="sources_header_folders">Folders</string>
+    <string name="sources_sort_name">Name (A-Z)</string>
+    <string name="sources_sort_date">Date added</string>
     <string name="settings_help_account">— This section contains account sign-in, synchronization, and data transfer controls.\n— In the sync block you choose strategy, overwrite priority, interval, and included data.\n— In the import block you separately choose strategy: merge or overwrite local data.\n— These choices define which side becomes the source of truth on conflicts between local, cloud, and backup data.</string>
     <string name="settings_help_ai_processing">— This section contains AI strategy, limits, local summary, deduplication, and adaptive logic.\n— It directly affects quality, speed, and cost of AI processing.\n— Inside, each block opens its own short explanation for its settings.</string>
     <string name="settings_help_api_keys">— This section manages keys and models for summary and embedding tasks.\n— It defines which AI configurations are available to the app.\n— Inside, each block separately explains its models and keys.</string>

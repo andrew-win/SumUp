@@ -6,7 +6,6 @@ object AppDimens {
     val ScreenHorizontalPadding = 16.dp
     val ScreenItemSpacing = 16.dp
     val ScreenSectionSpacing = 20.dp
-    val ScreenBottomPadding = 80.dp
     val CardContentPadding = 16.dp
     val CardCompactPadding = 12.dp
     val InlineItemSpacing = 12.dp

@@ -7,6 +7,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -123,6 +124,7 @@ fun SummaryScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             AnimatedVisibility(
                 visible = true,
@@ -169,7 +171,6 @@ fun SummaryScreen(
                         onShowDescription = { helpDescription = it }
                     ) {
                         AppProminentFab(
-                            modifier = Modifier.padding(bottom = AppDimens.ScreenBottomPadding),
                             enabled = hasAnySummaries,
                             onClick = onOpenSummaryHistory
                         ) {
@@ -190,7 +191,7 @@ fun SummaryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(top = 0.dp, bottom = 80.dp, start = 16.dp, end = 16.dp),
+            contentPadding = PaddingValues(top = 0.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             item {
