@@ -425,6 +425,7 @@ scheduled</string>
     <string name="settings_search_empty">No settings matched your search</string>
     <string name="validation_name_required">Name is required</string>
     <string name="validation_group_name_exists">A group with this name already exists</string>
+    <string name="validation_group_name_reserved_by_subscription">This folder name matches an existing subscription</string>
     <string name="validation_source_name_exists">A source with this name already exists</string>
     <string name="validation_source_url_required">URL is required</string>
     <string name="validation_source_url_exists">A source with this URL already exists</string>

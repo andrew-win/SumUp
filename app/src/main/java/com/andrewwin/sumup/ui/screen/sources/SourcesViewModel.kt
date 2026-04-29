@@ -88,6 +88,8 @@ class SourcesViewModel @Inject constructor(
 
     private val _suggestedThemes = MutableStateFlow<List<FirebaseThemeSuggestion>>(emptyList())
     val suggestedThemes: StateFlow<List<FirebaseThemeSuggestion>> = _suggestedThemes.asStateFlow()
+    private val _reservedGroupNames = MutableStateFlow(buildReservedGroupNames(publicSubscriptionsSyncManager.getCachedGroups()))
+    val reservedGroupNames: StateFlow<List<String>> = _reservedGroupNames.asStateFlow()
     private val pendingSubscriptionOverrides = mutableMapOf<String, Boolean>()
 
     private val _isModelLoaded = MutableStateFlow(false)
@@ -140,6 +142,7 @@ class SourcesViewModel @Inject constructor(
             _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
             val suggestions = getSuggestedThemesUseCase(forceRefresh = false).first()
             _suggestedThemes.value = applyPendingOverrides(suggestions.toFirebaseThemeSuggestions())
+            refreshReservedGroupNames()
         }
     }
 
@@ -166,6 +169,7 @@ class SourcesViewModel @Inject constructor(
                     val suggestions = getSuggestedThemesUseCase(forceRefresh = false).first()
                     _suggestedThemes.value = applyPendingOverrides(suggestions.toFirebaseThemeSuggestions())
                 }
+                refreshReservedGroupNames()
             } finally {
                 if (!forceRefresh) {
                     _isRefreshingThemeRecommendations.value = false
@@ -297,12 +301,14 @@ class SourcesViewModel @Inject constructor(
 
     fun addGroup(name: String) {
         viewModelScope.launch {
+            if (isReservedGroupName(name)) return@launch
             repository.addGroup(name)
         }
     }
 
     fun updateGroup(group: SourceGroup) {
         viewModelScope.launch {
+            if (isReservedGroupName(group.name)) return@launch
             repository.updateGroup(group)
         }
     }
@@ -422,15 +428,41 @@ class SourcesViewModel @Inject constructor(
             .filter { it.length >= 2 }
             .distinct()
 
+    private fun refreshReservedGroupNames() {
+        val cachedGroups = publicSubscriptionsSyncManager.getCachedGroups()
+        val suggestedGroups = _suggestedThemes.value.map { it.group }
+        _reservedGroupNames.value = buildReservedGroupNames(cachedGroups + suggestedGroups)
+    }
+
+    private fun buildReservedGroupNames(groups: List<ImportedSourceGroup>): List<String> {
+        return groups
+            .flatMap { it.allNamesForFolderValidation() }
+            .distinctBy(::normalizeGroupNameForComparison)
+    }
+
+    private fun isReservedGroupName(name: String): Boolean {
+        val normalizedName = normalizeGroupNameForComparison(name)
+        if (normalizedName.isBlank()) return false
+        return _reservedGroupNames.value.any {
+            normalizeGroupNameForComparison(it) == normalizedName
+        }
+    }
+
+    private fun ImportedSourceGroup.allNamesForFolderValidation(): List<String> {
+        return listOf(name, nameUk, nameEn)
+            .map(String::trim)
+            .filter(String::isNotBlank)
+    }
+
     private fun normalizeForSearch(value: String): String =
         value
             .lowercase()
             .replace(Regex("[\\p{Punct}\\p{S}]"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
+
+    private fun normalizeGroupNameForComparison(name: String): String = name.trim().lowercase()
 }
-
-
 
 
 

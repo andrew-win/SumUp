@@ -16,7 +16,10 @@ object WorkerContracts {
     const val KEY_SYNC_INCLUDE_SETTINGS_NO_API = "sync_include_settings_no_api"
     const val KEY_SYNC_INCLUDE_API_KEYS = "sync_include_api_keys"
     const val KEY_SAVED_THEMES = "savedThemes"
+    const val KEY_SAVED_THEME_IDS = "savedThemeIds"
+    const val KEY_SOURCES_HASH = "sourcesHash"
     const val KEY_LAST_RECOMMENDATION_AT = "lastRecommendationAt"
+    const val KEY_LAST_FEED_REFRESH_AT = "lastFeedRefreshAt"
 
     const val SUMMARY_CHANNEL_ID = "scheduled_summary_channel"
     const val SUMMARY_NOTIFICATION_ID = 1001

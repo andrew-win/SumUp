@@ -222,10 +222,24 @@ internal fun AiModelConfig.toBackupJson(
     put("isUseNow", isUseNow)
 }
 
+internal fun AiModelConfig.toBackupJson(
+    encryptionSession: SecretEncryptionManager.SyncEncryptionSession
+): JSONObject = JSONObject().apply {
+    put("name", name)
+    put("provider", provider.name)
+    put("apiKeyCiphertext", encryptionSession.encrypt(apiKey))
+    put("modelName", modelName)
+    put("isEnabled", isEnabled)
+    put("type", type.name)
+    put("priority", priority.name)
+    put("isUseNow", isUseNow)
+}
+
 internal fun AiModelConfig.Companion.fromBackupJson(
     item: JSONObject,
     secretEncryptionManager: SecretEncryptionManager,
-    syncPassphrase: String?
+    syncPassphrase: String?,
+    syncSaltBase64: String? = null
 ): AiModelConfig {
     val name = item.optString("name", "").trim()
     val modelName = item.optString("modelName", "").trim()
@@ -234,7 +248,10 @@ internal fun AiModelConfig.Companion.fromBackupJson(
         encryptedApiKey.isNotBlank() -> {
             val passphrase = syncPassphrase?.trim().orEmpty()
             require(passphrase.isNotBlank()) { "Sync passphrase is required to import API keys." }
-            secretEncryptionManager.decryptFromSync(encryptedApiKey, passphrase).trim()
+            when {
+                syncSaltBase64.isNullOrBlank() -> secretEncryptionManager.decryptFromSync(encryptedApiKey, passphrase).trim()
+                else -> secretEncryptionManager.decryptFromSyncSession(encryptedApiKey, passphrase, syncSaltBase64).trim()
+            }
         }
         else -> item.optString("apiKey", "").trim()
     }
@@ -259,14 +276,15 @@ internal fun AiModelConfig.Companion.fromBackupJson(
 
 internal fun JSONArray?.toAiConfigsFromBackup(
     secretEncryptionManager: SecretEncryptionManager,
-    syncPassphrase: String?
+    syncPassphrase: String?,
+    syncSaltBase64: String? = null
 ): List<AiModelConfig> {
     if (this == null) return emptyList()
     val result = mutableListOf<AiModelConfig>()
     for (index in 0 until length()) {
         val item = optJSONObject(index) ?: continue
         runCatching {
-            AiModelConfig.fromBackupJson(item, secretEncryptionManager, syncPassphrase)
+            AiModelConfig.fromBackupJson(item, secretEncryptionManager, syncPassphrase, syncSaltBase64)
         }.onSuccess { result.add(it) }
     }
     return result
@@ -391,7 +409,6 @@ internal fun JSONArray?.toSavedArticlesFromBackup(): List<SavedArticle> {
     }
     return items
 }
-
 
 
 

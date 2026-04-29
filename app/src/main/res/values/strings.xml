@@ -451,6 +451,7 @@
     <string name="settings_search_empty">Налаштувань за вашим запитом не знайдено</string>
     <string name="validation_name_required">Назва обовязкова</string>
     <string name="validation_group_name_exists">Група з такою назвою вже існує</string>
+    <string name="validation_group_name_reserved_by_subscription">Назва папки збігається з назвою підписки</string>
     <string name="validation_source_name_exists">Джерело з такою назвою вже існує</string>
     <string name="validation_source_url_required">Посилання обовязкове</string>
     <string name="validation_source_url_exists">Джерело з таким посиланням вже існує</string>

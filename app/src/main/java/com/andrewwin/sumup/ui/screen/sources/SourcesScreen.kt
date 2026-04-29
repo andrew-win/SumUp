@@ -70,6 +70,7 @@ fun SourcesScreen(
     val uiState by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val appLanguage by viewModel.appLanguage.collectAsState()
+    val reservedGroupNames by viewModel.reservedGroupNames.collectAsState()
     val selectedGroupIds = remember { mutableStateListOf<Long>() }
     val isSelectionMode = selectedGroupIds.isNotEmpty()
     var showAddGroupDialog by remember { mutableStateOf(false) }
@@ -372,6 +373,7 @@ fun SourcesScreen(
         if (showAddGroupDialog) {
             GroupDialog(
                 existingGroupNames = uiState.map { it.group.name },
+                reservedGroupNames = reservedGroupNames,
                 onDismiss = { showAddGroupDialog = false },
                 onConfirm = { viewModel.addGroup(it) }
             )
@@ -381,6 +383,7 @@ fun SourcesScreen(
             GroupDialog(
                 group = group,
                 existingGroupNames = uiState.map { it.group.name },
+                reservedGroupNames = reservedGroupNames,
                 onDismiss = { editGroup = null },
                 onConfirm = { viewModel.updateGroup(group.copy(name = it)) }
             )
@@ -726,6 +729,7 @@ fun SourceItem(
 fun GroupDialog(
     group: SourceGroup? = null,
     existingGroupNames: List<String>,
+    reservedGroupNames: List<String>,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
@@ -737,9 +741,16 @@ fun GroupDialog(
                 !it.trim().equals(group?.name?.trim().orEmpty(), ignoreCase = true)
         }
     }
+    val isReservedSubscriptionName = remember(normalizedName, reservedGroupNames, group?.id) {
+        reservedGroupNames.any {
+            it.trim().equals(normalizedName, ignoreCase = true) &&
+                !it.trim().equals(group?.name?.trim().orEmpty(), ignoreCase = true)
+        }
+    }
     val errorText = when {
         normalizedName.isBlank() -> stringResource(R.string.validation_name_required)
         isDuplicate -> stringResource(R.string.validation_group_name_exists)
+        isReservedSubscriptionName -> stringResource(R.string.validation_group_name_reserved_by_subscription)
         else -> null
     }
     AlertDialog(

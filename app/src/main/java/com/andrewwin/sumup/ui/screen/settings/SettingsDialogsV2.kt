@@ -475,6 +475,28 @@ fun SettingsAiConfigDialog(
     var expandedProvider by remember { mutableStateOf(false) }
     var expandedModel by remember { mutableStateOf(false) }
     var expandedPriority by remember { mutableStateOf(false) }
+    val normalizedName = name.trim()
+    val normalizedApiKey = apiKey.trim()
+    val hasDuplicateName = remember(normalizedName, existingConfigs, config?.id) {
+        normalizedName.isNotBlank() && existingConfigs.any {
+            it.id != config?.id && it.name.trim().equals(normalizedName, ignoreCase = true)
+        }
+    }
+    val hasDuplicateApiKey = remember(normalizedApiKey, existingConfigs, config?.id) {
+        normalizedApiKey.isNotBlank() && existingConfigs.any {
+            it.id != config?.id && it.apiKey.trim() == normalizedApiKey
+        }
+    }
+    val configNameErrorText = if (hasDuplicateName) {
+        stringResource(R.string.validation_ai_config_name_exists)
+    } else {
+        null
+    }
+    val apiKeyErrorText = if (hasDuplicateApiKey) {
+        stringResource(R.string.validation_api_key_exists)
+    } else {
+        null
+    }
 
     AppAnimatedDialog(
         visible = true,
@@ -510,7 +532,13 @@ fun SettingsAiConfigDialog(
                         placeholder = { Text(stringResource(R.string.dialog_config_name_hint)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        shape = MaterialTheme.shapes.large
+                        shape = MaterialTheme.shapes.large,
+                        isError = configNameErrorText != null,
+                        supportingText = {
+                            if (configNameErrorText != null) {
+                                Text(configNameErrorText)
+                            }
+                        }
                     )
 
                     ExposedDropdownMenuBox(
@@ -567,7 +595,13 @@ fun SettingsAiConfigDialog(
                         label = { Text(stringResource(R.string.dialog_api_key)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        shape = MaterialTheme.shapes.large
+                        shape = MaterialTheme.shapes.large,
+                        isError = apiKeyErrorText != null,
+                        supportingText = {
+                            if (apiKeyErrorText != null) {
+                                Text(apiKeyErrorText)
+                            }
+                        }
                     )
 
                     ExposedDropdownMenuBox(
@@ -672,9 +706,9 @@ fun SettingsAiConfigDialog(
                     }
                     Button(
                         onClick = {
-                            val trimmedApiKey = apiKey.trim()
+                            val trimmedApiKey = normalizedApiKey
                             val trimmedModelName = modelName.trim()
-                            val resolvedName = name.trim().ifBlank {
+                            val resolvedName = normalizedName.ifBlank {
                                 buildAutoAiConfigNameV2(
                                     providerLabel = providerLabel,
                                     provider = provider,
@@ -682,7 +716,12 @@ fun SettingsAiConfigDialog(
                                     editingConfigId = config?.id
                                 )
                             }
-                            if (trimmedApiKey.isNotBlank() && trimmedModelName.isNotBlank()) {
+                            if (
+                                trimmedApiKey.isNotBlank() &&
+                                trimmedModelName.isNotBlank() &&
+                                configNameErrorText == null &&
+                                apiKeyErrorText == null
+                            ) {
                                 onConfirm(
                                     config?.copy(
                                         name = resolvedName,
@@ -704,7 +743,11 @@ fun SettingsAiConfigDialog(
                                 )
                             }
                         },
-                        enabled = apiKey.isNotBlank() && modelName.isNotBlank() && !isLoadingModels,
+                        enabled = apiKey.isNotBlank() &&
+                            modelName.isNotBlank() &&
+                            !isLoadingModels &&
+                            configNameErrorText == null &&
+                            apiKeyErrorText == null,
                         modifier = Modifier.weight(1f),
                         shape = MaterialTheme.shapes.large
                     ) {

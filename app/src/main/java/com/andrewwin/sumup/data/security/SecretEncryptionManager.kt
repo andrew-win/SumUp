@@ -23,6 +23,29 @@ import javax.inject.Singleton
 class SecretEncryptionManager @Inject constructor(
     @ApplicationContext context: Context
 ) {
+    data class SyncEncryptionSession(
+        val saltBase64: String,
+        private val secretKey: SecretKey
+    ) {
+        fun encrypt(plainText: String): String {
+            if (plainText.isBlank()) return plainText
+            val iv = ByteArray(SYNC_IV_SIZE).also(secureRandom::nextBytes)
+            val cipher = Cipher.getInstance(SYNC_TRANSFORMATION)
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey, GCMParameterSpec(GCM_TAG_BITS, iv))
+            val encrypted = cipher.doFinal(plainText.toByteArray(StandardCharsets.UTF_8))
+            return buildString {
+                append(SYNC_SESSION_PREFIX)
+                append(Base64.encodeToString(iv, Base64.NO_WRAP))
+                append(':')
+                append(Base64.encodeToString(encrypted, Base64.NO_WRAP))
+            }
+        }
+
+        companion object {
+            private val secureRandom = SecureRandom()
+        }
+    }
+
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val secureRandom = SecureRandom()
 
@@ -75,6 +98,9 @@ class SecretEncryptionManager @Inject constructor(
 
     fun decryptFromSync(payload: String, passphrase: String): String {
         if (!isSyncEncrypted(payload)) return payload
+        if (payload.startsWith(SYNC_SESSION_PREFIX)) {
+            error("Sync session ciphertext requires a pre-derived session key.")
+        }
         val content = payload.removePrefix(SYNC_PREFIX)
         val parts = content.split(':', limit = 3)
         require(parts.size == 3) { "Invalid sync encrypted payload." }
@@ -87,6 +113,29 @@ class SecretEncryptionManager @Inject constructor(
     }
 
     fun isSyncEncrypted(value: String): Boolean = value.startsWith(SYNC_PREFIX)
+
+    fun createSyncEncryptionSession(passphrase: String): SyncEncryptionSession {
+        require(passphrase.isNotBlank()) { "Sync passphrase is missing." }
+        val salt = randomBytes(SYNC_SALT_SIZE)
+        val saltBase64 = encode(salt)
+        return SyncEncryptionSession(
+            saltBase64 = saltBase64,
+            secretKey = deriveSyncKey(passphrase, salt)
+        )
+    }
+
+    fun decryptFromSyncSession(payload: String, passphrase: String, saltBase64: String): String {
+        if (!payload.startsWith(SYNC_SESSION_PREFIX)) return decryptFromSync(payload, passphrase)
+        val content = payload.removePrefix(SYNC_SESSION_PREFIX)
+        val parts = content.split(':', limit = 2)
+        require(parts.size == 2) { "Invalid sync session encrypted payload." }
+        val salt = decode(saltBase64)
+        val iv = decode(parts[0])
+        val ciphertext = decode(parts[1])
+        val cipher = Cipher.getInstance(SYNC_TRANSFORMATION)
+        cipher.init(Cipher.DECRYPT_MODE, deriveSyncKey(passphrase, salt), GCMParameterSpec(GCM_TAG_BITS, iv))
+        return String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8)
+    }
 
     fun hasSyncPassphrase(): Boolean = prefs.contains(KEY_SYNC_PASSPHRASE)
 
@@ -159,5 +208,6 @@ class SecretEncryptionManager @Inject constructor(
         private const val SYNC_TRANSFORMATION = "AES/GCM/NoPadding"
         private const val LOCAL_PREFIX = "local:v1:"
         private const val SYNC_PREFIX = "sync:v1:"
+        private const val SYNC_SESSION_PREFIX = "sync:v2:"
     }
 }

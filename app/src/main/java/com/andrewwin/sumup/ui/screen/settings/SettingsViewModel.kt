@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
+import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.AndroidViewModel
@@ -37,6 +38,7 @@ import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.settings.UpdateCustomSummaryPromptEnabledUseCase
 import com.andrewwin.sumup.domain.usecase.settings.UpdateSummaryPromptUseCase
@@ -48,11 +50,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import com.andrewwin.sumup.worker.CloudSyncWorker
+import com.andrewwin.sumup.worker.WorkerContracts
 
 sealed interface ModelDownloadState {
     data object Idle : ModelDownloadState
@@ -101,6 +105,7 @@ class SettingsViewModel @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
     private val summaryRepository: SummaryRepository,
+    private val dispatcherProvider: DispatcherProvider,
     private val manageModelUseCase: ManageModelUseCase,
     private val scheduleSummaryUseCase: ScheduleSummaryUseCase,
     private val updateSummaryPromptUseCase: UpdateSummaryPromptUseCase,
@@ -309,6 +314,28 @@ class SettingsViewModel @Inject constructor(
     }
 
     private suspend fun persistAiConfigWithUseNow(config: AiModelConfig, isNew: Boolean) {
+        val normalizedApiKey = normalizeApiKey(config.apiKey)
+        val normalizedConfigName = normalizeAiConfigName(config.name)
+        val existingDuplicate = aiModelConfigRepository.allConfigs.first()
+            .firstOrNull { it.id != config.id && normalizeApiKey(it.apiKey) == normalizedApiKey }
+        if (existingDuplicate != null) {
+            _transferState.value = TransferState.Error(
+                getApplication<Application>().getString(com.andrewwin.sumup.R.string.validation_api_key_exists)
+            )
+            return
+        }
+        val existingNameDuplicate = aiModelConfigRepository.allConfigs.first()
+            .firstOrNull {
+                it.id != config.id &&
+                    normalizedConfigName.isNotBlank() &&
+                    normalizeAiConfigName(it.name) == normalizedConfigName
+            }
+        if (existingNameDuplicate != null) {
+            _transferState.value = TransferState.Error(
+                getApplication<Application>().getString(com.andrewwin.sumup.R.string.validation_ai_config_name_exists)
+            )
+            return
+        }
         if (config.isUseNow) {
             val configs = aiModelConfigRepository.getConfigsByType(config.type).first()
             configs
@@ -317,7 +344,11 @@ class SettingsViewModel @Inject constructor(
                     aiModelConfigRepository.updateConfig(existing.copy(isUseNow = false))
                 }
         }
-        if (isNew) aiModelConfigRepository.addConfig(config) else aiModelConfigRepository.updateConfig(config)
+        val normalizedConfig = config.copy(
+            name = config.name.trim(),
+            apiKey = normalizedApiKey
+        )
+        if (isNew) aiModelConfigRepository.addConfig(normalizedConfig) else aiModelConfigRepository.updateConfig(normalizedConfig)
     }
 
     fun updateScheduledSummary(enabled: Boolean, hour: Int, minute: Int) {
@@ -590,48 +621,74 @@ class SettingsViewModel @Inject constructor(
 
     fun syncNow(selection: BackupSelection) {
         viewModelScope.launch {
+            logBackupDebug(
+                "syncNow:start selection=$selection enabled=${_isCloudSyncEnabled.value} " +
+                    "strategy=${_syncStrategy.value} overwrite=${_syncOverwritePriority.value}"
+            )
             val uid = firebaseAuth.currentUser?.uid
             if (uid.isNullOrBlank()) {
+                logBackupDebug("syncNow:missing uid")
                 _transferState.value = TransferState.Error("Спочатку увійдіть у акаунт")
                 return@launch
             }
-            if (!_isCloudSyncEnabled.value) return@launch
+            if (!_isCloudSyncEnabled.value) {
+                logBackupDebug("syncNow:skip disabled")
+                return@launch
+            }
 
             _transferState.value = TransferState.Working
             runCatching {
-                val docRef = firestore.collection(CLOUD_COLLECTION).document(uid)
-                val remote = docRef.get().await()
-                val remoteBackupJson = remote.getString("backup")
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let(::JSONObject)
-                val remoteUpdatedAt = remote.getLong("updatedAt") ?: 0L
-                val lastSyncAt = syncPrefs.getLong(KEY_LAST_SYNC_AT, 0L)
-                val mergeMode = _syncStrategy.value == SyncConflictStrategy.MERGE
-                val shouldApplyRemote = shouldApplyRemoteBeforePush(
-                    remoteExists = remote.exists(),
-                    remoteUpdatedAt = remoteUpdatedAt,
-                    lastSyncAt = lastSyncAt,
-                    strategy = _syncStrategy.value,
-                    overwritePriority = _syncOverwritePriority.value
-                )
-                if (shouldApplyRemote) {
-                    if (remoteBackupJson != null) {
-                        applyBackupJson(remoteBackupJson, merge = mergeMode, selection = selection)
-                    }
-                }
-                val localBackup = buildBackupJson(selection, remoteBackupJson)
-                val now = System.currentTimeMillis()
-                docRef.set(
-                    mapOf(
-                        "backup" to localBackup.toString(),
-                        "updatedAt" to now
+                withContext(dispatcherProvider.io) {
+                    val docRef = firestore.collection(CLOUD_COLLECTION).document(uid)
+                    logBackupDebug("syncNow:remote fetch start")
+                    val remote = docRef.get().await()
+                    val remoteBackupRaw = remote.getString("backup")
+                    logBackupDebug(
+                        "syncNow:remote fetch complete exists=${remote.exists()} " +
+                            "updatedAt=${remote.getLong("updatedAt") ?: 0L} " +
+                            "backupLength=${remoteBackupRaw?.length ?: -1}"
                     )
-                ).await()
-                syncPrefs.edit().putLong(KEY_LAST_SYNC_AT, now).apply()
-                _lastSyncAt.value = now
+                    val remoteBackupJson = remoteBackupRaw
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let(::JSONObject)
+                    val remoteUpdatedAt = remote.getLong("updatedAt") ?: 0L
+                    val lastSyncAt = syncPrefs.getLong(KEY_LAST_SYNC_AT, 0L)
+                    val mergeMode = _syncStrategy.value == SyncConflictStrategy.MERGE
+                    val shouldApplyRemote = shouldApplyRemoteBeforePush(
+                        remoteExists = remote.exists(),
+                        remoteUpdatedAt = remoteUpdatedAt,
+                        lastSyncAt = lastSyncAt,
+                        strategy = _syncStrategy.value,
+                        overwritePriority = _syncOverwritePriority.value
+                    )
+                    logBackupDebug("syncNow:shouldApplyRemote=$shouldApplyRemote mergeMode=$mergeMode")
+                    if (shouldApplyRemote && remoteBackupJson != null) {
+                        logBackupDebug("syncNow:apply remote start")
+                        applyBackupJson(remoteBackupJson, merge = mergeMode, selection = selection)
+                        logBackupDebug("syncNow:apply remote complete")
+                    }
+                    logBackupDebug("syncNow:build local backup start")
+                    val localBackup = buildBackupJson(selection, remoteBackupJson)
+                    val localBackupJson = localBackup.toString()
+                    logBackupDebug("syncNow:build local backup complete length=${localBackupJson.length}")
+                    require(localBackupJson.isNotBlank()) { "Не вдалося сформувати JSON для синхронізації" }
+                    val now = System.currentTimeMillis()
+                    logBackupDebug("syncNow:upload start")
+                    docRef.set(
+                        mapOf(
+                            "backup" to localBackupJson,
+                            "updatedAt" to now
+                        )
+                    ).await()
+                    logBackupDebug("syncNow:upload complete")
+                    syncPrefs.edit().putLong(KEY_LAST_SYNC_AT, now).apply()
+                    _lastSyncAt.value = now
+                }
             }.onSuccess {
+                logBackupDebug("syncNow:success")
                 _transferState.value = TransferState.Success("Синхронізацію завершено")
             }.onFailure { e ->
+                logBackupError("syncNow:failure", e)
                 val message = when ((e as? FirebaseFirestoreException)?.code) {
                     FirebaseFirestoreException.Code.UNAVAILABLE ->
                         if (hasInternetConnection()) {
@@ -694,17 +751,33 @@ class SettingsViewModel @Inject constructor(
     fun exportSettingsAndSources(uri: Uri, selection: BackupSelection) {
         viewModelScope.launch {
             _transferState.value = TransferState.Working
+            logBackupDebug("export:start uri=$uri selection=$selection")
             runCatching {
-                val root = buildBackupJson(selection)
+                withContext(dispatcherProvider.io) {
+                    logBackupDebug("export:build backup start")
+                    val root = buildBackupJson(selection)
+                    val backupJson = root.toString()
+                    logBackupDebug("export:build backup complete length=${backupJson.length}")
+                    require(backupJson.isNotBlank()) { "Не вдалося сформувати JSON для експорту" }
 
-                val resolver = getApplication<Application>().contentResolver
-                resolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
-                    writer.write(root.toString())
-                } ?: error("Failed to open output stream")
+                    val resolver = getApplication<Application>().contentResolver
+                    logBackupDebug("export:open output stream")
+                    resolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+                        logBackupDebug("export:write start")
+                        writer.write(backupJson)
+                        writer.flush()
+                        logBackupDebug("export:write complete")
+                    } ?: error("Failed to open output stream")
+                }
             }.onSuccess {
+                logBackupDebug("export:success")
                 _transferState.value = TransferState.Success("Експорт завершено")
             }.onFailure { e ->
-                _transferState.value = TransferState.Error(e.localizedMessage ?: "Не вдалося експортувати")
+                logBackupError("export:failure", e)
+                val message = e.localizedMessage?.takeIf { it.isNotBlank() }
+                    ?: e.message?.takeIf { it.isNotBlank() }
+                    ?: "Не вдалося експортувати"
+                _transferState.value = TransferState.Error(message)
             }
         }
     }
@@ -712,47 +785,79 @@ class SettingsViewModel @Inject constructor(
     fun importSettingsAndSources(uri: Uri, merge: Boolean, selection: BackupSelection) {
         viewModelScope.launch {
             _transferState.value = TransferState.Working
+            logBackupDebug("import:start uri=$uri merge=$merge selection=$selection")
             runCatching {
-                val resolver = getApplication<Application>().contentResolver
-                val content = resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-                    ?: error("Failed to read import file")
-                applyBackupJson(JSONObject(content), merge, selection)
+                withContext(dispatcherProvider.io) {
+                    val resolver = getApplication<Application>().contentResolver
+                    logBackupDebug("import:open input stream")
+                    val content = resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                        ?: error("Failed to read import file")
+                    logBackupDebug("import:read complete length=${content.length}")
+                    require(content.isNotBlank()) { "Файл імпорту порожній" }
+                    logBackupDebug("import:apply start")
+                    applyBackupJson(JSONObject(content), merge, selection)
+                    logBackupDebug("import:apply complete")
+                }
             }.onSuccess {
+                logBackupDebug("import:success")
                 _transferState.value = TransferState.Success("Імпорт завершено")
             }.onFailure { e ->
-                _transferState.value = TransferState.Error(e.localizedMessage ?: "Не вдалося імпортувати")
+                logBackupError("import:failure", e)
+                val message = e.localizedMessage?.takeIf { it.isNotBlank() }
+                    ?: e.message?.takeIf { it.isNotBlank() }
+                    ?: "Не вдалося імпортувати"
+                _transferState.value = TransferState.Error(message)
             }
         }
     }
 
     private suspend fun buildBackupJson(selection: BackupSelection, remoteBackupRoot: JSONObject? = null): JSONObject {
+        logBackupDebug("buildBackupJson:start selection=$selection hasRemoteRoot=${remoteBackupRoot != null}")
         val prefs = if (selection.includeSettingsNoApi) {
+            logBackupDebug("buildBackupJson:userPreferences:start")
             userPreferencesRepository.preferences.first()
         } else {
             null
         }
-        val aiConfigs = if (selection.includeApiKeys) aiModelConfigRepository.allConfigs.first() else emptyList()
+        logBackupDebug("buildBackupJson:userPreferences:done hasPrefs=${prefs != null}")
+        val aiConfigs = if (selection.includeApiKeys) {
+            logBackupDebug("buildBackupJson:aiConfigs:start")
+            aiModelConfigRepository.allConfigs.first()
+        } else {
+            emptyList()
+        }
+        logBackupDebug("buildBackupJson:aiConfigs:done count=${aiConfigs.size}")
         val syncPassphrase = if (selection.includeApiKeys) {
             requireSyncPassphrase()
         } else {
             null
         }
-        val groups = if (selection.includeSources) sourceRepository.getGroupsWithSourcesSnapshot() else emptyList()
-        val savedThemes = if (selection.includeSubscriptions) {
-            subscriptionsPrefs.getStringSet(KEY_SAVED_THEMES, emptySet()).orEmpty()
+        val syncEncryptionSession = syncPassphrase?.let(secretEncryptionManager::createSyncEncryptionSession)
+        val groups = if (selection.includeSources) {
+            logBackupDebug("buildBackupJson:groups:start")
+            sourceRepository.getGroupsWithSourcesSnapshot()
         } else {
-            emptySet()
+            emptyList()
         }
+        logBackupDebug("buildBackupJson:groups:done count=${groups.size}")
+        val suggestedThemesBackupState = if (selection.includeSubscriptions) {
+            logBackupDebug("buildBackupJson:subscriptions:start")
+            subscriptionsPrefs.readSuggestedThemesBackupState()
+        } else {
+            null
+        }
+        logBackupDebug(
+            "buildBackupJson:subscriptions:done hasState=${suggestedThemesBackupState != null} " +
+                "savedThemeIds=${suggestedThemesBackupState?.savedThemeIds?.size ?: 0} " +
+                "legacyTitles=${suggestedThemesBackupState?.savedThemeTitlesLegacy?.size ?: 0}"
+        )
         val savedArticlesSnapshot = if (selection.includeSavedArticles) {
+            logBackupDebug("buildBackupJson:savedArticles:start")
             articleRepository.getSavedArticlesSnapshot()
         } else {
             emptyList()
         }
-        val lastRecommendationAt = if (selection.includeSubscriptions) {
-            subscriptionsPrefs.getLong(KEY_LAST_RECOMMENDATION_AT, 0L)
-        } else {
-            0L
-        }
+        logBackupDebug("buildBackupJson:savedArticles:done count=${savedArticlesSnapshot.size}")
 
         return JSONObject().apply {
             put("schemaVersion", 1)
@@ -769,11 +874,10 @@ class SettingsViewModel @Inject constructor(
             })
             if (prefs != null) put("userPreferences", prefs.toBackupJson())
             if (selection.includeApiKeys) {
+                put("apiKeysSalt", syncEncryptionSession?.saltBase64)
                 put("aiConfigs", JSONArray().apply {
-                    aiConfigs.forEach { put(it.toBackupJson(secretEncryptionManager, syncPassphrase!!)) }
+                    aiConfigs.forEach { put(it.toBackupJson(syncEncryptionSession!!)) }
                 })
-            } else if (remoteBackupRoot?.has("aiConfigs") == true) {
-                put("aiConfigs", remoteBackupRoot.optJSONArray("aiConfigs"))
             }
             if (selection.includeSources) {
                 put("groups", JSONArray().apply {
@@ -791,8 +895,15 @@ class SettingsViewModel @Inject constructor(
             }
             if (selection.includeSubscriptions) {
                 put("subscriptions", JSONObject().apply {
-                    put(KEY_SAVED_THEMES, JSONArray(savedThemes.toList()))
-                    put(KEY_LAST_RECOMMENDATION_AT, lastRecommendationAt)
+                    putSuggestedThemesBackupState(
+                        suggestedThemesBackupState ?: SuggestedThemesBackupState(
+                            savedThemeIds = emptySet(),
+                            savedThemeTitlesLegacy = emptySet(),
+                            sourcesHash = null,
+                            lastRecommendationAt = 0L,
+                            lastFeedRefreshAt = 0L
+                        )
+                    )
                 })
             }
             if (selection.includeSavedArticles) {
@@ -800,34 +911,53 @@ class SettingsViewModel @Inject constructor(
                     savedArticlesSnapshot.forEach { put(it.toBackupJson()) }
                 })
             }
+        }.also { root ->
+            logBackupDebug("buildBackupJson:complete keys=${root.length()}")
         }
     }
 
     private suspend fun applyBackupJson(root: JSONObject, merge: Boolean, selection: BackupSelection) {
+        logBackupDebug(
+            "applyBackupJson:start merge=$merge selection=$selection keys=${root.length()} " +
+                "hasUserPreferences=${root.has("userPreferences")} hasAiConfigs=${root.has("aiConfigs")} " +
+                "hasGroups=${root.has("groups")} hasSubscriptions=${root.has("subscriptions")} " +
+                "hasSavedArticles=${root.has("savedArticles")}"
+        )
         val importedSyncStrategy = parseSyncConflictStrategy(root.optString("syncStrategy", _syncStrategy.value.name))
-        updateSyncStrategy(importedSyncStrategy)
         val importedOverwritePriority = parseSyncOverwritePriority(
             root.optString("syncOverwritePriority", _syncOverwritePriority.value.name)
         )
-        updateSyncOverwritePriority(importedOverwritePriority)
         val importedImportStrategy = parseSyncConflictStrategy(
             root.optString("importStrategy", _importStrategy.value.name)
         )
-        updateImportStrategy(importedImportStrategy)
+        logBackupDebug(
+            "applyBackupJson:defer sync settings strategy=${importedSyncStrategy.name} " +
+                "overwrite=${importedOverwritePriority.name} import=${importedImportStrategy.name}"
+        )
 
+        logBackupDebug("applyBackupJson:userPreferences:start")
         val importedPrefs = root.optJSONObject("userPreferences")?.toUserPreferencesFromBackup()
+        logBackupDebug("applyBackupJson:userPreferences:done hasPrefs=${importedPrefs != null}")
         val importedConfigs = if (selection.includeApiKeys) {
+            logBackupDebug("applyBackupJson:aiConfigs:start")
             root.optJSONArray("aiConfigs").toAiConfigsFromBackup(
                 secretEncryptionManager = secretEncryptionManager,
-                syncPassphrase = requireSyncPassphrase()
+                syncPassphrase = requireSyncPassphrase(),
+                syncSaltBase64 = root.optString("apiKeysSalt").takeIf { it.isNotBlank() }
             )
         } else {
             emptyList()
         }
+        logBackupDebug("applyBackupJson:aiConfigs:done count=${importedConfigs.size}")
+        logBackupDebug("applyBackupJson:groups:start")
         val importedGroups = root.optJSONArray("groups").toImportedGroupsFromBackup()
+        logBackupDebug("applyBackupJson:groups:done count=${importedGroups.size}")
+        logBackupDebug("applyBackupJson:subscriptions:start")
         val importedSubscriptions = root.optJSONObject("subscriptions")
+        logBackupDebug("applyBackupJson:subscriptions:done hasSubscriptions=${importedSubscriptions != null}")
         val hasSavedArticlesField = root.has("savedArticles")
         val rawSavedArticles = root.optJSONArray("savedArticles")
+        logBackupDebug("applyBackupJson:savedArticles:start hasField=$hasSavedArticlesField")
         val importedSavedArticles = rawSavedArticles.toSavedArticlesFromBackup()
         val importedSavedArticleUrls = rawSavedArticles
             ?.let { arr ->
@@ -838,8 +968,13 @@ class SettingsViewModel @Inject constructor(
                     }
                 }
             }.orEmpty()
+        logBackupDebug(
+            "applyBackupJson:savedArticles:done snapshotCount=${importedSavedArticles.size} " +
+                "urlCount=${importedSavedArticleUrls.size}"
+        )
 
         if (selection.includeSettingsNoApi && importedPrefs != null) {
+            logBackupDebug("applyBackupJson:userPreferences:apply")
             userPreferencesRepository.updatePreferences(importedPrefs.copy(id = 0))
             val languageTag = when (importedPrefs.appLanguage) {
                 AppLanguage.UK -> "uk"
@@ -854,51 +989,70 @@ class SettingsViewModel @Inject constructor(
         }
 
         if (selection.includeApiKeys && importedConfigs.isNotEmpty()) {
+            logBackupDebug("applyBackupJson:aiConfigs:apply start")
             val existingConfigs = aiModelConfigRepository.allConfigs.first()
-            val existingConfigKeys = existingConfigs.map { "${it.provider}_${it.modelName}_${it.type}" }.toSet()
-            
-            val toInsert = if (merge) {
-                importedConfigs.filter { 
-                    "${it.provider}_${it.modelName}_${it.type}" !in existingConfigKeys
-                }
-            } else {
-                existingConfigs.forEach { aiModelConfigRepository.deleteConfig(it) }
-                importedConfigs
-            }
+            val existingByStableKey = existingConfigs.associateBy(::stableAiConfigKey).toMutableMap()
 
-            toInsert.forEach { aiModelConfigRepository.addConfig(it) }
+            if (!merge) {
+                existingConfigs.forEach { aiModelConfigRepository.deleteConfig(it) }
+                importedConfigs.forEach { imported ->
+                    aiModelConfigRepository.addConfig(imported)
+                }
+                logBackupDebug("applyBackupJson:aiConfigs:apply complete inserted=${importedConfigs.size} updated=0")
+            } else {
+                var insertedCount = 0
+                var updatedCount = 0
+                importedConfigs.forEach { imported ->
+                    val stableKey = stableAiConfigKey(imported)
+                    val existing = existingByStableKey[stableKey]
+                    if (existing == null) {
+                        aiModelConfigRepository.addConfig(imported)
+                        existingByStableKey[stableKey] = imported
+                        insertedCount++
+                    } else {
+                        aiModelConfigRepository.updateConfig(
+                            imported.copy(
+                                id = existing.id,
+                                isUseNow = imported.isUseNow || existing.isUseNow
+                            )
+                        )
+                        updatedCount++
+                    }
+                }
+                logBackupDebug("applyBackupJson:aiConfigs:apply complete inserted=$insertedCount updated=$updatedCount")
+            }
         }
         if (selection.includeSources) {
+            logBackupDebug("applyBackupJson:groups:apply start")
             sourceRepository.importGroupsWithSources(importedGroups, merge)
+            logBackupDebug("applyBackupJson:groups:apply complete")
         }
 
         if (selection.includeSubscriptions) {
             if (importedSubscriptions != null) {
-                val savedThemes = importedSubscriptions.optJSONArray(KEY_SAVED_THEMES)
-                    ?.let { arr ->
-                        buildSet {
-                            for (i in 0 until arr.length()) {
-                                arr.optString(i)?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
-                            }
-                        }
-                    }
-                    .orEmpty()
+                logBackupDebug("applyBackupJson:subscriptions:apply start")
+                val subscriptionState = importedSubscriptions.toSuggestedThemesBackupState()
                 subscriptionsPrefs.edit()
-                    .putStringSet(KEY_SAVED_THEMES, savedThemes)
-                    .putLong(
-                        KEY_LAST_RECOMMENDATION_AT,
-                        importedSubscriptions.optLong(KEY_LAST_RECOMMENDATION_AT, 0L)
-                    )
+                    .writeSuggestedThemesBackupState(subscriptionState, clearWhenEmpty = true)
                     .apply()
+                logBackupDebug(
+                    "applyBackupJson:subscriptions:apply complete savedThemeIds=${subscriptionState.savedThemeIds.size} " +
+                        "legacyTitles=${subscriptionState.savedThemeTitlesLegacy.size}"
+                )
             } else if (!merge) {
                 subscriptionsPrefs.edit()
+                    .remove(WorkerContracts.KEY_SAVED_THEME_IDS)
                     .remove(KEY_SAVED_THEMES)
+                    .remove(WorkerContracts.KEY_SOURCES_HASH)
                     .remove(KEY_LAST_RECOMMENDATION_AT)
+                    .remove(WorkerContracts.KEY_LAST_FEED_REFRESH_AT)
                     .apply()
+                logBackupDebug("applyBackupJson:subscriptions:cleared")
             }
         }
 
         if (selection.includeSavedArticles && hasSavedArticlesField) {
+            logBackupDebug("applyBackupJson:savedArticles:apply start")
             if (importedSavedArticles.isNotEmpty()) {
                 if (merge) {
                     articleRepository.mergeSavedArticlesSnapshot(importedSavedArticles)
@@ -910,7 +1064,13 @@ class SettingsViewModel @Inject constructor(
             } else {
                 articleRepository.replaceFavoriteArticlesByUrls(importedSavedArticleUrls)
             }
+            logBackupDebug("applyBackupJson:savedArticles:apply complete")
         }
+        updateSyncStrategy(importedSyncStrategy)
+        updateSyncOverwritePriority(importedOverwritePriority)
+        updateImportStrategy(importedImportStrategy)
+        logBackupDebug("applyBackupJson:sync settings applied at end")
+        logBackupDebug("applyBackupJson:complete")
     }
 
     private suspend fun updatePreferences(transform: (UserPreferences) -> UserPreferences) {
@@ -952,6 +1112,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     companion object {
+        private const val BACKUP_LOG_TAG = "SettingsBackup"
         private const val CLOUD_COLLECTION = "user_sync_backups"
         private const val CLOUD_SYNC_WORK_NAME = "cloud_sync_periodic"
         private const val SYNC_PREFS = "sync_prefs"
@@ -1002,11 +1163,24 @@ class SettingsViewModel @Inject constructor(
             SyncOverwritePriority.LOCAL -> false
         }
     }
+
+    private fun logBackupDebug(message: String) {
+        Log.d(BACKUP_LOG_TAG, message)
+    }
+
+    private fun logBackupError(message: String, throwable: Throwable) {
+        Log.e(BACKUP_LOG_TAG, message, throwable)
+    }
+
+    private fun stableAiConfigKey(config: AiModelConfig): String {
+        return normalizeApiKey(config.apiKey)
+    }
+
+    private fun normalizeApiKey(apiKey: String): String {
+        return apiKey.trim()
+    }
+
+    private fun normalizeAiConfigName(name: String): String {
+        return name.trim().lowercase()
+    }
 }
-
-
-
-
-
-
-

@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.worker
 
 import android.content.Context
+import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.work.ListenableWorker
@@ -14,12 +15,17 @@ import com.andrewwin.sumup.domain.usecase.settings.ScheduleSummaryUseCase
 import com.andrewwin.sumup.ui.screen.settings.BackupSelection
 import com.andrewwin.sumup.ui.screen.settings.SyncConflictStrategy
 import com.andrewwin.sumup.ui.screen.settings.SyncOverwritePriority
+import com.andrewwin.sumup.ui.screen.settings.SuggestedThemesBackupState
 import com.andrewwin.sumup.ui.screen.settings.fromBackupJson
+import com.andrewwin.sumup.ui.screen.settings.putSuggestedThemesBackupState
+import com.andrewwin.sumup.ui.screen.settings.readSuggestedThemesBackupState
+import com.andrewwin.sumup.ui.screen.settings.toSuggestedThemesBackupState
 import com.andrewwin.sumup.ui.screen.settings.toAiConfigsFromBackup
 import com.andrewwin.sumup.ui.screen.settings.toBackupJson
 import com.andrewwin.sumup.ui.screen.settings.toImportedGroupsFromBackup
 import com.andrewwin.sumup.ui.screen.settings.toSavedArticlesFromBackup
 import com.andrewwin.sumup.ui.screen.settings.toUserPreferencesFromBackup
+import com.andrewwin.sumup.ui.screen.settings.writeSuggestedThemesBackupState
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -39,9 +45,13 @@ class CloudSyncWorkerHandler @Inject constructor(
     private val secretEncryptionManager: SecretEncryptionManager
 ) {
     suspend fun execute(): ListenableWorker.Result {
+        logCloudSyncDebug("execute:start")
         val syncPrefs = context.getSharedPreferences(WorkerContracts.SYNC_PREFS, 0)
         val enabled = syncPrefs.getBoolean(WorkerContracts.KEY_SYNC_ENABLED, false)
-        if (!enabled) return ListenableWorker.Result.success()
+        if (!enabled) {
+            logCloudSyncDebug("execute:skip disabled")
+            return ListenableWorker.Result.success()
+        }
         val syncStrategy = parseSyncConflictStrategy(
             syncPrefs.getString(WorkerContracts.KEY_SYNC_STRATEGY, SyncConflictStrategy.MERGE.name)
         )
@@ -59,13 +69,22 @@ class CloudSyncWorkerHandler @Inject constructor(
         )
 
         val uid = FirebaseAuth.getInstance().currentUser?.uid
-        if (uid.isNullOrBlank()) return ListenableWorker.Result.success()
+        if (uid.isNullOrBlank()) {
+            logCloudSyncDebug("execute:skip missing uid")
+            return ListenableWorker.Result.success()
+        }
 
         return runCatching {
             val firestore = FirebaseFirestore.getInstance()
             val docRef = firestore.collection(WorkerContracts.CLOUD_COLLECTION).document(uid)
+            logCloudSyncDebug("execute:remote fetch start selection=$selection")
             val remote = docRef.get().await()
-            val remoteBackupJson = remote.getString("backup")
+            val remoteBackupRaw = remote.getString("backup")
+            logCloudSyncDebug(
+                "execute:remote fetch complete exists=${remote.exists()} " +
+                    "updatedAt=${remote.getLong("updatedAt") ?: 0L} backupLength=${remoteBackupRaw?.length ?: -1}"
+            )
+            val remoteBackupJson = remoteBackupRaw
                 ?.takeIf { it.isNotBlank() }
                 ?.let(::JSONObject)
             val remoteUpdatedAt = remote.getLong("updatedAt") ?: 0L
@@ -78,29 +97,44 @@ class CloudSyncWorkerHandler @Inject constructor(
                 strategy = syncStrategy,
                 overwritePriority = syncOverwritePriority
             )
+            logCloudSyncDebug("execute:shouldApplyRemote=$shouldApplyRemote mergeMode=$mergeMode")
 
             if (shouldApplyRemote) {
                 if (remoteBackupJson != null) {
+                    logCloudSyncDebug("execute:apply remote start")
                     applyBackupJson(
                         root = remoteBackupJson,
                         merge = mergeMode,
                         selection = selection
                     )
+                    logCloudSyncDebug("execute:apply remote complete")
                 }
             }
 
+            logCloudSyncDebug("execute:build local backup start")
             val localBackup = buildBackupJson(selection, remoteBackupJson)
+            val localBackupJson = localBackup.toString()
+            logCloudSyncDebug("execute:build local backup complete length=${localBackupJson.length}")
+            require(localBackupJson.isNotBlank()) { "Cloud sync backup JSON is empty." }
             val now = System.currentTimeMillis()
+            logCloudSyncDebug("execute:upload start")
             docRef.set(
                 mapOf(
-                    "backup" to localBackup.toString(),
+                    "backup" to localBackupJson,
                     "updatedAt" to now
                 )
             ).await()
+            logCloudSyncDebug("execute:upload complete")
             syncPrefs.edit().putLong(WorkerContracts.KEY_LAST_SYNC_AT, now).apply()
         }.fold(
-            onSuccess = { ListenableWorker.Result.success() },
-            onFailure = { ListenableWorker.Result.retry() }
+            onSuccess = {
+                logCloudSyncDebug("execute:success")
+                ListenableWorker.Result.success()
+            },
+            onFailure = {
+                logCloudSyncError("execute:failure", it)
+                ListenableWorker.Result.retry()
+            }
         )
     }
 
@@ -108,6 +142,7 @@ class CloudSyncWorkerHandler @Inject constructor(
         secretEncryptionManager.getSyncPassphraseOrNull() ?: error("Sync passphrase is missing.")
 
     private suspend fun buildBackupJson(selection: BackupSelection, remoteBackupRoot: JSONObject? = null): JSONObject {
+        logCloudSyncDebug("buildBackupJson:start selection=$selection hasRemoteRoot=${remoteBackupRoot != null}")
         val subscriptionsPrefs = context.getSharedPreferences(WorkerContracts.SUBSCRIPTIONS_PREFS, 0)
         val prefs = if (selection.includeSettingsNoApi) userPreferencesRepository.preferences.first() else null
         val aiConfigs = if (selection.includeApiKeys) aiModelConfigRepository.allConfigs.first() else emptyList()
@@ -116,22 +151,22 @@ class CloudSyncWorkerHandler @Inject constructor(
         } else {
             null
         }
+        val syncEncryptionSession = syncPassphrase?.let(secretEncryptionManager::createSyncEncryptionSession)
         val groups = if (selection.includeSources) sourceRepository.getGroupsWithSourcesSnapshot() else emptyList()
-        val savedThemes = if (selection.includeSubscriptions) {
-            subscriptionsPrefs.getStringSet(WorkerContracts.KEY_SAVED_THEMES, emptySet()).orEmpty()
+        val suggestedThemesBackupState = if (selection.includeSubscriptions) {
+            subscriptionsPrefs.readSuggestedThemesBackupState()
         } else {
-            emptySet()
+            null
         }
         val savedArticlesSnapshot = if (selection.includeSavedArticles) {
             articleRepository.getSavedArticlesSnapshot()
         } else {
             emptyList()
         }
-        val lastRecommendationAt = if (selection.includeSubscriptions) {
-            subscriptionsPrefs.getLong(WorkerContracts.KEY_LAST_RECOMMENDATION_AT, 0L)
-        } else {
-            0L
-        }
+        logCloudSyncDebug(
+            "buildBackupJson:done hasPrefs=${prefs != null} aiConfigs=${aiConfigs.size} groups=${groups.size} " +
+                "savedThemeIds=${suggestedThemesBackupState?.savedThemeIds?.size ?: 0} savedArticles=${savedArticlesSnapshot.size}"
+        )
 
         return JSONObject().apply {
             put("schemaVersion", 1)
@@ -160,11 +195,10 @@ class CloudSyncWorkerHandler @Inject constructor(
             })
             if (prefs != null) put("userPreferences", prefs.toBackupJson())
             if (selection.includeApiKeys) {
+                put("apiKeysSalt", syncEncryptionSession?.saltBase64)
                 put("aiConfigs", JSONArray().apply {
-                    aiConfigs.forEach { put(it.toBackupJson(secretEncryptionManager, syncPassphrase!!)) }
+                    aiConfigs.forEach { put(it.toBackupJson(syncEncryptionSession!!)) }
                 })
-            } else if (remoteBackupRoot?.has("aiConfigs") == true) {
-                put("aiConfigs", remoteBackupRoot.optJSONArray("aiConfigs"))
             }
             if (selection.includeSources) {
                 put("groups", JSONArray().apply {
@@ -182,8 +216,15 @@ class CloudSyncWorkerHandler @Inject constructor(
             }
             if (selection.includeSubscriptions) {
                 put("subscriptions", JSONObject().apply {
-                    put(WorkerContracts.KEY_SAVED_THEMES, JSONArray(savedThemes.toList()))
-                    put(WorkerContracts.KEY_LAST_RECOMMENDATION_AT, lastRecommendationAt)
+                    putSuggestedThemesBackupState(
+                        suggestedThemesBackupState ?: SuggestedThemesBackupState(
+                            savedThemeIds = emptySet(),
+                            savedThemeTitlesLegacy = emptySet(),
+                            sourcesHash = null,
+                            lastRecommendationAt = 0L,
+                            lastFeedRefreshAt = 0L
+                        )
+                    )
                 })
             }
             if (selection.includeSavedArticles) {
@@ -191,10 +232,18 @@ class CloudSyncWorkerHandler @Inject constructor(
                     savedArticlesSnapshot.forEach { put(it.toBackupJson()) }
                 })
             }
+        }.also { root ->
+            logCloudSyncDebug("buildBackupJson:complete keys=${root.length()}")
         }
     }
 
     private suspend fun applyBackupJson(root: JSONObject, merge: Boolean, selection: BackupSelection) {
+        logCloudSyncDebug(
+            "applyBackupJson:start merge=$merge selection=$selection keys=${root.length()} " +
+                "hasUserPreferences=${root.has("userPreferences")} hasAiConfigs=${root.has("aiConfigs")} " +
+                "hasGroups=${root.has("groups")} hasSubscriptions=${root.has("subscriptions")} " +
+                "hasSavedArticles=${root.has("savedArticles")}"
+        )
         val importedSyncStrategy = parseSyncConflictStrategy(root.optString("syncStrategy", SyncConflictStrategy.MERGE.name))
         val importedOverwritePriority = parseSyncOverwritePriority(
             root.optString("syncOverwritePriority", SyncOverwritePriority.LOCAL.name)
@@ -202,16 +251,15 @@ class CloudSyncWorkerHandler @Inject constructor(
         val importedImportStrategy = parseSyncConflictStrategy(
             root.optString("importStrategy", SyncConflictStrategy.MERGE.name)
         )
-        context.getSharedPreferences(WorkerContracts.SYNC_PREFS, 0)
-            .edit()
-            .putString(WorkerContracts.KEY_SYNC_STRATEGY, importedSyncStrategy.name)
-            .putString(WorkerContracts.KEY_SYNC_OVERWRITE_PRIORITY, importedOverwritePriority.name)
-            .putString(WorkerContracts.KEY_IMPORT_STRATEGY, importedImportStrategy.name)
-            .apply()
+        logCloudSyncDebug(
+            "applyBackupJson:defer sync settings strategy=${importedSyncStrategy.name} " +
+                "overwrite=${importedOverwritePriority.name} import=${importedImportStrategy.name}"
+        )
 
         val subscriptionsPrefs = context.getSharedPreferences(WorkerContracts.SUBSCRIPTIONS_PREFS, 0)
         val importedPrefs = root.optJSONObject("userPreferences")?.toUserPreferencesFromBackup()
         val importedAiConfigs = root.optJSONArray("aiConfigs")
+        val importedAiConfigsSalt = root.optString("apiKeysSalt").takeIf { it.isNotBlank() }
         val importedGroups = root.optJSONArray("groups").toImportedGroupsFromBackup()
         val importedSubscriptions = root.optJSONObject("subscriptions")
         val hasSavedArticlesField = root.has("savedArticles")
@@ -226,6 +274,12 @@ class CloudSyncWorkerHandler @Inject constructor(
                     }
                 }
             }.orEmpty()
+        logCloudSyncDebug(
+            "applyBackupJson:parsed hasPrefs=${importedPrefs != null} " +
+                "importedAiConfigsLength=${importedAiConfigs?.length() ?: -1} groups=${importedGroups.size} " +
+                "hasSubscriptions=${importedSubscriptions != null} savedArticles=${importedSavedArticles.size} " +
+                "savedArticleUrls=${importedSavedArticleUrls.size}"
+        )
 
         if (selection.includeSettingsNoApi && importedPrefs != null) {
             userPreferencesRepository.updatePreferences(importedPrefs.copy(id = 0))
@@ -244,18 +298,38 @@ class CloudSyncWorkerHandler @Inject constructor(
         if (selection.includeApiKeys && importedAiConfigs != null) {
             val syncPassphrase = requireSyncPassphrase()
             val existingConfigs = aiModelConfigRepository.allConfigs.first()
-            val existingConfigKeys = existingConfigs.map { "${it.provider}_${it.modelName}_${it.type}" }.toSet()
+            val existingConfigKeys = existingConfigs.map {
+                it.apiKey.trim()
+            }.toSet()
             
             val toInsert = mutableListOf<AiModelConfig>()
             for (i in 0 until importedAiConfigs.length()) {
                 val configJson = importedAiConfigs.optJSONObject(i) ?: continue
-                val imported = AiModelConfig.fromBackupJson(configJson, secretEncryptionManager, syncPassphrase)
+                val imported = AiModelConfig.fromBackupJson(
+                    configJson,
+                    secretEncryptionManager,
+                    syncPassphrase,
+                    importedAiConfigsSalt
+                )
+                val normalizedImported = imported.copy(apiKey = imported.apiKey.trim())
                 if (merge) {
-                    if ("${imported.provider}_${imported.modelName}_${imported.type}" !in existingConfigKeys) {
-                        toInsert.add(imported)
+                    if (normalizedImported.apiKey !in existingConfigKeys) {
+                        toInsert.add(normalizedImported)
+                    } else {
+                        val existing = existingConfigs.firstOrNull {
+                            it.apiKey.trim() == normalizedImported.apiKey
+                        }
+                        if (existing != null) {
+                            aiModelConfigRepository.updateConfig(
+                                normalizedImported.copy(
+                                    id = existing.id,
+                                    isUseNow = normalizedImported.isUseNow || existing.isUseNow
+                                )
+                            )
+                        }
                     }
                 } else {
-                    toInsert.add(imported)
+                    toInsert.add(normalizedImported)
                 }
             }
             if (!merge) {
@@ -269,26 +343,17 @@ class CloudSyncWorkerHandler @Inject constructor(
 
         if (selection.includeSubscriptions) {
             if (importedSubscriptions != null) {
-                val savedThemes = importedSubscriptions.optJSONArray(WorkerContracts.KEY_SAVED_THEMES)
-                    ?.let { arr ->
-                        buildSet {
-                            for (i in 0 until arr.length()) {
-                                arr.optString(i)?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
-                            }
-                        }
-                    }
-                    .orEmpty()
+                val subscriptionState = importedSubscriptions.toSuggestedThemesBackupState()
                 subscriptionsPrefs.edit()
-                    .putStringSet(WorkerContracts.KEY_SAVED_THEMES, savedThemes)
-                    .putLong(
-                        WorkerContracts.KEY_LAST_RECOMMENDATION_AT,
-                        importedSubscriptions.optLong(WorkerContracts.KEY_LAST_RECOMMENDATION_AT, 0L)
-                    )
+                    .writeSuggestedThemesBackupState(subscriptionState, clearWhenEmpty = true)
                     .apply()
             } else if (!merge) {
                 subscriptionsPrefs.edit()
+                    .remove(WorkerContracts.KEY_SAVED_THEME_IDS)
                     .remove(WorkerContracts.KEY_SAVED_THEMES)
+                    .remove(WorkerContracts.KEY_SOURCES_HASH)
                     .remove(WorkerContracts.KEY_LAST_RECOMMENDATION_AT)
+                    .remove(WorkerContracts.KEY_LAST_FEED_REFRESH_AT)
                     .apply()
             }
         }
@@ -306,6 +371,14 @@ class CloudSyncWorkerHandler @Inject constructor(
                 articleRepository.replaceFavoriteArticlesByUrls(importedSavedArticleUrls)
             }
         }
+        context.getSharedPreferences(WorkerContracts.SYNC_PREFS, 0)
+            .edit()
+            .putString(WorkerContracts.KEY_SYNC_STRATEGY, importedSyncStrategy.name)
+            .putString(WorkerContracts.KEY_SYNC_OVERWRITE_PRIORITY, importedOverwritePriority.name)
+            .putString(WorkerContracts.KEY_IMPORT_STRATEGY, importedImportStrategy.name)
+            .apply()
+        logCloudSyncDebug("applyBackupJson:sync settings applied at end")
+        logCloudSyncDebug("applyBackupJson:complete")
     }
 
     private fun parseSyncConflictStrategy(rawValue: String?): SyncConflictStrategy {
@@ -334,10 +407,16 @@ class CloudSyncWorkerHandler @Inject constructor(
             SyncOverwritePriority.LOCAL -> false
         }
     }
+
+    private fun logCloudSyncDebug(message: String) {
+        Log.d(CLOUD_SYNC_LOG_TAG, message)
+    }
+
+    private fun logCloudSyncError(message: String, throwable: Throwable) {
+        Log.e(CLOUD_SYNC_LOG_TAG, message, throwable)
+    }
+
+    private companion object {
+        const val CLOUD_SYNC_LOG_TAG = "CloudSyncBackup"
+    }
 }
-
-
-
-
-
-
