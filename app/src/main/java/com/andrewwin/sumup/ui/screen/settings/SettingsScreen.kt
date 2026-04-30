@@ -759,6 +759,8 @@ fun SettingsScreen(
         if (showSyncPassphraseDialog) {
             SettingsSyncPassphraseDialog(
                 hasExistingPassphrase = hasSyncPassphrase,
+                isSignedIn = authUiState.isSignedIn,
+                isMatchingExistingPassphrase = viewModel::isSyncPassphraseMatchingCurrent,
                 onDismiss = { showSyncPassphraseDialog = false },
                 onSave = viewModel::saveSyncPassphrase,
                 onClear = viewModel::clearSyncPassphrase

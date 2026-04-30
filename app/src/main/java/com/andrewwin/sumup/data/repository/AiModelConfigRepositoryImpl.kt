@@ -3,6 +3,7 @@ package com.andrewwin.sumup.data.repository
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.AiModelType
+import com.andrewwin.sumup.data.local.entities.normalizedStableKey
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.remote.AiService
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
@@ -144,13 +145,13 @@ class AiModelConfigRepositoryImpl @Inject constructor(
         target: AiModelConfig,
         ignoreId: Long? = null
     ): AiModelConfig? {
-        val normalizedApiKey = normalizeApiKey(target.apiKey)
         val normalizedName = normalizeConfigName(target.name)
         return configs.firstOrNull {
-            it.id != ignoreId && normalizeApiKey(it.apiKey) == normalizedApiKey
+            it.id != ignoreId && it.normalizedStableKey() == target.normalizedStableKey()
         } ?: configs.firstOrNull {
             normalizedName.isNotBlank() &&
                 it.id != ignoreId &&
+                it.type == target.type &&
                 normalizeConfigName(it.name) == normalizedName
         }
     }

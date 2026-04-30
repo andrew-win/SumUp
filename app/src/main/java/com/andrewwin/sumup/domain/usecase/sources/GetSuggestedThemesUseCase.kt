@@ -2,6 +2,7 @@ package com.andrewwin.sumup.domain.usecase.sources
 
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
 import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
@@ -51,7 +52,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
         }
 
         val themeProfiles = publicSubscriptionsSyncManager.getCachedGroups()
-            .filter { it.isEnabled && it.recommendationAnchors.isNotEmpty() }
+            .filter { it.isEnabled && (it.sources.isNotEmpty() || it.recommendationAnchors.isNotEmpty()) }
             .sortedBy { it.sortOrder }
         if (themeProfiles.isEmpty()) {
             emit(emptyList())
@@ -64,6 +65,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
         val sourceIdByUrl = allSources.associate { it.url to it.id }
         val currentSourcesHash = allSourcesUrls.hashCode()
         val sourceTypeMap = allSources.associate { it.id to it.type }
+        val sourceUrlById = allSources.associate { it.id to it.url }
 
         val savedThemeIds = suggestedThemesStateRepository.getSavedThemeIds()
         val savedThemeTitlesLegacy = suggestedThemesStateRepository.getSavedThemeTitlesLegacy()
@@ -88,8 +90,11 @@ class GetSuggestedThemesUseCase @Inject constructor(
             return@flow
         }
 
-        val hasCloudEmbedding = aiModelConfigRepository.getEnabledConfigsByType(AiModelType.EMBEDDING).isNotEmpty()
-        val isModelLoaded = hasCloudEmbedding || manageModelUseCase.isModelExists()
+        val recommendationMode = resolveRecommendationMode(prefsData.deduplicationStrategy)
+        val isModelLoaded = when (recommendationMode) {
+            RecommendationMode.CLOUD -> aiModelConfigRepository.getEnabledConfigsByType(AiModelType.EMBEDDING).isNotEmpty()
+            RecommendationMode.LOCAL -> manageModelUseCase.isModelExists()
+        }
 
         if (!isModelLoaded) {
             emit(themeProfiles.map { 
@@ -158,7 +163,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
             return@flow
         }
 
-        val localEmbeddingReady = if (hasCloudEmbedding) {
+        val localEmbeddingReady = if (recommendationMode == RecommendationMode.CLOUD) {
             true
         } else {
             val modelPath = manageModelUseCase.getModelPath()
@@ -171,114 +176,86 @@ class GetSuggestedThemesUseCase @Inject constructor(
             return@flow
         }
 
-        val simThreshold = (
-            if (hasCloudEmbedding) {
-                prefsData.cloudDeduplicationThreshold - CLOUD_RECOMMENDATION_SIMILARITY_THRESHOLD_OFFSET
-            } else {
-                prefsData.localDeduplicationThreshold - LOCAL_RECOMMENDATION_SIMILARITY_THRESHOLD_OFFSET
-            }
-        ).coerceIn(0f, 0.99f)
-
-        val userEmbeddings = userArticles.mapNotNull {
-           val emb = getEmbedding(it.title, hasCloudEmbedding)
-           it.title to normalize(emb)
-        }
-
-        val staticAnchorEmbeddings: Map<ImportedSourceGroup, FloatArray> = themeProfiles.associateWith { theme ->
-            val anchorEmbs = theme.recommendationAnchors.map { normalize(getEmbedding(it, hasCloudEmbedding)) }
-            val vectorSize = anchorEmbs.first().size
-            val sumVector = FloatArray(vectorSize)
-            for (emb in anchorEmbs) {
-                for (i in 0 until vectorSize) sumVector[i] += emb[i]
-            }
-            normalize(FloatArray(vectorSize) { sumVector[it] / anchorEmbs.size })
-        }
+        val simThreshold = resolveSimilarityThreshold(
+            recommendationMode = recommendationMode,
+            cloudThreshold = prefsData.cloudDeduplicationThreshold
+        )
 
         val suggestions = mutableListOf<ThemeSuggestion>()
         for (theme in themeProfiles) {
-            val firstSource = theme.sources.firstOrNull()
-            if (firstSource == null) {
-                suggestions.add(ThemeSuggestion(theme, 0f, isSubscribed = false))
+            val themeSourceUrls = theme.sources.map { it.url }.toSet()
+            val themeUserEmbeddings = userArticles
+                .filterNot { article -> sourceUrlById[article.sourceId] in themeSourceUrls }
+                .mapNotNull { article ->
+                    getEmbedding(article.title, recommendationMode)
+                        .takeIf { it.isNotEmpty() }
+                        ?.let { normalize(it) }
+                }
+            if (themeUserEmbeddings.isEmpty()) {
+                suggestions.add(
+                    ThemeSuggestion(
+                        theme = theme,
+                        score = 0f,
+                        isSubscribed = theme.sources.all { allSourcesUrls.contains(it.url) },
+                        isRecommended = false
+                    )
+                )
                 continue
             }
-            
-            // Optimization: if we already have articles for this source, use them instead of fetching
-            val themeArticles = if (allSourcesUrls.contains(firstSource.url)) {
-                val sId = sourceIdByUrl[firstSource.url]
-                allEnabledArticles.filter { it.sourceId == sId }
-            } else {
-                try {
-                    remoteArticleDataSource.fetchArticles(
-                        Source(
-                            id = -1L,
-                            groupId = -1L,
-                            name = firstSource.url,
-                            url = firstSource.url,
-                            type = firstSource.type
-                        )
-                    )
-                } catch (e: Exception) {
-                    emptyList()
+
+            var relatedSources = 0
+            var comparableSources = 0
+
+            for (source in theme.sources) {
+                val comparisonEmbeddings = getComparableSourceEmbeddings(
+                    source = source,
+                    allSourcesUrls = allSourcesUrls,
+                    sourceIdByUrl = sourceIdByUrl,
+                    allEnabledArticles = allEnabledArticles,
+                    recommendationMode = recommendationMode
+                )
+                if (comparisonEmbeddings.isEmpty()) {
+                    continue
+                }
+                comparableSources += 1
+                if (countRelatedArticles(themeUserEmbeddings, comparisonEmbeddings, simThreshold) >= MIN_MATCHED_USER_ARTICLES_PER_SOURCE) {
+                    relatedSources += 1
                 }
             }
 
-            if (themeArticles.isEmpty()) {
-                suggestions.add(ThemeSuggestion(theme, 0f, isSubscribed = theme.sources.all { allSourcesUrls.contains(it.url) }))
-                continue
-            }
-            
-            val themeEmbeddings = themeArticles
-                .let { articles ->
-                    val averageViews = articles
-                        .asSequence()
-                        .map { it.viewCount }
-                        .filter { it > 0L }
-                        .average()
-                        .toLong()
-                    articles to averageViews
-                }
-                .let { (articles, averageViews) ->
-                    articles.filter {
-                        val importance = articleImportanceScorer.score(it, averageViews, firstSource.type)
-                        importance >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
+            if (comparableSources == 0) {
+                val anchorEmbeddings = theme.recommendationAnchors
+                    .take(MAX_ANCHORS_PER_THEME_RECOMMENDATIONS)
+                    .mapNotNull { anchor ->
+                        getEmbedding(anchor, recommendationMode)
+                            .takeIf { it.isNotEmpty() }
+                            ?.let { normalize(it) }
+                    }
+                if (anchorEmbeddings.isNotEmpty()) {
+                    comparableSources = 1
+                    if (countRelatedArticles(themeUserEmbeddings, anchorEmbeddings, simThreshold) >= MIN_MATCHED_USER_ARTICLES_PER_SOURCE) {
+                        relatedSources = 1
                     }
                 }
-                .take(MAX_ARTICLES_PER_SOURCE_FOR_THEME_RECOMMENDATIONS)
-                .mapNotNull { 
-                    val emb = getEmbedding(it.title, hasCloudEmbedding)
-                    normalize(emb)
-                }
-
-            if (themeEmbeddings.isEmpty()) {
-                suggestions.add(ThemeSuggestion(theme, 0f, isSubscribed = theme.sources.all { allSourcesUrls.contains(it.url) }))
-                continue
             }
 
-            // Combine static anchors + fetched article embeddings into one anchor vector
-            val staticEmb = staticAnchorEmbeddings[theme]!!
-            val vectorSize = staticEmb.size
-            val allEmbs = themeEmbeddings + listOf(staticEmb)
-            val sumVector = FloatArray(vectorSize)
-            for (emb in allEmbs) {
-                for (i in 0 until vectorSize) {
-                    sumVector[i] += emb[i]
-                }
+            val relatedRatio = if (comparableSources > 0) {
+                relatedSources.toFloat() / comparableSources.toFloat()
+            } else {
+                0f
             }
-            val themeAnchorEmb = normalize(FloatArray(vectorSize) { sumVector[it] / allEmbs.size })
-
-            var matchScore = 0f
-            for ((uTitle, uEmb) in userEmbeddings) {
-                val sim = dotProduct(uEmb, themeAnchorEmb)
-                if (sim >= simThreshold) {
-                    matchScore += sim
-                }
-            }
-            suggestions.add(ThemeSuggestion(theme, matchScore, isSubscribed = theme.sources.all { allSourcesUrls.contains(it.url) }))
+            suggestions.add(
+                ThemeSuggestion(
+                    theme = theme,
+                    score = relatedRatio * PERCENT_SCALE,
+                    isSubscribed = theme.sources.all { allSourcesUrls.contains(it.url) },
+                    isRecommended = comparableSources > 0 && relatedRatio >= RECOMMENDED_THEME_MIN_RELATED_RATIO
+                )
+            )
         }
 
         val sorted = suggestions.sortedByDescending { it.score }
         val resultList = sorted
-            .map { it.copy(isRecommended = it.score >= RECOMMENDED_THEME_MIN_SCORE) }
             .sortedByDescending { if (it.isRecommended) 1 else 0 }
 
         suggestedThemesStateRepository.saveRecommendationState(
@@ -288,6 +265,82 @@ class GetSuggestedThemesUseCase @Inject constructor(
         )
 
         emit(resultList)
+    }
+
+    private suspend fun getComparableSourceEmbeddings(
+        source: com.andrewwin.sumup.domain.repository.ImportedSource,
+        allSourcesUrls: Set<String>,
+        sourceIdByUrl: Map<String, Long>,
+        allEnabledArticles: List<com.andrewwin.sumup.data.local.entities.Article>,
+        recommendationMode: RecommendationMode
+    ): List<FloatArray> {
+        val sourceArticles = if (allSourcesUrls.contains(source.url)) {
+            val sourceId = sourceIdByUrl[source.url]
+            allEnabledArticles.filter { it.sourceId == sourceId }
+        } else {
+            fetchSourceArticles(source)
+        }
+        if (sourceArticles.isEmpty()) return emptyList()
+
+        val averageViews = sourceArticles
+            .asSequence()
+            .map { it.viewCount }
+            .filter { it > 0L }
+            .average()
+            .toLong()
+
+        return sourceArticles
+            .filter { article ->
+                articleImportanceScorer.score(article, averageViews, source.type) >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
+            }
+            .sortedByDescending { it.publishedAt }
+            .take(MAX_ARTICLES_PER_SOURCE_FOR_THEME_RECOMMENDATIONS)
+            .mapNotNull { article ->
+                getEmbedding(article.title, recommendationMode)
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { normalize(it) }
+            }
+    }
+
+    private suspend fun fetchSourceArticles(
+        source: com.andrewwin.sumup.domain.repository.ImportedSource
+    ): List<com.andrewwin.sumup.data.local.entities.Article> {
+        return try {
+            remoteArticleDataSource.fetchArticles(
+                Source(
+                    id = -1L,
+                    groupId = -1L,
+                    name = source.name.ifBlank { source.url },
+                    url = source.url,
+                    type = source.type
+                )
+            )
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun countRelatedArticles(
+        userEmbeddings: List<FloatArray>,
+        comparisonEmbeddings: List<FloatArray>,
+        simThreshold: Float
+    ): Int {
+        if (userEmbeddings.isEmpty() || comparisonEmbeddings.isEmpty()) return 0
+        return userEmbeddings.count { userEmbedding ->
+            comparisonEmbeddings.any { comparisonEmbedding ->
+                dotProduct(userEmbedding, comparisonEmbedding) >= simThreshold
+            }
+        }
+    }
+
+    private fun resolveSimilarityThreshold(
+        recommendationMode: RecommendationMode,
+        cloudThreshold: Float
+    ): Float {
+        return when (recommendationMode) {
+            RecommendationMode.CLOUD -> (cloudThreshold - CLOUD_RECOMMENDATION_SIMILARITY_THRESHOLD_OFFSET).coerceIn(0f, 0.99f)
+            RecommendationMode.LOCAL -> LOCAL_RECOMMENDATION_SIMILARITY_THRESHOLD
+        }
     }
 
     private fun normalize(vector: FloatArray): FloatArray {
@@ -301,11 +354,18 @@ class GetSuggestedThemesUseCase @Inject constructor(
         return sum
     }
 
-    private suspend fun getEmbedding(text: String, hasCloudEmbedding: Boolean): FloatArray {
-        if (hasCloudEmbedding) {
+    private suspend fun getEmbedding(text: String, recommendationMode: RecommendationMode): FloatArray {
+        if (recommendationMode == RecommendationMode.CLOUD) {
             generateCloudEmbeddingUseCase(text)?.let { return it }
         }
         return embeddingService.getEmbedding(text)
+    }
+
+    private fun resolveRecommendationMode(strategy: DeduplicationStrategy): RecommendationMode {
+        return when (strategy) {
+            DeduplicationStrategy.CLOUD -> RecommendationMode.CLOUD
+            DeduplicationStrategy.LOCAL -> RecommendationMode.LOCAL
+        }
     }
 
     private fun isThemeSaved(
@@ -320,15 +380,20 @@ class GetSuggestedThemesUseCase @Inject constructor(
     }
 
     private companion object {
-        private const val MAX_ARTICLES_PER_SOURCE_FOR_THEME_RECOMMENDATIONS = 7
+        private const val MAX_ARTICLES_PER_SOURCE_FOR_THEME_RECOMMENDATIONS = 3
+        private const val MAX_ANCHORS_PER_THEME_RECOMMENDATIONS = 3
+        private const val MIN_MATCHED_USER_ARTICLES_PER_SOURCE = 1
         private const val CLOUD_RECOMMENDATION_SIMILARITY_THRESHOLD_OFFSET = 0.015f
-        private const val LOCAL_RECOMMENDATION_SIMILARITY_THRESHOLD_OFFSET = 0.2f
-        private const val RECOMMENDED_THEME_MIN_SCORE = 2.5f
+        private const val LOCAL_RECOMMENDATION_SIMILARITY_THRESHOLD = 0.4f
+        private const val RECOMMENDED_THEME_MIN_RELATED_RATIO = 0.33f
+        private const val PERCENT_SCALE = 100f
     }
 }
 
-
-
+private enum class RecommendationMode {
+    CLOUD,
+    LOCAL
+}
 
 
 

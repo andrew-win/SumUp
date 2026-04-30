@@ -30,6 +30,7 @@ import com.andrewwin.sumup.data.local.entities.AppThemeMode
 import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 import com.andrewwin.sumup.data.local.entities.UserPreferences
+import com.andrewwin.sumup.data.local.entities.normalizedStableKey
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
@@ -316,8 +317,9 @@ class SettingsViewModel @Inject constructor(
     private suspend fun persistAiConfigWithUseNow(config: AiModelConfig, isNew: Boolean) {
         val normalizedApiKey = normalizeApiKey(config.apiKey)
         val normalizedConfigName = normalizeAiConfigName(config.name)
+        val normalizedStableKey = config.copy(apiKey = normalizedApiKey).normalizedStableKey()
         val existingDuplicate = aiModelConfigRepository.allConfigs.first()
-            .firstOrNull { it.id != config.id && normalizeApiKey(it.apiKey) == normalizedApiKey }
+            .firstOrNull { it.id != config.id && it.normalizedStableKey() == normalizedStableKey }
         if (existingDuplicate != null) {
             _transferState.value = TransferState.Error(
                 getApplication<Application>().getString(com.andrewwin.sumup.R.string.validation_api_key_exists)
@@ -327,6 +329,7 @@ class SettingsViewModel @Inject constructor(
         val existingNameDuplicate = aiModelConfigRepository.allConfigs.first()
             .firstOrNull {
                 it.id != config.id &&
+                    it.type == config.type &&
                     normalizedConfigName.isNotBlank() &&
                     normalizeAiConfigName(it.name) == normalizedConfigName
             }
@@ -594,6 +597,12 @@ class SettingsViewModel @Inject constructor(
         persistSelection(KEY_PREFIX_EXPORT, _exportSelection.value.copy(includeApiKeys = false))
         persistSelection(KEY_PREFIX_IMPORT, _importSelection.value.copy(includeApiKeys = false))
         _transferState.value = TransferState.Success("Синхронізацію API-ключів вимкнено, пароль очищено")
+    }
+
+    fun isSyncPassphraseMatchingCurrent(passphrase: String): Boolean {
+        val normalized = passphrase.trim()
+        val currentPassphrase = secretEncryptionManager.getSyncPassphraseOrNull()?.trim().orEmpty()
+        return normalized.isNotBlank() && normalized == currentPassphrase
     }
 
     fun updateSyncIntervalHours(hours: Int) {
@@ -1173,7 +1182,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun stableAiConfigKey(config: AiModelConfig): String {
-        return normalizeApiKey(config.apiKey)
+        return config.copy(apiKey = normalizeApiKey(config.apiKey)).normalizedStableKey()
     }
 
     private fun normalizeApiKey(apiKey: String): String {

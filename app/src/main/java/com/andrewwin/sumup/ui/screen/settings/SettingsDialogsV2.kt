@@ -260,16 +260,32 @@ fun SettingsEmailAuthDialog(
 @Composable
 fun SettingsSyncPassphraseDialog(
     hasExistingPassphrase: Boolean,
+    isSignedIn: Boolean,
+    isMatchingExistingPassphrase: (String) -> Boolean,
     onDismiss: () -> Unit,
     onSave: (String) -> Unit,
     onClear: () -> Unit
 ) {
     val tooShortMessage = stringResource(R.string.settings_sync_passphrase_too_short)
     val mismatchMessage = stringResource(R.string.settings_sync_passphrase_mismatch)
+    val replaceWarningMessage = stringResource(R.string.settings_sync_passphrase_replace_warning)
     var passphrase by rememberSaveable { mutableStateOf("") }
     var confirmPassphrase by rememberSaveable { mutableStateOf("") }
     var isPassphraseVisible by rememberSaveable { mutableStateOf(false) }
     var validationError by rememberSaveable { mutableStateOf<String?>(null) }
+    val normalizedPassphrase = passphrase.trim()
+    val shouldShowReplaceWarning = remember(
+        hasExistingPassphrase,
+        isSignedIn,
+        normalizedPassphrase,
+        confirmPassphrase
+    ) {
+        hasExistingPassphrase &&
+            isSignedIn &&
+            normalizedPassphrase.length >= 8 &&
+            normalizedPassphrase == confirmPassphrase.trim() &&
+            !isMatchingExistingPassphrase(normalizedPassphrase)
+    }
 
     AppAnimatedDialog(
         visible = true,
@@ -341,6 +357,14 @@ fun SettingsSyncPassphraseDialog(
                 validationError?.let { message ->
                     Text(
                         text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                if (shouldShowReplaceWarning) {
+                    Text(
+                        text = replaceWarningMessage,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )

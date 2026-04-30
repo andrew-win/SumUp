@@ -213,6 +213,7 @@
     <string name="settings_sync_passphrase_clear">Очистити пароль</string>
     <string name="settings_sync_passphrase_too_short">Пароль має містити щонайменше 8 символів</string>
     <string name="settings_sync_passphrase_mismatch">Паролі не збігаються</string>
+    <string name="settings_sync_passphrase_replace_warning">Пароль не співпадає з раніше збереженим. Якщо зберегти новий пароль, він перезапише старий, а вже синхронізовані чи експортовані API-ключі цим новим паролем розблокувати не вийде.</string>
     <string name="settings_not_signed_in">Не виконано вхід</string>
     <string name="settings_login_register">Увійти/Реєстрація</string>
     <string name="settings_login_google">Увійти через Google</string>

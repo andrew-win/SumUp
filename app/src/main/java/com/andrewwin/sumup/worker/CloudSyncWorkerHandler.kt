@@ -7,6 +7,7 @@ import androidx.core.os.LocaleListCompat
 import androidx.work.ListenableWorker
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
+import com.andrewwin.sumup.data.local.entities.normalizedStableKey
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
@@ -298,9 +299,7 @@ class CloudSyncWorkerHandler @Inject constructor(
         if (selection.includeApiKeys && importedAiConfigs != null) {
             val syncPassphrase = requireSyncPassphrase()
             val existingConfigs = aiModelConfigRepository.allConfigs.first()
-            val existingConfigKeys = existingConfigs.map {
-                it.apiKey.trim()
-            }.toSet()
+            val existingConfigKeys = existingConfigs.map(AiModelConfig::normalizedStableKey).toSet()
             
             val toInsert = mutableListOf<AiModelConfig>()
             for (i in 0 until importedAiConfigs.length()) {
@@ -313,11 +312,11 @@ class CloudSyncWorkerHandler @Inject constructor(
                 )
                 val normalizedImported = imported.copy(apiKey = imported.apiKey.trim())
                 if (merge) {
-                    if (normalizedImported.apiKey !in existingConfigKeys) {
+                    if (normalizedImported.normalizedStableKey() !in existingConfigKeys) {
                         toInsert.add(normalizedImported)
                     } else {
                         val existing = existingConfigs.firstOrNull {
-                            it.apiKey.trim() == normalizedImported.apiKey
+                            it.normalizedStableKey() == normalizedImported.normalizedStableKey()
                         }
                         if (existing != null) {
                             aiModelConfigRepository.updateConfig(

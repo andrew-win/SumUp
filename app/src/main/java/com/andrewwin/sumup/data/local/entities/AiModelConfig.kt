@@ -26,6 +26,7 @@ data class AiModelConfig(
     companion object
 }
 
+fun AiModelConfig.normalizedStableKey(): String = "${type.name}:${apiKey.trim()}"
 
 
 

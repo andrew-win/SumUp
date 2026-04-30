@@ -209,6 +209,7 @@ scheduled</string>
     <string name="settings_sync_passphrase_clear">Clear passphrase</string>
     <string name="settings_sync_passphrase_too_short">Passphrase must be at least 8 characters long</string>
     <string name="settings_sync_passphrase_mismatch">Passphrases do not match</string>
+    <string name="settings_sync_passphrase_replace_warning">This passphrase does not match the one saved earlier. If you save it, it will replace the old passphrase, and API keys already synced or exported with the old one will no longer be unlockable with the new passphrase.</string>
     <string name="settings_not_signed_in">Not signed in</string>
     <string name="settings_logout">Sign out</string>
     <string name="settings_import_strategy_title">Import strategy</string>
