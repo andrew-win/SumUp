@@ -1,6 +1,4 @@
 package com.andrewwin.sumup.domain.service
-
-import android.util.Log
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.domain.repository.ArticleRepository
@@ -26,8 +24,6 @@ class SimilarityScorer(
     }
 
     suspend fun getEmbedding(article: Article, strategy: DeduplicationStrategy): FloatArray {
-        Log.d("SimilarityScorer", "getEmbedding: articleId=${article.id}, strategy=$strategy, currentType=${article.embeddingType}")
-        
         // 1. Check if the provided article object already has the correct embedding
         if (article.embeddingType == strategy.name && article.embedding != null) {
             return EmbeddingUtils.toFloatArray(article.embedding)
@@ -40,7 +36,6 @@ class SimilarityScorer(
         }
 
         // 3. Generate based on strategy
-        Log.d("SimilarityScorer", "Generating embedding for ${article.id} using $strategy")
         val embedding = when (strategy) {
             DeduplicationStrategy.CLOUD -> {
                 val cloud = cloudEmbeddingService.getCloudEmbedding(article.title)
@@ -55,17 +50,14 @@ class SimilarityScorer(
         }
 
         return if (embedding != null) {
-            Log.d("SimilarityScorer", "Generated embedding for ${article.id}, saving...")
             saveEmbedding(article, embedding, strategy)
             embedding
         } else {
-            Log.w("SimilarityScorer", "Failed to generate embedding for ${article.id}")
             FloatArray(EmbeddingUtils.EMBEDDING_DIM)
         }
     }
 
     private suspend fun saveEmbedding(article: Article, embedding: FloatArray, strategy: DeduplicationStrategy) {
-        Log.d("SimilarityScorer", "saveEmbedding: updating article ${article.id}")
         val updated = article.copy(
             embedding = EmbeddingUtils.toByteArray(embedding),
             embeddingType = strategy.name

@@ -13,26 +13,26 @@
       "isEnabled": true,
       "isDeletable": true,
       "anchors": [
-        "Футбол: матч, чемпіонат, трансфер, збірна.",
-        "Єврокубки та ліги: плей-оф, турнір, фінал, тренер.",
-        "Індивідуальний спорт: олімпіада, медаль, рекорд, теніс."
+        "Футбол і командні види спорту: матч, чемпіонат, турнір, збірна.",
+        "Індивідуальні дисципліни: теніс, бокс, легка атлетика, рекорд.",
+        "Спортивні події та результати: медаль, фінал, сезон, рейтинг."
       ],
       "sources": [
         {
-          "name": "Right Inside UA",
-          "url": "t.me/right_inside_ua",
-          "type": "TELEGRAM",
-          "isEnabled": true
-        },
-        {
           "name": "Suspilne Sport",
-          "url": "https://www.suspilne.media/sport/rss/latest.rss",
+          "url": "https://suspilne.media/sport/rss/latest.rss",
           "type": "RSS",
           "isEnabled": true
         },
         {
-          "name": "Tribuna",
-          "url": "https://www.rss.ua.tribuna.com/ru/feed.xml",
+          "name": "Sport.ua",
+          "url": "https://sport.ua/uk/rss/all",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Champion",
+          "url": "https://champion.com.ua/ukr/rss",
           "type": "RSS",
           "isEnabled": true
         }
@@ -51,17 +51,11 @@
       "isEnabled": true,
       "isDeletable": true,
       "anchors": [
-        "ШІ та софт: OpenAI, моделі, реліз, програмування, продукт.",
-        "Гаджети й чипи: смартфон, процесор, ноутбук, відеокарта.",
-        "Наука й інженерія: робототехніка, дослідження, стартап, інновація."
+        "ШІ та розробка: моделі, програмування, реліз, платформа, продукт.",
+        "Гаджети та індустрія: смартфон, ноутбук, чип, девайс, виробник.",
+        "Інновації та ІТ-бізнес: стартап, сервіс, компанія, безпека, дослідження."
       ],
       "sources": [
-        {
-          "name": "iLenta",
-          "url": "https://www.ilenta.com/uk/news/news.rss",
-          "type": "RSS",
-          "isEnabled": true
-        },
         {
           "name": "Mezha",
           "url": "https://www.mezha.ua/feed/",
@@ -69,8 +63,14 @@
           "isEnabled": true
         },
         {
-          "name": "Holos Ameryky Tech",
-          "url": "https://www.holosameryky.com/api/zvoypl-vomx-tpeuktm",
+          "name": "iLenta",
+          "url": "https://www.ilenta.com/uk/news/news.rss",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "dev.ua",
+          "url": "https://dev.ua/rss",
           "type": "RSS",
           "isEnabled": true
         }
@@ -89,17 +89,11 @@
       "isEnabled": true,
       "isDeletable": true,
       "anchors": [
-        "Війна та безпека: фронт, допомога, санкції, оборона.",
-        "Переговори й дипломатія: саміт, домовленості, заява, коаліція.",
-        "Влада й вибори: парламент, уряд, закон, міністр, президент."
+        "Влада та державні рішення: уряд, парламент, закон, міністр, президент.",
+        "Міжнародна політика: переговори, саміт, союзники, санкції, дипломатія.",
+        "Війна і безпека: оборона, допомога, фронт, заява, стратегія."
       ],
       "sources": [
-        {
-          "name": "RBC Politics",
-          "url": "https://www.rbc.ua/static/rss/ukrnet.politics.ukr.rss.xml",
-          "type": "RSS",
-          "isEnabled": true
-        },
         {
           "name": "Suspilne",
           "url": "https://www.suspilne.media/rss/all.rss",
@@ -111,50 +105,18 @@
           "url": "https://www.holosameryky.com/api/zqoy_l-vomx-tpeikty",
           "type": "RSS",
           "isEnabled": true
-        }
-      ]
-    },
-    {
-      "id": "weather",
-      "sortOrder": 40,
-      "title": {
-        "uk": "Погода",
-        "en": "Weather"
-      },
-      "name": "Погода",
-      "nameUk": "Погода",
-      "nameEn": "Weather",
-      "isEnabled": true,
-      "isDeletable": true,
-      "anchors": [
-        "Опади й температура: дощ, сніг, мороз, спека, похолодання.",
-        "Небезпечні явища: гроза, шквал, шторм, циклон, заметіль.",
-        "Прогноз погоди: синоптики, попередження, вітер, хмарність."
-      ],
-      "sources": [
-        {
-          "name": "UHMC",
-          "url": "t.me/uhmc2022",
-          "type": "TELEGRAM",
-          "isEnabled": true
         },
         {
-          "name": "Lviv RCHM",
-          "url": "t.me/lviv_rchm",
-          "type": "TELEGRAM",
-          "isEnabled": true
-        },
-        {
-          "name": "HMC Odesa",
-          "url": "t.me/HMC_Odesa",
-          "type": "TELEGRAM",
+          "name": "RBC Politics",
+          "url": "https://www.rbc.ua/static/rss/ukrnet.politics.ukr.rss.xml",
+          "type": "RSS",
           "isEnabled": true
         }
       ]
     },
     {
       "id": "economy",
-      "sortOrder": 50,
+      "sortOrder": 40,
       "title": {
         "uk": "Економіка",
         "en": "Economy"
@@ -165,11 +127,17 @@
       "isEnabled": true,
       "isDeletable": true,
       "anchors": [
-        "Макроекономіка: інфляція, ВВП, ринок, рецесія, статистика.",
-        "Гроші й валюта: гривня, долар, євро, курс, резерви, НБУ.",
-        "Бюджет і бізнес: податки, експорт, кредит, інвестиції, ставка."
+        "Макроекономіка: інфляція, бюджет, ринок, статистика, регулювання.",
+        "Фінанси і бізнес: валюта, податки, інвестиції, ставка, компанії.",
+        "Економічна політика: експорт, імпорт, доходи, ринки, рішення уряду."
       ],
       "sources": [
+        {
+          "name": "Ekonomichna Pravda",
+          "url": "https://epravda.com.ua/rss",
+          "type": "RSS",
+          "isEnabled": true
+        },
         {
           "name": "Holos Ameryky Economy",
           "url": "https://www.holosameryky.com/api/zpoytl-vomx-tpe_ktr",
@@ -177,118 +145,16 @@
           "isEnabled": true
         },
         {
-          "name": "Fair Price",
-          "url": "t.me/fair_price_channel",
+          "name": "Delo.ua",
+          "url": "https://t.me/delo_ua",
           "type": "TELEGRAM",
-          "isEnabled": true
-        },
-        {
-          "name": "MSUa Official",
-          "url": "https://t.me/MSUa_official",
-          "type": "TELEGRAM",
-          "isEnabled": true
-        }
-      ]
-    },
-    {
-      "id": "health",
-      "sortOrder": 60,
-      "title": {
-        "uk": "Здоров'я",
-        "en": "Health"
-      },
-      "name": "Здоров'я",
-      "nameUk": "Здоров'я",
-      "nameEn": "Health",
-      "isEnabled": true,
-      "isDeletable": true,
-      "anchors": [
-        "Медицина й лікування: лікарі, діагноз, терапія, операція, лікарня.",
-        "Вакцини й віруси: епідемія, грип, COVID, щеплення, МОЗ.",
-        "Дослідження й препарати: клінічні випробування, ліки, відкриття."
-      ],
-      "sources": [
-        {
-          "name": "PHC Ukraine",
-          "url": "https://t.me/PHC_Ukraine",
-          "type": "TELEGRAM",
-          "isEnabled": true
-        },
-        {
-          "name": "Zemits Ukraine",
-          "url": "https://t.me/zemits_ukraine_official",
-          "type": "TELEGRAM",
-          "isEnabled": true
-        }
-      ]
-    },
-    {
-      "id": "crypto",
-      "sortOrder": 70,
-      "title": {
-        "uk": "Крипта",
-        "en": "Crypto"
-      },
-      "name": "Крипта",
-      "nameUk": "Крипта",
-      "nameEn": "Crypto",
-      "isEnabled": true,
-      "isDeletable": true,
-      "anchors": [
-        "Біткоїн і ринок: BTC, ціна, ETF, халвінг, волатильність.",
-        "Ethereum та інфраструктура: мережа, gas fee, layer 2, staking.",
-        "Криптоіндустрія: біржі, SEC, токени, DeFi, blockchain, regulation."
-      ],
-      "sources": [
-        {
-          "name": "ProBitcoin UA",
-          "url": "https://t.me/probitcoinua",
-          "type": "TELEGRAM",
-          "isEnabled": true
-        },
-        {
-          "name": "Kripta Ukraina",
-          "url": "https://t.me/Kripta_Ukraina",
-          "type": "TELEGRAM",
-          "isEnabled": true
-        }
-      ]
-    },
-    {
-      "id": "space",
-      "sortOrder": 80,
-      "title": {
-        "uk": "Космос",
-        "en": "Space"
-      },
-      "name": "Космос",
-      "nameUk": "Космос",
-      "nameEn": "Space",
-      "isEnabled": true,
-      "isDeletable": true,
-      "anchors": [
-        "Запуски й ракети: SpaceX, NASA, орбіта, Starship, носій.",
-        "Астрономія: телескоп, екзопланета, галактика, знімок, дослідження.",
-        "Пілотовані місії: астронавти, МКС, Місяць, Марс, вихід у космос."
-      ],
-      "sources": [
-        {
-          "name": "NASA Breaking News",
-          "url": "https://www.nasa.gov/rss/dyn/breaking_news.rss",
-          "type": "RSS",
-          "isEnabled": true
-        },
-        {
-          "name": "Space.com",
-          "url": "https://www.space.com/feeds/all",
-          "type": "RSS",
           "isEnabled": true
         }
       ]
     },
     {
       "id": "cars",
-      "sortOrder": 90,
+      "sortOrder": 50,
       "title": {
         "uk": "Автомобілі",
         "en": "Cars"
@@ -299,53 +165,141 @@
       "isEnabled": true,
       "isDeletable": true,
       "anchors": [
-        "Електромобілі: Tesla, батарея, запас ходу, зарядка, EV.",
-        "Авторинок: нова модель, продажі, імпорт, ціна, тест-драйв.",
-        "Сервіс і безпека: відкликання, поломка, ДТП, ремонт, двигун."
+        "Нові моделі та ринок: авто, кросовер, седан, ціна, продажі.",
+        "Електромобілі та технології: батарея, зарядка, запас ходу, EV.",
+        "Експлуатація і сервіс: тест-драйв, ремонт, безпека, двигун, огляд."
       ],
       "sources": [
         {
-          "name": "W8 Shipping Ukraine",
-          "url": "https://t.me/w8shippingukraine",
-          "type": "TELEGRAM",
+          "name": "Avtomangal",
+          "url": "https://avtomangal.com.ua/feed",
+          "type": "RSS",
           "isEnabled": true
         },
         {
-          "name": "AutoScout UA",
-          "url": "https://t.me/AUTOSCOUTCOMUA",
-          "type": "TELEGRAM",
+          "name": "UAMotors",
+          "url": "https://uamotors.com.ua/feed",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "AutoCentre",
+          "url": "https://www.autocentre.ua/rss",
+          "type": "RSS",
           "isEnabled": true
         }
       ]
     },
     {
-      "id": "books",
-      "sortOrder": 100,
+      "id": "science",
+      "sortOrder": 60,
       "title": {
-        "uk": "Книги",
-        "en": "Books"
+        "uk": "Наука",
+        "en": "Science"
       },
-      "name": "Книги",
-      "nameUk": "Книги",
-      "nameEn": "Books",
+      "name": "Наука",
+      "nameUk": "Наука",
+      "nameEn": "Science",
       "isEnabled": true,
       "isDeletable": true,
       "anchors": [
-        "Нова книга: роман, нонфікшн, реліз, автор, видавництво.",
-        "Літературні премії: Букер, відзнака, shortlist, лауреат.",
-        "Читання й переклади: українське видання, класика, рецензія, бестселер."
+        "Наукові відкриття: дослідження, експеримент, відкриття, теорія, вчені.",
+        "Космос і природа: космос, планета, телескоп, клімат, біологія.",
+        "Популярна наука: пояснення, факт, аналіз, технологія, інновація."
       ],
       "sources": [
         {
-          "name": "UkrLib",
-          "url": "https://t.me/ukrlib",
+          "name": "Nauka.ua",
+          "url": "https://nauka.ua/google/rss",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Space.com.ua",
+          "url": "https://space.com.ua/feed/",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Cikavosti",
+          "url": "https://cikavosti.com/feed/",
+          "type": "RSS",
+          "isEnabled": true
+        }
+      ]
+    },
+    {
+      "id": "culture",
+      "sortOrder": 70,
+      "title": {
+        "uk": "Культура",
+        "en": "Culture"
+      },
+      "name": "Культура",
+      "nameUk": "Культура",
+      "nameEn": "Culture",
+      "isEnabled": true,
+      "isDeletable": true,
+      "anchors": [
+        "Література і видавнича справа: книга, автор, переклад, рецензія, видання.",
+        "Мистецтво і суспільство: виставка, театр, музика, кіно, культурна подія.",
+        "Медіа і культурний контекст: інтерв'ю, репортаж, дискусія, тенденція."
+      ],
+      "sources": [
+        {
+          "name": "Radio Svoboda Culture",
+          "url": "https://www.radiosvoboda.org/api/zmqipl-vomx-tpeyum_",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Detector Media",
+          "url": "https://detector.media/rss/",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Chytomo",
+          "url": "https://chytomo.com/feed/",
+          "type": "RSS",
+          "isEnabled": true
+        }
+      ]
+    },
+    {
+      "id": "gaming",
+      "sortOrder": 80,
+      "title": {
+        "uk": "Геймінг",
+        "en": "Gaming"
+      },
+      "name": "Геймінг",
+      "nameUk": "Геймінг",
+      "nameEn": "Gaming",
+      "isEnabled": true,
+      "isDeletable": true,
+      "anchors": [
+        "Ігри та релізи: гра, реліз, трейлер, студія, оновлення.",
+        "Ігрова індустрія: розробка, геймдев, платформа, видавець, продажі.",
+        "Спільнота та огляди: рецензія, стрим, мод, жанр, враження."
+      ],
+      "sources": [
+        {
+          "name": "GameDev DOU",
+          "url": "https://t.me/gamedev_dou",
           "type": "TELEGRAM",
           "isEnabled": true
         },
         {
-          "name": "Books UA",
-          "url": "https://t.me/booksua11",
-          "type": "TELEGRAM",
+          "name": "PlayUA",
+          "url": "https://playua.net/feed/",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Gameverse",
+          "url": "https://gameverse.com.ua/rss",
+          "type": "RSS",
           "isEnabled": true
         }
       ]
