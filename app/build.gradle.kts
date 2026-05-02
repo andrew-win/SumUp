@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.andrewwin.sumup"
-    compileSdk = 36
+    compileSdk = 37
 
     flavorDimensions += "abi"
 
@@ -94,12 +94,12 @@ dependencies {
     implementation(libs.androidx.work.runtime)
     implementation(libs.jsoup)
     implementation(libs.coil.compose)
-    implementation("com.prof18.rssparser:rssparser:6.1.4")
-    implementation(platform("com.google.firebase:firebase-bom:33.12.0"))
-    implementation("com.google.firebase:firebase-auth-ktx")
-    implementation("com.google.firebase:firebase-firestore-ktx")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
-    implementation("com.google.android.gms:play-services-auth:21.2.0")
+    implementation("com.prof18.rssparser:rssparser:6.1.5")
+    implementation(platform("com.google.firebase:firebase-bom:34.12.0"))
+    implementation("com.google.firebase:firebase-auth-ktx:23.2.1")
+    implementation("com.google.firebase:firebase-firestore-ktx:25.1.4")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
+    implementation("com.google.android.gms:play-services-auth:21.5.1")
 
     implementation(libs.onnxruntime.android)
     implementation(libs.onnxruntime.extensions.android)
@@ -113,7 +113,7 @@ dependencies {
     // YouTube Transcripts Support
     implementation("io.github.thoroldvix:youtube-transcript-api:0.4.0")
     // Fix for NoClassDefFoundError: javax.xml.stream.XMLInputFactory on Android
-    implementation("com.fasterxml:aalto-xml:1.3.3")
+    implementation("com.fasterxml:aalto-xml:1.3.4")
     implementation("stax:stax-api:1.0.1")
 
     implementation(libs.kotlinx.serialization.json)

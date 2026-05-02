@@ -1,19 +1,17 @@
 package com.andrewwin.sumup.domain.usecase.feed
 
-import android.util.Log
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
-import com.andrewwin.sumup.domain.service.ArticleCluster
-import com.andrewwin.sumup.domain.service.EmbeddingUtils
-import com.andrewwin.sumup.domain.service.SimilarityScorer
-import com.andrewwin.sumup.domain.service.TextOptimizationFeatures
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
+import com.andrewwin.sumup.domain.service.ArticleCluster
+import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.service.EmbeddingUtils
+import com.andrewwin.sumup.domain.service.SimilarityScorer
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -23,7 +21,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
@@ -83,7 +80,6 @@ class GetFeedArticlesUseCase @Inject constructor(
         }
 
         return combine(flow1, flow2) { data, triple2 ->
-            Log.d(tag, "Pipeline triggered: articles=${data.enabledArticles.size}, query='${data.query}'")
             val enabledArticles = data.enabledArticles
             val allArticles = data.allArticles
             val favoriteArticles = data.favoriteArticles
@@ -158,7 +154,6 @@ class GetFeedArticlesUseCase @Inject constructor(
         }.flowOn(Dispatchers.Default)
             .flatMapLatest { state ->
                 flow {
-                    Log.d(tag, "flatMapLatest: articles=${state.articles.size}, shouldDedup=${state.shouldDedup}")
                     coroutineScope {
                         val baseClusters = if (state.articles.isNotEmpty()) {
                             if (state.savedOnly) {
@@ -209,19 +204,15 @@ class GetFeedArticlesUseCase @Inject constructor(
                         val isModelInitialized = if (!modelPath.isNullOrBlank()) {
                             similarityScorer.initialize(modelPath)
                         } else {
-                            Log.d(tag, "Model path is null or blank, strategy=${state.prefs.deduplicationStrategy}")
                             state.prefs.deduplicationStrategy == DeduplicationStrategy.CLOUD
                         }
 
-                        Log.d(tag, "isModelInitialized: $isModelInitialized")
 
                         if (!isModelInitialized) {
-                            Log.d(tag, "Exiting: Model not initialized and not cloud")
                             emit(FeedResult(initial, false))
                             return@coroutineScope
                         }
 
-                        Log.d(tag, "Starting incremental clustering for ${state.articles.size} articles")
                         clusterArticlesIncremental(
                             articles = state.articles,
                             strategy = state.prefs.deduplicationStrategy,
