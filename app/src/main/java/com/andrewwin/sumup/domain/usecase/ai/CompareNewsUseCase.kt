@@ -2,14 +2,12 @@ package com.andrewwin.sumup.domain.usecase.ai
 
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.service.EmbeddingUtils
+import com.andrewwin.sumup.domain.service.LocalEmbeddingService
 import com.andrewwin.sumup.domain.service.SimilarityScorer
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.support.LocalModelMissingException
-import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -21,10 +19,9 @@ class CompareNewsUseCase @Inject constructor(
     private val shrinkTextForAdaptiveStrategyUseCase: ShrinkTextForAdaptiveStrategyUseCase,
     private val sendCloudAiRequestUseCase: SendCloudAiRequestUseCase,
     private val parseAiJsonResponseUseCase: ParseAiJsonResponseUseCase,
-    private val generateLocalEmbeddingUseCase: GenerateLocalEmbeddingUseCase,
     private val getExtractiveSummaryUseCase: GetExtractiveSummaryUseCase,
+    private val localEmbeddingService: LocalEmbeddingService,
     private val similarityScorer: SimilarityScorer,
-    private val manageModelUseCase: ManageModelUseCase,
     private val dispatcherProvider: DispatcherProvider
 ) {
     suspend operator fun invoke(articles: List<Article>): Result<SummaryResult.Compare> = withContext(dispatcherProvider.default) {
@@ -90,7 +87,7 @@ class CompareNewsUseCase @Inject constructor(
     private suspend fun performLocalComparison(articles: List<Article>, prefs: com.andrewwin.sumup.data.local.entities.UserPreferences): SummaryResult.Compare {
         if (articles.isEmpty()) return SummaryResult.Compare(emptyList(), emptyList())
 
-        if (!manageModelUseCase.isModelExists()) {
+        if (!localEmbeddingService.initialize()) {
             throw LocalModelMissingException()
         }
 
@@ -114,11 +111,8 @@ class CompareNewsUseCase @Inject constructor(
         if (candidates.isEmpty()) return SummaryResult.Compare(emptyList(), emptyList())
 
         val embeddings = candidates.map { candidate ->
-            val raw = generateLocalEmbeddingUseCase(candidate.text) ?: FloatArray(EmbeddingUtils.EMBEDDING_DIM)
-            EmbeddingUtils.normalize(raw)
+            localEmbeddingService.computeLocalEmbedding(candidate.text)
         }
-        val featuresCache = candidates.map { EmbeddingUtils.extractTextFeatures(it.text) }
-
         val bestScoreToOtherArticle = FloatArray(candidates.size) { 0f }
         // Окремий масив для слабких збігів (нижче commonThreshold) — використовується для оцінки унікальності
         val bestScoreBelowThreshold = FloatArray(candidates.size) { 0f }
@@ -140,7 +134,6 @@ class CompareNewsUseCase @Inject constructor(
                     leftIndex = candidateIdx,
                     rightIndex = otherIdx,
                     embeddings = embeddings,
-                    featuresCache = featuresCache,
                     bestScoreToOtherArticle = bestScoreToOtherArticle,
                     bestScoreBelowThreshold = bestScoreBelowThreshold,
                     commonThreshold = commonThreshold
@@ -228,19 +221,13 @@ class CompareNewsUseCase @Inject constructor(
         leftIndex: Int,
         rightIndex: Int,
         embeddings: List<FloatArray>,
-        featuresCache: List<com.andrewwin.sumup.domain.service.TextOptimizationFeatures>,
         bestScoreToOtherArticle: FloatArray,
         bestScoreBelowThreshold: FloatArray,
         commonThreshold: Float
     ): Float {
         val score = similarityScorer.calculateSimilarity(
-            articleA = Article(sourceId = 0, title = "", content = "", url = "", publishedAt = 0),
             embeddingA = embeddings[leftIndex],
-            articleB = Article(sourceId = 0, title = "", content = "", url = "", publishedAt = 0),
-            embeddingB = embeddings[rightIndex],
-            strategy = DeduplicationStrategy.LOCAL,
-            featuresA = featuresCache[leftIndex],
-            featuresB = featuresCache[rightIndex]
+            embeddingB = embeddings[rightIndex]
         )
 
         if (score >= commonThreshold) {

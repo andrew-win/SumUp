@@ -9,12 +9,11 @@ import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.usecase.ai.GenerateCloudEmbeddingUseCase
 import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.repository.EmbeddingService
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.service.EmbeddingUtils
-import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
+import com.andrewwin.sumup.domain.service.LocalEmbeddingService
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -36,8 +35,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
     private val aiModelConfigRepository: AiModelConfigRepository,
     private val generateCloudEmbeddingUseCase: GenerateCloudEmbeddingUseCase,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val embeddingService: EmbeddingService,
-    private val manageModelUseCase: ManageModelUseCase,
+    private val localEmbeddingService: LocalEmbeddingService,
     private val articleImportanceScorer: ArticleImportanceScorer,
     private val suggestedThemesStateRepository: SuggestedThemesStateRepository,
     private val publicSubscriptionsSyncManager: PublicSubscriptionsSyncManager
@@ -89,7 +87,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
         val recommendationMode = resolveRecommendationMode(prefsData.deduplicationStrategy)
         val isModelLoaded = when (recommendationMode) {
             RecommendationMode.CLOUD -> aiModelConfigRepository.getEnabledConfigsByType(AiModelType.EMBEDDING).isNotEmpty()
-            RecommendationMode.LOCAL -> manageModelUseCase.isModelExists()
+            RecommendationMode.LOCAL -> localEmbeddingService.initialize()
         }
 
         if (!isModelLoaded) {
@@ -138,19 +136,6 @@ class GetSuggestedThemesUseCase @Inject constructor(
                      .take(MAX_ARTICLES_PER_SOURCE_FOR_THEME_RECOMMENDATIONS)
             }
 
-        val localEmbeddingReady = if (recommendationMode == RecommendationMode.CLOUD) {
-            true
-        } else {
-            val modelPath = manageModelUseCase.getModelPath()
-            embeddingService.initialize(modelPath)
-        }
-        if (!localEmbeddingReady) {
-            emit(themeProfiles.map { 
-                ThemeSuggestion(it, 0f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) })
-            })
-            return@flow
-        }
-
         val simThreshold = resolveSimilarityThreshold(
             recommendationMode = recommendationMode,
             cloudThreshold = prefsData.cloudDeduplicationThreshold
@@ -179,7 +164,6 @@ class GetSuggestedThemesUseCase @Inject constructor(
             return@flow
         }
 
-        val normalizedUserEmbeddings = normalizedUserEmbeddingsBySourceId.values.flatten()
         val suggestions = mutableListOf<ThemeSuggestion>()
         val normalizedAnchorEmbeddingsByThemeId = mutableMapOf<String, List<FloatArray>>()
         for (theme in themeProfiles) {
@@ -193,13 +177,17 @@ class GetSuggestedThemesUseCase @Inject constructor(
                     }
             }
             val isAnchorComparable = anchorEmbeddings.isNotEmpty()
-            val hasAnchorMatch = isAnchorComparable &&
-                countRelatedArticles(
-                    userEmbeddings = normalizedUserEmbeddings,
+            val matchedSourceRatio = if (isAnchorComparable) {
+                calculateMatchedSourceRatio(
+                    userEmbeddingsBySourceId = normalizedUserEmbeddingsBySourceId,
                     comparisonEmbeddings = anchorEmbeddings,
                     simThreshold = simThreshold
-                ) >= MIN_MATCHED_USER_ARTICLES_PER_SOURCE
-            val score = if (hasAnchorMatch) PERCENT_SCALE else 0f
+                )
+            } else {
+                0f
+            }
+            val hasAnchorMatch = matchedSourceRatio >= MIN_MATCHED_SOURCE_RATIO_FOR_THEME_RECOMMENDATION
+            val score = matchedSourceRatio * PERCENT_SCALE
             suggestions.add(
                 ThemeSuggestion(
                     theme = theme,
@@ -223,15 +211,31 @@ class GetSuggestedThemesUseCase @Inject constructor(
         emit(resultList)
     }
 
-    private fun countRelatedArticles(
-        userEmbeddings: List<FloatArray>,
+    private fun calculateMatchedSourceRatio(
+        userEmbeddingsBySourceId: Map<Long, List<FloatArray>>,
+        comparisonEmbeddings: List<FloatArray>,
+        simThreshold: Float
+    ): Float {
+        if (userEmbeddingsBySourceId.isEmpty() || comparisonEmbeddings.isEmpty()) return 0f
+        val matchedSourceCount = userEmbeddingsBySourceId.values.count { sourceEmbeddings ->
+            countRelatedArticlesForSource(
+                sourceEmbeddings = sourceEmbeddings,
+                comparisonEmbeddings = comparisonEmbeddings,
+                simThreshold = simThreshold
+            ) >= MIN_MATCHED_ARTICLES_PER_SOURCE_FOR_THEME_RECOMMENDATION
+        }
+        return matchedSourceCount.toFloat() / userEmbeddingsBySourceId.size.toFloat()
+    }
+
+    private fun countRelatedArticlesForSource(
+        sourceEmbeddings: List<FloatArray>,
         comparisonEmbeddings: List<FloatArray>,
         simThreshold: Float
     ): Int {
-        if (userEmbeddings.isEmpty() || comparisonEmbeddings.isEmpty()) return 0
-        return userEmbeddings.count { userEmbedding ->
+        if (sourceEmbeddings.isEmpty() || comparisonEmbeddings.isEmpty()) return 0
+        return sourceEmbeddings.count { sourceEmbedding ->
             comparisonEmbeddings.any { comparisonEmbedding ->
-                dotProduct(userEmbedding, comparisonEmbedding) >= simThreshold
+                dotProduct(sourceEmbedding, comparisonEmbedding) >= simThreshold
             }
         }
     }
@@ -261,7 +265,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
         if (recommendationMode == RecommendationMode.CLOUD) {
             generateCloudEmbeddingUseCase(text)?.let { return it }
         }
-        return embeddingService.getEmbedding(text)
+        return localEmbeddingService.computeLocalEmbedding(text)
     }
 
     private fun com.andrewwin.sumup.data.local.entities.Article.getStoredEmbeddingForStrategy(
@@ -294,9 +298,10 @@ class GetSuggestedThemesUseCase @Inject constructor(
     private companion object {
         private const val MAX_ARTICLES_PER_SOURCE_FOR_THEME_RECOMMENDATIONS = 4
         private const val MAX_ANCHORS_PER_THEME_RECOMMENDATIONS = 3
-        private const val MIN_MATCHED_USER_ARTICLES_PER_SOURCE = 2
+        private const val MIN_MATCHED_ARTICLES_PER_SOURCE_FOR_THEME_RECOMMENDATION = 2
+        private const val MIN_MATCHED_SOURCE_RATIO_FOR_THEME_RECOMMENDATION = 0.2f
         private const val CLOUD_RECOMMENDATION_SIMILARITY_THRESHOLD_OFFSET = 0.015f
-        private const val LOCAL_RECOMMENDATION_SIMILARITY_THRESHOLD = 0.22f
+        private const val LOCAL_RECOMMENDATION_SIMILARITY_THRESHOLD = 0.815f
         private const val PERCENT_SCALE = 100f
     }
 }
@@ -305,4 +310,3 @@ private enum class RecommendationMode {
     CLOUD,
     LOCAL
 }
-

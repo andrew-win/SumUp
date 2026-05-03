@@ -2,16 +2,11 @@ package com.andrewwin.sumup.ui.screen.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -20,14 +15,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,6 +31,12 @@ import com.andrewwin.sumup.data.local.entities.AppThemeMode
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import java.util.Locale
+import kotlin.math.roundToInt
+
+private const val DEDUPLICATION_THRESHOLD_MIN = 0.7f
+private const val DEDUPLICATION_THRESHOLD_MAX = 1.0f
+private const val DEDUPLICATION_THRESHOLD_STEP = 0.005f
+private const val DEDUPLICATION_THRESHOLD_SLIDER_STEPS = 59
 
 @Composable
 internal fun SettingsHomeGroupsContent(
@@ -543,7 +539,6 @@ internal fun SettingsFeedGroupContent(
     localDeduplicationThreshold: Float,
     cloudDeduplicationThreshold: Float,
     minMentions: Float,
-    downloadState: ModelDownloadState,
     onFeedMediaEnabledChange: (Boolean) -> Unit,
     onFeedDescriptionEnabledChange: (Boolean) -> Unit,
     onFeedSummaryUseFullTextEnabledChange: (Boolean) -> Unit,
@@ -557,7 +552,6 @@ internal fun SettingsFeedGroupContent(
     onCloudDeduplicationThresholdCommitted: () -> Unit,
     onMinMentionsChange: (Float) -> Unit,
     onMinMentionsCommitted: () -> Unit,
-    onModelActionClick: () -> Unit,
     onHelpRequest: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -647,24 +641,24 @@ internal fun SettingsFeedGroupContent(
                 SettingsFloatSliderItem(
                     label = stringResource(
                         R.string.settings_local_deduplication_threshold,
-                        String.format(Locale.US, "%.2f", localDeduplicationThreshold)
+                        String.format(Locale.US, "%.3f", localDeduplicationThreshold.coerceDeduplicationThreshold())
                     ),
-                    value = localDeduplicationThreshold,
-                    onValueChange = onLocalDeduplicationThresholdChange,
+                    value = localDeduplicationThreshold.coerceDeduplicationThreshold(),
+                    onValueChange = { onLocalDeduplicationThresholdChange(it.roundDeduplicationThreshold()) },
                     onValueChangeFinished = onLocalDeduplicationThresholdCommitted,
-                    valueRange = 0.3f..0.99f,
-                    steps = 69
+                    valueRange = DEDUPLICATION_THRESHOLD_MIN..DEDUPLICATION_THRESHOLD_MAX,
+                    steps = DEDUPLICATION_THRESHOLD_SLIDER_STEPS
                 )
                 SettingsFloatSliderItem(
                     label = stringResource(
                         R.string.settings_cloud_deduplication_threshold,
-                        String.format(Locale.US, "%.2f", cloudDeduplicationThreshold)
+                        String.format(Locale.US, "%.3f", cloudDeduplicationThreshold.coerceDeduplicationThreshold())
                     ),
-                    value = cloudDeduplicationThreshold,
-                    onValueChange = onCloudDeduplicationThresholdChange,
+                    value = cloudDeduplicationThreshold.coerceDeduplicationThreshold(),
+                    onValueChange = { onCloudDeduplicationThresholdChange(it.roundDeduplicationThreshold()) },
                     onValueChangeFinished = onCloudDeduplicationThresholdCommitted,
-                    valueRange = 0.3f..0.99f,
-                    steps = 69
+                    valueRange = DEDUPLICATION_THRESHOLD_MIN..DEDUPLICATION_THRESHOLD_MAX,
+                    steps = DEDUPLICATION_THRESHOLD_SLIDER_STEPS
                 )
                 SettingsIntSliderItem(
                     label = stringResource(R.string.settings_min_mentions, minMentions.toInt()),
@@ -674,45 +668,16 @@ internal fun SettingsFeedGroupContent(
                     valueRange = 1f..10f,
                     steps = 8
                 )
-
-                Spacer(Modifier.height(4.dp))
-                val isModelReady = downloadState is ModelDownloadState.Ready
-                val statusText = when (val state = downloadState) {
-                    is ModelDownloadState.Idle -> stringResource(R.string.model_status_idle)
-                    is ModelDownloadState.Downloading -> stringResource(R.string.model_status_downloading, state.progress)
-                    is ModelDownloadState.Loading -> stringResource(R.string.model_status_loading)
-                    is ModelDownloadState.Ready -> stringResource(R.string.model_status_ready)
-                    is ModelDownloadState.Error -> stringResource(R.string.model_status_error, state.message)
-                }
-
-                Text(
-                    stringResource(R.string.settings_model_status, statusText),
-                    style = MaterialTheme.typography.bodyLarge
-                )
-
-                Button(
-                    onClick = onModelActionClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    colors = if (isModelReady) {
-                        ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    } else {
-                        ButtonDefaults.buttonColors()
-                    }
-                ) {
-                    Text(
-                        text = stringResource(
-                            if (isModelReady) R.string.settings_delete_model else R.string.settings_download_model
-                        ),
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
             }
         }
     }
+}
+
+private fun Float.coerceDeduplicationThreshold(): Float =
+    coerceIn(DEDUPLICATION_THRESHOLD_MIN, DEDUPLICATION_THRESHOLD_MAX)
+
+private fun Float.roundDeduplicationThreshold(): Float {
+    val steppedValue = ((coerceDeduplicationThreshold() - DEDUPLICATION_THRESHOLD_MIN) /
+        DEDUPLICATION_THRESHOLD_STEP).roundToInt() * DEDUPLICATION_THRESHOLD_STEP
+    return (DEDUPLICATION_THRESHOLD_MIN + steppedValue).coerceDeduplicationThreshold()
 }

@@ -34,7 +34,7 @@ data class UserPreferences(
     val lastWorkRunTimestamp: Long = 0,
     val isDeduplicationEnabled: Boolean = false,
     val deduplicationStrategy: DeduplicationStrategy = DeduplicationStrategy.CLOUD,
-    val localDeduplicationThreshold: Float = 0.55f,
+    val localDeduplicationThreshold: Float = 0.81f,
     val cloudDeduplicationThreshold: Float = 0.75f,
     val minMentions: Int = 2,
     val isHideSingleNewsEnabled: Boolean = false,

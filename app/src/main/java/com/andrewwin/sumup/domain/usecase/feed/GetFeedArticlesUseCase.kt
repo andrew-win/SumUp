@@ -1,18 +1,17 @@
 package com.andrewwin.sumup.domain.usecase.feed
 
+import android.util.Log
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.service.ArticleCluster
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.service.EmbeddingUtils
 import com.andrewwin.sumup.domain.service.SimilarityScorer
-import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -28,9 +27,7 @@ class GetFeedArticlesUseCase @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
     private val similarityScorer: SimilarityScorer,
-    private val importanceScorer: ArticleImportanceScorer,
-    private val aiModelConfigRepository: AiModelConfigRepository,
-    private val manageModelUseCase: ManageModelUseCase
+    private val importanceScorer: ArticleImportanceScorer
 ) {
     private val tag = "GetFeedArticles"
     private var lastDedupInputKey: String? = null
@@ -199,12 +196,9 @@ class GetFeedArticlesUseCase @Inject constructor(
                             DeduplicationStrategy.CLOUD -> state.prefs.cloudDeduplicationThreshold
                         }
 
-                        val modelPath = resolveModelPath(state.prefs)
-
-                        val isModelInitialized = if (!modelPath.isNullOrBlank()) {
-                            similarityScorer.initialize(modelPath)
-                        } else {
-                            state.prefs.deduplicationStrategy == DeduplicationStrategy.CLOUD
+                        val isModelInitialized = when (state.prefs.deduplicationStrategy) {
+                            DeduplicationStrategy.LOCAL -> similarityScorer.initialize()
+                            DeduplicationStrategy.CLOUD -> true
                         }
 
 
@@ -453,15 +447,6 @@ class GetFeedArticlesUseCase @Inject constructor(
         val query: String
     )
 
-    private fun resolveModelPath(prefs: UserPreferences): String? {
-        if (!prefs.modelPath.isNullOrBlank()) return prefs.modelPath
-        return if (manageModelUseCase.isModelExists()) {
-            manageModelUseCase.getModelPath()
-        } else {
-            null
-        }
-    }
-
     data class FeedResult(
         val clusters: List<ArticleCluster>,
         val isDedupInProgress: Boolean
@@ -470,6 +455,7 @@ class GetFeedArticlesUseCase @Inject constructor(
     companion object {
         private const val DEDUP_EMIT_EVERY = 32
         private const val SEARCH_TOKEN_MATCH_RATIO = 0.6f
+        private const val EMBEDDINGS_TEST_LOG_TAG = "EmbedingsTest"
     }
 
     private fun clusterArticlesIncremental(
@@ -485,12 +471,6 @@ class GetFeedArticlesUseCase @Inject constructor(
 
         val embeddingsById = similarityScorer.getEmbeddingsParallel(articles, strategy)
         
-        val featuresCache = if (strategy == DeduplicationStrategy.LOCAL) {
-            articles.associate { it.id to EmbeddingUtils.extractTextFeatures(it.title) }
-        } else {
-            null
-        }
-
         val pairScores = mutableMapOf<ArticlePairKey, Float>()
         val allArticles = articles.distinctBy { it.id }
 
@@ -503,11 +483,14 @@ class GetFeedArticlesUseCase @Inject constructor(
                 val rightEmb = embeddingsById[right.id] ?: continue
 
                 val score = similarityScorer.calculateSimilarity(
-                    left, leftEmb, 
-                    right, rightEmb, 
-                    strategy,
-                    featuresCache?.get(left.id),
-                    featuresCache?.get(right.id)
+                    embeddingA = leftEmb,
+                    embeddingB = rightEmb
+                )
+                Log.d(
+                    EMBEDDINGS_TEST_LOG_TAG,
+                    "cosine_compare strategy=${strategy.name} score=$score threshold=$threshold " +
+                        "leftId=${left.id} rightId=${right.id} " +
+                        "leftTitle=${left.title} rightTitle=${right.title}"
                 )
                 if (score >= threshold) {
                     pairScores[ArticlePairKey.of(left.id, right.id)] = score
@@ -593,12 +576,4 @@ class GetFeedArticlesUseCase @Inject constructor(
             .replace(Regex("\\s+"), " ")
             .trim()
 }
-
-
-
-
-
-
-
-
 

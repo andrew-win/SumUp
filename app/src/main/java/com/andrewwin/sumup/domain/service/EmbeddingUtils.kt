@@ -11,6 +11,7 @@ data class TextOptimizationFeatures(
 
 object EmbeddingUtils {
     const val EMBEDDING_DIM = 768
+    const val LOCAL_EMBEDDING_DIM = 384
     const val MIN_TOKEN_LENGTH = 5
     const val ENTITY_PREFIX_LENGTH = 4
     const val ENTITY_FIRST_PREFIX_LENGTH = 3
@@ -45,7 +46,8 @@ object EmbeddingUtils {
 
     fun dotProduct(a: FloatArray, b: FloatArray): Float {
         var sum = 0f
-        for (i in a.indices) {
+        val size = minOf(a.size, b.size)
+        for (i in 0 until size) {
             sum += a[i] * b[i]
         }
         return sum

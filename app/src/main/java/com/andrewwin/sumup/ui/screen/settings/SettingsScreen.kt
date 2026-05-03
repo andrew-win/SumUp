@@ -86,7 +86,6 @@ fun SettingsScreen(
     val summaryConfigs by viewModel.summaryConfigs.collectAsState()
     val embeddingConfigs by viewModel.embeddingConfigs.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
-    val downloadState by viewModel.downloadState.collectAsState()
     val transferState by viewModel.transferState.collectAsState()
     val authUiState by viewModel.authUiState.collectAsState()
     val isCloudSyncEnabled by viewModel.isCloudSyncEnabled.collectAsState()
@@ -577,7 +576,6 @@ fun SettingsScreen(
                             localDeduplicationThreshold = localDeduplicationThreshold,
                             cloudDeduplicationThreshold = cloudDeduplicationThreshold,
                             minMentions = minMentions,
-                            downloadState = downloadState,
                             onFeedMediaEnabledChange = viewModel::updateFeedMediaEnabled,
                             onFeedDescriptionEnabledChange = viewModel::updateFeedDescriptionEnabled,
                             onFeedSummaryUseFullTextEnabledChange = viewModel::updateFeedSummaryUseFullTextEnabled,
@@ -596,10 +594,6 @@ fun SettingsScreen(
                             onMinMentionsChange = { minMentions = it },
                             onMinMentionsCommitted = {
                                 viewModel.updateMinMentions(minMentions.toInt())
-                            },
-                            onModelActionClick = {
-                                if (downloadState is ModelDownloadState.Ready) viewModel.deleteModel()
-                                else viewModel.downloadModel()
                             },
                             onHelpRequest = { helpDescription = it }
                         )
@@ -883,10 +877,7 @@ private fun SettingsGroup.searchableTextResIds(): List<Int> = when (this) {
         R.string.settings_hide_single_news,
         R.string.settings_local_deduplication_threshold,
         R.string.settings_cloud_deduplication_threshold,
-        R.string.settings_min_mentions,
-        R.string.settings_model_status,
-        R.string.settings_download_model,
-        R.string.settings_delete_model
+        R.string.settings_min_mentions
     )
 
     SettingsGroup.SCHEDULED_SUMMARY -> listOf(
