@@ -1,13 +1,13 @@
 package com.andrewwin.sumup.ui.screen.settings
 
 import android.Manifest
+import android.content.res.Resources
 import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -15,9 +15,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.Arrangement
@@ -45,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -55,7 +53,6 @@ import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
 import com.andrewwin.sumup.ui.components.AppHelpToggleAction
-import com.andrewwin.sumup.ui.components.AppMotion
 import com.andrewwin.sumup.ui.components.AppSearchField
 import com.andrewwin.sumup.ui.components.AppTopBar
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -77,10 +74,14 @@ val AiProvider.iconRes: Int
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(
+internal fun SettingsScreen(
+    settingsGroup: SettingsGroup? = null,
+    onOpenSettingsGroup: (SettingsGroup) -> Unit = {},
+    onNavigateBack: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val focusManager = LocalFocusManager.current
     val imeVisible = WindowInsets.isImeVisible
     val summaryConfigs by viewModel.summaryConfigs.collectAsState()
@@ -106,7 +107,6 @@ fun SettingsScreen(
     var summaryPrompt by remember(userPreferences.summaryPrompt) { mutableStateOf(userPreferences.summaryPrompt) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var isSearchFocused by remember { mutableStateOf(false) }
-    var selectedGroup by rememberSaveable { mutableStateOf<SettingsGroup?>(null) }
 
     var showClearArticlesDialog by remember { mutableStateOf(false) }
     var showClearEmbeddingsDialog by remember { mutableStateOf(false) }
@@ -119,26 +119,23 @@ fun SettingsScreen(
     var helpDescription by remember { mutableStateOf<String?>(null) }
     var wasImeVisible by remember { mutableStateOf(false) }
 
-    BackHandler(enabled = selectedGroup != null) {
-        selectedGroup = null
-    }
-    BackHandler(enabled = isSearchFocused && selectedGroup == null) {
+    BackHandler(enabled = isSearchFocused && settingsGroup == null) {
         focusManager.clearFocus(force = true)
         isSearchFocused = false
     }
 
-    LaunchedEffect(selectedGroup) {
-        if (selectedGroup != null && isHelpMode) {
+    LaunchedEffect(settingsGroup) {
+        if (settingsGroup != null && isHelpMode) {
             isHelpMode = false
         }
-        if (selectedGroup != null) {
+        if (settingsGroup != null) {
             focusManager.clearFocus(force = true)
             isSearchFocused = false
         }
     }
 
-    LaunchedEffect(imeVisible, isSearchFocused, selectedGroup) {
-        if (selectedGroup != null) {
+    LaunchedEffect(imeVisible, isSearchFocused, settingsGroup) {
+        if (settingsGroup != null) {
             wasImeVisible = false
             return@LaunchedEffect
         }
@@ -176,7 +173,7 @@ fun SettingsScreen(
     )
 
     val webClientId = remember(context) {
-        runCatching { context.getString(R.string.default_web_client_id) }.getOrDefault("")
+        runCatching { resources.getString(R.string.default_web_client_id) }.getOrDefault("")
     }
     val googleSignInClient = remember(context, webClientId) {
         val builder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -249,7 +246,7 @@ fun SettingsScreen(
         } else {
             Toast.makeText(
                 context,
-                context.getString(R.string.settings_notification_permission_denied),
+                resources.getString(R.string.settings_notification_permission_denied),
                 Toast.LENGTH_SHORT
             ).show()
             viewModel.updateScheduledSummaryPushEnabled(false)
@@ -339,25 +336,25 @@ fun SettingsScreen(
             SettingsGroup.MEMORY
         )
     }
-    val filteredGroups = remember(searchQuery, context) {
-        settingsGroups.filter { it.matchesSearch(searchQuery, context) }
+    val filteredGroups = remember(searchQuery, resources) {
+        settingsGroups.filter { it.matchesSearch(searchQuery, resources) }
     }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             AnimatedVisibility(
-                visible = !(selectedGroup == null && isSearchFocused),
+                visible = !(settingsGroup == null && isSearchFocused),
                 enter = fadeIn(animationSpec = tween(320, easing = FastOutSlowInEasing)) +
                     expandVertically(animationSpec = tween(380, easing = FastOutSlowInEasing)),
                 exit = fadeOut(animationSpec = tween(300, easing = FastOutSlowInEasing)) +
                     shrinkVertically(animationSpec = tween(360, easing = FastOutSlowInEasing))
             ) {
                 AppTopBar(
-                    title = { Text(stringResource(selectedGroup?.titleRes ?: R.string.nav_settings)) },
+                    title = { Text(stringResource(settingsGroup?.titleRes ?: R.string.nav_settings)) },
                     navigationIcon = {
-                        if (selectedGroup != null) {
-                            androidx.compose.material3.IconButton(onClick = { selectedGroup = null }) {
+                        if (settingsGroup != null) {
+                            androidx.compose.material3.IconButton(onClick = onNavigateBack) {
                                 androidx.compose.material3.Icon(Icons.Default.ArrowBack, contentDescription = null)
                             }
                         }
@@ -372,59 +369,53 @@ fun SettingsScreen(
             }
         }
     ) { innerPadding ->
-        AnimatedContent(
-            targetState = selectedGroup,
-            label = "settingsGroupTransition",
-            transitionSpec = {
-                AppMotion.contentEnter() togetherWith AppMotion.contentExit()
-            }
-        ) { activeGroup ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                if (activeGroup == null) {
+        val activeGroup = settingsGroup
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (activeGroup == null) {
+                item {
+                    AppSearchField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = stringResource(R.string.settings_search_placeholder),
+                        leadingIcon = Icons.Default.Search,
+                        modifier = Modifier.fillMaxWidth(),
+                        onFocusChanged = { focused ->
+                            if (focused) isSearchFocused = true
+                        }
+                    )
+                }
+                if (filteredGroups.isEmpty()) {
                     item {
-                        AppSearchField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = stringResource(R.string.settings_search_placeholder),
-                            leadingIcon = Icons.Default.Search,
-                            modifier = Modifier.fillMaxWidth(),
-                            onFocusChanged = { focused ->
-                                if (focused) isSearchFocused = true
+                        Text(
+                            text = stringResource(R.string.settings_search_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+                    }
+                } else {
+                    item {
+                        SettingsGroupsPanel(
+                            groups = filteredGroups,
+                            isHelpMode = isHelpMode,
+                            onGroupClick = onOpenSettingsGroup,
+                            onHelpRequest = { group ->
+                                helpDescription = settingsGroupHelpDescription(resources, group)
+                            },
+                            helpDescriptionForGroup = { group ->
+                                settingsGroupHelpDescription(resources, group)
                             }
                         )
                     }
-                    if (filteredGroups.isEmpty()) {
-                        item {
-                            Text(
-                                text = stringResource(R.string.settings_search_empty),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            )
-                        }
-                    } else {
-                        item {
-                            SettingsGroupsPanel(
-                                groups = filteredGroups,
-                                isHelpMode = isHelpMode,
-                                onGroupClick = { selectedGroup = it },
-                                onHelpRequest = { group ->
-                                    helpDescription = settingsGroupHelpDescription(context, group)
-                                },
-                                helpDescriptionForGroup = { group ->
-                                    settingsGroupHelpDescription(context, group)
-                                }
-                            )
-                        }
-                    }
-                    return@LazyColumn
                 }
+                return@LazyColumn
+            }
 
                 when (activeGroup) {
                     SettingsGroup.ACCOUNT -> item {
@@ -666,7 +657,6 @@ fun SettingsScreen(
                     }
                 }
             }
-        }
 
         AppExplanationDialog(
             visible = helpDescription != null,
@@ -775,19 +765,16 @@ fun SettingsScreen(
     }
 }
 
-private fun SettingsGroup.matchesSearch(
-    query: String,
-    context: android.content.Context
-): Boolean {
+private fun SettingsGroup.matchesSearch(query: String, resources: Resources): Boolean {
     if (query.isBlank()) return true
     val normalizedQuery = query.trim().lowercase(Locale.getDefault())
     val searchableText = buildString {
-        append(context.getString(titleRes))
+        append(resources.getString(titleRes))
         append(' ')
-        append(context.getString(descriptionRes))
+        append(resources.getString(descriptionRes))
         searchableTextResIds().forEach { resId ->
             append(' ')
-            append(context.getString(resId))
+            append(resources.getString(resId))
         }
     }.lowercase(Locale.getDefault())
     return searchableText.contains(normalizedQuery)
@@ -901,16 +888,16 @@ private fun SettingsGroup.searchableTextResIds(): List<Int> = when (this) {
     )
 }
 
-private fun settingsGroupHelpDescription(context: android.content.Context, group: SettingsGroup): String {
+private fun settingsGroupHelpDescription(resources: Resources, group: SettingsGroup): String {
     return when (group) {
-        SettingsGroup.ACCOUNT -> context.getString(R.string.settings_help_account)
-        SettingsGroup.TRANSFER -> context.getString(R.string.settings_help_account)
-        SettingsGroup.AI_PROCESSING -> context.getString(R.string.settings_help_ai_processing)
-        SettingsGroup.API_KEYS -> context.getString(R.string.settings_help_api_keys)
-        SettingsGroup.RECOMMENDATIONS -> context.getString(R.string.settings_help_recommendations)
-        SettingsGroup.FEED -> context.getString(R.string.settings_help_feed)
-        SettingsGroup.SCHEDULED_SUMMARY -> context.getString(R.string.settings_help_scheduled)
-        SettingsGroup.GENERAL -> context.getString(R.string.settings_help_general)
-        SettingsGroup.MEMORY -> context.getString(R.string.settings_help_memory)
+        SettingsGroup.ACCOUNT -> resources.getString(R.string.settings_help_account)
+        SettingsGroup.TRANSFER -> resources.getString(R.string.settings_help_account)
+        SettingsGroup.AI_PROCESSING -> resources.getString(R.string.settings_help_ai_processing)
+        SettingsGroup.API_KEYS -> resources.getString(R.string.settings_help_api_keys)
+        SettingsGroup.RECOMMENDATIONS -> resources.getString(R.string.settings_help_recommendations)
+        SettingsGroup.FEED -> resources.getString(R.string.settings_help_feed)
+        SettingsGroup.SCHEDULED_SUMMARY -> resources.getString(R.string.settings_help_scheduled)
+        SettingsGroup.GENERAL -> resources.getString(R.string.settings_help_general)
+        SettingsGroup.MEMORY -> resources.getString(R.string.settings_help_memory)
     }
 }

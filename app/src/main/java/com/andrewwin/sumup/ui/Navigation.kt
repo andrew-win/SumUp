@@ -51,6 +51,14 @@ sealed class Screen(
         icon = NavigationIcon.Vector(Icons.Default.Settings)
     )
 
+    data object SettingsDetail : Screen(
+        route = "settings/{group}",
+        resourceId = R.string.nav_settings,
+        icon = NavigationIcon.Vector(Icons.Default.Settings)
+    ) {
+        fun createRoute(groupName: String): String = "settings/$groupName"
+    }
+
     data object WebView : Screen(
         route = "webview/{url}",
         resourceId = R.string.nav_webview,

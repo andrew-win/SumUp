@@ -26,6 +26,7 @@ import androidx.navigation.navArgument
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import com.andrewwin.sumup.ui.screen.feed.FeedScreen
+import com.andrewwin.sumup.ui.screen.settings.SettingsGroup
 import com.andrewwin.sumup.ui.screen.settings.SettingsScreen
 import com.andrewwin.sumup.ui.screen.sources.SourcesScreen
 import com.andrewwin.sumup.ui.screen.summary.SummaryHistoryScreen
@@ -76,6 +77,9 @@ fun MainScreen() {
             },
             onOpenSummaryHistory = {
                 navController.navigate(Screen.SummaryHistory.route)
+            },
+            onOpenSettingsGroup = { group ->
+                navController.navigate(Screen.SettingsDetail.createRoute(group.name))
             },
             onNavigateBack = { navController.popBackStack() }
         )
@@ -144,6 +148,7 @@ private data class FeedNavigationActions(
     val onOpenAiClusterSummary: (List<Long>) -> Unit,
     val onOpenAiFeedSummary: (List<Long>) -> Unit,
     val onOpenSummaryHistory: () -> Unit,
+    val onOpenSettingsGroup: (SettingsGroup) -> Unit,
     val onNavigateBack: () -> Unit
 )
 
@@ -213,7 +218,21 @@ private fun MainNavHost(
             SourcesScreen()
         }
         composable(Screen.Settings.route) {
-            SettingsScreen()
+            SettingsScreen(
+                onOpenSettingsGroup = navigationActions.onOpenSettingsGroup
+            )
+        }
+        composable(
+            route = Screen.SettingsDetail.route,
+            arguments = listOf(navArgument("group") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val groupName = backStackEntry.arguments?.getString("group").orEmpty()
+            val group = runCatching { SettingsGroup.valueOf(groupName) }.getOrNull()
+            SettingsScreen(
+                settingsGroup = group,
+                onOpenSettingsGroup = navigationActions.onOpenSettingsGroup,
+                onNavigateBack = navigationActions.onNavigateBack
+            )
         }
         composable(Screen.SummaryHistory.route) {
             SummaryHistoryScreen(
