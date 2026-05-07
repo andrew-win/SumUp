@@ -98,7 +98,7 @@ scheduled</string>
     <string name="settings_local_deduplication_threshold">Similarity threshold (local): %s</string>
     <string name="settings_cloud_deduplication_threshold">Similarity threshold (cloud): %s</string>
     <string name="settings_hide_single_news">Hide single items</string>
-    <string name="settings_min_mentions">Minimum mentions: %d</string>
+    <string name="settings_min_mentions">Minimum similar count: %d</string>
     <string name="settings_profile">Profile</string>
     <string name="settings_time_format">%1$02d:%2$02d</string>
     <string name="feed_similar_news">Similar news (%d)</string>
@@ -352,7 +352,7 @@ scheduled</string>
     <string name="settings_help_section_dedup_strategy">— Local deduplication compares news without a cloud call.\n— Cloud deduplication relies on external AI processing.\n— Adaptive deduplication switches between those approaches depending on available context and runtime conditions.</string>
     <string name="settings_help_section_custom_prompt">— The switch enables your own prompt instead of the default template.\n— The text field lets you refine the style or structure of the summary.\n— A custom prompt is an extra instruction, but it does not replace the technical output format rules.</string>
     <string name="settings_help_section_adaptive_summary">— If an article is shorter than the lower threshold, adaptive mode finishes with pure extractive summarization.\n— If an article is longer than the lower threshold but shorter than the upper one, the text is compressed before cloud processing to the medium percentage.\n— If an article is longer than the upper threshold, the text is compressed more aggressively using the long-article percentage.\n— Together these settings control when adaptive mode switches to cloud and how aggressively it compresses the text first.</string>
-    <string name="settings_help_section_feed">— Show media enables images and previews in feed cards.\n— Show description adds a text preview below the headline.\n— Use full text for feed summary expands the context available for AI summarization.\n— Informativeness filters out less useful material.\n— Deduplication removes similar news from the feed.\n— Hide single items removes entries that did not gather enough matches.\n— Local and cloud similarity thresholds define how close items must be to be merged.\n— Minimum mentions defines how many matches are needed before a topic is treated as a group.</string>
+    <string name="settings_help_section_feed">— Show media enables images and previews in feed cards.\n— Show description adds a text preview below the headline.\n— Use full text for feed summary expands the context available for AI summarization.\n— Informativeness filters out less useful material.\n— Deduplication removes similar news from the feed.\n— Hide single items removes entries that did not gather enough matches.\n— Local and cloud similarity thresholds define how close items must be to be merged.\n— Minimum similar count means how many additional similar news items must exist alongside the main one in a cluster.\n— A value of 1 means a cluster of at least 2 news items, a value of 2 means at least 3 news items.</string>
     <string name="settings_help_section_scheduled_summary">— Scheduled summary enables automatic digest generation by schedule.\n— Push notifications control notifications after a summary is created.\n— Time defines when the daily summary runs.\n— Show latest summaries sets the history size on the summary screen.\n— Show news in infographic defines how many items appear in the summary dashboard infographic.</string>
     <string name="settings_help_section_recommendations">— Receive topic recommendations based on added sources turns the “Recommended” badges on or off.\n— The topic subscription list stays visible regardless of this switch.</string>
     <string name="settings_help_section_memory">— Article auto cleanup defines after how many days old articles are removed automatically.\n— Clear articles removes the local feed content but keeps the sources.\n— Clear embeddings resets vector data and similarity cache.\n— Clear scheduled summaries removes stored scheduled summary history.\n— Reset settings returns app preferences to their default values.</string>
@@ -421,6 +421,7 @@ scheduled</string>
     <string name="validation_source_name_exists">A source with this name already exists</string>
     <string name="validation_source_url_required">URL is required</string>
     <string name="validation_source_url_exists">A source with this URL already exists</string>
+    <string name="validation_source_in_active_subscriptions">This source is already included in subscriptions</string>
     <string name="validation_ai_config_name_exists">A config with this name already exists</string>
     <string name="validation_api_key_required">API key is required</string>
     <string name="validation_api_key_invalid">API key must not contain spaces</string>

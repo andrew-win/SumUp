@@ -20,6 +20,13 @@ object SummaryLimits {
         const val sentencesLocalCompare = 5
     }
 
+    object LocalClusterSummary {
+        const val maxSummarySentences = 5
+        const val minSentencesPerSource = 1
+        const val candidateSentencesPerSource = 3
+        const val nearDuplicateThreshold: Float = 0.87f
+    }
+
     object Digest {
         const val maxThemes = 4
         const val minItemsPerTheme = 2

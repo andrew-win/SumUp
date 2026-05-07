@@ -10,6 +10,7 @@ import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.repository.ImportedSource
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
+import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
 import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -234,18 +235,8 @@ class SourceRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun normalizeUrl(url: String, type: SourceType): String {
-        val trimmed = url.trim()
-        if (trimmed.isBlank()) return trimmed
-        if (type != SourceType.RSS) return trimmed
-
-        return when {
-            trimmed.startsWith("https://", ignoreCase = true) -> trimmed
-            trimmed.startsWith("http://", ignoreCase = true) -> "https://${trimmed.removePrefix("http://")}"
-            trimmed.startsWith("//") -> "https:$trimmed"
-            else -> "https://$trimmed"
-        }
-    }
+    private fun normalizeUrl(url: String, type: SourceType): String =
+        SourceUrlNormalizer.normalize(url, type)
 
     private fun normalizeSelector(selector: String?): String? =
         selector?.trim()?.takeIf { it.isNotEmpty() }

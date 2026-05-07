@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.dao.GroupWithSources
@@ -67,6 +68,8 @@ private val SourceType.iconRes: Int
 fun SourcesScreen(
     viewModel: SourcesViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
     val uiState by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val appLanguage by viewModel.appLanguage.collectAsState()
@@ -98,8 +101,15 @@ fun SourcesScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { messageResId ->
+            snackbarHostState.showSnackbar(context.getString(messageResId))
+        }
+    }
+
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             AppTopBar(
                 title = {
@@ -998,14 +1008,7 @@ fun SourceDialog(
 }
 
 private fun normalizeSourceUrl(url: String, type: SourceType): String {
-    val trimmed = url.trim()
-    if (trimmed.isBlank() || type != SourceType.RSS) return trimmed
-    return when {
-        trimmed.startsWith("https://", ignoreCase = true) -> trimmed
-        trimmed.startsWith("http://", ignoreCase = true) -> "https://${trimmed.removePrefix("http://")}"
-        trimmed.startsWith("//") -> "https:$trimmed"
-        else -> "https://$trimmed"
-    }
+    return com.andrewwin.sumup.domain.source.SourceUrlNormalizer.normalize(url, type)
 }
 
 @Composable

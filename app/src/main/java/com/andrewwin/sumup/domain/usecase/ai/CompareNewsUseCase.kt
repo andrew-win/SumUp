@@ -78,6 +78,12 @@ class CompareNewsUseCase @Inject constructor(
         val articleId: Long
     )
 
+    private data class LocalClusterSentenceCandidate(
+        val text: String,
+        val source: SummarySourceRef,
+        val articleId: Long
+    )
+
     private data class ScoredSentenceMatch(
         val leftIndex: Int,
         val rightIndex: Int,
@@ -91,130 +97,106 @@ class CompareNewsUseCase @Inject constructor(
             throw LocalModelMissingException()
         }
 
-        val candidates = mutableListOf<CompareCandidate>()
-
-        for (article in articles) {
-            val source = articleRepository.getSourceById(article.sourceId)
-            val sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело"
-            val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
-            val sourceMeta = SummarySourceRef(name = sourceName, url = sourceUrl)
-
-            val fullContent = articleRepository.fetchFullContent(article)
-            // Збільшуємо кількість речень для аналізу, щоб знайти унікальні деталі
-            val sentences = getExtractiveSummaryUseCase(fullContent, SummaryLimits.Compare.sentencesLocalCompare)
-            val prepared = sentences.map { it.trim() }.filter { it.isNotBlank() }
-            prepared.forEach { sentence ->
-                candidates += CompareCandidate(text = sentence, source = sourceMeta, articleId = article.id)
-            }
+        val candidatesByArticle = articles.associate { article ->
+            article.id to buildLocalClusterSentenceCandidates(article)
         }
 
-        if (candidates.isEmpty()) return SummaryResult.Compare(emptyList(), emptyList())
+        val requiredSourceItems = buildRequiredLocalClusterSummaryItems(
+            articles = articles,
+            candidatesByArticle = candidatesByArticle
+        )
+        val selectedItems = requiredSourceItems.toMutableList()
+        val selectedTexts = requiredSourceItems.map { it.text }.toMutableList()
 
-        val embeddings = candidates.map { candidate ->
-            localEmbeddingService.computeLocalEmbedding(candidate.text)
-        }
-        val bestScoreToOtherArticle = FloatArray(candidates.size) { 0f }
-        // Окремий масив для слабких збігів (нижче commonThreshold) — використовується для оцінки унікальності
-        val bestScoreBelowThreshold = FloatArray(candidates.size) { 0f }
-        val commonThreshold = SummaryLimits.Compare.localSimilarityThreshold
-        val uniqueThreshold = SummaryLimits.Compare.localUniqueThreshold
-        val graphEdges = mutableListOf<ScoredSentenceMatch>()
+        val remainingSlots = (SummaryLimits.LocalClusterSummary.maxSummarySentences - selectedItems.size)
+            .coerceAtLeast(0)
+        if (remainingSlots > 0) {
+            val remainingCandidates = articles
+                .flatMap { article -> candidatesByArticle[article.id].orEmpty() }
+                .filterNot { candidate -> selectedTexts.any { it == candidate.text } }
 
-        for (candidateIdx in candidates.indices) {
-            val bestMatchesByArticle = mutableMapOf<Long, ScoredSentenceMatch>()
+            for (candidate in remainingCandidates) {
+                if (selectedItems.size >= SummaryLimits.LocalClusterSummary.maxSummarySentences) break
+                if (isNearDuplicateOfSelected(candidate.text, selectedTexts)) continue
 
-            for (otherIdx in candidates.indices) {
-                if (candidateIdx == otherIdx) continue
-
-                val candidateArticleId = candidates[candidateIdx].articleId
-                val otherArticleId = candidates[otherIdx].articleId
-                if (candidateArticleId == otherArticleId) continue
-
-                val score = calculateCandidateSimilarity(
-                    leftIndex = candidateIdx,
-                    rightIndex = otherIdx,
-                    embeddings = embeddings,
-                    bestScoreToOtherArticle = bestScoreToOtherArticle,
-                    bestScoreBelowThreshold = bestScoreBelowThreshold,
-                    commonThreshold = commonThreshold
+                selectedItems += SummaryItem(
+                    text = candidate.text,
+                    sources = listOf(candidate.source)
                 )
-
-                if (score < commonThreshold) continue
-
-                val currentBest = bestMatchesByArticle[otherArticleId]
-                if (currentBest == null || score > currentBest.score) {
-                    bestMatchesByArticle[otherArticleId] = ScoredSentenceMatch(
-                        leftIndex = candidateIdx,
-                        rightIndex = otherIdx,
-                        score = score
-                    )
-                }
-            }
-
-            graphEdges += bestMatchesByArticle.values
-        }
-
-        val clusters = buildBestMatchClusters(candidates.size, graphEdges)
-            .ifEmpty { candidates.indices.map { listOf(it) } }
-
-        val commonCandidates = mutableListOf<Pair<SummaryItem, Float>>()
-        val uniqueCandidates = mutableListOf<Pair<SummaryItem, Float>>()
-
-        for ((clusterIdx, cluster) in clusters.withIndex()) {
-            val initialRepresentativeIdx = selectRepresentativeCandidateIndex(cluster, graphEdges, bestScoreToOtherArticle)
-            val tightenedCluster = tightenClusterAroundRepresentative(
-                cluster = cluster,
-                representativeIdx = initialRepresentativeIdx,
-                graphEdges = graphEdges,
-                minScore = commonThreshold
-            )
-            val limitedCluster = limitClusterToOneSentencePerArticle(
-                cluster = tightenedCluster,
-                representativeIdx = initialRepresentativeIdx,
-                candidates = candidates,
-                graphEdges = graphEdges,
-                bestScoreToOtherArticle = bestScoreToOtherArticle,
-                maxClusterSize = articles.size
-            )
-            val representativeIdx = selectRepresentativeCandidateIndex(
-                cluster = limitedCluster,
-                graphEdges = graphEdges,
-                bestScoreToOtherArticle = bestScoreToOtherArticle
-            )
-            val clusterSources = limitedCluster.map { candidates[it].source }.distinctBy { it.url }
-            val distinctArticlesInCluster = limitedCluster.map { candidates[it].articleId }.distinct().size
-
-            val item = SummaryItem(text = candidates[representativeIdx].text.trim(), sources = clusterSources)
-            val clusterMaxScore = limitedCluster.maxOf { bestScoreToOtherArticle[it] }
-
-            if (distinctArticlesInCluster > 1) {
-                commonCandidates.add(item to clusterMaxScore)
-            } else {
-                // Для унікального використовуємо bestScoreBelowThreshold —
-                // тільки слабкі збіги, що не "забруднені" сильними парами зі спільного
-                val uniqueScore = limitedCluster.maxOf { bestScoreBelowThreshold[it] }
-                if (uniqueScore <= uniqueThreshold) {
-                    uniqueCandidates.add(item to uniqueScore)
-                }
+                selectedTexts += candidate.text
             }
         }
-
-        // Спільне: Топ за найбільшими балами схожості
-        val commonItems = commonCandidates
-            .sortedByDescending { it.second }
-            .map { it.first }
-            .take(SummaryLimits.Compare.maxCommon)
-
-        // Унікальне: Топ за найменшими балами схожості (найбільш відмінні від інших статей речення)
-        val differentItems = uniqueCandidates
-            .sortedBy { it.second }
-            .map { it.first }
-            .take(SummaryLimits.Compare.maxUnique)
 
         return SummaryResult.Compare(
-            common = commonItems,
-            unique = differentItems
+            common = selectedItems,
+            unique = emptyList()
         )
+    }
+
+    private suspend fun buildLocalClusterSentenceCandidates(article: Article): List<LocalClusterSentenceCandidate> {
+        val source = articleRepository.getSourceById(article.sourceId)
+        val sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело"
+        val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
+        val sourceMeta = SummarySourceRef(name = sourceName, url = sourceUrl)
+
+        val fullContent = articleRepository.fetchFullContent(article)
+        return getExtractiveSummaryUseCase(
+            fullContent,
+            SummaryLimits.LocalClusterSummary.candidateSentencesPerSource
+        )
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .map { sentence ->
+                LocalClusterSentenceCandidate(
+                    text = sentence,
+                    source = sourceMeta,
+                    articleId = article.id
+                )
+            }
+    }
+
+    private suspend fun buildRequiredLocalClusterSummaryItems(
+        articles: List<Article>,
+        candidatesByArticle: Map<Long, List<LocalClusterSentenceCandidate>>
+    ): List<SummaryItem> {
+        val maxRequiredSources = SummaryLimits.LocalClusterSummary.maxSummarySentences /
+            SummaryLimits.LocalClusterSummary.minSentencesPerSource
+        val selectedTexts = mutableListOf<String>()
+        val items = mutableListOf<SummaryItem>()
+
+        for (article in articles.take(maxRequiredSources)) {
+            val articleCandidates = candidatesByArticle[article.id].orEmpty()
+            val selectedCandidate = articleCandidates.firstOrNull { candidate ->
+                !isNearDuplicateOfSelected(candidate.text, selectedTexts)
+            } ?: articleCandidates.firstOrNull()
+
+            if (selectedCandidate != null) {
+                items += SummaryItem(
+                    text = selectedCandidate.text,
+                    sources = listOf(selectedCandidate.source)
+                )
+                selectedTexts += selectedCandidate.text
+            }
+        }
+
+        return items
+    }
+
+    private suspend fun isNearDuplicateOfSelected(
+        candidateText: String,
+        selectedTexts: List<String>
+    ): Boolean {
+        if (selectedTexts.isEmpty()) return false
+        val candidateEmbedding = localEmbeddingService.computeLocalEmbedding(candidateText)
+        if (candidateEmbedding.isEmpty()) return selectedTexts.any { it == candidateText }
+
+        return selectedTexts.any { selectedText ->
+            val selectedEmbedding = localEmbeddingService.computeLocalEmbedding(selectedText)
+            selectedEmbedding.isNotEmpty() &&
+                similarityScorer.calculateSimilarity(candidateEmbedding, selectedEmbedding) >=
+                SummaryLimits.LocalClusterSummary.nearDuplicateThreshold
+        }
     }
 
     private fun calculateCandidateSimilarity(

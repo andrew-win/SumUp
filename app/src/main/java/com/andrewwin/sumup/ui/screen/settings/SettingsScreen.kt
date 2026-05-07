@@ -311,7 +311,7 @@ fun SettingsScreen(
         mutableStateOf(userPreferences.cloudDeduplicationThreshold)
     }
     var minMentions by rememberSaveable(userPreferences.minMentions) {
-        mutableStateOf(userPreferences.minMentions.toFloat())
+        mutableStateOf((userPreferences.minMentions - 1).coerceAtLeast(1).toFloat())
     }
     var adaptiveExtractiveOnlyBelowChars by rememberSaveable(userPreferences.adaptiveExtractiveOnlyBelowChars) {
         mutableStateOf(userPreferences.adaptiveExtractiveOnlyBelowChars.toFloat())
@@ -593,7 +593,7 @@ fun SettingsScreen(
                             },
                             onMinMentionsChange = { minMentions = it },
                             onMinMentionsCommitted = {
-                                viewModel.updateMinMentions(minMentions.toInt())
+                                viewModel.updateMinMentions(minMentions.toInt() + 1)
                             },
                             onHelpRequest = { helpDescription = it }
                         )

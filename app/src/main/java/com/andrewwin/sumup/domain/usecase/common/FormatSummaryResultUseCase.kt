@@ -22,8 +22,11 @@ class FormatSummaryResultUseCase @Inject constructor() {
                     }
                 }
                 is SummaryResult.Compare -> {
+                    val isSingleSectionCompare = result.common.isNotEmpty() && result.unique.isEmpty()
                     if (result.common.isNotEmpty()) {
-                        append("Спільне\n")
+                        if (!isSingleSectionCompare) {
+                            append("Спільне\n")
+                        }
                         result.common.forEach { fact ->
                             append("— ${fact.text}\n")
                             fact.sources.forEach { source ->

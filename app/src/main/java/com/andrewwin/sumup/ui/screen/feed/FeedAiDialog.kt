@@ -766,6 +766,18 @@ private fun CompareBlocksView(
     sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
+    if (differentItems.isEmpty()) {
+        AppCardSurface(modifier = Modifier.fillMaxWidth()) {
+            CompareBlockCardContent(
+                items = commonItems,
+                emptyMessage = stringResource(R.string.summary_compare_common_empty_local),
+                sourceLabelMap = sourceLabelMap,
+                onOpenWebView = onOpenWebView
+            )
+        }
+        return
+    }
+
     val tabTitles = listOf(
         stringResource(R.string.summary_compare_common),
         stringResource(R.string.summary_compare_unique)

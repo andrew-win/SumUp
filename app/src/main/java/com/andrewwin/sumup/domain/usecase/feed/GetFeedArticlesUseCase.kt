@@ -351,11 +351,12 @@ class GetFeedArticlesUseCase @Inject constructor(
         return clusters.filter { cluster ->
             val mentions = cluster.duplicates.size + 1
             val isSingle = cluster.duplicates.isEmpty()
+            val requiredMentions = prefs.minMentions.coerceAtLeast(2)
 
             if (isSingle) {
                 !prefs.isHideSingleNewsEnabled
             } else {
-                mentions >= prefs.minMentions
+                mentions >= requiredMentions
             }
         }
     }
@@ -401,7 +402,7 @@ class GetFeedArticlesUseCase @Inject constructor(
             val articlesInCluster = component.mapNotNull { currentById[it] }
             if (articlesInCluster.size < 2) continue
 
-            val representative = articlesInCluster.maxBy { it.publishedAt }
+            val representative = selectRepresentativeArticleForCluster(articlesInCluster)
             val componentIds = component.toSet()
             val duplicates = articlesInCluster
                 .filterNot { it.id == representative.id }
@@ -452,7 +453,7 @@ class GetFeedArticlesUseCase @Inject constructor(
         val clusterSavedAt = mutableMapOf<Long, Long>()
 
         groupedByKey.values.forEach { articles ->
-            val representative = articles.maxBy { it.publishedAt }
+            val representative = selectRepresentativeArticleForCluster(articles)
             val duplicates = articles
                 .asSequence()
                 .filterNot { it.id == representative.id }
@@ -761,9 +762,27 @@ class GetFeedArticlesUseCase @Inject constructor(
                 duplicates.add(candidate to score)
                 assignedArticleIds.add(candidate.id)
             }
-            result.add(ArticleCluster(representative, duplicates))
+            val clusterArticles = buildList {
+                add(representative)
+                addAll(duplicates.map { it.first })
+            }
+            val selectedRepresentative = selectRepresentativeArticleForCluster(clusterArticles)
+            val selectedDuplicates = duplicates
+                .filterNot { it.first.id == selectedRepresentative.id }
+                .sortedByDescending { it.first.publishedAt }
+            result.add(ArticleCluster(selectedRepresentative, selectedDuplicates))
         }
         return result
+    }
+
+    private fun selectRepresentativeArticleForCluster(
+        articles: List<com.andrewwin.sumup.data.local.entities.Article>
+    ): com.andrewwin.sumup.data.local.entities.Article {
+        return articles.maxWith(
+            compareBy<com.andrewwin.sumup.data.local.entities.Article> { it.importanceScore }
+                .thenBy { it.publishedAt }
+                .thenBy { it.title.trim().length }
+        )
     }
 
     private fun buildSimilaritiesFromClusters(clusters: List<ArticleCluster>): List<ArticleSimilarity> {
@@ -815,4 +834,5 @@ class GetFeedArticlesUseCase @Inject constructor(
             .replace(Regex("[\\p{Punct}\\p{S}]"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
+
 }

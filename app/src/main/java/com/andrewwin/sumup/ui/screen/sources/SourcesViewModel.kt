@@ -10,6 +10,7 @@ import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
 import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
 import com.andrewwin.sumup.domain.usecase.sources.ThemeSuggestion
@@ -96,6 +97,8 @@ class SourcesViewModel @Inject constructor(
     val isModelLoaded: StateFlow<Boolean> = _isModelLoaded.asStateFlow()
     private val _subscriptionsSyncFailed = MutableStateFlow(publicSubscriptionsSyncManager.hasSyncFailure())
     val subscriptionsSyncFailed: StateFlow<Boolean> = _subscriptionsSyncFailed.asStateFlow()
+    private val _messages = MutableSharedFlow<Int>(extraBufferCapacity = 1)
+    val messages: SharedFlow<Int> = _messages.asSharedFlow()
     private val _isRefreshingThemeRecommendations = MutableStateFlow(false)
     val isRefreshingThemeRecommendations: StateFlow<Boolean> = _isRefreshingThemeRecommendations.asStateFlow()
     val isRecommendationsEnabled: StateFlow<Boolean> = userPreferencesRepository.preferences
@@ -353,6 +356,10 @@ class SourcesViewModel @Inject constructor(
 
     fun addSource(groupId: Long, name: String, url: String, type: SourceType) {
         viewModelScope.launch {
+            if (isSourceInActiveSubscriptions(url, type)) {
+                _messages.tryEmit(com.andrewwin.sumup.R.string.validation_source_in_active_subscriptions)
+                return@launch
+            }
             repository.addSource(groupId, name, url, type)
             refreshFeedUseCase()
         }
@@ -370,6 +377,10 @@ class SourcesViewModel @Inject constructor(
         useHeadlessBrowser: Boolean
     ) {
         viewModelScope.launch {
+            if (isSourceInActiveSubscriptions(url, type)) {
+                _messages.tryEmit(com.andrewwin.sumup.R.string.validation_source_in_active_subscriptions)
+                return@launch
+            }
             repository.addSource(
                 groupId = groupId,
                 name = name,
@@ -383,6 +394,19 @@ class SourcesViewModel @Inject constructor(
             )
             refreshFeedUseCase()
         }
+    }
+
+    private fun isSourceInActiveSubscriptions(url: String, type: SourceType): Boolean {
+        val normalizedUrl = SourceUrlNormalizer.normalize(url, type)
+        if (normalizedUrl.isBlank()) return false
+        return _suggestedThemes.value
+            .asSequence()
+            .filter { it.isSubscribed }
+            .flatMap { it.group.sources.asSequence() }
+            .any { source ->
+                source.type == type &&
+                    SourceUrlNormalizer.normalize(source.url, source.type).equals(normalizedUrl, ignoreCase = true)
+            }
     }
 
     fun updateSource(source: Source) {
@@ -463,7 +487,6 @@ class SourcesViewModel @Inject constructor(
 
     private fun normalizeGroupNameForComparison(name: String): String = name.trim().lowercase()
 }
-
 
 
 
