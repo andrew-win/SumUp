@@ -86,6 +86,8 @@ class FeedViewModel @Inject constructor(
     )
         .distinctUntilChanged { old, new ->
             old.isDedupInProgress == new.isDedupInProgress &&
+                old.processedArticlesCount == new.processedArticlesCount &&
+                old.totalArticlesCount == new.totalArticlesCount &&
                 old.clusters.size == new.clusters.size &&
                 old.clusters.map { it.representative.id } == new.clusters.map { it.representative.id } &&
                 old.clusters.map { it.duplicates.size } == new.clusters.map { it.duplicates.size } &&
@@ -135,17 +137,6 @@ class FeedViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    val feedLoadingMessage: StateFlow<String?> = combine(
-        _isRefreshing,
-        isDedupInProgress
-    ) { refreshing, deduping ->
-        when {
-            refreshing -> getApplication<Application>().getString(R.string.feed_loading_news)
-            deduping -> getApplication<Application>().getString(R.string.feed_deduplicating)
-            else -> null
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-
     val isAnyLoading: StateFlow<Boolean> = combine(
         _isRefreshing,
         isDedupInProgress
@@ -164,6 +155,23 @@ class FeedViewModel @Inject constructor(
         }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val hasVisibleFeedResult: StateFlow<Boolean> = articleClusters
+        .map { it.isNotEmpty() }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val feedLoadingMessage: StateFlow<String?> = combine(
+        _isRefreshing,
+        isDedupInProgress,
+        hasVisibleFeedResult
+    ) { refreshing, deduping, hasVisibleResult ->
+        when {
+            deduping -> getApplication<Application>().getString(R.string.feed_deduplicating)
+            refreshing && !hasVisibleResult -> getApplication<Application>().getString(R.string.feed_loading_news)
+            else -> null
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     init {
         refresh()

@@ -122,13 +122,7 @@ class SourcesViewModel @Inject constructor(
             loadSuggestedThemes()
         }
         viewModelScope.launch {
-            isRecommendationsEnabled.collect { enabled ->
-                if (!enabled) {
-                    _suggestedThemes.value = emptyList()
-                } else {
-                    loadSuggestedThemes()
-                }
-            }
+            isRecommendationsEnabled.collect { loadSuggestedThemes() }
         }
     }
 
@@ -156,6 +150,12 @@ class SourcesViewModel @Inject constructor(
                     publicSubscriptionsSyncManager.syncIfDue()
                 }
                 _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
+                if (!isRecommendationsEnabled.value) {
+                    val suggestions = getSuggestedThemesUseCase(forceRefresh = false).first()
+                    _suggestedThemes.value = applyPendingOverrides(suggestions.toFirebaseThemeSuggestions())
+                    refreshReservedGroupNames()
+                    return@launch
+                }
                 if (forceRefresh) {
                     _isRefreshingThemeRecommendations.value = true
                     try {
@@ -463,7 +463,6 @@ class SourcesViewModel @Inject constructor(
 
     private fun normalizeGroupNameForComparison(name: String): String = name.trim().lowercase()
 }
-
 
 
 

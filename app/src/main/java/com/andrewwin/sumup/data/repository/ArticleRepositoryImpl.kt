@@ -11,6 +11,7 @@ import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.data.local.entities.SavedArticle
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.data.remote.ArticleStableKeyFactory
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
@@ -69,11 +70,12 @@ class ArticleRepositoryImpl @Inject constructor(
                                 val cleanedContent = cleanArticleTextUseCase(article.content, source.type, currentFooter)
                                 cleanedArticles.add(article.copy(content = cleanedContent))
                             }
-                            
+
                             articleDao.insertArticles(cleanedArticles)
 
                             for (article in cleanedArticles) {
-                                articleDao.updateFetchedArticleByUrl(
+                                articleDao.updateFetchedArticleByStableArticleKey(
+                                    stableArticleKey = article.stableArticleKey,
                                     sourceId = article.sourceId,
                                     title = article.title,
                                     content = article.content,
@@ -87,8 +89,8 @@ class ArticleRepositoryImpl @Inject constructor(
 
                             for (article in cleanedArticles) {
                                 if (!article.mediaUrl.isNullOrBlank() || !article.videoId.isNullOrBlank()) {
-                                    articleDao.updateMediaByUrl(
-                                        url = article.url,
+                                    articleDao.updateMediaByStableArticleKey(
+                                        stableArticleKey = article.stableArticleKey,
                                         mediaUrl = article.mediaUrl,
                                         videoId = article.videoId
                                     )
@@ -532,6 +534,7 @@ class ArticleRepositoryImpl @Inject constructor(
     private fun mapSavedToUiArticle(item: SavedArticle): Article =
         Article(
             id = savedArticleUiId(item.id),
+            stableArticleKey = ArticleStableKeyFactory.buildSavedKey(item.url),
             sourceId = 0L,
             title = item.title,
             content = item.content,
@@ -549,7 +552,6 @@ class ArticleRepositoryImpl @Inject constructor(
     private fun uiArticleIdToSavedId(uiId: Long): Long? =
         if (uiId < 0L) (-uiId) - 1L else null
 }
-
 
 
 

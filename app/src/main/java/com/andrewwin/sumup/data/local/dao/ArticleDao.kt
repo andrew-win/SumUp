@@ -9,6 +9,7 @@ interface ArticleDao {
     @Query("""
         SELECT
             articles.id,
+            articles.stableArticleKey,
             articles.sourceId,
             articles.title,
             articles.content,
@@ -20,7 +21,8 @@ interface ArticleDao {
             articles.isRead,
             articles.isFavorite,
             articles.importanceScore,
-            NULL AS embedding
+            NULL AS embedding,
+            NULL AS embeddingType
         FROM articles
         INNER JOIN sources ON articles.sourceId = sources.id 
         INNER JOIN source_groups ON sources.groupId = source_groups.id
@@ -50,6 +52,7 @@ interface ArticleDao {
     @Query("""
         SELECT
             articles.id,
+            articles.stableArticleKey,
             articles.sourceId,
             articles.title,
             articles.content,
@@ -61,7 +64,8 @@ interface ArticleDao {
             articles.isRead,
             articles.isFavorite,
             articles.importanceScore,
-            NULL AS embedding
+            NULL AS embedding,
+            NULL AS embeddingType
         FROM articles
         INNER JOIN sources ON articles.sourceId = sources.id 
         INNER JOIN source_groups ON sources.groupId = source_groups.id
@@ -74,6 +78,7 @@ interface ArticleDao {
     @Query("""
         SELECT
             articles.id,
+            articles.stableArticleKey,
             articles.sourceId,
             articles.title,
             articles.content,
@@ -85,7 +90,8 @@ interface ArticleDao {
             articles.isRead,
             articles.isFavorite,
             articles.importanceScore,
-            NULL AS embedding
+            NULL AS embedding,
+            NULL AS embeddingType
         FROM articles
         INNER JOIN sources ON articles.sourceId = sources.id 
         INNER JOIN source_groups ON sources.groupId = source_groups.id
@@ -110,11 +116,13 @@ interface ArticleDao {
             mediaUrl = :mediaUrl,
             videoId = :videoId,
             publishedAt = :publishedAt,
-            viewCount = :viewCount
-        WHERE url = :url
+            viewCount = :viewCount,
+            url = :url
+        WHERE stableArticleKey = :stableArticleKey
         """
     )
-    suspend fun updateFetchedArticleByUrl(
+    suspend fun updateFetchedArticleByStableArticleKey(
+        stableArticleKey: String,
         sourceId: Long,
         title: String,
         content: String,
@@ -125,8 +133,14 @@ interface ArticleDao {
         url: String
     )
 
-    @Query("UPDATE articles SET mediaUrl = :mediaUrl, videoId = :videoId WHERE url = :url")
-    suspend fun updateMediaByUrl(url: String, mediaUrl: String?, videoId: String?)
+    @Query(
+        "UPDATE articles SET mediaUrl = :mediaUrl, videoId = :videoId WHERE stableArticleKey = :stableArticleKey"
+    )
+    suspend fun updateMediaByStableArticleKey(
+        stableArticleKey: String,
+        mediaUrl: String?,
+        videoId: String?
+    )
 
     @Update
     suspend fun updateArticle(article: Article)
@@ -141,6 +155,7 @@ interface ArticleDao {
         """
         SELECT
             articles.id AS id,
+            articles.stableArticleKey AS stableArticleKey,
             articles.sourceId AS sourceId,
             articles.title AS title,
             articles.content AS content,
@@ -172,7 +187,7 @@ interface ArticleDao {
     @Delete
     suspend fun deleteArticle(article: Article)
 
-    @Query("UPDATE articles SET embedding = NULL")
+    @Query("UPDATE articles SET embedding = NULL, embeddingType = NULL")
     suspend fun clearEmbeddings()
 
     @Query("DELETE FROM articles")
@@ -205,6 +220,7 @@ data class ArticleEmbedding(
 
 data class ArticleWithMeta(
     val id: Long,
+    val stableArticleKey: String,
     val sourceId: Long,
     val title: String,
     val content: String,
@@ -220,9 +236,6 @@ data class ArticleWithMeta(
     val sourceName: String?,
     val groupName: String?
 )
-
-
-
 
 
 

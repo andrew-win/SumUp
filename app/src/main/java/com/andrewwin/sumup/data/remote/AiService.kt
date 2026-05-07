@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.data.remote
 
+import android.util.Log
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
@@ -91,12 +92,23 @@ class AiService(private val okHttpClient: OkHttpClient) {
             }
         }
 
-    suspend fun generateEmbedding(config: AiModelConfig, text: String): FloatArray =
+    suspend fun generateEmbedding(config: AiModelConfig, text: String, debugRunId: Long? = null): FloatArray =
         withContext(Dispatchers.IO) {
             when (config.provider) {
-                AiProvider.GEMINI -> callGeminiEmbedding(config, text)
+                AiProvider.GEMINI -> callGeminiEmbedding(config, text, debugRunId)
                 AiProvider.CHATGPT -> callOpenAiCompatibleEmbedding(config, text, "https://api.openai.com/v1/embeddings")
                 AiProvider.COHERE -> callCohereEmbedding(config, text)
+                else -> throw Exception("Provider ${config.provider} does not support embeddings")
+            }
+        }
+
+    suspend fun generateEmbeddings(config: AiModelConfig, texts: List<String>, debugRunId: Long? = null): List<FloatArray?> =
+        withContext(Dispatchers.IO) {
+            if (texts.isEmpty()) return@withContext emptyList()
+            when (config.provider) {
+                AiProvider.GEMINI -> callGeminiEmbeddings(config, texts, debugRunId)
+                AiProvider.CHATGPT -> callOpenAiCompatibleEmbeddings(config, texts, "https://api.openai.com/v1/embeddings")
+                AiProvider.COHERE -> callCohereEmbeddings(config, texts)
                 else -> throw Exception("Provider ${config.provider} does not support embeddings")
             }
         }
@@ -188,8 +200,49 @@ class AiService(private val okHttpClient: OkHttpClient) {
         }
     }
 
-    private fun callGeminiEmbedding(config: AiModelConfig, text: String): FloatArray {
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/${config.modelName}:embedContent?key=${config.apiKey}"
+    private fun callGeminiEmbedding(config: AiModelConfig, text: String, debugRunId: Long?): FloatArray {
+        return callGeminiEmbeddings(config, listOf(text), debugRunId).firstOrNull()
+            ?: throw Exception("Порожня відповідь від сервера")
+    }
+
+    private fun callGeminiEmbeddings(config: AiModelConfig, texts: List<String>, debugRunId: Long?): List<FloatArray?> {
+        if (texts.size == 1) return listOf(callSingleGeminiEmbedding(config, texts.first(), debugRunId))
+        val modelName = config.modelName.removePrefix("models/")
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/$modelName:batchEmbedContents?key=${config.apiKey}"
+        val json = JSONObject().apply {
+            put("requests", JSONArray().apply {
+                texts.forEach { text ->
+                    put(JSONObject().apply {
+                        put("model", "models/$modelName")
+                        put("taskType", "SEMANTIC_SIMILARITY")
+                        put("outputDimensionality", 768)
+                        put("content", JSONObject().apply {
+                            put("parts", JSONArray().put(JSONObject().put("text", text)))
+                        })
+                    })
+                }
+            })
+        }
+        return executeRequest(Request.Builder().url(url), json) { response ->
+            val embeddings = JSONObject(response).getJSONArray("embeddings")
+            val parsedEmbeddings = List(texts.size) { index ->
+                embeddings.optJSONObject(index)?.getJSONArray("values")?.let { values ->
+                    FloatArray(values.length()) { i -> values.getDouble(i).toFloat() }
+                }
+            }
+            Log.d(
+                GEMINI_EMBEDDING_DEBUG_LOG_TAG,
+                "batchEmbedContents runId=$debugRunId count=${embeddings.length()} dims=${embeddingDimensions(embeddings)} " +
+                    "parsed=${parsedEmbeddings.size} parsedNulls=${parsedEmbeddings.count { it == null }} " +
+                    "parsedDims=${parsedEmbeddings.mapNotNull { it?.size }.distinct().sorted()}"
+            )
+            parsedEmbeddings
+        }
+    }
+
+    private fun callSingleGeminiEmbedding(config: AiModelConfig, text: String, debugRunId: Long?): FloatArray {
+        val modelName = config.modelName.removePrefix("models/")
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/$modelName:embedContent?key=${config.apiKey}"
         val json = JSONObject().apply {
             put("taskType", "SEMANTIC_SIMILARITY")
             put("outputDimensionality", 768)
@@ -199,35 +252,58 @@ class AiService(private val okHttpClient: OkHttpClient) {
         }
         return executeRequest(Request.Builder().url(url), json) { response ->
             val values = JSONObject(response).getJSONObject("embedding").getJSONArray("values")
+            Log.d(GEMINI_EMBEDDING_DEBUG_LOG_TAG, "embedContent runId=$debugRunId dims=${values.length()}")
             FloatArray(values.length()) { i -> values.getDouble(i).toFloat() }
         }
     }
 
     private fun callOpenAiCompatibleEmbedding(config: AiModelConfig, text: String, url: String): FloatArray {
+        return callOpenAiCompatibleEmbeddings(config, listOf(text), url).firstOrNull()
+            ?: throw Exception("Порожня відповідь від сервера")
+    }
+
+    private fun callOpenAiCompatibleEmbeddings(config: AiModelConfig, texts: List<String>, url: String): List<FloatArray?> {
         val json = JSONObject().apply {
             put("model", config.modelName)
-            put("input", text)
+            put("input", JSONArray().apply {
+                texts.forEach { put(it) }
+            })
         }
         val requestBuilder = Request.Builder().url(url)
             .addHeader("Authorization", "Bearer ${config.apiKey}")
         return executeRequest(requestBuilder, json) { response ->
-            val embedding = JSONObject(response).getJSONArray("data").getJSONObject(0).getJSONArray("embedding")
-            FloatArray(embedding.length()) { i -> embedding.getDouble(i).toFloat() }
+            val data = JSONObject(response).getJSONArray("data")
+            List(texts.size) { index ->
+                data.optJSONObject(index)?.getJSONArray("embedding")?.let { embedding ->
+                    FloatArray(embedding.length()) { i -> embedding.getDouble(i).toFloat() }
+                }
+            }
         }
     }
 
     private fun callCohereEmbedding(config: AiModelConfig, text: String): FloatArray {
+        return callCohereEmbeddings(config, listOf(text)).firstOrNull()
+            ?: throw Exception("Порожня відповідь від сервера")
+    }
+
+    private fun callCohereEmbeddings(config: AiModelConfig, texts: List<String>): List<FloatArray?> {
         val url = "https://api.cohere.com/v1/embed"
         val json = JSONObject().apply {
             put("model", config.modelName)
-            put("texts", JSONArray().put(text))
+            put("texts", JSONArray().apply {
+                texts.forEach { put(it) }
+            })
             put("input_type", "classification")
         }
         val requestBuilder = Request.Builder().url(url)
             .addHeader("Authorization", "Bearer ${config.apiKey}")
         return executeRequest(requestBuilder, json) { response ->
-            val firstEmbedding = JSONObject(response).getJSONArray("embeddings").getJSONArray(0)
-            FloatArray(firstEmbedding.length()) { i -> firstEmbedding.getDouble(i).toFloat() }
+            val embeddings = JSONObject(response).getJSONArray("embeddings")
+            List(texts.size) { index ->
+                embeddings.optJSONArray(index)?.let { embedding ->
+                    FloatArray(embedding.length()) { i -> embedding.getDouble(i).toFloat() }
+                }
+            }
         }
     }
 
@@ -264,6 +340,18 @@ class AiService(private val okHttpClient: OkHttpClient) {
 
     private fun okhttp3.HttpUrl.redact(): String {
         return newBuilder().query(null).build().toString()
+    }
+
+    private fun embeddingDimensions(embeddings: JSONArray): List<Int> =
+        List(embeddings.length()) { index ->
+            embeddings.optJSONObject(index)
+                ?.optJSONArray("values")
+                ?.length()
+                ?: 0
+        }.distinct().sorted()
+
+    private companion object {
+        private const val GEMINI_EMBEDDING_DEBUG_LOG_TAG = "GeminiEmbeddingDebug"
     }
 }
 

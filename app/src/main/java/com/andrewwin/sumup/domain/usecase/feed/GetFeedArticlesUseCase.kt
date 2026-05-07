@@ -10,29 +10,40 @@ import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.service.ArticleCluster
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.service.DedupRuntimeCoordinator
 import com.andrewwin.sumup.domain.service.EmbeddingUtils
 import com.andrewwin.sumup.domain.service.SimilarityScorer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 
 class GetFeedArticlesUseCase @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
     private val similarityScorer: SimilarityScorer,
-    private val importanceScorer: ArticleImportanceScorer
+    private val importanceScorer: ArticleImportanceScorer,
+    private val dedupRuntimeCoordinator: DedupRuntimeCoordinator
 ) {
     private val tag = "GetFeedArticles"
     private var lastDedupInputKey: String? = null
     private var lastDedupClusters: List<ArticleCluster>? = null
+    private val lastDedupDebugSnapshots = ConcurrentHashMap<Long, DedupDebugSnapshot>()
 
+    @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     operator fun invoke(
         searchQueryFlow: Flow<String>,
         selectedGroupIdFlow: Flow<Long?>,
@@ -40,6 +51,9 @@ class GetFeedArticlesUseCase @Inject constructor(
         savedOnlyFlow: Flow<Boolean>,
         userPreferencesFlow: Flow<UserPreferences>
     ): Flow<FeedResult> {
+        val collectorId = feedCollectorId.incrementAndGet()
+        Log.d(FEED_DEDUP_LOG_TAG, "invoke_created collectorId=$collectorId")
+
         val flow1 = combine(
             articleRepository.enabledArticles,
             articleRepository.allArticles,
@@ -87,6 +101,14 @@ class GetFeedArticlesUseCase @Inject constructor(
             val savedOnly = triple2.savedOnly
             val prefs = triple2.prefs
             val signal = triple2.invalidationSignal
+            Log.d(
+                FEED_DEDUP_LOG_TAG,
+                "pipeline_input collectorId=$collectorId enabled=${enabledArticles.size} all=${allArticles.size} " +
+                    "favorites=${favoriteArticles.size} savedOnly=$savedOnly groupId=$groupId " +
+                    "dateFilterHours=$dateFilterHours queryBlank=${query.isBlank()} " +
+                    "dedupEnabled=${prefs.isDeduplicationEnabled} strategy=${prefs.deduplicationStrategy.name} " +
+                    "signal=$signal"
+            )
             
             val sourceTypeMap = groupsWithSources
                 .flatMap { it.sources }
@@ -149,7 +171,29 @@ class GetFeedArticlesUseCase @Inject constructor(
 
             FeedPipelineState(processedArticles, prefs, savedOnly, signal)
         }.flowOn(Dispatchers.Default)
+            .debounce(FEED_SNAPSHOT_DEBOUNCE_MS)
             .flatMapLatest { state ->
+                val pipelineRunId = feedPipelineRunId.incrementAndGet()
+                val pipelineDedupCacheGeneration = dedupRuntimeCoordinator.currentDedupCacheGeneration()
+                val dedupInputKey = buildDedupInputKey(state.articles, state.prefs, state.invalidationSignal)
+                logDedupKeyDiff(
+                    collectorId = collectorId,
+                    pipelineRunId = pipelineRunId,
+                    keyHash = dedupInputKey.hashCode(),
+                    articles = state.articles
+                )
+                Log.d(
+                    FEED_DEDUP_LOG_TAG,
+                    "feed_snapshot_ready collectorId=$collectorId pipelineRunId=$pipelineRunId " +
+                        "articles=${state.articles.size} savedOnly=${state.savedOnly} " +
+                        "shouldDedup=${state.shouldDedup} keyHash=${dedupInputKey.hashCode()}"
+                )
+                Log.d(
+                    FEED_DEDUP_LOG_TAG,
+                    "pipeline_start collectorId=$collectorId pipelineRunId=$pipelineRunId " +
+                        "articles=${state.articles.size} savedOnly=${state.savedOnly} " +
+                        "shouldDedup=${state.shouldDedup} keyHash=${dedupInputKey.hashCode()}"
+                )
                 flow {
                     coroutineScope {
                         val baseClusters = if (state.articles.isNotEmpty()) {
@@ -175,21 +219,31 @@ class GetFeedArticlesUseCase @Inject constructor(
                         val initial = applyMinMentionsFilter(initialClusters, state.prefs, state.savedOnly)
                         val shouldRunDedup = state.shouldDedup && state.articles.size >= 2
 
-                        val dedupInputKey = buildDedupInputKey(state.articles, state.prefs, state.invalidationSignal)
                         val cachedClusters = lastDedupClusters
-                        if (shouldRunDedup && dedupInputKey == lastDedupInputKey && cachedClusters != null) {
+                        if (
+                            shouldRunDedup &&
+                            pipelineDedupCacheGeneration == lastSeenDedupCacheGeneration &&
+                            dedupInputKey == lastDedupInputKey &&
+                            cachedClusters != null
+                        ) {
+                            Log.d(
+                                FEED_DEDUP_LOG_TAG,
+                                "dedup_cache_reuse collectorId=$collectorId pipelineRunId=$pipelineRunId " +
+                                    "articles=${state.articles.size} keyHash=${dedupInputKey.hashCode()}"
+                            )
                             val rebound = rebindClustersWithLatestArticles(cachedClusters, state.articles)
                             emit(FeedResult(applyMinMentionsFilter(rebound, state.prefs, state.savedOnly), false))
                             return@coroutineScope
                         }
 
-                        emit(FeedResult(initial, shouldRunDedup))
-
                         if (!shouldRunDedup) {
+                            emit(FeedResult(initial, false))
                             return@coroutineScope
                         }
 
                         var lastClusters: List<ArticleCluster>? = null
+                        var shouldCacheLastClusters = true
+                        var firstVisibleDedupResultLogged = false
 
                         val deduplicationThreshold = when (state.prefs.deduplicationStrategy) {
                             DeduplicationStrategy.LOCAL -> state.prefs.localDeduplicationThreshold
@@ -207,24 +261,80 @@ class GetFeedArticlesUseCase @Inject constructor(
                             return@coroutineScope
                         }
 
+                        Log.d(
+                            FEED_DEDUP_LOG_TAG,
+                            "dedup_start collectorId=$collectorId pipelineRunId=$pipelineRunId " +
+                                "articles=${state.articles.size} strategy=${state.prefs.deduplicationStrategy.name} " +
+                                "threshold=$deduplicationThreshold keyHash=${dedupInputKey.hashCode()}"
+                        )
                         clusterArticlesIncremental(
                             articles = state.articles,
                             strategy = state.prefs.deduplicationStrategy,
                             threshold = deduplicationThreshold,
                             emitEvery = DEDUP_EMIT_EVERY
-                        ).collect { clusters ->
-                            val filtered = applyMinMentionsFilter(clusters, state.prefs, state.savedOnly)
+                        ).collect { result ->
+                            val filtered = applyMinMentionsFilter(result.clusters, state.prefs, state.savedOnly)
                             lastClusters = filtered
-                            emit(FeedResult(filtered, true))
+                            shouldCacheLastClusters = result.shouldCacheDedupResult
+                            if (!firstVisibleDedupResultLogged) {
+                                firstVisibleDedupResultLogged = true
+                                Log.d(
+                                    FEED_DEDUP_LOG_TAG,
+                                    "dedup_first_visible_result collectorId=$collectorId pipelineRunId=$pipelineRunId " +
+                                        "articles=${filtered.size} processed=${result.processedArticlesCount} " +
+                                        "total=${result.totalArticlesCount} keyHash=${dedupInputKey.hashCode()}"
+                                )
+                            }
+                            Log.d(
+                                FEED_DEDUP_LOG_TAG,
+                                "dedup_progress_visible_result collectorId=$collectorId pipelineRunId=$pipelineRunId " +
+                                    "articles=${filtered.size} processed=${result.processedArticlesCount} " +
+                                    "total=${result.totalArticlesCount} complete=${result.isComplete}"
+                            )
+                            emit(
+                                FeedResult(
+                                    clusters = filtered,
+                                    isDedupInProgress = !result.isComplete,
+                                    processedArticlesCount = result.processedArticlesCount,
+                                    totalArticlesCount = result.totalArticlesCount
+                                )
+                            )
                         }
 
                         lastClusters?.let { final ->
-                            lastDedupInputKey = dedupInputKey
-                            lastDedupClusters = final
+                            if (shouldCacheLastClusters) {
+                                lastDedupInputKey = dedupInputKey
+                                lastDedupClusters = final
+                                lastSeenDedupCacheGeneration = pipelineDedupCacheGeneration
+                            } else {
+                                Log.d(
+                                    FEED_DEDUP_LOG_TAG,
+                                    "dedup_result_not_cached collectorId=$collectorId pipelineRunId=$pipelineRunId " +
+                                        "reason=cloud_missing_generation_failed keyHash=${dedupInputKey.hashCode()}"
+                                )
+                            }
                             val filteredFinal = applyMinMentionsFilter(final, state.prefs, state.savedOnly)
-                            emit(FeedResult(filteredFinal, false))
+                            emit(
+                                FeedResult(
+                                    clusters = filteredFinal,
+                                    isDedupInProgress = false,
+                                    processedArticlesCount = state.articles.size,
+                                    totalArticlesCount = state.articles.size
+                                )
+                            )
                         }
                     }
+                }.onCompletion { cause ->
+                    val status = when (cause) {
+                        null -> "complete"
+                        is CancellationException -> "cancelled"
+                        else -> "failed:${cause::class.simpleName}:${cause.message}"
+                    }
+                    Log.d(
+                        FEED_DEDUP_LOG_TAG,
+                        "pipeline_end collectorId=$collectorId pipelineRunId=$pipelineRunId status=$status " +
+                            "articles=${state.articles.size} keyHash=${dedupInputKey.hashCode()}"
+                    )
                 }
             }
     }
@@ -403,23 +513,89 @@ class GetFeedArticlesUseCase @Inject constructor(
             .joinToString("|") { article ->
                 listOf(
                     article.id.toString(),
-                    article.sourceId.toString(),
-                    article.publishedAt.toString(),
                     article.url,
-                    article.title,
-                    article.content
+                    article.title
                 ).joinToString("::")
             }
+        val threshold = when (prefs.deduplicationStrategy) {
+            DeduplicationStrategy.LOCAL -> prefs.localDeduplicationThreshold
+            DeduplicationStrategy.CLOUD -> prefs.cloudDeduplicationThreshold
+        }
         val prefsPart = listOf(
             prefs.isDeduplicationEnabled.toString(),
             prefs.deduplicationStrategy.name,
-            prefs.localDeduplicationThreshold.toString(),
-            prefs.cloudDeduplicationThreshold.toString(),
-            prefs.minMentions.toString(),
-            prefs.isHideSingleNewsEnabled.toString(),
+            threshold.toString(),
             signal.toString()
         ).joinToString("::")
         return "$prefsPart##$articlePart"
+    }
+
+    private fun logDedupKeyDiff(
+        collectorId: Long,
+        pipelineRunId: Long,
+        keyHash: Int,
+        articles: List<Article>
+    ) {
+        val currentSnapshot = DedupDebugSnapshot(
+            keyHash = keyHash,
+            entriesById = articles.associate { article ->
+                article.id to DedupDebugEntry(
+                    id = article.id,
+                    sourceId = article.sourceId,
+                    publishedAt = article.publishedAt,
+                    urlHash = article.url.hashCode(),
+                    titleHash = article.title.hashCode(),
+                    titlePreview = article.title.take(DEBUG_TITLE_PREVIEW_LENGTH)
+                )
+            }
+        )
+        val previousSnapshot = lastDedupDebugSnapshots.put(collectorId, currentSnapshot)
+
+        if (previousSnapshot == null) {
+            Log.d(
+                FEED_DEDUP_LOG_TAG,
+                "dedup_key_baseline collectorId=$collectorId pipelineRunId=$pipelineRunId " +
+                    "keyHash=$keyHash articles=${articles.size}"
+            )
+            return
+        }
+
+        if (previousSnapshot.keyHash == keyHash) return
+
+        val previousIds = previousSnapshot.entriesById.keys
+        val currentIds = currentSnapshot.entriesById.keys
+        val addedIds = (currentIds - previousIds).sorted()
+        val removedIds = (previousIds - currentIds).sorted()
+        val changedEntries = (currentIds intersect previousIds)
+            .asSequence()
+            .mapNotNull { id ->
+                val oldEntry = previousSnapshot.entriesById[id] ?: return@mapNotNull null
+                val newEntry = currentSnapshot.entriesById[id] ?: return@mapNotNull null
+                if (oldEntry == newEntry) null else oldEntry to newEntry
+            }
+            .toList()
+
+        Log.d(
+            FEED_DEDUP_LOG_TAG,
+            "dedup_key_changed collectorId=$collectorId pipelineRunId=$pipelineRunId " +
+                "oldKeyHash=${previousSnapshot.keyHash} newKeyHash=$keyHash " +
+                "oldSize=${previousSnapshot.entriesById.size} newSize=${currentSnapshot.entriesById.size} " +
+                "addedIds=${addedIds.take(DEBUG_CHANGED_IDS_LIMIT)} " +
+                "removedIds=${removedIds.take(DEBUG_CHANGED_IDS_LIMIT)} " +
+                "changedCount=${changedEntries.size}"
+        )
+
+        changedEntries.take(DEBUG_CHANGED_ENTRY_LIMIT).forEach { (oldEntry, newEntry) ->
+            Log.d(
+                FEED_DEDUP_LOG_TAG,
+                "dedup_key_changed_article collectorId=$collectorId pipelineRunId=$pipelineRunId id=${newEntry.id} " +
+                    "sourceId=${oldEntry.sourceId}->${newEntry.sourceId} " +
+                    "publishedAt=${oldEntry.publishedAt}->${newEntry.publishedAt} " +
+                    "urlHash=${oldEntry.urlHash}->${newEntry.urlHash} " +
+                    "titleHash=${oldEntry.titleHash}->${newEntry.titleHash} " +
+                    "oldTitle=${oldEntry.titlePreview} newTitle=${newEntry.titlePreview}"
+            )
+        }
     }
 
     data class FeedPipelineState(
@@ -449,13 +625,38 @@ class GetFeedArticlesUseCase @Inject constructor(
 
     data class FeedResult(
         val clusters: List<ArticleCluster>,
-        val isDedupInProgress: Boolean
+        val isDedupInProgress: Boolean,
+        val processedArticlesCount: Int = 0,
+        val totalArticlesCount: Int = 0
+    )
+
+    data class DedupDebugSnapshot(
+        val keyHash: Int,
+        val entriesById: Map<Long, DedupDebugEntry>
+    )
+
+    data class DedupDebugEntry(
+        val id: Long,
+        val sourceId: Long,
+        val publishedAt: Long,
+        val urlHash: Int,
+        val titleHash: Int,
+        val titlePreview: String
     )
 
     companion object {
         private const val DEDUP_EMIT_EVERY = 32
         private const val SEARCH_TOKEN_MATCH_RATIO = 0.6f
+        private const val DEBUG_CHANGED_ENTRY_LIMIT = 5
+        private const val DEBUG_CHANGED_IDS_LIMIT = 10
+        private const val DEBUG_TITLE_PREVIEW_LENGTH = 80
         private const val EMBEDDINGS_TEST_LOG_TAG = "EmbedingsTest"
+        private const val FEED_DEDUP_LOG_TAG = "FeedDedupDebug"
+        private const val FEED_SNAPSHOT_DEBOUNCE_MS = 600L
+        private val feedCollectorId = AtomicLong(0)
+        private val feedPipelineRunId = AtomicLong(0)
+        @Volatile
+        private var lastSeenDedupCacheGeneration: Long = Long.MIN_VALUE
     }
 
     private fun clusterArticlesIncremental(
@@ -463,50 +664,81 @@ class GetFeedArticlesUseCase @Inject constructor(
         strategy: DeduplicationStrategy,
         threshold: Float,
         emitEvery: Int = 32
-    ): Flow<List<ArticleCluster>> = flow {
+    ): Flow<DedupClusterResult> = flow {
         if (articles.size < 2) {
-            emit(articles.map { ArticleCluster(it, emptyList()) })
+            emit(
+                DedupClusterResult(
+                    clusters = articles.map { ArticleCluster(it, emptyList()) },
+                    processedArticlesCount = articles.size,
+                    totalArticlesCount = articles.size,
+                    isComplete = true
+                )
+            )
             return@flow
         }
 
-        val embeddingsById = similarityScorer.getEmbeddingsParallel(articles, strategy)
-        
-        val pairScores = mutableMapOf<ArticlePairKey, Float>()
         val allArticles = articles.distinctBy { it.id }
+        similarityScorer.getEmbeddingsProgress(allArticles, strategy).collect { embeddingProgress ->
+            val embeddingsById = embeddingProgress.embeddingsById
+            val pairScores = mutableMapOf<ArticlePairKey, Float>()
 
-        for (i in 0 until allArticles.lastIndex) {
-            val left = allArticles[i]
-            val leftEmb = embeddingsById[left.id] ?: continue
-
-            for (j in i + 1 until allArticles.size) {
-                val right = allArticles[j]
-                val rightEmb = embeddingsById[right.id] ?: continue
-
-                val score = similarityScorer.calculateSimilarity(
-                    embeddingA = leftEmb,
-                    embeddingB = rightEmb
+            if (embeddingProgress.cloudMissingGenerationFailed) {
+                emit(
+                    DedupClusterResult(
+                        clusters = buildClusters(allArticles, embeddingsById, pairScores),
+                        shouldCacheDedupResult = false,
+                        processedArticlesCount = embeddingProgress.processedArticlesCount,
+                        totalArticlesCount = embeddingProgress.totalArticlesCount,
+                        isComplete = true
+                    )
                 )
-                Log.d(
-                    EMBEDDINGS_TEST_LOG_TAG,
-                    "cosine_compare strategy=${strategy.name} score=$score threshold=$threshold " +
-                        "leftId=${left.id} rightId=${right.id} " +
-                        "leftTitle=${left.title} rightTitle=${right.title}"
-                )
-                if (score >= threshold) {
-                    pairScores[ArticlePairKey.of(left.id, right.id)] = score
+                return@collect
+            }
+
+            for (i in 0 until allArticles.lastIndex) {
+                val left = allArticles[i]
+                val leftEmb = embeddingsById[left.id] ?: continue
+
+                for (j in i + 1 until allArticles.size) {
+                    val right = allArticles[j]
+                    val rightEmb = embeddingsById[right.id] ?: continue
+
+                    val score = similarityScorer.calculateSimilarity(
+                        embeddingA = leftEmb,
+                        embeddingB = rightEmb
+                    )
+                    if (score >= threshold) {
+                        pairScores[ArticlePairKey.of(left.id, right.id)] = score
+                    }
+                }
+
+                if (!embeddingProgress.isComplete && emitEvery > 0 && (i + 1) % emitEvery == 0) {
+                    emit(
+                        DedupClusterResult(
+                            clusters = buildClusters(allArticles, embeddingsById, pairScores),
+                            processedArticlesCount = embeddingProgress.processedArticlesCount,
+                            totalArticlesCount = embeddingProgress.totalArticlesCount,
+                            isComplete = false
+                        )
+                    )
                 }
             }
 
-            if (emitEvery > 0 && (i + 1) % emitEvery == 0) {
-                emit(buildClusters(allArticles, embeddingsById, pairScores))
+            val clusters = buildClusters(allArticles, embeddingsById, pairScores)
+            emit(
+                DedupClusterResult(
+                    clusters = clusters,
+                    processedArticlesCount = embeddingProgress.processedArticlesCount,
+                    totalArticlesCount = embeddingProgress.totalArticlesCount,
+                    isComplete = embeddingProgress.isComplete
+                )
+            )
+
+            if (embeddingProgress.isComplete) {
+                val similarities = buildSimilaritiesFromClusters(clusters)
+                articleRepository.upsertSimilarities(similarities)
             }
         }
-
-        val finalClusters = buildClusters(allArticles, embeddingsById, pairScores)
-        emit(finalClusters)
-
-        val similarities = buildSimilaritiesFromClusters(finalClusters)
-        articleRepository.upsertSimilarities(similarities)
     }.flowOn(Dispatchers.Default)
 
     private fun buildClusters(
@@ -548,6 +780,14 @@ class GetFeedArticlesUseCase @Inject constructor(
         }
     }
 
+    private data class DedupClusterResult(
+        val clusters: List<ArticleCluster>,
+        val shouldCacheDedupResult: Boolean = true,
+        val processedArticlesCount: Int = 0,
+        val totalArticlesCount: Int = 0,
+        val isComplete: Boolean = false
+    )
+
     private fun matchesQueryWithTokenThreshold(
         title: String,
         content: String,
@@ -576,4 +816,3 @@ class GetFeedArticlesUseCase @Inject constructor(
             .replace(Regex("\\s+"), " ")
             .trim()
 }
-

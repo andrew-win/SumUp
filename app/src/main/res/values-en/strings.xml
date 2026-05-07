@@ -105,7 +105,6 @@ scheduled</string>
     <string name="feed_similarity_score">%d%%</string>
     <string name="feed_loading_news">Loading news…</string>
     <string name="feed_deduplicating">Performing deduplication…</string>
-    <string name="feed_searching_similar">Still searching for similar news…</string>
     <string name="summary_no_articles_today">No new articles for summarization.</string>
     <string name="summary_worker_no_articles_today">No new articles for today’s summary.</string>
     <string name="summary_worker_empty_response">Empty response while generating summary</string>
@@ -253,7 +252,7 @@ sources</string>
     <string name="settings_feed_description">Show description</string>
     <string name="settings_feed_summary_use_full_text">Use full texts instead of excerpts for feed summaries</string>
     <string name="settings_sources">Sources</string>
-    <string name="settings_show_recommendations">Show recommendations</string>
+    <string name="settings_show_recommendations">Receive topic recommendations based on added sources</string>
     <string name="settings_scheduled_push_notifications">Push notifications for summaries</string>
     <string name="export_feed_pdf">Export feed to PDF</string>
     <string name="export_pdf_error">Failed to export PDF</string>
@@ -313,7 +312,7 @@ scheduled</string>
     <string name="settings_help_account">— This section contains account sign-in, synchronization, and data transfer controls.\n— In the sync block you choose strategy, overwrite priority, interval, and included data.\n— In the import block you separately choose strategy: merge or overwrite local data.\n— These choices define which side becomes the source of truth on conflicts between local, cloud, and backup data.</string>
     <string name="settings_help_ai_processing">— This section contains AI strategy, limits, local summary, deduplication, and adaptive logic.\n— It directly affects quality, speed, and cost of AI processing.\n— Inside, each block opens its own short explanation for its settings.</string>
     <string name="settings_help_api_keys">— This section manages keys and models for summary and embedding tasks.\n— It defines which AI configurations are available to the app.\n— Inside, each block separately explains its models and keys.</string>
-    <string name="settings_help_recommendations">— This section controls recommendations and topic subscriptions.\n— It affects source suggestion blocks and quick theme subscriptions.\n— Inside, each settings block has its own help target.</string>
+    <string name="settings_help_recommendations">— This section controls topic recommendations based on the sources you already added.\n— Topic subscription cards stay visible regardless of this switch.\n— The setting only affects whether the “Recommended” badges appear in the theme list.</string>
     <string name="settings_help_feed">— This section controls feed layout, filtering, deduplication, and the local model.\n— It defines how compact or detailed the reading experience feels.\n— Inside, each block explains its specific switches, thresholds, and actions.</string>
     <string name="settings_help_scheduled">— This section contains schedule, push notifications, and summary history parameters.\n— It controls automatic daily summary generation.\n— Inside, each block has its own short settings explanation.</string>
     <string name="settings_help_general">— This section controls app language, summary language, and theme.\n— It defines the global interface behavior across the app.\n— Inside, help opens separately for each settings block.</string>
@@ -355,7 +354,7 @@ scheduled</string>
     <string name="settings_help_section_adaptive_summary">— If an article is shorter than the lower threshold, adaptive mode finishes with pure extractive summarization.\n— If an article is longer than the lower threshold but shorter than the upper one, the text is compressed before cloud processing to the medium percentage.\n— If an article is longer than the upper threshold, the text is compressed more aggressively using the long-article percentage.\n— Together these settings control when adaptive mode switches to cloud and how aggressively it compresses the text first.</string>
     <string name="settings_help_section_feed">— Show media enables images and previews in feed cards.\n— Show description adds a text preview below the headline.\n— Use full text for feed summary expands the context available for AI summarization.\n— Informativeness filters out less useful material.\n— Deduplication removes similar news from the feed.\n— Hide single items removes entries that did not gather enough matches.\n— Local and cloud similarity thresholds define how close items must be to be merged.\n— Minimum mentions defines how many matches are needed before a topic is treated as a group.</string>
     <string name="settings_help_section_scheduled_summary">— Scheduled summary enables automatic digest generation by schedule.\n— Push notifications control notifications after a summary is created.\n— Time defines when the daily summary runs.\n— Show latest summaries sets the history size on the summary screen.\n— Show news in infographic defines how many items appear in the summary dashboard infographic.</string>
-    <string name="settings_help_section_recommendations">— Show recommendations enables topic suggestions and quick subscription blocks.\n— It controls whether recommended themes and guided source suggestions appear in the app.</string>
+    <string name="settings_help_section_recommendations">— Receive topic recommendations based on added sources turns the “Recommended” badges on or off.\n— The topic subscription list stays visible regardless of this switch.</string>
     <string name="settings_help_section_memory">— Article auto cleanup defines after how many days old articles are removed automatically.\n— Clear articles removes the local feed content but keeps the sources.\n— Clear embeddings resets vector data and similarity cache.\n— Clear scheduled summaries removes stored scheduled summary history.\n— Reset settings returns app preferences to their default values.</string>
     <string name="summary_prompt_default">Task: group the material into key themes, keep the most important stories, write short headlines, and attach each story to the best source.</string>
     <string name="ai_question_prompt_prefix">Question:</string>

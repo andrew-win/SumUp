@@ -2,11 +2,13 @@ package com.andrewwin.sumup.domain.usecase.feed
 
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
+import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
 import com.andrewwin.sumup.domain.usecase.sources.SuggestedThemesRefreshConstants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -22,6 +24,7 @@ class RefreshFeedUseCaseImpl @Inject constructor(
     private val refreshArticlesUseCase: RefreshArticlesUseCase,
     private val getSuggestedThemesUseCase: GetSuggestedThemesUseCase,
     private val suggestedThemesStateRepository: SuggestedThemesStateRepository,
+    private val userPreferencesRepository: UserPreferencesRepository,
     private val dispatcherProvider: DispatcherProvider
 ) : RefreshFeedUseCase {
     private val mutex = Mutex()
@@ -46,7 +49,8 @@ class RefreshFeedUseCaseImpl @Inject constructor(
             refreshResult
         }
 
-        if (result.isSuccess && shouldRefreshSuggestedThemes) {
+        val shouldRecalculateRecommendations = userPreferencesRepository.preferences.first().isRecommendationsEnabled
+        if (result.isSuccess && shouldRefreshSuggestedThemes && shouldRecalculateRecommendations) {
             backgroundScope.launch {
                 runCatching { getSuggestedThemesUseCase(forceRefresh = false).collect() }
             }

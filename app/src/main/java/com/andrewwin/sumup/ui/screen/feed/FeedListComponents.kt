@@ -36,7 +36,6 @@ import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -256,7 +255,6 @@ fun ArticleClusterCard(
     onAiClick: (ArticleUiModel) -> Unit,
     onClusterAiClick: () -> Unit,
     onToggleSaved: () -> Unit,
-    isDedupInProgress: Boolean,
     minMentions: Int
 ) {
     val context = LocalContext.current
@@ -334,22 +332,6 @@ fun ArticleClusterCard(
                                     uiModel = uiModel,
                                     score = score,
                                     onOpenSource = { onOpenSource(uiModel) }
-                                )
-                            }
-                        }
-
-                        if (isDedupInProgress) {
-                            Spacer(Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                Spacer(Modifier.width(10.dp))
-                                Text(
-                                    text = stringResource(R.string.feed_searching_similar),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }

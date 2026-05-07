@@ -280,85 +280,84 @@ fun SourcesScreen(
                     val suggestedThemes by viewModel.suggestedThemes.collectAsState()
                     val subscriptionsSyncFailed by viewModel.subscriptionsSyncFailed.collectAsState()
                     val isRefreshingThemeRecommendations by viewModel.isRefreshingThemeRecommendations.collectAsState()
-                    
-                    if (isRecommendationsEnabled) {
-                        AppHelpOverlayTarget(
-                            isEnabled = isHelpMode,
-                            description = suggestedThemesHelpDescription,
-                            onShowDescription = { helpDescription = it }
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                if (subscriptionsSyncFailed) {
-                                    Text(
-                                        text = stringResource(R.string.sources_sync_failed),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
-                                    )
-                                }
 
-                                suggestedThemes.chunked(2).forEach { rowItems ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        rowItems.forEach { suggestion ->
-                                            SuggestedThemeItem(
-                                                suggestion = suggestion,
-                                                appLanguage = appLanguage,
-                                                modifier = Modifier.weight(1f),
-                                                onToggle = { isSubscribed ->
-                                                    viewModel.toggleThemeSubscription(suggestion, isSubscribed)
-                                                }
-                                            )
-                                        }
-                                        if (rowItems.size == 1) {
-                                            Spacer(modifier = Modifier.weight(1f))
-                                        }
-                                    }
-                                }
+                    AppHelpOverlayTarget(
+                        isEnabled = isHelpMode,
+                        description = suggestedThemesHelpDescription,
+                        onShowDescription = { helpDescription = it }
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            if (subscriptionsSyncFailed) {
+                                Text(
+                                    text = stringResource(R.string.sources_sync_failed),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
+                                )
+                            }
 
-                                if (isRefreshingThemeRecommendations) {
-                                    Row(
-                                        modifier = Modifier
-                                            .padding(start = 4.dp, top = 4.dp, bottom = 8.dp)
-                                            .animateContentSize(),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(14.dp),
-                                            strokeWidth = 2.dp
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = stringResource(R.string.sources_refreshing_recommendations),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-
-                                FilledTonalButton(
-                                    onClick = { viewModel.refreshSuggestedThemes(forceRefresh = true) },
-                                    modifier = Modifier
-                                        .align(Alignment.Start)
-                                        .padding(top = 8.dp),
-                                    shape = MaterialTheme.shapes.medium,
-                                    colors = ButtonDefaults.filledTonalButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                                        contentColor = MaterialTheme.colorScheme.primary
-                                    )
+                            suggestedThemes.chunked(2).forEach { rowItems ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Refresh,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(stringResource(R.string.sources_refresh_themes))
+                                    rowItems.forEach { suggestion ->
+                                        SuggestedThemeItem(
+                                            suggestion = suggestion,
+                                            appLanguage = appLanguage,
+                                            showRecommendedBadge = isRecommendationsEnabled,
+                                            modifier = Modifier.weight(1f),
+                                            onToggle = { isSubscribed ->
+                                                viewModel.toggleThemeSubscription(suggestion, isSubscribed)
+                                            }
+                                        )
+                                    }
+                                    if (rowItems.size == 1) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
                                 }
                             }
-                        }                
+
+                            if (isRefreshingThemeRecommendations) {
+                                Row(
+                                    modifier = Modifier
+                                        .padding(start = 4.dp, top = 4.dp, bottom = 8.dp)
+                                        .animateContentSize(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = stringResource(R.string.sources_refreshing_recommendations),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            FilledTonalButton(
+                                onClick = { viewModel.refreshSuggestedThemes(forceRefresh = true) },
+                                modifier = Modifier
+                                    .align(Alignment.Start)
+                                    .padding(top = 8.dp),
+                                shape = MaterialTheme.shapes.medium,
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(stringResource(R.string.sources_refresh_themes))
+                            }
+                        }
                     }
                 }
             }
@@ -1013,6 +1012,7 @@ private fun normalizeSourceUrl(url: String, type: SourceType): String {
 fun SuggestedThemeItem(
     suggestion: FirebaseThemeSuggestion,
     appLanguage: AppLanguage,
+    showRecommendedBadge: Boolean,
     modifier: Modifier = Modifier,
     onToggle: (Boolean) -> Unit
 ) {
@@ -1048,7 +1048,7 @@ fun SuggestedThemeItem(
                     tint = if (suggestion.isSubscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                   )
               }
-              if (suggestion.isRecommended) {
+              if (showRecommendedBadge && suggestion.isRecommended) {
                   Spacer(modifier = Modifier.height(6.dp))
                   Text(
                       text = stringResource(R.string.sources_recommended_badge),

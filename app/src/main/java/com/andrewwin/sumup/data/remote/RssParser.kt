@@ -62,6 +62,11 @@ class RssParser @Inject constructor(
         val mediaUrl = extractImageFromHtml(content.ifBlank { description })
 
         return Article(
+            stableArticleKey = ArticleStableKeyFactory.buildRssKey(
+                sourceId = sourceId,
+                guid = guid,
+                url = cleanUrl
+            ),
             sourceId = sourceId,
             title = title,
             content = if (description.isNotBlank()) description else content,

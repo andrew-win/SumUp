@@ -116,6 +116,11 @@ class YouTubeParser {
         videoId = extractVideoIdFromText(videoId).orEmpty()
 
         return Article(
+            stableArticleKey = ArticleStableKeyFactory.buildYouTubeKey(
+                sourceId = sourceId,
+                videoId = videoId,
+                url = link
+            ),
             sourceId = sourceId,
             title = title,
             content = description,

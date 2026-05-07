@@ -18,12 +18,14 @@ import androidx.room.PrimaryKey
     ],
     indices = [
         Index("sourceId"),
-        Index("url", unique = true),
+        Index("stableArticleKey", unique = true),
+        Index("url"),
         Index("publishedAt")
     ]
 )
 data class Article(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val stableArticleKey: String = "",
     val sourceId: Long,
     val title: String,
     val content: String,

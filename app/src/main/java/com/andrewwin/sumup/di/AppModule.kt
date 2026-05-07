@@ -27,6 +27,7 @@ import com.andrewwin.sumup.data.repository.UserPreferencesRepositoryImpl
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
 import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.service.CloudEmbeddingService
+import com.andrewwin.sumup.domain.service.DedupRuntimeCoordinator
 import com.andrewwin.sumup.domain.service.LocalEmbeddingService
 import com.andrewwin.sumup.domain.service.SimilarityScorer
 import com.andrewwin.sumup.domain.support.AiPromptProvider
@@ -238,11 +239,13 @@ object AppModule {
     fun provideSimilarityScorer(
         articleRepository: ArticleRepository,
         localEmbeddingService: LocalEmbeddingService,
-        cloudEmbeddingService: CloudEmbeddingService
+        cloudEmbeddingService: CloudEmbeddingService,
+        dedupRuntimeCoordinator: DedupRuntimeCoordinator
     ): SimilarityScorer = SimilarityScorer(
         articleRepository,
         localEmbeddingService,
-        cloudEmbeddingService
+        cloudEmbeddingService,
+        dedupRuntimeCoordinator
     )
 
     @Provides
@@ -256,11 +259,13 @@ object AppModule {
         refreshArticlesUseCase: RefreshArticlesUseCase,
         getSuggestedThemesUseCase: GetSuggestedThemesUseCase,
         suggestedThemesStateRepository: SuggestedThemesStateRepository,
+        userPreferencesRepository: UserPreferencesRepository,
         dispatcherProvider: com.andrewwin.sumup.domain.support.DispatcherProvider
     ): RefreshFeedUseCase = RefreshFeedUseCaseImpl(
         refreshArticlesUseCase = refreshArticlesUseCase,
         getSuggestedThemesUseCase = getSuggestedThemesUseCase,
         suggestedThemesStateRepository = suggestedThemesStateRepository,
+        userPreferencesRepository = userPreferencesRepository,
         dispatcherProvider = dispatcherProvider
     )
 
@@ -321,4 +326,3 @@ object AppModule {
     fun provideDispatcherProvider(): com.andrewwin.sumup.domain.support.DispatcherProvider =
         AppDispatcherProvider()
 }
-

@@ -18,7 +18,7 @@ class TelegramParser {
 
         messages.forEach { element ->
             val key = buildKey(element)
-            val parts = partsByKey.getOrPut(key) { MessageParts() }
+            val parts = partsByKey.getOrPut(key) { MessageParts(key = key) }
 
             val text = element
                 .select(".tgme_widget_message_text")
@@ -75,6 +75,11 @@ class TelegramParser {
                 ?: System.currentTimeMillis()
 
             Article(
+                stableArticleKey = ArticleStableKeyFactory.buildTelegramKey(
+                    sourceId = sourceId,
+                    messageKey = parts.key,
+                    url = parts.url.orEmpty()
+                ),
                 sourceId = sourceId,
                 title = title,
                 content = if (cleanedText.isBlank()) fullText else cleanedText,
@@ -238,6 +243,7 @@ class TelegramParser {
     }
 
     private data class MessageParts(
+        val key: String = "",
         var text: String? = null,
         var url: String? = null,
         var dateStr: String? = null,

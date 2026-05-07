@@ -39,6 +39,7 @@ import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.service.DedupRuntimeCoordinator
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
 import com.andrewwin.sumup.domain.usecase.settings.UpdateCustomSummaryPromptEnabledUseCase
@@ -111,6 +112,7 @@ class SettingsViewModel @Inject constructor(
     private val scheduleSummaryUseCase: ScheduleSummaryUseCase,
     private val updateSummaryPromptUseCase: UpdateSummaryPromptUseCase,
     private val updateCustomSummaryPromptEnabledUseCase: UpdateCustomSummaryPromptEnabledUseCase,
+    private val dedupRuntimeCoordinator: DedupRuntimeCoordinator,
     private val secretEncryptionManager: SecretEncryptionManager
 ) : AndroidViewModel(application) {
     private val firebaseAuth by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { FirebaseAuth.getInstance() }
@@ -255,11 +257,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val current = userPreferencesRepository.preferences.first()
             if (current.deduplicationStrategy != strategy) {
+                dedupRuntimeCoordinator.invalidateAfterEmbeddingsClear()
                 articleRepository.clearEmbeddings()
                 articleRepository.clearSimilarities()
+                Log.d("FeedDedupDebug", "embedding_runs_invalidated reason=strategy_changed")
+                Log.d("FeedDedupDebug", "dedup_restart_skipped reason=strategy_changed")
             }
             userPreferencesRepository.updatePreferences(current.copy(deduplicationStrategy = strategy))
-            articleRepository.refreshArticles()
         }
     }
 
@@ -476,8 +480,10 @@ class SettingsViewModel @Inject constructor(
 
     fun clearEmbeddings() {
         viewModelScope.launch {
+            dedupRuntimeCoordinator.invalidateAfterEmbeddingsClear()
             articleRepository.clearEmbeddings()
-            articleRepository.triggerDataInvalidation()
+            Log.d("FeedDedupDebug", "embeddings_cleared reason=settings_action")
+            Log.d("FeedDedupDebug", "dedup_restart_skipped reason=settings_clear")
         }
     }
 

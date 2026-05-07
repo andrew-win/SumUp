@@ -42,10 +42,6 @@ class GetSuggestedThemesUseCase @Inject constructor(
 ) {
     operator fun invoke(forceRefresh: Boolean = false): Flow<List<ThemeSuggestion>> = flow {
         val prefsData = userPreferencesRepository.preferences.first()
-        if (!prefsData.isRecommendationsEnabled) {
-            emit(emptyList())
-            return@flow
-        }
 
         val themeProfiles = publicSubscriptionsSyncManager.getCachedGroups()
             .filter { it.isEnabled && (it.sources.isNotEmpty() || it.recommendationAnchors.isNotEmpty()) }
@@ -60,6 +56,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
         val allSourcesUrls = allSources.map { it.url }.toSet()
         val currentSourcesHash = allSourcesUrls.hashCode()
         val sourceTypeMap = allSources.associate { it.id to it.type }
+        val shouldShowRecommendedBadges = prefsData.isRecommendationsEnabled
 
         val savedThemeIds = suggestedThemesStateRepository.getSavedThemeIds()
         val savedThemeTitlesLegacy = suggestedThemesStateRepository.getSavedThemeTitlesLegacy()
@@ -70,6 +67,20 @@ class GetSuggestedThemesUseCase @Inject constructor(
             (now - lastRecommendationAt) >= SuggestedThemesRefreshConstants.REFRESH_INTERVAL_MS &&
             lastFeedRefreshAt > lastRecommendationAt
         )
+
+        if (!shouldShowRecommendedBadges) {
+            emit(
+                themeProfiles.map {
+                    ThemeSuggestion(
+                        theme = it,
+                        score = 0f,
+                        isSubscribed = it.sources.all { source -> allSourcesUrls.contains(source.url) },
+                        isRecommended = false
+                    )
+                }
+            )
+            return@flow
+        }
 
         if (!shouldRecalculate) {
             val cached = themeProfiles.map {

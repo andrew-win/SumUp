@@ -326,7 +326,6 @@ fun FeedScreen(
                                         ).show()
                                     }
                                 },
-                                isDedupInProgress = isDedupInProgress,
                                 minMentions = userPreferences.minMentions
                             )
                         }
