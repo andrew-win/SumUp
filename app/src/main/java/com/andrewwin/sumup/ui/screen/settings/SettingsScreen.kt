@@ -289,12 +289,6 @@ internal fun SettingsScreen(
     var aiMaxCharsTotal by rememberSaveable(userPreferences.aiMaxCharsTotal) {
         mutableStateOf(userPreferences.aiMaxCharsTotal.toFloat())
     }
-    var summaryNewsInFeedExtractive by rememberSaveable(userPreferences.summaryNewsInFeedExtractive) {
-        mutableStateOf(userPreferences.summaryNewsInFeedExtractive.toFloat())
-    }
-    var summaryNewsInScheduledExtractive by rememberSaveable(userPreferences.summaryNewsInScheduledExtractive) {
-        mutableStateOf(userPreferences.summaryNewsInScheduledExtractive.toFloat())
-    }
     var showLastSummariesCount by rememberSaveable(userPreferences.showLastSummariesCount) {
         mutableStateOf(userPreferences.showLastSummariesCount.toFloat())
     }
@@ -488,8 +482,6 @@ internal fun SettingsScreen(
                             aiMaxCharsPerArticle = aiMaxCharsPerArticle,
                             aiMaxCharsPerFeedArticle = aiMaxCharsPerFeedArticle,
                             aiMaxCharsTotal = aiMaxCharsTotal,
-                            summaryNewsInFeedExtractive = summaryNewsInFeedExtractive,
-                            summaryNewsInScheduledExtractive = summaryNewsInScheduledExtractive,
                             adaptiveExtractiveOnlyBelowChars = adaptiveExtractiveOnlyBelowChars,
                             adaptiveExtractiveHighCompressionAboveChars = adaptiveExtractiveHighCompressionAboveChars,
                             adaptiveExtractiveCompressionPercentFirst = adaptiveExtractiveCompressionPercentFirst,
@@ -507,14 +499,6 @@ internal fun SettingsScreen(
                             onAiMaxCharsTotalChange = { aiMaxCharsTotal = it },
                             onAiMaxCharsTotalCommitted = {
                                 viewModel.updateAiMaxCharsTotal(aiMaxCharsTotal.toInt())
-                            },
-                            onSummaryNewsInFeedExtractiveChange = { summaryNewsInFeedExtractive = it },
-                            onSummaryNewsInFeedExtractiveCommitted = {
-                                viewModel.updateSummaryNewsInFeedExtractive(summaryNewsInFeedExtractive.toInt())
-                            },
-                            onSummaryNewsInScheduledExtractiveChange = { summaryNewsInScheduledExtractive = it },
-                            onSummaryNewsInScheduledExtractiveCommitted = {
-                                viewModel.updateSummaryNewsInScheduledExtractive(summaryNewsInScheduledExtractive.toInt())
                             },
                             onCustomSummaryPromptEnabledChange = viewModel::updateCustomSummaryPromptEnabled,
                             onSummaryPromptChange = {
@@ -849,13 +833,10 @@ private fun SettingsGroup.searchableTextResIds(): List<Int> = when (this) {
         R.string.settings_custom_summary_prompt,
         R.string.settings_summary_prompt,
         R.string.settings_ai_limits,
-        R.string.settings_local_summary,
         R.string.settings_adaptive_summary,
         R.string.settings_ai_chars_per_article_processing,
         R.string.settings_ai_chars_per_feed_article,
         R.string.settings_ai_chars_total,
-        R.string.settings_summary_news_feed_extractive,
-        R.string.settings_summary_news_scheduled_extractive,
         R.string.settings_adaptive_extractive_only_below_chars,
         R.string.settings_adaptive_extractive_high_compression_above_chars,
         R.string.settings_adaptive_extractive_compression_percent_medium,

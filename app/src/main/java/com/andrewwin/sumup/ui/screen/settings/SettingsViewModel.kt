@@ -439,16 +439,8 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(summaryItemsPerNewsInScheduled = count) } }
     }
 
-    fun updateSummaryNewsInFeedExtractive(count: Int) {
-        viewModelScope.launch { updatePreferences { it.copy(summaryNewsInFeedExtractive = count) } }
-    }
-
     fun updateSummaryNewsInFeedCloud(count: Int) {
         viewModelScope.launch { updatePreferences { it.copy(summaryNewsInFeedCloud = count) } }
-    }
-
-    fun updateSummaryNewsInScheduledExtractive(count: Int) {
-        viewModelScope.launch { updatePreferences { it.copy(summaryNewsInScheduledExtractive = count) } }
     }
 
     fun updateSummaryNewsInScheduledCloud(count: Int) {

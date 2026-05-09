@@ -326,8 +326,6 @@ internal fun SettingsAiProcessingGroupContent(
     aiMaxCharsPerArticle: Float,
     aiMaxCharsPerFeedArticle: Float,
     aiMaxCharsTotal: Float,
-    summaryNewsInFeedExtractive: Float,
-    summaryNewsInScheduledExtractive: Float,
     adaptiveExtractiveOnlyBelowChars: Float,
     adaptiveExtractiveHighCompressionAboveChars: Float,
     adaptiveExtractiveCompressionPercentFirst: Float,
@@ -340,10 +338,6 @@ internal fun SettingsAiProcessingGroupContent(
     onAiMaxCharsPerFeedArticleCommitted: () -> Unit,
     onAiMaxCharsTotalChange: (Float) -> Unit,
     onAiMaxCharsTotalCommitted: () -> Unit,
-    onSummaryNewsInFeedExtractiveChange: (Float) -> Unit,
-    onSummaryNewsInFeedExtractiveCommitted: () -> Unit,
-    onSummaryNewsInScheduledExtractiveChange: (Float) -> Unit,
-    onSummaryNewsInScheduledExtractiveCommitted: () -> Unit,
     onCustomSummaryPromptEnabledChange: (Boolean) -> Unit,
     onSummaryPromptChange: (String) -> Unit,
     onAdaptiveExtractiveOnlyBelowCharsChange: (Float) -> Unit,
@@ -445,35 +439,8 @@ internal fun SettingsAiProcessingGroupContent(
                     value = aiMaxCharsTotal,
                     onValueChange = onAiMaxCharsTotalChange,
                     onValueChangeFinished = onAiMaxCharsTotalCommitted,
-                    valueRange = 2000f..20000f,
-                    steps = 35
-                )
-            }
-        }
-
-        SettingsSection(
-            title = stringResource(R.string.settings_local_summary),
-            boxed = true,
-            isHelpMode = isHelpMode,
-            helpDescription = stringResource(R.string.settings_help_section_local_summary),
-            onHelpRequest = onHelpRequest
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                SettingsIntSliderItem(
-                    label = stringResource(R.string.settings_summary_news_feed_extractive, summaryNewsInFeedExtractive.toInt()),
-                    value = summaryNewsInFeedExtractive,
-                    onValueChange = onSummaryNewsInFeedExtractiveChange,
-                    onValueChangeFinished = onSummaryNewsInFeedExtractiveCommitted,
-                    valueRange = 1f..20f,
-                    steps = 18
-                )
-                SettingsIntSliderItem(
-                    label = stringResource(R.string.settings_summary_news_scheduled_extractive, summaryNewsInScheduledExtractive.toInt()),
-                    value = summaryNewsInScheduledExtractive,
-                    onValueChange = onSummaryNewsInScheduledExtractiveChange,
-                    onValueChangeFinished = onSummaryNewsInScheduledExtractiveCommitted,
-                    valueRange = 1f..20f,
-                    steps = 18
+                    valueRange = 2000f..50000f,
+                    steps = 95
                 )
             }
         }

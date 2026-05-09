@@ -10,6 +10,7 @@ import com.andrewwin.sumup.data.local.dao.SavedArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
+import com.andrewwin.sumup.data.local.scheduler.ScheduledSummaryTimeCalculator
 import com.andrewwin.sumup.data.local.scheduler.SummarySchedulerImpl
 import com.andrewwin.sumup.data.provider.AiPromptProviderImpl
 import com.andrewwin.sumup.data.provider.AppDispatcherProvider
@@ -313,8 +314,16 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideSummaryScheduler(workManager: WorkManager): SummaryScheduler =
-        SummarySchedulerImpl(workManager)
+    fun provideSummaryScheduler(
+        @ApplicationContext context: Context,
+        workManager: WorkManager,
+        timeCalculator: ScheduledSummaryTimeCalculator
+    ): SummaryScheduler = SummarySchedulerImpl(context, workManager, timeCalculator)
+
+    @Provides
+    @Singleton
+    fun provideScheduledSummaryTimeCalculator(): ScheduledSummaryTimeCalculator =
+        ScheduledSummaryTimeCalculator()
 
     @Provides
     @Singleton

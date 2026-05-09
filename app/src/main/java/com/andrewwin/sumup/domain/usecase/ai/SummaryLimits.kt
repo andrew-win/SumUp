@@ -44,7 +44,7 @@ object SummaryLimits {
     }
 
     object Adaptive {
-        const val digestExtractiveSentences = 3
+        const val digestExtractiveSentences = 2
 
         val shortTextThresholdChars: Int
             get() = currentPrefs?.adaptiveExtractiveOnlyBelowChars ?: 1000

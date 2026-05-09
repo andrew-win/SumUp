@@ -64,9 +64,7 @@ internal fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
     put("adaptiveExtractiveCompressionPercentHigh", adaptiveExtractiveCompressionPercentHigh)
     put("summaryItemsPerNewsInFeed", summaryItemsPerNewsInFeed)
     put("summaryItemsPerNewsInScheduled", summaryItemsPerNewsInScheduled)
-    put("summaryNewsInFeedExtractive", summaryNewsInFeedExtractive)
     put("summaryNewsInFeedCloud", summaryNewsInFeedCloud)
-    put("summaryNewsInScheduledExtractive", summaryNewsInScheduledExtractive)
     put("summaryNewsInScheduledCloud", summaryNewsInScheduledCloud)
     put("extractiveNewsInFeed", extractiveNewsInFeed)
     put("extractiveSentencesInScheduled", extractiveSentencesInScheduled)
@@ -155,15 +153,7 @@ internal fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
             "summaryItemsPerNewsInScheduled",
             defaults.summaryItemsPerNewsInScheduled
         ),
-        summaryNewsInFeedExtractive = optInt(
-            "summaryNewsInFeedExtractive",
-            defaults.summaryNewsInFeedExtractive
-        ),
         summaryNewsInFeedCloud = optInt("summaryNewsInFeedCloud", defaults.summaryNewsInFeedCloud),
-        summaryNewsInScheduledExtractive = optInt(
-            "summaryNewsInScheduledExtractive",
-            defaults.summaryNewsInScheduledExtractive
-        ),
         summaryNewsInScheduledCloud = optInt(
             "summaryNewsInScheduledCloud",
             defaults.summaryNewsInScheduledCloud
@@ -414,7 +404,6 @@ internal fun JSONArray?.toSavedArticlesFromBackup(): List<SavedArticle> {
     }
     return items
 }
-
 
 
 

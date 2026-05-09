@@ -31,7 +31,7 @@ class ParseAiJsonResponseUseCase @Inject constructor() {
     }
 
     private fun extractStructuredSourceRefs(content: String): Map<String, SummarySourceRef> {
-        val refs = mutableMapOf<String, SummarySourceRef>()
+        val refs = extractCompactSourceRefs(content).toMutableMap()
         val regex = Regex("source_id:\\s*(\\d+)\\s*source_name:\\s*(.+?)\\s*source_url:\\s*(.+?)\\s*title:", RegexOption.DOT_MATCHES_ALL)
         regex.findAll(content).forEach { match ->
             val id = match.groupValues[1]
@@ -40,6 +40,21 @@ class ParseAiJsonResponseUseCase @Inject constructor() {
             refs[id] = SummarySourceRef(name, url)
         }
         return refs
+    }
+
+    private fun extractCompactSourceRefs(content: String): Map<String, SummarySourceRef> {
+        return content.lineSequence()
+            .filterNot { line -> line.startsWith(COMPACT_PAYLOAD_HEADER_PREFIX) }
+            .mapNotNull { line ->
+                val columns = line.split(COMPACT_PAYLOAD_SEPARATOR, limit = COMPACT_PAYLOAD_COLUMN_COUNT)
+                if (columns.size < COMPACT_PAYLOAD_COLUMN_COUNT) return@mapNotNull null
+                val id = columns[COMPACT_ID_INDEX].trim()
+                val name = columns[COMPACT_SOURCE_NAME_INDEX].trim()
+                val url = columns[COMPACT_SOURCE_URL_INDEX].trim()
+                if (id.isBlank() || name.isBlank()) return@mapNotNull null
+                id to SummarySourceRef(name = name, url = url)
+            }
+            .toMap()
     }
 
     private fun toSummaryResult(json: SummaryResponseJson, sourceRefs: Map<String, SummarySourceRef>): SummaryResult {
@@ -98,5 +113,14 @@ class ParseAiJsonResponseUseCase @Inject constructor() {
             details = details,
             sources = sources
         )
+    }
+
+    private companion object {
+        const val COMPACT_PAYLOAD_HEADER_PREFIX = "#"
+        const val COMPACT_PAYLOAD_SEPARATOR = "|"
+        const val COMPACT_PAYLOAD_COLUMN_COUNT = 5
+        const val COMPACT_ID_INDEX = 0
+        const val COMPACT_SOURCE_NAME_INDEX = 1
+        const val COMPACT_SOURCE_URL_INDEX = 2
     }
 }

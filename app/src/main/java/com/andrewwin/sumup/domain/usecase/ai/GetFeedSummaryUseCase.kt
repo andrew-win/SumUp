@@ -87,6 +87,10 @@ class GetFeedSummaryUseCase @Inject constructor(
         var partiallyIncludedArticlesCount = 0
         val totalArticlesCount = articles.size
         val cloudInput = buildString {
+            append(PAYLOAD_HEADER)
+            remainingTotal -= PAYLOAD_HEADER.length
+            availablePayloadChars += PAYLOAD_HEADER.length
+
             for (article in articles) {
                 val source = articleRepository.getSourceById(article.sourceId)
                 val sourceName = source?.name?.trim()?.ifBlank { sourceFallbackName } ?: sourceFallbackName
@@ -103,13 +107,13 @@ class GetFeedSummaryUseCase @Inject constructor(
                 }
                 processedContentChars += textForCloud.length
 
-                val block = buildString {
-                    append("source_id: ${article.id}\n")
-                    append("source_name: $sourceName\n")
-                    append("source_url: $sourceUrl\n")
-                    append("title: ${article.title}\n")
-                    append("content: $textForCloud\n\n")
-                }
+                val block = buildPayloadRow(
+                    id = article.id,
+                    sourceName = sourceName,
+                    sourceUrl = sourceUrl,
+                    title = article.title,
+                    content = textForCloud
+                )
                 availablePayloadChars += block.length
 
                 if (remainingTotal <= 0) {
@@ -171,6 +175,28 @@ class GetFeedSummaryUseCase @Inject constructor(
         return relatedArticleIds.mapValues { it.value.size }
     }
 
+    private fun buildPayloadRow(
+        id: Long,
+        sourceName: String,
+        sourceUrl: String,
+        title: String,
+        content: String
+    ): String {
+        return listOf(
+            id.toString(),
+            sourceName.cleanPayloadField(),
+            sourceUrl.cleanPayloadField(),
+            title.cleanPayloadField(),
+            content.cleanPayloadField()
+        ).joinToString(PAYLOAD_FIELD_SEPARATOR) + "\n"
+    }
+
+    private fun String.cleanPayloadField(): String {
+        return replace(PAYLOAD_FIELD_SEPARATOR, " ")
+            .replace(WHITESPACE_REGEX, " ")
+            .trim()
+    }
+
     private val sourceFallbackName: String
         get() = context.getString(R.string.summary_source_fallback)
 
@@ -182,5 +208,8 @@ class GetFeedSummaryUseCase @Inject constructor(
         private const val MIN_TOTAL_CHARS = 1000
         private const val MIN_CHARS_PER_FEED_ARTICLE = 200
         private const val CLOUD_CHARS_LOG_TAG = "CloudChars"
+        private const val PAYLOAD_FIELD_SEPARATOR = "|"
+        private const val PAYLOAD_HEADER = "# id|src|url|title|content\n"
+        private val WHITESPACE_REGEX = Regex("\\s+")
     }
 }

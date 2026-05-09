@@ -3,8 +3,9 @@ package com.andrewwin.sumup.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.andrewwin.sumup.data.local.scheduler.ScheduledSummaryTimeCalculator
+import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.settings.ScheduleSummaryUseCase
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,18 +21,30 @@ class ScheduledSummaryRescheduleReceiver : BroadcastReceiver() {
     lateinit var userPreferencesRepository: UserPreferencesRepository
 
     @Inject
-    lateinit var scheduleSummaryUseCase: ScheduleSummaryUseCase
+    lateinit var summaryScheduler: SummaryScheduler
+
+    @Inject
+    lateinit var timeCalculator: ScheduledSummaryTimeCalculator
 
     override fun onReceive(context: Context, intent: Intent) {
         val pendingResult = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching {
                 val prefs = userPreferencesRepository.preferences.first()
-                scheduleSummaryUseCase(
-                    prefs.isScheduledSummaryEnabled,
-                    prefs.scheduledHour,
-                    prefs.scheduledMinute
-                )
+                if (prefs.isScheduledSummaryEnabled) {
+                    if (
+                        timeCalculator.wasTodayTriggerMissed(
+                            prefs.scheduledHour,
+                            prefs.scheduledMinute,
+                            prefs.lastWorkRunTimestamp
+                        )
+                    ) {
+                        summaryScheduler.runNow()
+                    }
+                    summaryScheduler.schedule(prefs.scheduledHour, prefs.scheduledMinute)
+                } else {
+                    summaryScheduler.cancel()
+                }
             }
             pendingResult.finish()
         }

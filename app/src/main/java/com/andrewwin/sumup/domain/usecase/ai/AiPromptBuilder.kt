@@ -122,6 +122,7 @@ object AiPromptBuilder {
                 "Each theme must have ${SummaryLimits.Digest.minItemsPerTheme} to ${SummaryLimits.Digest.maxItemsPerTheme} short abstractive news items (titles).",
                 "Item title: punchy, short (max ${SummaryLimits.Digest.maxWordsPerTitle} words).",
                 "Each news must have exactly one source_id.",
+                "Input news rows use this format: id|src|url|title|content. Use the id column exactly as source_id.",
                 getLanguageRule(summaryLanguage)
             ),
             schema = """{"themes":[{"title":"Emoji Theme Title","items":[{"title":"news title","source_id":"id"}]}]}""",

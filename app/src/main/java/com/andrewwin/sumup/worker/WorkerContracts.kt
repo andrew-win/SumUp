@@ -23,6 +23,9 @@ object WorkerContracts {
 
     const val SUMMARY_CHANNEL_ID = "scheduled_summary_channel"
     const val SUMMARY_NOTIFICATION_ID = 1001
+    const val SCHEDULED_SUMMARY_WORK_NAME = "scheduled_summary"
+    const val ACTION_RUN_SCHEDULED_SUMMARY = "com.andrewwin.sumup.action.RUN_SCHEDULED_SUMMARY"
+    const val SCHEDULED_SUMMARY_ALARM_REQUEST_CODE = 2001
     const val MAX_ARTICLES_FOR_SUMMARIZATION = 15
     const val MAX_RETRY_ATTEMPTS = 2
 }

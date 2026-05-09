@@ -34,6 +34,10 @@ class SummaryWorkerHandler @Inject constructor(
 ) {
     suspend fun execute(runAttemptCount: Int): ListenableWorker.Result {
         val prefs = userPreferencesRepository.preferences.first()
+        if (!prefs.isScheduledSummaryEnabled) {
+            summaryScheduler.cancel()
+            return ListenableWorker.Result.success()
+        }
 
         userPreferencesRepository.updatePreferences(
             prefs.copy(lastWorkRunTimestamp = System.currentTimeMillis())
@@ -120,7 +124,6 @@ class SummaryWorkerHandler @Inject constructor(
         manager.createNotificationChannel(channel)
     }
 }
-
 
 
 
