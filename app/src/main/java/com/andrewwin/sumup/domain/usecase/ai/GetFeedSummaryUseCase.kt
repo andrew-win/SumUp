@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.domain.usecase.ai
 
 import android.content.Context
+import android.util.Log
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Article
@@ -49,7 +50,7 @@ class GetFeedSummaryUseCase @Inject constructor(
             .sortedByDescending { article ->
                 article.baseImportanceScore + article.similarArticlesCount * LOCAL_SIMILAR_NEWS_BONUS_PER_MATCH
             }
-            .take(LOCAL_FEED_SUMMARY_TOP_ARTICLES_COUNT)
+            .take(SummaryLimits.Digest.maxLocalArticles)
 
         val items = topArticles.map { candidate ->
             val article = candidate.article
@@ -79,21 +80,28 @@ class GetFeedSummaryUseCase @Inject constructor(
         val prefs = userPreferencesRepository.preferences.first()
         val maxTotalChars = prefs.aiMaxCharsTotal.coerceAtLeast(MIN_TOTAL_CHARS)
         var remainingTotal = maxTotalChars
+        var availablePayloadChars = 0
+        var processedContentChars = 0
+        var originalContentChars = 0
+        var includedArticlesCount = 0
+        var partiallyIncludedArticlesCount = 0
+        val totalArticlesCount = articles.size
         val cloudInput = buildString {
             for (article in articles) {
-                if (remainingTotal <= 0) break
                 val source = articleRepository.getSourceById(article.sourceId)
                 val sourceName = source?.name?.trim()?.ifBlank { sourceFallbackName } ?: sourceFallbackName
                 val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
 
                 val fullContent = articleRepository.fetchFullContent(article)
                 val contentToProcess = fullContent.ifBlank { article.content }
+                originalContentChars += contentToProcess.length
 
                 val textForCloud = if (strategy == AiStrategy.ADAPTIVE) {
-                    shrinkTextForAdaptiveStrategyUseCase(contentToProcess, prefs)
+                    shrinkTextForAdaptiveStrategyUseCase.shrinkDigestArticle(contentToProcess)
                 } else {
                     contentToProcess.take(prefs.aiMaxCharsPerFeedArticle.coerceAtLeast(MIN_CHARS_PER_FEED_ARTICLE))
                 }
+                processedContentChars += textForCloud.length
 
                 val block = buildString {
                     append("source_id: ${article.id}\n")
@@ -102,16 +110,37 @@ class GetFeedSummaryUseCase @Inject constructor(
                     append("title: ${article.title}\n")
                     append("content: $textForCloud\n\n")
                 }
+                availablePayloadChars += block.length
 
-                if (block.length <= remainingTotal) {
+                if (remainingTotal <= 0) {
+                    continue
+                } else if (block.length <= remainingTotal) {
                     append(block)
                     remainingTotal -= block.length
+                    includedArticlesCount++
                 } else {
                     append(block.take(remainingTotal))
+                    partiallyIncludedArticlesCount++
                     remainingTotal = 0
                 }
             }
         }
+        val droppedPayloadChars = (availablePayloadChars - cloudInput.length).coerceAtLeast(0)
+        val droppedContentChars = (originalContentChars - processedContentChars).coerceAtLeast(0)
+        Log.d(
+            CLOUD_CHARS_LOG_TAG,
+            "strategy=$strategy " +
+                "limit=$maxTotalChars " +
+                "sent=${cloudInput.length} " +
+                "droppedByTotalLimit=$droppedPayloadChars " +
+                "availablePayload=$availablePayloadChars " +
+                "originalContent=$originalContentChars " +
+                "processedContent=$processedContentChars " +
+                "droppedByArticleLimitOrAdaptive=$droppedContentChars " +
+                "includedArticles=$includedArticlesCount " +
+                "partiallyIncludedArticles=$partiallyIncludedArticlesCount " +
+                "totalArticles=$totalArticlesCount"
+        )
 
         val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
         val prompt = AiPromptBuilder.buildFeedDigestPrompt(prefs.summaryLanguage, customPrompt)
@@ -150,8 +179,8 @@ class GetFeedSummaryUseCase @Inject constructor(
 
     companion object {
         private const val LOCAL_SIMILAR_NEWS_BONUS_PER_MATCH = 0.25f
-        private const val LOCAL_FEED_SUMMARY_TOP_ARTICLES_COUNT = 7
         private const val MIN_TOTAL_CHARS = 1000
         private const val MIN_CHARS_PER_FEED_ARTICLE = 200
+        private const val CLOUD_CHARS_LOG_TAG = "CloudChars"
     }
 }

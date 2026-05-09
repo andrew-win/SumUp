@@ -7,6 +7,14 @@ import java.util.Locale
 
 class TelegramParser {
 
+    fun parseChannelDisplayName(html: String): String? {
+        return Jsoup.parse(html)
+            .selectFirst("title")
+            ?.text()
+            ?.removeTelegramTitleSuffix()
+            ?.takeIf { it.isNotBlank() }
+    }
+
     fun parse(html: String, sourceId: Long): List<Article> {
         return parseWithDebug(html, sourceId).articles
     }
@@ -271,6 +279,9 @@ private fun extractMediaUrl(element: org.jsoup.nodes.Element): String? {
     val src = img?.attr("src").orEmpty()
     return src.ifBlank { null }
 }
+
+private fun String.removeTelegramTitleSuffix(): String =
+    replace(Regex("\\s+[–-]\\s*Telegram\\s*$", RegexOption.IGNORE_CASE), "").trim()
 
 data class TelegramParseDebug(
     val key: String,

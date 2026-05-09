@@ -33,7 +33,7 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
         Summary::class,
         UserPreferences::class
     ],
-    version = 50,
+    version = 52,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -76,7 +76,9 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_46_47,
                         MIGRATION_47_48,
                         MIGRATION_48_49,
-                        MIGRATION_49_50
+                        MIGRATION_49_50,
+                        MIGRATION_50_51,
+                        MIGRATION_51_52
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -88,8 +90,8 @@ abstract class AppDatabase : RoomDatabase() {
                                 "INSERT OR IGNORE INTO source_groups (id, name, isEnabled, isDeletable) VALUES (1, 'Без категорії', 1, 0)"
                             )
                             db.execSQL(
-                                "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedExtractive, summaryNewsInFeedCloud, summaryNewsInScheduledExtractive, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsPerArticle, aiMaxCharsPerFeedArticle, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
-                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, 0, 0, 'CLOUD', 0.85, 0.84, 2, 1, 1, 1000, 3000, 50, 25, 3, 3, 4, 4, 4, 4, 4, 3, 4, 5, 4, 0, 1000, 1000, 12000, '$defaultPrompt', 0, 1, 0, 0, 0, 3, 'SYSTEM', 'UK', 'UK')"
+                                "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedExtractive, summaryNewsInFeedCloud, summaryNewsInScheduledExtractive, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsPerArticle, aiMaxCharsPerFeedArticle, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
+                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, 0, 0, 'CLOUD', 0.85, 0.84, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 4, 4, 3, 4, 5, 4, 0, 1000, 1000, 12000, '$defaultPrompt', 0, 1, 0, 0, 0, 3, 'SYSTEM', 'UK', 'UK')"
                             )
                         }
                     })
@@ -260,18 +262,18 @@ abstract class AppDatabase : RoomDatabase() {
                     "ALTER TABLE user_preferences ADD COLUMN adaptiveExtractiveHighCompressionAboveChars INTEGER NOT NULL DEFAULT 3000"
                 )
                 db.execSQL(
-                    "ALTER TABLE user_preferences ADD COLUMN adaptiveExtractiveCompressionPercentMedium INTEGER NOT NULL DEFAULT 50"
+                    "ALTER TABLE user_preferences ADD COLUMN adaptiveExtractiveCompressionPercentMedium INTEGER NOT NULL DEFAULT 30"
                 )
                 db.execSQL(
-                    "ALTER TABLE user_preferences ADD COLUMN adaptiveExtractiveCompressionPercentHigh INTEGER NOT NULL DEFAULT 25"
+                    "ALTER TABLE user_preferences ADD COLUMN adaptiveExtractiveCompressionPercentHigh INTEGER NOT NULL DEFAULT 15"
                 )
                 db.execSQL(
                     """
                     UPDATE user_preferences
                     SET adaptiveExtractiveOnlyBelowChars = 1000,
                         adaptiveExtractiveHighCompressionAboveChars = 3000,
-                        adaptiveExtractiveCompressionPercentMedium = 50,
-                        adaptiveExtractiveCompressionPercentHigh = 25
+                        adaptiveExtractiveCompressionPercentMedium = 30,
+                        adaptiveExtractiveCompressionPercentHigh = 15
                     """.trimIndent()
                 )
             }
@@ -470,6 +472,32 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_articles_publishedAt ON articles(publishedAt)")
             }
         }
+
+        private val MIGRATION_50_51 = object : Migration(50, 51) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    UPDATE user_preferences
+                    SET adaptiveExtractiveCompressionPercentMedium = 30
+                    WHERE adaptiveExtractiveCompressionPercentMedium = 50
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    UPDATE user_preferences
+                    SET adaptiveExtractiveCompressionPercentHigh = 15
+                    WHERE adaptiveExtractiveCompressionPercentHigh = 25
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_51_52 = object : Migration(51, 52) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE user_preferences ADD COLUMN adaptiveExtractiveCompressionPercentFirst INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
     }
 }
-

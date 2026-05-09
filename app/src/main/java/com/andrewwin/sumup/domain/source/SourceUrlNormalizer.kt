@@ -90,13 +90,21 @@ object SourceUrlNormalizer {
             .replace("https://youtube.com/", "https://www.youtube.com/", ignoreCase = true)
             .replace("https://youtu.be/", "https://www.youtube.com/watch?v=", ignoreCase = true)
 
-        val parsed = runCatching { Uri.parse(normalized) }.getOrNull() ?: return normalized.trimEnd('/').lowercase()
+        val parsed = runCatching { Uri.parse(normalized) }.getOrNull() ?: return normalized.trimEnd('/')
         val host = parsed.host.orEmpty().lowercase()
         val segments = parsed.pathSegments.orEmpty().filter { it.isNotBlank() }
         val videoId = parsed.getQueryParameter("v")?.trim().orEmpty()
 
         val canonical = when {
             videoId.isNotBlank() -> "https://www.youtube.com/watch?v=$videoId"
+            host.contains("youtube.com") && segments == listOf("feeds", "videos.xml") -> {
+                val channelId = parsed.getQueryParameter("channel_id").orEmpty()
+                if (channelId.isNotBlank()) {
+                    "https://www.youtube.com/feeds/videos.xml?channel_id=$channelId"
+                } else {
+                    normalized.substringBefore('#').trimEnd('/')
+                }
+            }
             host.contains("youtube.com") && segments.firstOrNull().equals("channel", ignoreCase = true) && segments.size >= 2 ->
                 "https://www.youtube.com/channel/${segments[1]}"
             host.contains("youtube.com") && segments.firstOrNull().equals("playlist", ignoreCase = true) -> {
@@ -114,6 +122,6 @@ object SourceUrlNormalizer {
             else -> normalized.substringBefore('#').substringBefore('?').trimEnd('/')
         }
 
-        return canonical.trimEnd('/').lowercase()
+        return canonical.trimEnd('/')
     }
 }

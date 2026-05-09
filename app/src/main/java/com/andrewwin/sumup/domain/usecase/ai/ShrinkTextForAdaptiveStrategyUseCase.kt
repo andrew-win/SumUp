@@ -7,13 +7,21 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 class ShrinkTextForAdaptiveStrategyUseCase @Inject constructor(
     private val getExtractiveSummaryUseCase: GetExtractiveSummaryUseCase
 ) {
+    fun shrinkDigestArticle(text: String): String {
+        if (text.isBlank()) return ""
+        return getExtractiveSummaryUseCase(
+            text,
+            SummaryLimits.Adaptive.digestExtractiveSentences
+        ).joinToString(" ")
+    }
+
     operator fun invoke(text: String, prefs: UserPreferences): String {
         if (text.isBlank()) return ""
         
         val length = text.length
         return when {
             length < SummaryLimits.Adaptive.shortTextThresholdChars -> {
-                getExtractiveSummaryUseCase(text, 5).joinToString(" ")
+                shrinkFirstRange(text)
             }
             length in SummaryLimits.Adaptive.shortTextThresholdChars..SummaryLimits.Adaptive.mediumTextThresholdChars -> {
                 shrinkToPercent(text, SummaryLimits.Adaptive.mediumCompressionPercent / 100f)
@@ -21,6 +29,18 @@ class ShrinkTextForAdaptiveStrategyUseCase @Inject constructor(
             else -> {
                 shrinkToPercent(text, SummaryLimits.Adaptive.highCompressionPercent / 100f)
             }
+        }
+    }
+
+    private fun shrinkFirstRange(text: String): String {
+        val compressionPercent = SummaryLimits.Adaptive.firstCompressionPercent
+        return if (compressionPercent <= 0) {
+            getExtractiveSummaryUseCase(
+                text,
+                SummaryLimits.Extractive.defaultSentencesPerArticle
+            ).joinToString(" ")
+        } else {
+            shrinkToPercent(text, compressionPercent / 100f)
         }
     }
 

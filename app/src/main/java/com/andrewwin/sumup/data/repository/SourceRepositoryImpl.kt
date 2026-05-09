@@ -156,6 +156,12 @@ class SourceRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun fetchGeneratedSourceName(url: String, type: SourceType): String {
+        val normalizedUrl = normalizeUrl(url, type)
+        if (normalizedUrl.isBlank()) return ""
+        return generateSourceName(normalizedUrl, type)
+    }
+
     override suspend fun deleteSource(source: Source) {
         sourceDao.deleteSource(source)
     }
@@ -268,11 +274,16 @@ class SourceRepositoryImpl @Inject constructor(
         return when (type) {
             SourceType.TELEGRAM -> generateTelegramName(trimmed)
             SourceType.YOUTUBE -> generateYouTubeName(trimmed)
-            SourceType.RSS -> generateHostBasedName(trimmed)
+            SourceType.RSS -> generateRssName(trimmed)
         }
     }
 
-    private fun generateTelegramName(url: String): String {
+    private suspend fun generateTelegramName(url: String): String {
+        remoteArticleDataSource.fetchTelegramChannelDisplayName(url)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return it }
+
         val cleaned = url
             .removePrefix("https://")
             .removePrefix("http://")
@@ -301,6 +312,15 @@ class SourceRepositoryImpl @Inject constructor(
             else -> cleaned.substringAfterLast('/').ifBlank { cleaned }
         }.trim()
         return tail.ifBlank { "YouTube" }
+    }
+
+    private suspend fun generateRssName(url: String): String {
+        remoteArticleDataSource.fetchRssChannelDisplayName(url)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return it }
+
+        return generateHostBasedName(url)
     }
 
     private fun generateHostBasedName(url: String): String {

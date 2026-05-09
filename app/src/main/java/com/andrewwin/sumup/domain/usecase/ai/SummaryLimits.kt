@@ -14,10 +14,6 @@ object SummaryLimits {
         const val maxCommon = 5
         const val maxUnique = 5
         const val maxWordsPerPoint = 20
-
-        const val localSimilarityThreshold: Float = 0.825f
-        const val localUniqueThreshold: Float = 0.82f
-        const val sentencesLocalCompare = 5
     }
 
     object LocalClusterSummary {
@@ -28,11 +24,11 @@ object SummaryLimits {
     }
 
     object Digest {
-        const val maxThemes = 4
+        const val maxThemes = 5
         const val minItemsPerTheme = 2
         const val maxItemsPerTheme = 5
         const val maxWordsPerTitle = 15
-        const val topLocalArticles = 7
+        const val maxLocalArticles = 8
         const val emojiesCount = 3
     }
 
@@ -48,13 +44,17 @@ object SummaryLimits {
     }
 
     object Adaptive {
+        const val digestExtractiveSentences = 3
+
         val shortTextThresholdChars: Int
             get() = currentPrefs?.adaptiveExtractiveOnlyBelowChars ?: 1000
         val mediumTextThresholdChars: Int
             get() = currentPrefs?.adaptiveExtractiveHighCompressionAboveChars ?: 3000
+        val firstCompressionPercent: Int
+            get() = currentPrefs?.adaptiveExtractiveCompressionPercentFirst ?: 0
         val mediumCompressionPercent: Int
-            get() = currentPrefs?.adaptiveExtractiveCompressionPercentMedium ?: 50
+            get() = currentPrefs?.adaptiveExtractiveCompressionPercentMedium ?: 30
         val highCompressionPercent: Int
-            get() = currentPrefs?.adaptiveExtractiveCompressionPercentHigh ?: 25
+            get() = currentPrefs?.adaptiveExtractiveCompressionPercentHigh ?: 15
     }
 }

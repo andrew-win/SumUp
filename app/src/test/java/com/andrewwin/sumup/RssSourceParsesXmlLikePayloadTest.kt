@@ -1,6 +1,8 @@
 package com.andrewwin.sumup
 
+import com.andrewwin.sumup.data.remote.RssParser
 import kotlinx.coroutines.runBlocking
+import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -30,5 +32,19 @@ class RssSourceParsesXmlLikePayloadTest {
         assertEquals("https://img.example.com/1.jpg", articles[0].mediaUrl)
         assertTrue(articles[0].publishedAt > 0L)
     }
-}
 
+    @Test
+    fun rssSource_parseChannelTitleXml_removesCdataWrapper() = runBlocking {
+        val xml = """
+            <rss version="2.0">
+              <channel>
+                <title><![CDATA[ suspilne.news ]]></title>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        val parser = RssParser(OkHttpClient())
+
+        assertEquals("suspilne.news", parser.parseChannelTitleXml(xml))
+    }
+}

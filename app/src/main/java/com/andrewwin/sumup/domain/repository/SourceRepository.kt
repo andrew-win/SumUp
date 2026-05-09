@@ -27,6 +27,7 @@ interface SourceRepository {
         useHeadlessBrowser: Boolean = false,
         detectFooterPattern: Boolean = true
     )
+    suspend fun fetchGeneratedSourceName(url: String, type: SourceType): String
     suspend fun updateSource(source: Source)
     suspend fun deleteSource(source: Source)
     suspend fun getGroupsWithSourcesSnapshot(): List<GroupWithSources>

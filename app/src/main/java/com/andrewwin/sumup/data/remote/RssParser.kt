@@ -42,6 +42,18 @@ class RssParser @Inject constructor(
         }
     }
 
+    suspend fun parseChannelTitleUrl(url: String): String? {
+        return runCatching {
+            parser.getRssChannel(url).title.orEmpty().cleanChannelTitle()
+        }.getOrNull()
+    }
+
+    suspend fun parseChannelTitleXml(xml: String): String? {
+        return runCatching {
+            parser.parse(xml).title.orEmpty().cleanChannelTitle()
+        }.getOrNull()
+    }
+
     private fun mapChannel(channel: com.prof18.rssparser.model.RssChannel, sourceId: Long): List<Article> {
         return channel.items.orEmpty().mapNotNull { item ->
             mapItem(item, sourceId)
@@ -92,6 +104,13 @@ class RssParser @Inject constructor(
     private fun extractImageFromHtml(html: String): String? {
         val regex = Regex("<img[^>]+src=[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
         return regex.find(html)?.groups?.get(1)?.value
+    }
+
+    private fun String.cleanChannelTitle(): String? {
+        val cleaned = trim()
+            .removeSurrounding("<![CDATA[", "]]>")
+            .trim()
+        return cleaned.ifBlank { null }
     }
 
     companion object {

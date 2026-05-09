@@ -59,6 +59,7 @@ internal fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
     put("isAdaptiveExtractivePreprocessingEnabled", isAdaptiveExtractivePreprocessingEnabled)
     put("adaptiveExtractiveOnlyBelowChars", adaptiveExtractiveOnlyBelowChars)
     put("adaptiveExtractiveHighCompressionAboveChars", adaptiveExtractiveHighCompressionAboveChars)
+    put("adaptiveExtractiveCompressionPercentFirst", adaptiveExtractiveCompressionPercentFirst)
     put("adaptiveExtractiveCompressionPercentMedium", adaptiveExtractiveCompressionPercentMedium)
     put("adaptiveExtractiveCompressionPercentHigh", adaptiveExtractiveCompressionPercentHigh)
     put("summaryItemsPerNewsInFeed", summaryItemsPerNewsInFeed)
@@ -133,6 +134,10 @@ internal fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
                 "adaptiveExtractiveCompressAboveChars",
                 defaults.adaptiveExtractiveHighCompressionAboveChars
             )
+        ),
+        adaptiveExtractiveCompressionPercentFirst = optInt(
+            "adaptiveExtractiveCompressionPercentFirst",
+            defaults.adaptiveExtractiveCompressionPercentFirst
         ),
         adaptiveExtractiveCompressionPercentMedium = optInt(
             "adaptiveExtractiveCompressionPercentMedium",
@@ -409,7 +414,6 @@ internal fun JSONArray?.toSavedArticlesFromBackup(): List<SavedArticle> {
     }
     return items
 }
-
 
 
 

@@ -5,11 +5,15 @@ import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 object AiPromptBuilder {
 
     private const val RULE_JSON_ONLY =
-        "Output ONLY a strictly valid JSON object. No markdown, no prose."
-    private const val RULE_ABSTRACTIVE =
-        "Rewrite abstractively. Do NOT copy input text verbatim. Preserve facts, not phrasing."
-    private const val RULE_NO_INTRO_PHRASES =
-        "Omit filler and generic intros ('Зазначається'). Start directly with the core fact."
+        "Output ONLY one strictly valid JSON object matching the SCHEMA exactly. No markdown, no prose, no extra keys."
+
+    private const val RULE_REUTERS_STYLE = "Use Reuters style: Objective, neutral, and punchy." +
+            "Do not summarize by copying sentences from the input." +
+            "Produce an analytical synthesis in your own words, while preserving exact facts, names, dates, numbers, locations, and source-attributed claims. " +
+            "Short direct quotes are allowed only when the wording itself is important or evidentiary." +
+            "Inverted pyramid: most important fact first, context second, background last." +
+            "Active voice. Subject → verb → object. Avoid 'there is / there are' constructions." +
+            "No filler ('it is worth noting', 'it should be mentioned', 'experts say')."
 
     private fun getLanguageRule(summaryLanguage: SummaryLanguage): String {
         return when (summaryLanguage) {
@@ -28,7 +32,7 @@ object AiPromptBuilder {
     ): String {
         val allRules = mutableListOf<String>().apply {
             add(RULE_JSON_ONLY)
-            add(RULE_ABSTRACTIVE)
+            add(RULE_REUTERS_STYLE)
             addAll(specificRules)
         }
 
@@ -44,6 +48,7 @@ object AiPromptBuilder {
 
             if (!customInstructions.isNullOrBlank()) {
                 append("\nUSER SPECIFIC RULES\n")
+                append("Apply these only if they do not conflict with RULES or SCHEMA:\n")
                 append(customInstructions)
                 append("\n")
             }
@@ -62,20 +67,19 @@ object AiPromptBuilder {
     fun buildSingleArticlePrompt(
         summaryLanguage: SummaryLanguage,
         customInstructions: String? = null
-    ): String {
-        return createPrompt(
-            role = "Strict news analyst.",
-            goal = "Extract the critical hard facts into punchy bullet points.",
-            specificRules = listOf(
-                RULE_NO_INTRO_PHRASES,
-                "Return exactly one item object containing up to ${SummaryLimits.Single.maxPoints} bullets.",
-                "Each bullet must be exactly one short sentence (max ${SummaryLimits.Single.maxWordsPerPoint} words).",
-                getLanguageRule(summaryLanguage)
-            ),
-            schema = """{"items":[{"bullets":["point 1","point 2"]}]}""",
-            customInstructions = customInstructions
-        )
-    }
+    ): String = createPrompt(
+        role = "Senior wire-service correspondent.",
+        goal = "Extract the critical hard facts into punchy bullets an editor can scan in 20 seconds.",
+        specificRules = listOf(
+            "Return exactly one item with up to ${SummaryLimits.Single.maxPoints} bullets.",
+            "Each bullet: one sentence, max ${SummaryLimits.Single.maxWordsPerPoint} words. " +
+                    "Lead with the most newsworthy element — a name, figure, or decision.",
+            getLanguageRule(summaryLanguage)
+        ),
+        schema = """{"items":[{"bullets":["point 1","point 2"]}]}""",
+        customInstructions = customInstructions
+    )
+
 
     fun buildComparePrompt(
         summaryLanguage: SummaryLanguage,
@@ -86,7 +90,7 @@ object AiPromptBuilder {
             SummaryLanguage.EN -> "No unique fragments were found. The news articles may be paraphrasing each other, very similar, or too short."
         }
         return createPrompt(
-            role = "Synthetical news analyst.",
+            role = "Senior news editor specialising in cross-source synthesis",
             goal = "Identify the unifying narrative and extract shared trends or facts across sources, while highlighting specific nuances.",
             specificRules = listOf(
                 "COMMON_FACTS: Total max ${SummaryLimits.Compare.maxCommon} for ENTIRE ANSWER. Identify shared trends or 'umbrella' context (e.g., 'Illness is rising in multiple regions') even if specific details like cities or numbers differ.",
@@ -109,10 +113,11 @@ object AiPromptBuilder {
         customInstructions: String? = null
     ): String {
         return createPrompt(
-            role = "Strict news editor.",
+            role = "News desk editor composing a flagship daily digest.",
             goal = "Build a condensed, hard-fact digest grouped by broad categories.",
             specificRules = listOf(
                 "Create up to ${SummaryLimits.Digest.maxThemes} broad themes (e.g., '\uD83D\uDCB0\uD83D\uDCCA\uD83C\uDFE6 Економіка', '\uD83E\uDD16\uD83E\uDDE0⚙\uFE0F Штучний інтелект', '\uD83C\uDDFA\uD83C\uDDE6\uD83E\uDE96\uD83D\uDCA5 Війна в Україні').",
+                "Never combine topics that are fundamentally different. Bad - 'Technology and Health', good - 'Health and Sports'.",
                 "Include ${SummaryLimits.Digest.emojiesCount} highly relevant emojis in theme title.",
                 "Each theme must have ${SummaryLimits.Digest.minItemsPerTheme} to ${SummaryLimits.Digest.maxItemsPerTheme} short abstractive news items (titles).",
                 "Item title: punchy, short (max ${SummaryLimits.Digest.maxWordsPerTitle} words).",

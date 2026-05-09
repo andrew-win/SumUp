@@ -330,6 +330,7 @@ internal fun SettingsAiProcessingGroupContent(
     summaryNewsInScheduledExtractive: Float,
     adaptiveExtractiveOnlyBelowChars: Float,
     adaptiveExtractiveHighCompressionAboveChars: Float,
+    adaptiveExtractiveCompressionPercentFirst: Float,
     adaptiveExtractiveCompressionPercentMedium: Float,
     adaptiveExtractiveCompressionPercentHigh: Float,
     onAiStrategyChange: (AiStrategy) -> Unit,
@@ -349,6 +350,8 @@ internal fun SettingsAiProcessingGroupContent(
     onAdaptiveExtractiveOnlyBelowCharsCommitted: () -> Unit,
     onAdaptiveExtractiveHighCompressionAboveCharsChange: (Float) -> Unit,
     onAdaptiveExtractiveHighCompressionAboveCharsCommitted: () -> Unit,
+    onAdaptiveExtractiveCompressionPercentFirstChange: (Float) -> Unit,
+    onAdaptiveExtractiveCompressionPercentFirstCommitted: () -> Unit,
     onAdaptiveExtractiveCompressionPercentMediumChange: (Float) -> Unit,
     onAdaptiveExtractiveCompressionPercentMediumCommitted: () -> Unit,
     onAdaptiveExtractiveCompressionPercentHighChange: (Float) -> Unit,
@@ -497,6 +500,7 @@ internal fun SettingsAiProcessingGroupContent(
                 SettingsIntSliderItem(
                     label = stringResource(
                         R.string.settings_adaptive_extractive_high_compression_above_chars,
+                        adaptiveExtractiveOnlyBelowChars.toInt(),
                         adaptiveExtractiveHighCompressionAboveChars.toInt()
                     ),
                     value = adaptiveExtractiveHighCompressionAboveChars,
@@ -504,6 +508,25 @@ internal fun SettingsAiProcessingGroupContent(
                     onValueChangeFinished = onAdaptiveExtractiveHighCompressionAboveCharsCommitted,
                     valueRange = 1000f..6000f,
                     steps = 99
+                )
+                Text(
+                    text = stringResource(
+                        R.string.settings_adaptive_extractive_third_range,
+                        adaptiveExtractiveHighCompressionAboveChars.toInt()
+                    ),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                SettingsIntSliderItem(
+                    label = stringResource(
+                        R.string.settings_adaptive_extractive_compression_percent_first,
+                        adaptiveExtractiveCompressionPercentFirst.toInt()
+                    ),
+                    value = adaptiveExtractiveCompressionPercentFirst,
+                    onValueChange = onAdaptiveExtractiveCompressionPercentFirstChange,
+                    onValueChangeFinished = onAdaptiveExtractiveCompressionPercentFirstCommitted,
+                    valueRange = 0f..90f,
+                    steps = 89
                 )
                 SettingsIntSliderItem(
                     label = stringResource(

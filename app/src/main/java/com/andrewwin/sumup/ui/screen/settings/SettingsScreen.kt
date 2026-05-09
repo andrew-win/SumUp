@@ -316,6 +316,9 @@ internal fun SettingsScreen(
     var adaptiveExtractiveHighCompressionAboveChars by rememberSaveable(userPreferences.adaptiveExtractiveHighCompressionAboveChars) {
         mutableStateOf(userPreferences.adaptiveExtractiveHighCompressionAboveChars.toFloat())
     }
+    var adaptiveExtractiveCompressionPercentFirst by rememberSaveable(userPreferences.adaptiveExtractiveCompressionPercentFirst) {
+        mutableStateOf(userPreferences.adaptiveExtractiveCompressionPercentFirst.toFloat())
+    }
     var adaptiveExtractiveCompressionPercentMedium by rememberSaveable(userPreferences.adaptiveExtractiveCompressionPercentMedium) {
         mutableStateOf(userPreferences.adaptiveExtractiveCompressionPercentMedium.toFloat())
     }
@@ -489,6 +492,7 @@ internal fun SettingsScreen(
                             summaryNewsInScheduledExtractive = summaryNewsInScheduledExtractive,
                             adaptiveExtractiveOnlyBelowChars = adaptiveExtractiveOnlyBelowChars,
                             adaptiveExtractiveHighCompressionAboveChars = adaptiveExtractiveHighCompressionAboveChars,
+                            adaptiveExtractiveCompressionPercentFirst = adaptiveExtractiveCompressionPercentFirst,
                             adaptiveExtractiveCompressionPercentMedium = adaptiveExtractiveCompressionPercentMedium,
                             adaptiveExtractiveCompressionPercentHigh = adaptiveExtractiveCompressionPercentHigh,
                             onAiStrategyChange = viewModel::updateAiStrategy,
@@ -524,6 +528,12 @@ internal fun SettingsScreen(
                             onAdaptiveExtractiveHighCompressionAboveCharsChange = { adaptiveExtractiveHighCompressionAboveChars = it },
                             onAdaptiveExtractiveHighCompressionAboveCharsCommitted = {
                                 viewModel.updateAdaptiveExtractiveHighCompressionAboveChars(adaptiveExtractiveHighCompressionAboveChars.toInt())
+                            },
+                            onAdaptiveExtractiveCompressionPercentFirstChange = { adaptiveExtractiveCompressionPercentFirst = it },
+                            onAdaptiveExtractiveCompressionPercentFirstCommitted = {
+                                viewModel.updateAdaptiveExtractiveCompressionPercentFirst(
+                                    adaptiveExtractiveCompressionPercentFirst.toInt()
+                                )
                             },
                             onAdaptiveExtractiveCompressionPercentMediumChange = { adaptiveExtractiveCompressionPercentMedium = it },
                             onAdaptiveExtractiveCompressionPercentMediumCommitted = {

@@ -396,6 +396,19 @@ class SourcesViewModel @Inject constructor(
         }
     }
 
+    fun fetchGeneratedSourceName(
+        url: String,
+        type: SourceType,
+        onResult: (String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val name = runCatching {
+                repository.fetchGeneratedSourceName(url, type)
+            }.getOrNull()?.trim()?.takeIf { it.isNotBlank() }
+            onResult(name)
+        }
+    }
+
     private fun isSourceInActiveSubscriptions(url: String, type: SourceType): Boolean {
         val normalizedUrl = SourceUrlNormalizer.normalize(url, type)
         if (normalizedUrl.isBlank()) return false
@@ -487,6 +500,5 @@ class SourcesViewModel @Inject constructor(
 
     private fun normalizeGroupNameForComparison(name: String): String = name.trim().lowercase()
 }
-
 
 

@@ -3,6 +3,7 @@ package com.andrewwin.sumup.ui.screen.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -513,6 +515,8 @@ fun SettingsAiConfigDialog(
     }
     val configNameErrorText = if (hasDuplicateName) {
         stringResource(R.string.validation_ai_config_name_exists)
+    } else if (normalizedName.isBlank()) {
+        stringResource(R.string.validation_name_required)
     } else {
         null
     }
@@ -549,21 +553,44 @@ fun SettingsAiConfigDialog(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text(stringResource(R.string.dialog_config_name)) },
-                        placeholder = { Text(stringResource(R.string.dialog_config_name_hint)) },
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        shape = MaterialTheme.shapes.large,
-                        isError = configNameErrorText != null,
-                        supportingText = {
-                            if (configNameErrorText != null) {
-                                Text(configNameErrorText)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = { Text(stringResource(R.string.dialog_config_name)) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            shape = MaterialTheme.shapes.large,
+                            isError = configNameErrorText != null,
+                            supportingText = {
+                                if (configNameErrorText != null) {
+                                    Text(configNameErrorText)
+                                }
                             }
+                        )
+                        FilledTonalButton(
+                            onClick = {
+                                name = buildAutoAiConfigNameV2(
+                                    providerLabel = providerLabel,
+                                    provider = provider,
+                                    existingConfigs = existingConfigs,
+                                    editingConfigId = config?.id
+                                )
+                            },
+                            shape = MaterialTheme.shapes.large,
+                            contentPadding = PaddingValues(horizontal = 14.dp),
+                            modifier = Modifier
+                                .padding(top = 6.dp)
+                                .height(56.dp)
+                                .widthIn(min = 112.dp)
+                        ) {
+                            Text(stringResource(R.string.dialog_config_name_fetch))
                         }
-                    )
+                    }
 
                     ExposedDropdownMenuBox(
                         expanded = expandedProvider,
@@ -732,15 +759,8 @@ fun SettingsAiConfigDialog(
                         onClick = {
                             val trimmedApiKey = normalizedApiKey
                             val trimmedModelName = modelName.trim()
-                            val resolvedName = normalizedName.ifBlank {
-                                buildAutoAiConfigNameV2(
-                                    providerLabel = providerLabel,
-                                    provider = provider,
-                                    existingConfigs = existingConfigs,
-                                    editingConfigId = config?.id
-                                )
-                            }
                             if (
+                                normalizedName.isNotBlank() &&
                                 trimmedApiKey.isNotBlank() &&
                                 trimmedModelName.isNotBlank() &&
                                 configNameErrorText == null &&
@@ -748,7 +768,7 @@ fun SettingsAiConfigDialog(
                             ) {
                                 onConfirm(
                                     config?.copy(
-                                        name = resolvedName,
+                                        name = normalizedName,
                                         provider = provider,
                                         apiKey = trimmedApiKey,
                                         modelName = trimmedModelName,
@@ -756,7 +776,7 @@ fun SettingsAiConfigDialog(
                                             ,
                                         isUseNow = isUseNow
                                     ) ?: AiModelConfig(
-                                        name = resolvedName,
+                                        name = normalizedName,
                                         provider = provider,
                                         apiKey = trimmedApiKey,
                                         modelName = trimmedModelName,
@@ -767,7 +787,8 @@ fun SettingsAiConfigDialog(
                                 )
                             }
                         },
-                        enabled = apiKey.isNotBlank() &&
+                        enabled = normalizedName.isNotBlank() &&
+                            apiKey.isNotBlank() &&
                             modelName.isNotBlank() &&
                             !isLoadingModels &&
                             configNameErrorText == null &&

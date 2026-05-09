@@ -380,6 +380,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(adaptiveExtractiveHighCompressionAboveChars = chars) } }
     }
 
+    fun updateAdaptiveExtractiveCompressionPercentFirst(percent: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(adaptiveExtractiveCompressionPercentFirst = percent) } }
+    }
+
     fun updateAdaptiveExtractiveCompressionPercentMedium(percent: Int) {
         viewModelScope.launch { updatePreferences { it.copy(adaptiveExtractiveCompressionPercentMedium = percent) } }
     }

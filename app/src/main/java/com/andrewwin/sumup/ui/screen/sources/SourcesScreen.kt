@@ -403,6 +403,7 @@ fun SourcesScreen(
                 existingSources = uiState.flatMap { it.sources },
                 existingSourceNames = uiState.flatMap { it.sources }.map { it.name },
                 showDetailedHelp = isHelpMode,
+                onFetchGeneratedName = viewModel::fetchGeneratedSourceName,
                 onDismiss = { selectedGroupIdForSource = null },
                 onConfirm = { name, url, type, titleSelector, postLinkSelector, descriptionSelector, dateSelector, useHeadlessBrowser ->
                     viewModel.addSource(
@@ -426,6 +427,7 @@ fun SourcesScreen(
                 existingSources = uiState.flatMap { it.sources },
                 existingSourceNames = uiState.flatMap { it.sources }.map { it.name },
                 showDetailedHelp = isHelpMode,
+                onFetchGeneratedName = viewModel::fetchGeneratedSourceName,
                 onDismiss = { editSource = null },
                 onConfirm = { name, url, type, titleSelector, postLinkSelector, descriptionSelector, dateSelector, useHeadlessBrowser ->
                     viewModel.updateSource(
@@ -806,6 +808,7 @@ fun SourceDialog(
     existingSources: List<Source>,
     existingSourceNames: List<String>,
     showDetailedHelp: Boolean = false,
+    onFetchGeneratedName: (String, SourceType, (String?) -> Unit) -> Unit,
     onDismiss: () -> Unit,
     onConfirm: (String, String, SourceType, String?, String?, String?, String?, Boolean) -> Unit
 ) {
@@ -819,6 +822,7 @@ fun SourceDialog(
     var dateSelector by remember(source?.id) { mutableStateOf(source?.dateSelector ?: "") }
     var useHeadlessBrowser by remember(source?.id) { mutableStateOf(source?.useHeadlessBrowser ?: false) }
     var expanded by remember { mutableStateOf(false) }
+    var isFetchingName by remember { mutableStateOf(false) }
     val normalizedName = name.trim()
     val normalizedUrl = normalizeSourceUrl(url, type)
     val isDuplicate = remember(normalizedName, existingSourceNames, source?.id) {
@@ -836,12 +840,13 @@ fun SourceDialog(
         }
     }
     val errorText = when {
+        normalizedName.isBlank() -> stringResource(R.string.validation_name_required)
         isDuplicate -> stringResource(R.string.validation_source_name_exists)
         url.isBlank() -> stringResource(R.string.validation_source_url_required)
         isDuplicateUrl -> stringResource(R.string.validation_source_url_exists)
         else -> null
     }
-    val isNameError = isDuplicate
+    val isNameError = normalizedName.isBlank() || isDuplicate
     val isUrlError = url.isBlank() || isDuplicateUrl
 
     AppAnimatedDialog(
@@ -880,38 +885,69 @@ fun SourceDialog(
                         ) {
                             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(
-                                    text = "Як правильно додавати джерело",
+                                    text = stringResource(R.string.source_dialog_help_title),
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    text = "1. Назва: можна не заповнювати, тоді застосунок згенерує її автоматично.",
+                                    text = stringResource(R.string.source_dialog_help_name),
                                     style = MaterialTheme.typography.bodySmall
                                 )
                                 Text(
-                                    text = "2. URL: посилання на RSS, Telegram або YouTube-джерело.",
+                                    text = stringResource(R.string.source_dialog_help_url),
                                     style = MaterialTheme.typography.bodySmall
                                 )
                                 Text(
-                                    text = "3. Тип джерела визначає, як парсер читає контент (RSS/Telegram/YouTube).",
+                                    text = stringResource(R.string.source_dialog_help_type),
                                     style = MaterialTheme.typography.bodySmall
                                 )
                                 Text(
-                                    text = "4. Підписки організовуються по папках (групах), щоб їх можна було окремо вмикати та фільтрувати.",
+                                    text = stringResource(R.string.source_dialog_help_groups),
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
                         }
                     }
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text(stringResource(R.string.source_name)) },
-                        singleLine = true,
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large,
-                        isError = isNameError
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = { Text(stringResource(R.string.source_name)) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.large,
+                            isError = isNameError
+                        )
+                        FilledTonalButton(
+                            onClick = {
+                                isFetchingName = true
+                                onFetchGeneratedName(url, type) { generatedName ->
+                                    generatedName?.let { name = it }
+                                    isFetchingName = false
+                                }
+                            },
+                            enabled = url.isNotBlank() && !isFetchingName,
+                            shape = MaterialTheme.shapes.large,
+                            contentPadding = PaddingValues(horizontal = 14.dp),
+                            modifier = Modifier
+                                .padding(top = 8.dp)
+                                .height(56.dp)
+                                .widthIn(min = 112.dp)
+                        ) {
+                            if (isFetchingName) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text(stringResource(R.string.source_name_fetch))
+                            }
+                        }
+                    }
                     OutlinedTextField(
                         value = url,
                         onValueChange = { url = it },

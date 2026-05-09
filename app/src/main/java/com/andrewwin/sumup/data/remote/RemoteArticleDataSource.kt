@@ -54,9 +54,7 @@ class RemoteArticleDataSource @Inject constructor(
 
     suspend fun fetchYouTubeChannelDisplayName(url: String): String? = withContext(Dispatchers.IO) {
         try {
-            val youtubeUrl = if (url.contains("videos.xml")) url else {
-                "https://www.youtube.com/feeds/videos.xml?channel_id=${url.substringAfterLast("/")}"
-            }
+            val youtubeUrl = buildYouTubeFeedUrl(url)
             val request = Request.Builder().url(youtubeUrl).build()
             okHttpClient.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
@@ -72,6 +70,28 @@ class RemoteArticleDataSource @Inject constructor(
         }
     }
 
+    suspend fun fetchTelegramChannelDisplayName(url: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val telegramUrl = buildTelegramChannelPreviewUrl(url)
+            val request = Request.Builder().url(telegramUrl).build()
+            okHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                response.body?.string()
+                    ?.let(telegramParser::parseChannelDisplayName)
+                    ?.takeIf { it.isNotBlank() }
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun fetchRssChannelDisplayName(url: String): String? = withContext(Dispatchers.IO) {
+        val httpsUrl = if (url.startsWith("http://")) "https://${url.removePrefix("http://")}" else url
+        val primary = rssParser.parseChannelTitleUrl(httpsUrl)
+        if (!primary.isNullOrBlank() || httpsUrl == url) return@withContext primary
+        rssParser.parseChannelTitleUrl(url)
+    }
+
     private suspend fun fetchRssArticles(sourceId: Long, url: String): List<Article> {
         val httpsUrl = if (url.startsWith("http://")) "https://${url.removePrefix("http://")}" else url
         val primary = rssParser.parseUrl(httpsUrl, sourceId)
@@ -84,7 +104,7 @@ class RemoteArticleDataSource @Inject constructor(
 
     private fun fetchTelegramArticles(sourceId: Long, url: String): List<Article> {
         return try {
-            val telegramUrl = if (url.contains("/s/")) url else "https://t.me/s/${url.substringAfterLast("/")}"
+            val telegramUrl = buildTelegramChannelPreviewUrl(url)
             val request = Request.Builder().url(telegramUrl).build()
             okHttpClient.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
@@ -96,9 +116,19 @@ class RemoteArticleDataSource @Inject constructor(
         } catch (e: Exception) { emptyList() }
     }
 
+    private fun buildTelegramChannelPreviewUrl(url: String): String {
+        if (url.contains("/s/")) return url
+        val channelName = url.trim()
+            .removeSuffix("/")
+            .substringBefore("?")
+            .substringAfterLast("/")
+            .removePrefix("@")
+        return "https://t.me/s/$channelName"
+    }
+
     private fun fetchYouTubeArticles(sourceId: Long, url: String): List<Article> {
         return try {
-            val youtubeUrl = if (url.contains("videos.xml")) url else "https://www.youtube.com/feeds/videos.xml?channel_id=${url.substringAfterLast("/")}"
+            val youtubeUrl = buildYouTubeFeedUrl(url)
             val request = Request.Builder().url(youtubeUrl).build()
             okHttpClient.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
@@ -108,6 +138,18 @@ class RemoteArticleDataSource @Inject constructor(
             }
             emptyList()
         } catch (e: Exception) { emptyList() }
+    }
+
+    private fun buildYouTubeFeedUrl(url: String): String {
+        val trimmed = url.trim()
+        if (trimmed.contains("feeds/videos.xml") && trimmed.contains("channel_id=")) return trimmed
+
+        val channelId = when {
+            "/channel/" in trimmed -> trimmed.substringAfter("/channel/").substringBefore("?").substringBefore("/")
+            "channel_id=" in trimmed -> trimmed.substringAfter("channel_id=").substringBefore("&")
+            else -> trimmed.substringAfterLast("/").substringBefore("?")
+        }.trim()
+        return "https://www.youtube.com/feeds/videos.xml?channel_id=$channelId"
     }
 
     suspend fun fetchFullContent(url: String, type: SourceType): String? =
