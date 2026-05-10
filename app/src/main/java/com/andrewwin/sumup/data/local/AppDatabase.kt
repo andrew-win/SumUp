@@ -33,7 +33,7 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
         Summary::class,
         UserPreferences::class
     ],
-    version = 54,
+    version = 56,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -80,7 +80,9 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_50_51,
                         MIGRATION_51_52,
                         MIGRATION_52_53,
-                        MIGRATION_53_54
+                        MIGRATION_53_54,
+                        MIGRATION_54_55,
+                        MIGRATION_55_56
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -93,7 +95,7 @@ abstract class AppDatabase : RoomDatabase() {
                             )
                             db.execSQL(
                                 "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsPerArticle, aiMaxCharsPerFeedArticle, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
-                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, 0, 0, 'LOCAL', 0.87, 0.84, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 4, 0, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, 3, 'SYSTEM', 'UK', 'UK')"
+                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, 0, 0, 'LOCAL', 0.860, 0.84, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 4, 0, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, 3, 'SYSTEM', 'UK', 'UK')"
                             )
                         }
                     })
@@ -603,6 +605,19 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                 db.execSQL("DROP TABLE user_preferences")
                 db.execSQL("ALTER TABLE user_preferences_new RENAME TO user_preferences")
+            }
+        }
+
+        private val MIGRATION_54_55 = object : Migration(54, 55) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DELETE FROM article_similarities")
+            }
+        }
+
+        private val MIGRATION_55_56 = object : Migration(55, 56) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DELETE FROM article_similarities")
+                db.execSQL("UPDATE articles SET embedding = NULL, embeddingType = NULL")
             }
         }
     }

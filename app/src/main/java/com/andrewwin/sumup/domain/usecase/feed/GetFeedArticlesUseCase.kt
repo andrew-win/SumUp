@@ -364,64 +364,19 @@ class GetFeedArticlesUseCase @Inject constructor(
     private suspend fun buildClustersFromDb(
         currentArticles: List<Article>
     ): List<ArticleCluster> {
-        val currentById = currentArticles.associateBy { it.id }
         val ids = currentArticles.map { it.id }
         val similarities = articleRepository.getSimilaritiesForArticles(ids)
         if (similarities.isEmpty()) return emptyList()
 
-        val adjacency = mutableMapOf<Long, MutableSet<Long>>()
-        val scoreMap = mutableMapOf<Pair<Long, Long>, Float>()
-
-        for (sim in similarities) {
-            adjacency.getOrPut(sim.representativeId) { mutableSetOf() }.add(sim.articleId)
-            adjacency.getOrPut(sim.articleId) { mutableSetOf() }.add(sim.representativeId)
-            scoreMap[sim.representativeId to sim.articleId] = sim.score
-            scoreMap[sim.articleId to sim.representativeId] = sim.score
-        }
-
-        val visited = mutableSetOf<Long>()
-        val clusters = mutableListOf<ArticleCluster>()
-
-        for (id in adjacency.keys) {
-            if (visited.contains(id)) continue
-            val stack = ArrayDeque<Long>()
-            val component = mutableListOf<Long>()
-            stack.add(id)
-            visited.add(id)
-            while (stack.isNotEmpty()) {
-                val cur = stack.removeFirst()
-                component.add(cur)
-                adjacency[cur]?.forEach { neighbor ->
-                    if (!visited.contains(neighbor)) {
-                        visited.add(neighbor)
-                        stack.add(neighbor)
-                    }
-                }
+        val currentArticleIds = currentArticles.mapTo(mutableSetOf()) { it.id }
+        val pairScores = similarities
+            .asSequence()
+            .filter { it.representativeId in currentArticleIds && it.articleId in currentArticleIds }
+            .associate { similarity ->
+                ArticlePairKey.of(similarity.representativeId, similarity.articleId) to similarity.score
             }
 
-            val articlesInCluster = component.mapNotNull { currentById[it] }
-            if (articlesInCluster.size < 2) continue
-
-            val representative = selectRepresentativeArticleForCluster(articlesInCluster)
-            val componentIds = component.toSet()
-            val duplicates = articlesInCluster
-                .filterNot { it.id == representative.id }
-                .map { article ->
-                    val score = componentIds
-                        .asSequence()
-                        .filterNot { it == article.id }
-                        .mapNotNull { otherId -> scoreMap[article.id to otherId] }
-                        .maxOrNull() ?: 0f
-                    article to score
-                }
-            clusters.add(ArticleCluster(representative, duplicates))
-        }
-
-        val clusteredIds = clusters.flatMap { c -> listOf(c.representative.id) + c.duplicates.map { it.first.id } }.toSet()
-        val remaining = currentArticles.filterNot { clusteredIds.contains(it.id) }
-        remaining.forEach { clusters.add(ArticleCluster(it, emptyList())) }
-
-        return clusters.sortedByDescending { it.representative.publishedAt }
+        return buildFinalClusters(currentArticles, pairScores)
     }
 
     private suspend fun buildSavedFavoriteClusters(
@@ -457,15 +412,11 @@ class GetFeedArticlesUseCase @Inject constructor(
             val duplicates = articles
                 .asSequence()
                 .filterNot { it.id == representative.id }
-                .map { article ->
-                    val score = articles
-                        .asSequence()
-                        .map { it.id }
-                        .filter { it != article.id }
-                        .mapNotNull { otherId -> scoreMap[article.id to otherId] }
-                        .maxOrNull()
+                .mapNotNull { article ->
+                    val score = scoreMap[representative.id to article.id]
+                        ?: scoreMap[article.id to representative.id]
                         ?: savedClusterScores[article.id]
-                        ?: 0f
+                        ?: return@mapNotNull null
                     article to score
                 }
                 .toList()
@@ -686,7 +637,7 @@ class GetFeedArticlesUseCase @Inject constructor(
             if (embeddingProgress.cloudMissingGenerationFailed) {
                 emit(
                     DedupClusterResult(
-                        clusters = buildClusters(allArticles, embeddingsById, pairScores),
+                        clusters = buildPreviewClusters(allArticles, pairScores),
                         shouldCacheDedupResult = false,
                         processedArticlesCount = embeddingProgress.processedArticlesCount,
                         totalArticlesCount = embeddingProgress.totalArticlesCount,
@@ -716,7 +667,8 @@ class GetFeedArticlesUseCase @Inject constructor(
                 if (!embeddingProgress.isComplete && emitEvery > 0 && (i + 1) % emitEvery == 0) {
                     emit(
                         DedupClusterResult(
-                            clusters = buildClusters(allArticles, embeddingsById, pairScores),
+                            clusters = buildPreviewClusters(allArticles, pairScores),
+                            shouldCacheDedupResult = false,
                             processedArticlesCount = embeddingProgress.processedArticlesCount,
                             totalArticlesCount = embeddingProgress.totalArticlesCount,
                             isComplete = false
@@ -725,10 +677,15 @@ class GetFeedArticlesUseCase @Inject constructor(
                 }
             }
 
-            val clusters = buildClusters(allArticles, embeddingsById, pairScores)
+            val clusters = if (embeddingProgress.isComplete) {
+                buildFinalClusters(allArticles, pairScores)
+            } else {
+                buildPreviewClusters(allArticles, pairScores)
+            }
             emit(
                 DedupClusterResult(
                     clusters = clusters,
+                    shouldCacheDedupResult = embeddingProgress.isComplete,
                     processedArticlesCount = embeddingProgress.processedArticlesCount,
                     totalArticlesCount = embeddingProgress.totalArticlesCount,
                     isComplete = embeddingProgress.isComplete
@@ -742,9 +699,8 @@ class GetFeedArticlesUseCase @Inject constructor(
         }
     }.flowOn(Dispatchers.Default)
 
-    private fun buildClusters(
+    private fun buildPreviewClusters(
         articles: List<com.andrewwin.sumup.data.local.entities.Article>,
-        embeddingsById: Map<Long, FloatArray>,
         pairScores: Map<ArticlePairKey, Float>
     ): List<ArticleCluster> {
         val assignedArticleIds = mutableSetOf<Long>()
@@ -767,12 +723,119 @@ class GetFeedArticlesUseCase @Inject constructor(
                 addAll(duplicates.map { it.first })
             }
             val selectedRepresentative = selectRepresentativeArticleForCluster(clusterArticles)
-            val selectedDuplicates = duplicates
-                .filterNot { it.first.id == selectedRepresentative.id }
+            val selectedDuplicates = clusterArticles
+                .asSequence()
+                .filterNot { it.id == selectedRepresentative.id }
+                .mapNotNull { article ->
+                    val score = pairScores[ArticlePairKey.of(selectedRepresentative.id, article.id)]
+                        ?: return@mapNotNull null
+                    article to score
+                }
                 .sortedByDescending { it.first.publishedAt }
+                .toList()
             result.add(ArticleCluster(selectedRepresentative, selectedDuplicates))
         }
         return result
+    }
+
+    private fun buildFinalClusters(
+        articles: List<com.andrewwin.sumup.data.local.entities.Article>,
+        pairScores: Map<ArticlePairKey, Float>
+    ): List<ArticleCluster> {
+        val articleById = articles.associateBy { it.id }
+        val clustersByArticleId = mutableMapOf<Long, MutableSet<Long>>()
+
+        pairScores.entries
+            .sortedByDescending { it.value }
+            .forEach { (pair, _) ->
+                val leftId = pair.firstId
+                val rightId = pair.secondId
+                if (articleById[leftId] == null || articleById[rightId] == null) return@forEach
+
+                val leftCluster = clustersByArticleId[leftId]
+                val rightCluster = clustersByArticleId[rightId]
+                when {
+                    leftCluster == null && rightCluster == null -> {
+                        val cluster = mutableSetOf(leftId, rightId)
+                        clustersByArticleId[leftId] = cluster
+                        clustersByArticleId[rightId] = cluster
+                    }
+
+                    leftCluster != null && rightCluster == null -> {
+                        if (rightId.hasSimilarityToEveryArticleIn(leftCluster, pairScores)) {
+                            leftCluster.add(rightId)
+                            clustersByArticleId[rightId] = leftCluster
+                        }
+                    }
+
+                    leftCluster == null && rightCluster != null -> {
+                        if (leftId.hasSimilarityToEveryArticleIn(rightCluster, pairScores)) {
+                            rightCluster.add(leftId)
+                            clustersByArticleId[leftId] = rightCluster
+                        }
+                    }
+
+                    leftCluster != null &&
+                        rightCluster != null &&
+                        leftCluster !== rightCluster &&
+                        leftCluster.canMergeWith(rightCluster, pairScores) -> {
+                        leftCluster.addAll(rightCluster)
+                        rightCluster.forEach { clustersByArticleId[it] = leftCluster }
+                    }
+                }
+            }
+
+        val acceptedClusterSets = clustersByArticleId.values
+            .distinctBy { System.identityHashCode(it) }
+            .filter { it.size >= 2 }
+
+        val result = acceptedClusterSets.mapNotNull { clusterIds ->
+            val clusterArticles = clusterIds.mapNotNull { articleById[it] }
+            if (clusterArticles.size < 2) return@mapNotNull null
+
+            val selectedRepresentative = selectRepresentativeArticleForCluster(clusterArticles)
+            val selectedDuplicates = clusterArticles
+                .asSequence()
+                .filterNot { it.id == selectedRepresentative.id }
+                .mapNotNull { article ->
+                    val score = pairScores[ArticlePairKey.of(selectedRepresentative.id, article.id)]
+                        ?: return@mapNotNull null
+                    article to score
+                }
+                .sortedByDescending { it.first.publishedAt }
+                .toList()
+
+            if (selectedDuplicates.isEmpty()) null else ArticleCluster(selectedRepresentative, selectedDuplicates)
+        }.toMutableList()
+
+        val clusteredIds = result
+            .flatMap { cluster -> listOf(cluster.representative.id) + cluster.duplicates.map { it.first.id } }
+            .toSet()
+        articles
+            .filterNot { it.id in clusteredIds }
+            .forEach { result.add(ArticleCluster(it, emptyList())) }
+
+        return result.sortedByDescending { it.representative.publishedAt }
+    }
+
+    private fun Long.hasSimilarityToEveryArticleIn(
+        cluster: Set<Long>,
+        pairScores: Map<ArticlePairKey, Float>
+    ): Boolean {
+        return cluster.all { articleId ->
+            articleId == this || pairScores.containsKey(ArticlePairKey.of(this, articleId))
+        }
+    }
+
+    private fun Set<Long>.canMergeWith(
+        other: Set<Long>,
+        pairScores: Map<ArticlePairKey, Float>
+    ): Boolean {
+        return all { leftId ->
+            other.all { rightId ->
+                leftId == rightId || pairScores.containsKey(ArticlePairKey.of(leftId, rightId))
+            }
+        }
     }
 
     private fun selectRepresentativeArticleForCluster(
@@ -788,6 +851,11 @@ class GetFeedArticlesUseCase @Inject constructor(
     private fun buildSimilaritiesFromClusters(clusters: List<ArticleCluster>): List<ArticleSimilarity> {
         return clusters.flatMap { cluster ->
             cluster.duplicates.map { (article, score) ->
+                Log.d(
+                    FEED_DEDUP_LOG_TAG,
+                    "dedup_similarity_saved representativeId=${cluster.representative.id} " +
+                        "articleId=${article.id} score=$score"
+                )
                 ArticleSimilarity(cluster.representative.id, article.id, score)
             }
         }

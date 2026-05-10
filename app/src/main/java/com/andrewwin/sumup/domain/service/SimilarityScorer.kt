@@ -45,15 +45,16 @@ class SimilarityScorer(
 
         // 3. Generate based on strategy
         val startMs = System.currentTimeMillis()
+        val deduplicationEmbeddingTitle = article.title.removeEmojiForDeduplicationEmbeddingInput()
         val embedding = when (strategy) {
             DeduplicationStrategy.CLOUD -> {
-                val cloud = cloudEmbeddingService.getCloudEmbedding(article.title)
+                val cloud = cloudEmbeddingService.getCloudEmbedding(deduplicationEmbeddingTitle)
                 if (cloud != null) {
                     EmbeddingUtils.normalize(EmbeddingUtils.resizeEmbedding(cloud))
                 } else null
             }
             DeduplicationStrategy.LOCAL -> {
-                val raw = localEmbeddingService.computeLocalEmbedding(article.title)
+                val raw = localEmbeddingService.computeLocalEmbedding(deduplicationEmbeddingTitle)
                 EmbeddingUtils.normalize(raw)
             }
         }
@@ -273,7 +274,10 @@ class SimilarityScorer(
 ) : BatchResult {
         val cloudEmbeddings = cloudEmbeddingSemaphore.withPermit {
             val startMs = System.currentTimeMillis()
-            val embeddings = cloudEmbeddingService.getCloudEmbeddings(chunk.map { it.title }, runId)
+            val embeddings = cloudEmbeddingService.getCloudEmbeddings(
+                chunk.map { it.title.removeEmojiForDeduplicationEmbeddingInput() },
+                runId
+            )
             logEmbeddingBatchDiagnostics(
                 runId = runId,
                 strategy = DeduplicationStrategy.CLOUD,
@@ -332,7 +336,8 @@ class SimilarityScorer(
         val batchGeneratedEmbeddings = mutableListOf<GeneratedEmbedding>()
         chunk.forEach { article ->
             localEmbeddingSemaphore.withPermit {
-                val embedding = EmbeddingUtils.normalize(localEmbeddingService.computeLocalEmbedding(article.title))
+                val titleForEmbedding = article.title.removeEmojiForDeduplicationEmbeddingInput()
+                val embedding = EmbeddingUtils.normalize(localEmbeddingService.computeLocalEmbedding(titleForEmbedding))
 //                    Log.d(
 //                        EMBEDDINGS_TEST_LOG_TAG,
 //                        "embedding_created strategy=${DeduplicationStrategy.LOCAL.name} articleId=${article.id} " +
@@ -427,8 +432,8 @@ class SimilarityScorer(
 
     private fun embeddingTypeForStrategy(strategy: DeduplicationStrategy): String =
         when (strategy) {
-            DeduplicationStrategy.CLOUD -> strategy.name
-            DeduplicationStrategy.LOCAL -> LocalEmbeddingService.EMBEDDING_CACHE_TYPE
+            DeduplicationStrategy.CLOUD -> "${strategy.name}-$DEDUP_EMBEDDING_CACHE_VERSION"
+            DeduplicationStrategy.LOCAL -> "${LocalEmbeddingService.EMBEDDING_CACHE_TYPE}-$DEDUP_EMBEDDING_CACHE_VERSION"
         }
 
     private fun emptyEmbeddingForStrategy(strategy: DeduplicationStrategy): FloatArray =
@@ -437,6 +442,12 @@ class SimilarityScorer(
             DeduplicationStrategy.LOCAL -> FloatArray(EmbeddingUtils.LOCAL_EMBEDDING_DIM)
         }
 
+    private fun String.removeEmojiForDeduplicationEmbeddingInput(): String {
+        return replace(DEDUPE_EMOJI_REGEX, " ")
+            .replace(WHITESPACE_REGEX, " ")
+            .trim()
+    }
+
     private companion object {
         private const val LOCAL_EMBEDDING_PARALLELISM = 1
         private const val LOCAL_EMBEDDING_BATCH_SIZE = 32
@@ -444,6 +455,9 @@ class SimilarityScorer(
         private const val CLOUD_EMBEDDING_BATCH_SIZE = 32
         private const val CLOUD_EMBEDDING_BATCH_DELAY_MS = 1_000L
         private const val EMBEDDINGS_TEST_LOG_TAG = "EmbedingsTest"
+        private const val DEDUP_EMBEDDING_CACHE_VERSION = "emoji-title-v2"
+        private val DEDUPE_EMOJI_REGEX = Regex("[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u27BF\\uFE0E\\uFE0F\\u20E3]+")
+        private val WHITESPACE_REGEX = Regex("\\s+")
         private val embeddingRunId = AtomicLong(0)
     }
 
