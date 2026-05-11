@@ -64,6 +64,10 @@
     <string name="ai_strategy_cloud">Хмарна</string>
     <string name="ai_strategy_local">Локальна</string>
     <string name="ai_strategy_adaptive">Адаптивна</string>
+    <string name="ai_execution_local">Локальне підсумування</string>
+    <string name="ai_execution_cloud_model">Хмарна: %s</string>
+    <string name="ai_execution_adaptive_local">Адаптивна, локальне підсумування</string>
+    <string name="ai_execution_adaptive_cloud_model">Адаптивна, хмарне підсумування: %s</string>
     <string name="settings_api_keys">API Ключі</string>
     <string name="settings_api_keys_empty">API ключі ще не додано</string>
     <string name="settings_api_key_mask">%1$s....%2$s</string>
@@ -114,6 +118,7 @@
     <string name="error_no_active_model">Немає активної ШІ моделі</string>
     <string name="error_local_model_missing">Локальна модель не доступна. Без неї неможливо виконати порівняння.</string>
     <string name="error_all_ai_models_failed">Всі доступні ШІ моделі не відповіли. Спробуйте пізніше.</string>
+    <string name="error_invalid_ai_response">ШІ повернув порожню або некоректну відповідь. Спробуйте ще раз або змініть модель.</string>
     <string name="error_unsupported_strategy">Локальна сумаризація не підтримує запитання</string>
     <string name="error_no_articles">Немає нових статей для сумаризації.</string>
     <string name="settings_importance_filter">Інформативність</string>
@@ -156,8 +161,10 @@
     <string name="settings_show_last_summaries_count">Показувати останніх зведень: %d</string>
     <string name="settings_show_infographic_news_count">Показувати новин в інфографіці: %d</string>
     <string name="settings_ai_limits">Ліміти для хмарної обробки</string>
-    <string name="settings_ai_chars_per_article_processing">Ліміт на конкретну новину чи порівняння: %d</string>
-    <string name="settings_ai_chars_per_feed_article">Ліміт символів на новину для запланованих зведень/всієї стрічки: %d</string>
+    <string name="settings_ai_chars_single_article">Ліміт на конкретну одинарну новину: %d</string>
+    <string name="settings_ai_chars_news_cluster">Ліміт на конкретний кластер новин: %d</string>
+    <string name="settings_ai_chars_single_feed_article">Ліміт на одинарну новину для запланованих/усієї стрічки: %d</string>
+    <string name="settings_ai_chars_feed_cluster">Ліміт на кластер для запланованих/усієї стрічки: %d</string>
     <string name="settings_ai_chars_total">Загальний ліміт символів для відправки: %d</string>
     <string name="settings_memory">Пам\'ять</string>
     <string name="settings_clear_articles">Очистити статті</string>
@@ -302,13 +309,11 @@
     <string name="summary_tab_scheduled">Заплановані</string>
     <string name="summary_tab_statistics">Статистика</string>
     <string name="summary_default_title">Зведення</string>
+    <string name="summary_section_main">Основне</string>
+    <string name="summary_section_details">Детальніше</string>
     <string name="summary_none_short">Немає</string>
     <string name="summary_not_enough_data">Немає достатньо даних.</string>
-    <string name="summary_compare_common">Спільне</string>
-    <string name="summary_compare_unique">Унікальне</string>
-    <string name="summary_compare_common_empty_local">Хоча новини стосуються однакових тем чи подій, окрім заголовків не вдалося виділити спільні фрагменти</string>
-    <string name="summary_compare_unique_empty_local">Не вдалося виявити унікальні фрагменти. Можливо новини перефразують одна одну, дуже схожі або надто короткі</string>
-    <string name="summary_compare_no_meaningful_common">Новини стосуються однакової тематики, однак окрім їх заголовків суттєвих спільних фрагментів не знайдено.</string>
+    <string name="summary_compare_empty">Не вдалося виділити змістовні тези. Можливо новини надто короткі або містять замало контексту</string>
     <string name="summary_source_fallback">Джерело</string>
     <string name="summary_stat_views_count">%1$s перегл.</string>
     <string name="summary_stat_mentions_count">%1$d схож.</string>
@@ -376,7 +381,7 @@
     <string name="settings_help_section_summary_api_keys">— Тут зберігаються ключі та моделі для генерації summary.\n— Можна додавати кілька конфігурацій і вмикати лише потрібні.\n— Редагування змінює модель, ім’я або ключ доступу.\n— Вимкнені конфігурації не беруть участі у запитах до ШІ.</string>
     <string name="settings_help_section_embedding_api_keys">— Тут керуються моделі для embedding і задач, пов’язаних зі схожістю.\n— Саме ці конфігурації використовуються для векторизації та частини дедублікації.\n— Можна додавати, редагувати, вимикати й видаляти окремі моделі.</string>
     <string name="settings_help_section_ai_strategy">— Локальна стратегія намагається працювати без хмарних моделей.\n— Хмарна стратегія покладається на зовнішні AI-провайдери.\n— Адаптивна стратегія автоматично обирає між локальною та хмарною обробкою залежно від умов і лімітів.</string>
-    <string name="settings_help_section_ai_limits">— Ліміт на конкретну новину чи порівняння обмежує текст для single/compare cloud-сценаріїв.\n— Ліміт символів на новину для запланованих зведень/всієї стрічки обмежує одну новину в cloud-дайджесті.\n— Загальний ліміт символів для відправки обмежує сумарний payload одного cloud-запиту.\n— Менші значення пришвидшують запити, але можуть урізати контекст.</string>
+    <string name="settings_help_section_ai_limits">— Ліміт на конкретну одинарну новину обмежує cloud-текст для самарі однієї новини.\n— Ліміт на конкретний кластер новин обмежує сумарний cloud-текст усіх новин у порівнянні.\n— Ліміт на одинарну новину для запланованих/усієї стрічки обмежує одну новину в cloud-дайджесті.\n— Ліміт на кластер для запланованих/усієї стрічки обмежує сумарний текст кластера в дайджесті, якщо кластерний payload використовується.\n— Загальний ліміт символів для відправки обмежує сумарний payload одного cloud-запиту.\n— Менші значення пришвидшують запити, але можуть урізати контекст.</string>
     <string name="settings_help_section_dedup_strategy">— Локальна дедублікація порівнює новини без хмарного виклику.\n— Хмарна дедублікація покладається на зовнішню AI-обробку.\n— Адаптивна дедублікація перемикається між підходами залежно від доступного контексту та умов.</string>
     <string name="settings_help_section_custom_prompt">— Перемикач вмикає власний prompt замість стандартного шаблону.\n— Поле нижче дозволяє уточнити стиль або структуру summary.\n— Кастомний prompt є додатковою вказівкою, але не скасовує технічні правила формату відповіді.</string>
     <string name="settings_help_section_adaptive_summary">— Перший діапазон охоплює новини до нижнього порогу і використовує тільки екстрактивну сумаризацію.\n— Другий діапазон охоплює новини між нижнім і верхнім порогом.\n— Третій діапазон охоплює новини, довші за верхній поріг; окремого повзунка діапазону немає, бо це все вище другого порогу.\n— Відсотки визначають, яку частку речень залишати перед cloud-обробкою.</string>

@@ -19,6 +19,7 @@ class CompareNewsUseCase @Inject constructor(
     private val shrinkTextForAdaptiveStrategyUseCase: ShrinkTextForAdaptiveStrategyUseCase,
     private val sendCloudAiRequestUseCase: SendCloudAiRequestUseCase,
     private val parseAiJsonResponseUseCase: ParseAiJsonResponseUseCase,
+    private val limitTextsProportionallyUseCase: LimitTextsProportionallyUseCase,
     private val getExtractiveSummaryUseCase: GetExtractiveSummaryUseCase,
     private val localEmbeddingService: LocalEmbeddingService,
     private val similarityScorer: SimilarityScorer,
@@ -37,25 +38,48 @@ class CompareNewsUseCase @Inject constructor(
             return@withContext runCatching { performLocalComparison(articles, prefs) }
         }
 
-        // 2. Cloud or Adaptive
+        val cloudArticles = articles.map { article ->
+            val source = articleRepository.getSourceById(article.sourceId)
+            val sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело"
+            val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
+            val fullContent = articleRepository.fetchFullContent(article)
+            val contentToProcess = fullContent.ifBlank { article.content }
+
+            CloudCompareArticle(
+                id = article.id,
+                sourceName = sourceName,
+                sourceUrl = sourceUrl,
+                title = article.title,
+                content = contentToProcess
+            )
+        }
+        val totalContentLength = cloudArticles.sumOf { it.content.length }
+
+        if (strategy == AiStrategy.ADAPTIVE && totalContentLength < prefs.adaptiveExtractiveOnlyBelowChars) {
+            return@withContext runCatching { performLocalComparison(articles, prefs) }
+        }
+
+        val processedTexts = cloudArticles.map { article ->
+            if (strategy == AiStrategy.ADAPTIVE) {
+                shrinkTextForAdaptiveStrategyUseCase.shrinkByAdaptiveRange(
+                    text = article.content,
+                    prefs = prefs,
+                    rangeLength = totalContentLength
+                )
+            } else {
+                article.content
+            }
+        }
+        val limitedTexts = limitTextsProportionallyUseCase(
+            texts = processedTexts,
+            maxTotalChars = prefs.aiMaxCharsNewsCluster
+        )
+
         val cloudInput = buildString {
-            for (article in articles) {
-                val source = articleRepository.getSourceById(article.sourceId)
-                val sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело"
-                val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
-
-                val fullContent = articleRepository.fetchFullContent(article)
-                val contentToProcess = fullContent.ifBlank { article.content }
-
-                val textForCloud = if (strategy == AiStrategy.ADAPTIVE) {
-                    shrinkTextForAdaptiveStrategyUseCase(contentToProcess, prefs)
-                } else {
-                    contentToProcess.take(prefs.aiMaxCharsPerArticle)
-                }
-
+            for ((article, textForCloud) in cloudArticles.zip(limitedTexts)) {
                 append("source_id: ${article.id}\n")
-                append("source_name: $sourceName\n")
-                append("source_url: $sourceUrl\n")
+                append("source_name: ${article.sourceName}\n")
+                append("source_url: ${article.sourceUrl}\n")
                 append("title: ${article.title}\n")
                 append("content: $textForCloud\n\n")
             }
@@ -64,11 +88,15 @@ class CompareNewsUseCase @Inject constructor(
         val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
         val prompt = AiPromptBuilder.buildComparePrompt(prefs.summaryLanguage, customPrompt)
 
-        return@withContext runCatching {
+        val cloudResult = runCatching {
             val jsonResponse = sendCloudAiRequestUseCase(prompt, cloudInput)
             parseAiJsonResponseUseCase.parseCompare(jsonResponse, cloudInput)
-        }.recoverCatching {
-            performLocalComparison(articles, prefs)
+        }
+
+        return@withContext if (strategy == AiStrategy.ADAPTIVE) {
+            cloudResult.recoverCatching { performLocalComparison(articles, prefs) }
+        } else {
+            cloudResult
         }
     }
 
@@ -76,6 +104,14 @@ class CompareNewsUseCase @Inject constructor(
         val text: String,
         val source: SummarySourceRef,
         val articleId: Long
+    )
+
+    private data class CloudCompareArticle(
+        val id: Long,
+        val sourceName: String,
+        val sourceUrl: String,
+        val title: String,
+        val content: String
     )
 
     private data class LocalClusterSentenceCandidate(
@@ -91,7 +127,7 @@ class CompareNewsUseCase @Inject constructor(
     )
 
     private suspend fun performLocalComparison(articles: List<Article>, prefs: com.andrewwin.sumup.data.local.entities.UserPreferences): SummaryResult.Compare {
-        if (articles.isEmpty()) return SummaryResult.Compare(emptyList(), emptyList())
+        if (articles.isEmpty()) return SummaryResult.Compare(points = emptyList())
 
         if (!localEmbeddingService.initialize()) {
             throw LocalModelMissingException()
@@ -128,8 +164,8 @@ class CompareNewsUseCase @Inject constructor(
         }
 
         return SummaryResult.Compare(
-            common = selectedItems,
-            unique = emptyList()
+            main = selectedItems.firstOrNull()?.text,
+            points = selectedItems.drop(SummaryLimits.Compare.mainSentences)
         )
     }
 

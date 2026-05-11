@@ -5,20 +5,115 @@ import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 object AiPromptBuilder {
 
     private const val RULE_JSON_ONLY =
-        "Output ONLY one strictly valid JSON object matching the SCHEMA exactly. No markdown, no prose, no extra keys."
+        "OUTPUT: Return ONLY raw valid JSON. No intro. No explanation. No markdown. No code blocks."
 
-    private const val RULE_REUTERS_STYLE = "Use Reuters style: Objective, neutral, and punchy." +
-            "Do not summarize by copying sentences from the input." +
-            "Produce an analytical synthesis in your own words, while preserving exact facts, names, dates, numbers, locations, and source-attributed claims. " +
-            "Short direct quotes are allowed only when the wording itself is important or evidentiary." +
-            "Inverted pyramid: most important fact first, context second, background last." +
-            "Active voice. Subject → verb → object. Avoid 'there is / there are' constructions." +
-            "No filler ('it is worth noting', 'it should be mentioned', 'experts say')."
+    private const val COMMON_ROLE =
+        "You're an invisible AI backend for a mobile news app that creates concise, analytical, UI-ready news summaries."
+
+    private const val COMMON_RULES =
+        "SELF-CONTAINED: Every sentence must be fully understandable without reading any other sentence or knowing the source. " +
+                "Include the subject, actor, or context needed to understand the claim on its own. " +
+                "Bad: \"He announced a ceasefire.\" " +
+                "Good: \"Russian President Putin announced a unilateral ceasefire starting May 8.\" " +
+
+                "COMPLETE SENTENCES: Write complete sentences with enough words to be clear. " +
+                "Do not strip words to save space. Do not use noun phrases or telegraphic fragments. " +
+                "Bad: \"Ceasefire announced. Casualties rising. Talks stalled.\" " +
+                "Good: \"Russia announced a unilateral ceasefire starting May 8, though Ukraine has not confirmed it.\" " +
+
+                "NO VAGUE SUMMARIES: State concrete facts. " +
+                "Bad: \"The situation escalated.\" " +
+                "Good: \"North Korea said a nuclear strike would follow automatically if Kim Jong Un is killed.\" " +
+
+                "SOURCE IDS: Use source IDs only in source_id or source_ids fields. Never write source IDs in title or text. " +
+
+                "CLEAN TEXT: title and text fields contain only human-readable content. No IDs. No references. No metadata. " +
+                "Bad: { \"text\": \"According to ID 725, the price rose...\" } " +
+                "Good: { \"text\": \"The price rose...\", \"source_ids\": [\"725\"] } "
+
+    private const val ANALYTIC_CHAIN_RULE =
+        "ANALYTIC CHAIN: Output a chain of atomic claims. " +
+                "Use separate items for: main claim, evidence, before/after change, cause, context, result, consequence, conflict, caveat. " +
+                "Do not compress the whole chain into one sentence. " +
+
+                "CHAIN EXAMPLE: " +
+                "1. Putin's attitude toward Zelensky changed sharply between 2022 and 2026. " +
+                "2. In 2022, Putin called Ukraine's leadership \"a gang of neo-Nazis and drug addicts\". " +
+                "3. By 2026, Putin addressed Zelensky as \"Mr. Zelensky\". " +
+                "4. The shift coincided with the threat of Ukrainian drone strikes on the May 9 parade. " +
+                "Structure: main claim → evidence/before → after/change → cause/result. " +
+                "Do not copy the topic, names, or dates from this example. Use only facts from the sources. " +
+
+                "NO METADATA: Ignore emojis, hashtags, bullets, separators, and formatting marks in input. Use only factual content."
+
+    private const val SINGLE_ARTICLE_SOTA_EXAMPLE =
+        "SOTA EXAMPLE FOR SINGLE ARTICLE: " +
+                "For an article about a central bank keeping rates unchanged because inflation remains high, a strong output is: " +
+                "{ \"main\": \"The central bank kept interest rates unchanged because inflation remains above target despite slower economic growth.\", " +
+                "\"details\": [" +
+                "{ \"text\": \"Officials said inflation risks remain stronger than signs of weaker consumer demand.\", \"source_ids\": [\"42\"] }, " +
+                "{ \"text\": \"The bank signaled that rate cuts require clearer evidence of sustained price stability.\", \"source_ids\": [\"42\"] }, " +
+                "{ \"text\": \"Businesses warned that prolonged high rates could delay investment and hiring.\", \"source_ids\": [\"42\"] }" +
+                "] }. " +
+                "Why this is good: main gives the core meaning in exactly one sentence; details add evidence, condition, and consequence; every detail is atomic and under " +
+                SummaryLimits.Single.maxWordsPerPoint + " words. Do not copy this example."
+
+    private const val COMPARE_SOTA_EXAMPLE =
+        "SOTA EXAMPLE FOR COMPARE: " +
+                "For sources about the same court ruling, where one source emphasizes the verdict and another explains market impact, a strong output is: " +
+                "{ \"main\": \"A court ruling blocked the merger, forcing both companies to reassess strategy while investors reacted to higher regulatory risk.\", " +
+                "\"details\": [" +
+                "{ \"text\": \"One source says the judge found the merger would reduce competition in cloud services.\", \"source_ids\": [\"11\"] }, " +
+                "{ \"text\": \"Another source reports that both companies are reviewing whether to appeal the ruling.\", \"source_ids\": [\"12\"] }, " +
+                "{ \"text\": \"Shares fell after investors priced in longer regulatory delays for similar deals.\", \"source_ids\": [\"12\", \"13\"] }, " +
+                "{ \"text\": \"The companies argued the merger would improve infrastructure investment, not weaken competition.\", \"source_ids\": [\"11\", \"13\"] }" +
+                "], \"fallback\": null }. " +
+                "Why this is good: main merges the shared story; details separate legal basis, response, market consequence, and caveat; each item stays under " +
+                SummaryLimits.Compare.maxWordsPerPoint + " words. Do not copy this example."
+
+    private const val DIGEST_SOTA_EXAMPLE =
+        "SOTA EXAMPLE FOR FEED DIGEST: " +
+                "For a mixed feed with war, technology, and economy stories, a strong output is: " +
+                "{ \"themes\": [" +
+                "{ \"title\": \"🇺🇦⚔️🛰️ Ukrainian war\", \"items\": [" +
+                "{ \"title\": \"Ukraine expanded drone attacks on Russian logistics while Moscow prepared stronger air defenses\", \"source_id\": \"101\" }, " +
+                "{ \"title\": \"European allies discussed new ammunition deliveries as Ukraine warned about artillery shortages\", \"source_id\": \"102\" }" +
+                "] }, " +
+                "{ \"title\": \"🤖💼⚖️ AI regulation\", \"items\": [" +
+                "{ \"title\": \"EU officials pushed stricter AI transparency rules after complaints from media and copyright groups\", \"source_id\": \"201\" }, " +
+                "{ \"title\": \"Tech companies warned that broad AI disclosure rules could slow product launches\", \"source_id\": \"202\" }" +
+                "] }" +
+                "] }. " +
+                "Why this is good: themes are meaning-based, non-overlapping, and each title has exactly " +
+                SummaryLimits.Digest.emojiesCount + " emojis; item titles are concrete, content-driven, and under " +
+                SummaryLimits.Digest.maxWordsPerTitle + " words. Do not copy this example."
+
+    private const val QA_SOTA_EXAMPLE =
+        "SOTA EXAMPLE FOR QUESTION ANSWERING: " +
+                "Question: \"Why did the company delay the launch?\" " +
+                "For sources saying regulators requested extra safety data and suppliers missed deadlines, a strong output is: " +
+                "{ \"short_answer\": \"The launch was delayed by regulatory review and supplier problems.\", " +
+                "\"details\": [" +
+                "{ \"text\": \"Regulators asked the company to provide additional safety data before approving release.\", \"source_ids\": [\"31\"] }, " +
+                "{ \"text\": \"A supplier missed delivery deadlines for two key components needed for production.\", \"source_ids\": [\"32\"] }, " +
+                "{ \"text\": \"The company said it still expects launch after the review is completed.\", \"source_ids\": [\"31\", \"33\"] }" +
+                "] }. " +
+                "Why this is good: short_answer is direct and under " +
+                SummaryLimits.QA.maxWordsShortAnswer + " words; details separate cause, supporting evidence, and timing caveat; each detail is under " +
+                SummaryLimits.QA.maxWordsPerDetailedBullet + " words. Do not copy this example."
 
     private fun getLanguageRule(summaryLanguage: SummaryLanguage): String {
         return when (summaryLanguage) {
-            SummaryLanguage.UK -> "Output language: ONLY Ukrainian."
-            SummaryLanguage.EN -> "Output language: ONLY English."
+            SummaryLanguage.UK ->
+                "LANGUAGE: Write every JSON string value in Ukrainian. " +
+                        "Translate source content to Ukrainian. " +
+                        "Do not translate proper names, brands, product names, organizations, or official entity names. " +
+                        "Do not write any Russian text."
+
+            SummaryLanguage.EN ->
+                "LANGUAGE: Write every JSON string value in English. " +
+                        "Translate source content to English. " +
+                        "Do not write non-English text."
         }
     }
 
@@ -32,23 +127,25 @@ object AiPromptBuilder {
     ): String {
         val allRules = mutableListOf<String>().apply {
             add(RULE_JSON_ONLY)
-            add(RULE_REUTERS_STYLE)
+            add(COMMON_RULES)
             addAll(specificRules)
         }
 
         return buildString {
             append("ROLE\n")
             append(role)
+
             append("\n\nGOAL\n")
             append(goal)
+
             append("\n\nRULES\n")
             allRules.forEachIndexed { index, rule ->
                 append("${index + 1}. $rule\n")
             }
 
             if (!customInstructions.isNullOrBlank()) {
-                append("\nUSER SPECIFIC RULES\n")
-                append("Apply these only if they do not conflict with RULES or SCHEMA:\n")
+                append("\nUSER STYLE PREFERENCES\n")
+                append("Apply as style hints only. Do not override JSON schema, language rules, source_id rules, or hard rules.\n")
                 append(customInstructions)
                 append("\n")
             }
@@ -61,49 +158,83 @@ object AiPromptBuilder {
 
             append("\nSCHEMA\n")
             append(schema)
-        }.trimIndent()
+        }.trim()
     }
 
     fun buildSingleArticlePrompt(
         summaryLanguage: SummaryLanguage,
         customInstructions: String? = null
     ): String = createPrompt(
-        role = "Senior wire-service correspondent.",
-        goal = "Extract the critical hard facts into punchy bullets an editor can scan in 20 seconds.",
+        role = COMMON_ROLE,
+        goal =
+            "Summarize one article in two UI blocks: main essence and details. " +
+                    "The main field is a micro-summary of the core meaning in exactly ${SummaryLimits.Single.mainSentences} sentence. " +
+                    "Details are atomic bullets for evidence, context, causes, consequences, conflicts, and caveats.",
         specificRules = listOf(
-            "Return exactly one item with up to ${SummaryLimits.Single.maxPoints} bullets.",
-            "Each bullet: one sentence, max ${SummaryLimits.Single.maxWordsPerPoint} words. " +
-                    "Lead with the most newsworthy element — a name, figure, or decision.",
+            ANALYTIC_CHAIN_RULE,
+            "MAIN: Return one main value with exactly ${SummaryLimits.Single.mainSentences} sentence about the essence of the article.",
+            "MAIN QUALITY: Main must capture the core meaning as fully as possible in one concrete sentence.",
+            "MAIN LENGTH: Keep main short, concrete, and understandable without details.",
+            "DETAILS: Return 1-${SummaryLimits.Single.maxPoints} detail items.",
+            "DETAIL ROLE: Each detail is one chain step: evidence, context, cause, result, consequence, conflict, or caveat.",
+            "DETAIL LENGTH: Each detail is at most ${SummaryLimits.Single.maxWordsPerPoint} words.",
+            "NO MAIN DUPLICATE: Details must not repeat the main sentence. Add only new facts, context, evidence, or caveats.",
+            "SOURCE IDS: Every detail includes source_ids with the article source_id.",
+            "NO HEADLINE REPEAT: Do not restate the headline unless you add concrete context, cause, or result.",
+            SINGLE_ARTICLE_SOTA_EXAMPLE,
             getLanguageRule(summaryLanguage)
         ),
-        schema = """{"items":[{"bullets":["point 1","point 2"]}]}""",
+        schema = """{"main":"1 sentence essence","details":[{"text":"detail sentence","source_ids":["source_id"]}]}""",
         customInstructions = customInstructions
     )
-
 
     fun buildComparePrompt(
         summaryLanguage: SummaryLanguage,
         customInstructions: String? = null
     ): String {
         val fallback = when (summaryLanguage) {
-            SummaryLanguage.UK -> "Не вдалося виявити унікальні фрагменти. Можливо новини перефразують одна одну, дуже схожі або надто короткі."
-            SummaryLanguage.EN -> "No unique fragments were found. The news articles may be paraphrasing each other, very similar, or too short."
+            SummaryLanguage.UK -> "Не вдалося виділити змістовні твердження. Джерела можуть бути надто короткими, непов'язаними або містити лише слабкий контекст."
+            SummaryLanguage.EN -> "No meaningful claims were found. Sources may be too short, unrelated, or contain only weak context."
         }
+
         return createPrompt(
-            role = "Senior news editor specialising in cross-source synthesis",
-            goal = "Identify the unifying narrative and extract shared trends or facts across sources, while highlighting specific nuances.",
+            role = COMMON_ROLE,
+            goal =
+                "Summarize multiple related news reports in two UI blocks: main essence and details. " +
+                        "The main field is a micro-summary of the core shared story in exactly ${SummaryLimits.Compare.mainSentences} sentence. " +
+                        "Details are atomic bullets for evidence, contrast, cause, context, result, and caveat. " +
+                        "Do not split the result into shared and unique sections.",
             specificRules = listOf(
-                "COMMON_FACTS: Total max ${SummaryLimits.Compare.maxCommon} for ENTIRE ANSWER. Identify shared trends or 'umbrella' context (e.g., 'Illness is rising in multiple regions') even if specific details like cities or numbers differ.",
-                "UNIQUE_DETAILS: Total max ${SummaryLimits.Compare.maxUnique} for ENTIRE ANSWER. Focus on specific nuances, figures, or locations that are unique to a single source.",
-                "Each fact must be exactly one short sentence (max ${SummaryLimits.Compare.maxWordsPerPoint} words).",
-                "Prioritize finding commonalities. Only use the 'no common traits' fallback (common_facts=[]) if sources are absolutely unrelated (e.g., sports vs cooking).",
-                "Every unique fact must have exactly one source_id.",
-                "Every common fact must have 2+ source_ids. Ensure the text of common facts is generalized enough to cover all linked sources.",
-                "If a specific source has no unique details, return an empty array [] for its unique_details field.",
-                "Use single item with fallback text ('$fallback') if NO unique details were found across ALL sources combined. But avoid in most cases.",
+                ANALYTIC_CHAIN_RULE,
+
+                "MAIN: Return one main value with exactly ${SummaryLimits.Compare.mainSentences} sentence about the essence of the compared news.",
+                "MAIN QUALITY: Main must capture the core meaning as fully as possible in one concrete sentence.",
+                "MAIN LENGTH: Keep main short, concrete, and understandable without details.",
+                "DETAILS: Return up to ${SummaryLimits.Compare.maxBullets} atomic detail items.",
+                "DETAIL ROLE: Each detail is one concrete chain step: main claim, evidence, contrast, cause, context, result, consequence, conflict, or caveat.",
+                "SOURCE COVERAGE: Use facts from all relevant sources. Assign one or more source_ids to each detail.",
+                "SOURCE SPECIFIC DETAILS: Include concrete source-specific details when they add useful context, evidence, numbers, quotes, causes, or caveats.",
+                "NO WORDING-ONLY DETAILS: Do not create a detail only because sources use different wording, tone, or emphasis.",
+                "NO MAIN DUPLICATE: Details must not repeat the main sentence. Add only new facts, context, evidence, contrast, or caveats.",
+                "NO DUPLICATES: Do not repeat the same meaning in multiple items.",
+                "EMPTY: If no meaningful details exist, set details to [] and fill fallback.",
+
+                "CHAIN SPLIT: Output main claim, evidence, contrast, and cause as separate facts. " +
+                        "Bad: \"Putin's attitude changed from insulting to polite.\" " +
+                        "Good: separate facts for the change, the 2022 insult, the 2026 formal address, and the cause.",
+
+                "SOURCE IDS: Copy every source_id exactly from input. Never invent, modify, or translate source_ids.",
+
+                "DETAIL LENGTH: Each detail is at most ${SummaryLimits.Compare.maxWordsPerPoint} words.",
+
+                "FALLBACK: If no meaningful summary is possible, set main to null, details to [], and fallback to: $fallback",
+                "NO FALLBACK AS DETAIL: Never write fallback text inside details.",
+                "NULL FALLBACK: Set fallback to null when not needed.",
+
+                COMPARE_SOTA_EXAMPLE,
                 getLanguageRule(summaryLanguage)
             ),
-            schema = """{"common_topic":"optional short topic label","common_facts":[{"text":"sentence 1","source_ids":["source_id_1","source_id_2"]}],"items":[{"source_id":"source id from input","unique_details":["sentence 1"]}]}""",
+            schema = """{"main":"1 sentence essence","details":[{"text":"detail sentence","source_ids":["source_id_1"]}],"fallback":null}""",
             customInstructions = customInstructions
         )
     }
@@ -113,16 +244,36 @@ object AiPromptBuilder {
         customInstructions: String? = null
     ): String {
         return createPrompt(
-            role = "News desk editor composing a flagship daily digest.",
-            goal = "Build a condensed, hard-fact digest grouped by broad categories.",
+            role = COMMON_ROLE,
+            goal =
+                "Group the news feed into themes by meaning. " +
+                        "For each theme, write atomic item titles based on both title and content.",
             specificRules = listOf(
-                "Create up to ${SummaryLimits.Digest.maxThemes} broad themes (e.g., '\uD83D\uDCB0\uD83D\uDCCA\uD83C\uDFE6 Економіка', '\uD83E\uDD16\uD83E\uDDE0⚙\uFE0F Штучний інтелект', '\uD83C\uDDFA\uD83C\uDDE6\uD83E\uDE96\uD83D\uDCA5 Війна в Україні').",
-                "Never combine topics that are fundamentally different. Bad - 'Technology and Health', good - 'Health and Sports'.",
-                "Include ${SummaryLimits.Digest.emojiesCount} highly relevant emojis in theme title.",
-                "Each theme must have ${SummaryLimits.Digest.minItemsPerTheme} to ${SummaryLimits.Digest.maxItemsPerTheme} short abstractive news items (titles).",
-                "Item title: punchy, short (max ${SummaryLimits.Digest.maxWordsPerTitle} words).",
-                "Each news must have exactly one source_id.",
-                "Input news rows use this format: id|src|url|title|content. Use the id column exactly as source_id.",
+                "THEMES: Create ${SummaryLimits.Digest.minThemes}-${SummaryLimits.Digest.maxThemes} themes.",
+
+                "THEME LOGIC: Each theme has one clear shared topic, event, conflict, actor, or trend. " +
+                        "Good: '💻🚀🧠 Technologies'. Good: '🇺🇦⚔️🪖 Ukrainian war'. " +
+                        "Bad: '💰🏥🧩 Economy and health'.",
+
+                "NO OVERLAP: Do not create two themes about the same event or trend.",
+                "CLUSTER BY MEANING: Group by core meaning, not by shared words.",
+
+                "EMOJI: Include exactly ${SummaryLimits.Digest.emojiesCount} relevant emojis in each theme title.",
+                "THEME TITLE: Name the broad shared story. Do not copy a single news headline.",
+
+                "ITEMS: Each theme has ${SummaryLimits.Digest.minItemsPerTheme}-${SummaryLimits.Digest.maxItemsPerTheme} items.",
+                "ITEM TITLE: Write a content-driven atomic micro-summary of at most ${SummaryLimits.Digest.maxWordsPerTitle} words. " +
+                        "Use title + content together. Do not summarize from title alone. " +
+                        "Show the useful claim: who did what, what changed, what caused it, or why it matters. " +
+                        "Bad: 'Putin called Zelensky \"Mister\"'. " +
+                        "Good: 'Putin shifted from calling Ukraine\\'s leadership \"a gang of neo-Nazis\" to addressing Zelensky as \"Mr. Zelensky\" amid Ukrainian drone threats'.",
+
+                "ITEM SOURCE: Each item has exactly one source_id.",
+                "INPUT FORMAT: Input rows are id|src|url|title|content.",
+                "SOURCE IDS: Copy source_id from the input id value exactly.",
+                "NO EXTRA FIELDS: Do not add fields outside the schema.",
+
+                DIGEST_SOTA_EXAMPLE,
                 getLanguageRule(summaryLanguage)
             ),
             schema = """{"themes":[{"title":"Emoji Theme Title","items":[{"title":"news title","source_id":"id"}]}]}""",
@@ -140,19 +291,40 @@ object AiPromptBuilder {
             SummaryLanguage.EN -> "The provided sources do not contain enough information to answer your question"
         }
 
+        val noDirectAnswer = when (summaryLanguage) {
+            SummaryLanguage.UK -> "У джерелах немає прямої відповіді на це питання."
+            SummaryLanguage.EN -> "The sources do not directly answer this question."
+        }
+
         return createPrompt(
-            role = "Helpful analyst and fact-checker.",
-            goal = "Provide the most relevant information found in the sources regarding the question.",
+            role = COMMON_ROLE,
+            goal =
+                "Answer the user's question as an analytical chain using only the provided sources. " +
+                        "Give the direct answer first. Then add atomic details for evidence, caveats, disagreement, missing information, causes, context, and consequences.",
             specificRules = listOf(
-                "short_answer: one natural sentence (max ${SummaryLimits.QA.maxWordsShortAnswer} words) answering the question maximally shortly.",
-                "details: maximum ${SummaryLimits.QA.maxDetailPoints} short factual bullets. Each up to ${SummaryLimits.QA.maxWordsPerDetailedBullet} words and must include 1+ valid source_ids.",
-                "If the sources are ON TOPIC but don't have a direct answer (e.g., missing exact numbers), set short_answer to: 'У джерелах немає прямої відповіді на це питання.' and provide relevant context in 'details'.",
-                "If the sources are COMPLETELY UNRELATED to the question (e.g., question is about sports, but sources are about war), set short_answer to '$fallback'.",
-                "In case of completely unrelated sources, use 'details' to explain the mismatch (e.g., 'Новини стосуються різних тем: одна про війну, інша про футбол').",
+                ANALYTIC_CHAIN_RULE,
+
+                "SOURCES ONLY: Answer only from the provided sources. Never use outside knowledge.",
+
+                "SHORT ANSWER: Write one natural sentence of at most ${SummaryLimits.QA.maxWordsShortAnswer} words. " +
+                        "State the direct conclusion, not a list of evidence. " +
+                        "Be cautious when sources are incomplete, indirect, or conflicting. Do not present uncertain information as certain.",
+
+                "DETAILS: Return up to ${SummaryLimits.QA.maxDetailPoints} atomic detail bullets. " +
+                        "Each detail is one chain step: evidence, context, cause, consequence, disagreement, caveat, or missing information. " +
+                        "Each detail is at most ${SummaryLimits.QA.maxWordsPerDetailedBullet} words. " +
+                        "Each detail includes 1 or more valid source_ids.",
+
+                "NO DIRECT ANSWER: If sources are on topic but do not directly answer, set short_answer to: '$noDirectAnswer' and add relevant context in details.",
+                "CAN'T ANSWER: If sources are unrelated to the question, set short_answer to: '$fallback'.",
+
+                "SOURCE IDS: Copy every source_id exactly from input. Never invent source_ids.",
+
+                QA_SOTA_EXAMPLE,
                 getLanguageRule(summaryLanguage)
             ),
             question = question,
-            schema = """{"short_answer":"string","details":[{"text":"string","sources":["source_id"]}]}""",
+            schema = """{"short_answer":"string","details":[{"text":"string","source_ids":["source_id"]}]}""",
             customInstructions = customInstructions
         )
     }

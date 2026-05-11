@@ -53,26 +53,17 @@ class SummarizeSingleArticleUseCase @Inject constructor(
         val strategy = prefs.aiStrategy
         val sourceRef = SummarySourceRef(sourceName, sourceUrl)
 
-        // 1. Local Strategy OR Adaptive with < 1000 chars
-        if (strategy == AiStrategy.LOCAL || (strategy == AiStrategy.ADAPTIVE && content.length < 1000)) {
-            val sentences = getExtractiveSummaryUseCase(content, 5)
-                .map { it.trim() }
-                .filter { it.isNotBlank() }
-                .take(5)
-            
-            val points = sentences.map { SummaryItem(text = it, sources = listOf(sourceRef)) }
-            return@runCatching SummaryResult.Single(
-                title = title,
-                points = points,
-                sources = listOf(sourceRef)
-            )
+        if (strategy == AiStrategy.LOCAL ||
+            (strategy == AiStrategy.ADAPTIVE && content.length < prefs.adaptiveExtractiveOnlyBelowChars)
+        ) {
+            return@runCatching buildLocalSingleSummary(title, content, sourceRef)
         }
 
         // 2. Adaptive (Shrink text)
         val textForCloud = if (strategy == AiStrategy.ADAPTIVE) {
             shrinkTextForAdaptiveStrategyUseCase(content, prefs)
         } else {
-            content.take(prefs.aiMaxCharsPerArticle.coerceAtLeast(1000))
+            content.take(prefs.aiMaxCharsSingleArticle)
         }
 
         // 3. Build Prompt & Cloud Input
@@ -86,20 +77,48 @@ class SummarizeSingleArticleUseCase @Inject constructor(
             append("content: $textForCloud")
         }
 
-        // 4. Send Request
-        val jsonResponse = sendCloudAiRequestUseCase(prompt, cloudInput)
+        val cloudResult = runCatching {
+            val jsonResponse = sendCloudAiRequestUseCase(prompt, cloudInput)
+            val parsedResult = parseAiJsonResponseUseCase.parseSingle(jsonResponse, cloudInput)
 
-        // 5. Parse JSON
-        val parsedResult = parseAiJsonResponseUseCase.parseSingle(jsonResponse, cloudInput)
-        
-        // Ensure sources fallback
-        if (parsedResult.sources.isEmpty()) {
-            return@runCatching parsedResult.copy(
-                points = parsedResult.points.map { if (it.sources.isEmpty()) it.copy(sources = listOf(sourceRef)) else it },
-                sources = listOf(sourceRef)
-            )
+            if (parsedResult.sources.isEmpty()) {
+                parsedResult.copy(
+                    points = parsedResult.points.map { if (it.sources.isEmpty()) it.copy(sources = listOf(sourceRef)) else it },
+                    sources = listOf(sourceRef)
+                )
+            } else {
+                parsedResult
+            }
         }
-        
-        parsedResult
+
+        if (strategy == AiStrategy.ADAPTIVE) {
+            cloudResult.getOrElse { buildLocalSingleSummary(title, content, sourceRef) }
+        } else {
+            cloudResult.getOrThrow()
+        }
+    }
+
+    private fun buildLocalSingleSummary(
+        title: String,
+        content: String,
+        sourceRef: SummarySourceRef
+    ): SummaryResult.Single {
+        val sentences = getExtractiveSummaryUseCase(content, SummaryLimits.Single.localExtractiveSentences)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .take(SummaryLimits.Single.localExtractiveSentences)
+
+        val main = sentences.firstOrNull()
+        val points = sentences
+            .drop(SummaryLimits.Single.mainSentences)
+            .take(SummaryLimits.Single.maxPoints)
+            .map { SummaryItem(text = it, sources = listOf(sourceRef)) }
+        return SummaryResult.Single(
+            title = title,
+            main = main,
+            points = points,
+            sources = listOf(sourceRef)
+        )
     }
 }

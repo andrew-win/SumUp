@@ -280,11 +280,17 @@ internal fun SettingsScreen(
         }
     }
 
-    var aiMaxCharsPerArticle by rememberSaveable(userPreferences.aiMaxCharsPerArticle) {
-        mutableStateOf(userPreferences.aiMaxCharsPerArticle.toFloat())
+    var aiMaxCharsSingleArticle by rememberSaveable(userPreferences.aiMaxCharsSingleArticle) {
+        mutableStateOf(userPreferences.aiMaxCharsSingleArticle.toFloat())
     }
-    var aiMaxCharsPerFeedArticle by rememberSaveable(userPreferences.aiMaxCharsPerFeedArticle) {
-        mutableStateOf(userPreferences.aiMaxCharsPerFeedArticle.toFloat())
+    var aiMaxCharsNewsCluster by rememberSaveable(userPreferences.aiMaxCharsNewsCluster) {
+        mutableStateOf(userPreferences.aiMaxCharsNewsCluster.toFloat())
+    }
+    var aiMaxCharsSingleFeedArticle by rememberSaveable(userPreferences.aiMaxCharsSingleFeedArticle) {
+        mutableStateOf(userPreferences.aiMaxCharsSingleFeedArticle.toFloat())
+    }
+    var aiMaxCharsFeedCluster by rememberSaveable(userPreferences.aiMaxCharsFeedCluster) {
+        mutableStateOf(userPreferences.aiMaxCharsFeedCluster.toFloat())
     }
     var aiMaxCharsTotal by rememberSaveable(userPreferences.aiMaxCharsTotal) {
         mutableStateOf(userPreferences.aiMaxCharsTotal.toFloat())
@@ -479,8 +485,10 @@ internal fun SettingsScreen(
                             isHelpMode = isHelpMode,
                             userPreferences = userPreferences,
                             summaryPrompt = summaryPrompt,
-                            aiMaxCharsPerArticle = aiMaxCharsPerArticle,
-                            aiMaxCharsPerFeedArticle = aiMaxCharsPerFeedArticle,
+                            aiMaxCharsSingleArticle = aiMaxCharsSingleArticle,
+                            aiMaxCharsNewsCluster = aiMaxCharsNewsCluster,
+                            aiMaxCharsSingleFeedArticle = aiMaxCharsSingleFeedArticle,
+                            aiMaxCharsFeedCluster = aiMaxCharsFeedCluster,
                             aiMaxCharsTotal = aiMaxCharsTotal,
                             adaptiveExtractiveOnlyBelowChars = adaptiveExtractiveOnlyBelowChars,
                             adaptiveExtractiveHighCompressionAboveChars = adaptiveExtractiveHighCompressionAboveChars,
@@ -488,13 +496,21 @@ internal fun SettingsScreen(
                             adaptiveExtractiveCompressionPercentMedium = adaptiveExtractiveCompressionPercentMedium,
                             adaptiveExtractiveCompressionPercentHigh = adaptiveExtractiveCompressionPercentHigh,
                             onAiStrategyChange = viewModel::updateAiStrategy,
-                            onAiMaxCharsPerArticleChange = { aiMaxCharsPerArticle = it },
-                            onAiMaxCharsPerArticleCommitted = {
-                                viewModel.updateAiMaxCharsPerArticle(aiMaxCharsPerArticle.toInt())
+                            onAiMaxCharsSingleArticleChange = { aiMaxCharsSingleArticle = it },
+                            onAiMaxCharsSingleArticleCommitted = {
+                                viewModel.updateAiMaxCharsSingleArticle(aiMaxCharsSingleArticle.toInt())
                             },
-                            onAiMaxCharsPerFeedArticleChange = { aiMaxCharsPerFeedArticle = it },
-                            onAiMaxCharsPerFeedArticleCommitted = {
-                                viewModel.updateAiMaxCharsPerFeedArticle(aiMaxCharsPerFeedArticle.toInt())
+                            onAiMaxCharsNewsClusterChange = { aiMaxCharsNewsCluster = it },
+                            onAiMaxCharsNewsClusterCommitted = {
+                                viewModel.updateAiMaxCharsNewsCluster(aiMaxCharsNewsCluster.toInt())
+                            },
+                            onAiMaxCharsSingleFeedArticleChange = { aiMaxCharsSingleFeedArticle = it },
+                            onAiMaxCharsSingleFeedArticleCommitted = {
+                                viewModel.updateAiMaxCharsSingleFeedArticle(aiMaxCharsSingleFeedArticle.toInt())
+                            },
+                            onAiMaxCharsFeedClusterChange = { aiMaxCharsFeedCluster = it },
+                            onAiMaxCharsFeedClusterCommitted = {
+                                viewModel.updateAiMaxCharsFeedCluster(aiMaxCharsFeedCluster.toInt())
                             },
                             onAiMaxCharsTotalChange = { aiMaxCharsTotal = it },
                             onAiMaxCharsTotalCommitted = {
@@ -834,8 +850,10 @@ private fun SettingsGroup.searchableTextResIds(): List<Int> = when (this) {
         R.string.settings_summary_prompt,
         R.string.settings_ai_limits,
         R.string.settings_adaptive_summary,
-        R.string.settings_ai_chars_per_article_processing,
-        R.string.settings_ai_chars_per_feed_article,
+        R.string.settings_ai_chars_single_article,
+        R.string.settings_ai_chars_news_cluster,
+        R.string.settings_ai_chars_single_feed_article,
+        R.string.settings_ai_chars_feed_cluster,
         R.string.settings_ai_chars_total,
         R.string.settings_adaptive_extractive_only_below_chars,
         R.string.settings_adaptive_extractive_high_compression_above_chars,

@@ -46,15 +46,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -80,6 +74,7 @@ import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.domain.usecase.ai.DigestTheme
 import com.andrewwin.sumup.domain.usecase.ai.SummaryItem
+import com.andrewwin.sumup.domain.usecase.ai.SummaryLimits
 import com.andrewwin.sumup.domain.usecase.ai.SummaryResult
 import com.andrewwin.sumup.domain.usecase.ai.SummarySourceRef
 import com.andrewwin.sumup.domain.support.SummarySourceMeta
@@ -203,7 +198,6 @@ internal fun FeedAiSummaryContent(
                     .verticalScroll(rememberScrollState())
                     .imePadding()
             ) {
-                var compareTabIndex by rememberSaveable { mutableIntStateOf(0) }
                 if (isAiLoading) {
                     Box(
                         Modifier
@@ -235,14 +229,13 @@ internal fun FeedAiSummaryContent(
                         }
                         if (compareBlocks != null) {
                             CompareBlocksView(
-                                commonItems = compareBlocks.common,
-                                differentItems = compareBlocks.different,
-                                selectedTabIndex = compareTabIndex,
-                                onSelectedTabIndexChange = { compareTabIndex = it },
+                                main = compareBlocks.main,
+                                items = compareBlocks.items,
                                 sourceLabelMap = sourceLabelMap,
                                 onOpenWebView = onOpenWebView
                             )
                             SummaryMetaRow(
+                                executionLabel = aiResult.executionLabel,
                                 modelName = activeSummaryModelName,
                                 aiStrategy = aiStrategy,
                                 onCopy = {
@@ -268,6 +261,7 @@ internal fun FeedAiSummaryContent(
                                 onOpenWebView = onOpenWebView
                             )
                             SummaryMetaRow(
+                                executionLabel = aiResult.executionLabel,
                                 modelName = activeSummaryModelName,
                                 aiStrategy = aiStrategy,
                                 onCopy = {
@@ -290,6 +284,7 @@ internal fun FeedAiSummaryContent(
                             SingleSummaryCard(
                                 result = summaryResult,
                                 onOpenWebView = onOpenWebView,
+                                executionLabel = aiResult.executionLabel,
                                 modelName = activeSummaryModelName,
                                 aiStrategy = aiStrategy,
                                 onCopy = {
@@ -374,6 +369,7 @@ internal fun FeedAiSummaryContent(
 private fun SingleSummaryCard(
     result: SummaryResult,
     onOpenWebView: (String) -> Unit,
+    executionLabel: String?,
     modelName: String?,
     aiStrategy: AiStrategy,
     onCopy: () -> Unit,
@@ -389,19 +385,7 @@ private fun SingleSummaryCard(
     val compactModel = modelName
         ?.substringAfter('/', modelName)
         ?.takeIf { it.isNotBlank() }
-    val footerText = buildString {
-        append(
-            when (aiStrategy) {
-                AiStrategy.CLOUD -> context.getString(R.string.ai_strategy_cloud)
-                AiStrategy.LOCAL -> context.getString(R.string.ai_strategy_local)
-                AiStrategy.ADAPTIVE -> context.getString(R.string.ai_strategy_adaptive)
-            }
-        )
-        if (aiStrategy != AiStrategy.LOCAL && compactModel != null) {
-            append(", ")
-            append(compactModel)
-        }
-    }
+    val footerText = executionLabel ?: buildAiExecutionLabel(context, aiStrategy, compactModel)
 
     if (result is SummaryResult.QA) {
         Column(
@@ -478,78 +462,74 @@ private fun SingleSummaryCard(
     } else {
         val content = when (result) {
             is SummaryResult.Single -> SingleSummaryContentUi(
-                title = result.title?.takeIf { it.isNotBlank() } ?: "Підсумок",
-                bullets = result.points.map { it.text.trim() }.filter { it.isNotBlank() }.take(5),
+                title = result.title?.takeIf { it.isNotBlank() } ?: context.getString(R.string.summary_default_title),
+                main = result.main,
+                details = result.points.map { it.toThemeItem() }.take(SummaryLimits.Single.uiMaxDetails),
                 sources = result.sources.map { it.toLinkUi() }
             )
             is SummaryResult.Error -> SingleSummaryContentUi(
-                title = "Підсумок",
-                bullets = listOf(result.message),
+                title = context.getString(R.string.summary_default_title),
+                main = result.message,
+                details = emptyList(),
                 sources = emptyList()
             )
             else -> SingleSummaryContentUi(
-                title = "Підсумок",
-                bullets = listOf("Немає достатньо даних для відображення."),
+                title = context.getString(R.string.summary_default_title),
+                main = context.getString(R.string.summary_not_enough_data),
+                details = emptyList(),
                 sources = emptyList()
             )
         }
-        AppCardSurface(modifier = Modifier.fillMaxWidth()) {
-            Column(
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = content.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 8.dp)
+            )
+            TwoBlockSummaryView(
+                main = content.main,
+                details = content.details,
+                mainSources = content.sources,
+                emptyMessage = context.getString(R.string.summary_not_enough_data),
+                sourceLabelMap = sourceLabelMap,
+                onOpenWebView = onOpenWebView
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = content.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    text = footerText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-
-                content.bullets.forEach { bullet ->
-                    InlineSummaryRow(
-                        text = "— $bullet",
-                        sources = content.sources,
-                        sourceLabelMap = sourceLabelMap,
-                        onOpenWebView = onOpenWebView,
-                        textStyle = MaterialTheme.typography.bodyLarge,
-                        lineHeight = 26.sp,
-                        sourceStyle = SummarySourceStyle.InlineChip
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onCopy, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        imageVector = Icons.Outlined.ContentCopy,
+                        contentDescription = null,
+                        modifier = Modifier.size(17.dp)
                     )
                 }
-
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = footerText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                Spacer(Modifier.width(8.dp))
+                IconButton(onClick = onShare, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        imageVector = Icons.Outlined.Share,
+                        contentDescription = null,
+                        modifier = Modifier.size(17.dp)
                     )
-
-                    Spacer(Modifier.weight(1f))
-                    IconButton(onClick = onCopy, modifier = Modifier.size(28.dp)) {
-                        Icon(
-                            imageVector = Icons.Outlined.ContentCopy,
-                            contentDescription = null,
-                            modifier = Modifier.size(17.dp)
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(onClick = onShare, modifier = Modifier.size(28.dp)) {
-                        Icon(
-                            imageVector = Icons.Outlined.Share,
-                            contentDescription = null,
-                            modifier = Modifier.size(17.dp)
-                        )
-                    }
                 }
             }
         }
@@ -587,7 +567,7 @@ private fun shareText(
 }
 
 private data class CompareItemUi(val text: String, val sources: List<SummarySourceLinkUi>)
-private data class CompareBlocksUi(val common: List<CompareItemUi>, val different: List<CompareItemUi>)
+private data class CompareBlocksUi(val main: String?, val items: List<CompareItemUi>)
 private val CompareBulletRegex = Regex("""^[•—-]\s*(.*?):\s*(.*?)\s*\((https?://[^)]+)\)\s*$""")
 private const val InlineSourceAnnotationTag = "summary_source"
 
@@ -612,8 +592,7 @@ private fun rememberSourceLabelMap(
         }
     }
     val compareSources = buildList {
-        compareBlocks?.common?.forEach { addAll(it.sources) }
-        compareBlocks?.different?.forEach { addAll(it.sources) }
+        compareBlocks?.items?.forEach { addAll(it.sources) }
     }
     val resultSources = summaryResult?.collectSourceLinks().orEmpty()
     return buildSourceLabelMap(summarySources + compareSources + resultSources)
@@ -645,7 +624,8 @@ private fun SummarySourceLinkUi.key(): String = "$name|$url"
 
 private data class SingleSummaryContentUi(
     val title: String,
-    val bullets: List<String>,
+    val main: String?,
+    val details: List<ThemeItem>,
     val sources: List<SummarySourceLinkUi> = emptyList()
 )
 
@@ -657,8 +637,8 @@ private data class QaSectionUi(
 private fun SummaryResult.asCompareBlocksUi(): CompareBlocksUi? {
     val compare = this as? SummaryResult.Compare ?: return null
     return CompareBlocksUi(
-        common = compare.common.map { CompareItemUi(text = it.text, sources = it.sources.map(SummarySourceRef::toLinkUi)) },
-        different = compare.unique.map { CompareItemUi(text = it.text, sources = it.sources.map(SummarySourceRef::toLinkUi)) }
+        main = compare.main,
+        items = compare.points.map { CompareItemUi(text = it.text, sources = it.sources.map(SummarySourceRef::toLinkUi)) }
     )
 }
 
@@ -681,7 +661,7 @@ private fun SummaryResult.asSummaryBlocksUi(): List<SummaryBlockUi> = when (this
 
 private fun SummaryResult.collectSourceLinks(): List<SummarySourceLinkUi> = when (this) {
     is SummaryResult.Single -> (points.flatMap { it.sources } + sources).distinct().map { it.toLinkUi() }
-    is SummaryResult.Compare -> (common + unique).flatMap { it.sources }.distinct().map { it.toLinkUi() }
+    is SummaryResult.Compare -> points.flatMap { it.sources }.distinct().map { it.toLinkUi() }
     is SummaryResult.Digest -> themes.flatMap(DigestTheme::items).flatMap { it.sources }.distinct().map { it.toLinkUi() }
     is SummaryResult.QA -> (details.flatMap { it.sources } + sources).distinct().map { it.toLinkUi() }
     is SummaryResult.Error -> emptyList()
@@ -693,8 +673,27 @@ private fun SummaryItem.toThemeItem(): ThemeItem =
 private fun SummarySourceRef.toLinkUi(): SummarySourceLinkUi =
     SummarySourceLinkUi(name = name, url = url)
 
+private fun buildAiExecutionLabel(
+    context: Context,
+    aiStrategy: AiStrategy,
+    compactModel: String?
+): String = buildString {
+    append(
+        when (aiStrategy) {
+            AiStrategy.CLOUD -> context.getString(R.string.ai_strategy_cloud)
+            AiStrategy.LOCAL -> context.getString(R.string.ai_strategy_local)
+            AiStrategy.ADAPTIVE -> context.getString(R.string.ai_strategy_adaptive)
+        }
+    )
+    if (aiStrategy != AiStrategy.LOCAL && compactModel != null) {
+        append(", ")
+        append(compactModel)
+    }
+}
+
 @Composable
 private fun SummaryMetaRow(
+    executionLabel: String?,
     modelName: String?,
     aiStrategy: AiStrategy,
     onCopy: () -> Unit,
@@ -704,19 +703,7 @@ private fun SummaryMetaRow(
     val compactModel = modelName
         ?.substringAfter('/', modelName)
         ?.takeIf { it.isNotBlank() }
-    val metaText = buildString {
-        append(
-            when (aiStrategy) {
-                AiStrategy.CLOUD -> context.getString(R.string.ai_strategy_cloud)
-                AiStrategy.LOCAL -> context.getString(R.string.ai_strategy_local)
-                AiStrategy.ADAPTIVE -> context.getString(R.string.ai_strategy_adaptive)
-            }
-        )
-        if (aiStrategy != AiStrategy.LOCAL && compactModel != null) {
-            append(", ")
-            append(compactModel)
-        }
-    }
+    val metaText = executionLabel ?: buildAiExecutionLabel(context, aiStrategy, compactModel)
 
     Row(
         modifier = Modifier
@@ -759,89 +746,101 @@ private fun SummaryMetaRow(
 
 @Composable
 private fun CompareBlocksView(
-    commonItems: List<CompareItemUi>,
-    differentItems: List<CompareItemUi>,
-    selectedTabIndex: Int,
-    onSelectedTabIndexChange: (Int) -> Unit,
+    main: String?,
+    items: List<CompareItemUi>,
     sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
-    if (differentItems.isEmpty()) {
-        AppCardSurface(modifier = Modifier.fillMaxWidth()) {
-            CompareBlockCardContent(
-                items = commonItems,
-                emptyMessage = stringResource(R.string.summary_compare_common_empty_local),
-                sourceLabelMap = sourceLabelMap,
-                onOpenWebView = onOpenWebView
-            )
-        }
-        return
-    }
-
-    val tabTitles = listOf(
-        stringResource(R.string.summary_compare_common),
-        stringResource(R.string.summary_compare_unique)
+    TwoBlockSummaryView(
+        main = main,
+        details = items
+            .map { ThemeItem(marker = "—", text = it.text, sources = it.sources) }
+            .take(SummaryLimits.Compare.uiMaxDetails),
+        mainSources = emptyList(),
+        emptyMessage = stringResource(R.string.summary_compare_empty),
+        sourceLabelMap = sourceLabelMap,
+        onOpenWebView = onOpenWebView
     )
-    val currentTab = selectedTabIndex.coerceIn(0, 1)
-    val tabItems = if (currentTab == 0) commonItems else differentItems
-    val emptyMessage = if (currentTab == 0) {
-        stringResource(R.string.summary_compare_common_empty_local)
-    } else {
-        stringResource(R.string.summary_compare_unique_empty_local)
-    }
-
-    AppCardSurface(modifier = Modifier.fillMaxWidth()) {
-        Column {
-            TabRow(selectedTabIndex = currentTab) {
-                tabTitles.forEachIndexed { index, title ->
-                    Tab(
-                        selected = currentTab == index,
-                        onClick = { onSelectedTabIndexChange(index) },
-                        text = { Text(text = title) }
-                    )
-                }
-            }
-            CompareBlockCardContent(
-                items = tabItems,
-                emptyMessage = emptyMessage,
-                sourceLabelMap = sourceLabelMap,
-                onOpenWebView = onOpenWebView
-            )
-        }
-    }
 }
 
 @Composable
-private fun CompareBlockCardContent(
-    items: List<CompareItemUi>,
+private fun TwoBlockSummaryView(
+    main: String?,
+    details: List<ThemeItem>,
+    mainSources: List<SummarySourceLinkUi>,
     emptyMessage: String,
     sourceLabelMap: Map<String, String>,
     onOpenWebView: (String) -> Unit
 ) {
     Column(
-        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        if (items.isEmpty()) {
+        SummarySectionCard(
+            heading = stringResource(R.string.summary_section_main),
+            sourceLabelMap = sourceLabelMap,
+            onOpenWebView = onOpenWebView
+        ) {
             InlineSummaryRow(
-                text = "— $emptyMessage",
-                sources = emptyList(),
+                text = main?.takeIf { it.isNotBlank() } ?: emptyMessage,
+                sources = mainSources,
                 sourceLabelMap = sourceLabelMap,
                 onOpenWebView = onOpenWebView,
                 textStyle = MaterialTheme.typography.bodyLarge,
                 lineHeight = 26.sp
             )
-        } else {
-            items.forEach { item ->
+        }
+
+        SummarySectionCard(
+            heading = stringResource(R.string.summary_section_details),
+            sourceLabelMap = sourceLabelMap,
+            onOpenWebView = onOpenWebView
+        ) {
+            if (details.isEmpty()) {
                 InlineSummaryRow(
-                    text = "— ${item.text}",
-                    sources = item.sources,
+                    text = "— $emptyMessage",
+                    sources = emptyList(),
                     sourceLabelMap = sourceLabelMap,
                     onOpenWebView = onOpenWebView,
                     textStyle = MaterialTheme.typography.bodyLarge,
                     lineHeight = 26.sp
                 )
+            } else {
+                details.forEach { detail ->
+                    InlineSummaryRow(
+                        text = "${detail.marker} ${detail.text}",
+                        sources = detail.sources,
+                        sourceLabelMap = sourceLabelMap,
+                        onOpenWebView = onOpenWebView,
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        lineHeight = 26.sp
+                    )
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun SummarySectionCard(
+    heading: String,
+    sourceLabelMap: Map<String, String>,
+    onOpenWebView: (String) -> Unit,
+    content: @Composable () -> Unit
+) {
+    AppCardSurface(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = heading,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            content()
         }
     }
 }
@@ -969,7 +968,7 @@ private fun InlineSummaryRow(
         val annotated = buildAnnotatedString {
             append(text)
             distinctSources.forEachIndexed { index, source ->
-                val sourceName = sourceLabelMap[source.key()] ?: source.name
+                val sourceName = formatSummarySourceChipName(sourceLabelMap[source.key()] ?: source.name)
                 val inlineId = "feed_summary_inline_chip_$index"
                 val labelWidthPx = textMeasurer.measure(
                     text = sourceName,
@@ -1028,7 +1027,7 @@ private fun InlineSummaryRow(
         val annotated = buildAnnotatedString {
             append(text)
             distinctSources.forEach { source ->
-                val sourceName = sourceLabelMap[source.key()] ?: source.name
+                val sourceName = formatSummarySourceChipName(sourceLabelMap[source.key()] ?: source.name)
                 append(" ")
                 pushStringAnnotation(tag = InlineSourceAnnotationTag, annotation = source.url)
                 pushStyle(

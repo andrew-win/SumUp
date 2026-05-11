@@ -12,7 +12,9 @@ class AiProviderUnavailableException(message: String, code: Int) : AiServiceExce
 
 class LocalModelMissingException : Exception()
 
-class AllAiModelsFailedException : Exception()
+class AllAiModelsFailedException(cause: Throwable? = null) : Exception(cause?.localizedMessage, cause)
+
+class InvalidAiResponseException : Exception()
 
 
 

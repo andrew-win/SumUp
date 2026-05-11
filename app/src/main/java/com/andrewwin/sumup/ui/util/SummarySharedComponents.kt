@@ -36,6 +36,8 @@ enum class SummarySourceStyle {
 }
 
 private const val InlineSourceAnnotationTag = "summary_source"
+private const val SummarySourceChipMaxChars = 13
+private const val SummarySourceChipOverflowSuffix = "..."
 
 @Composable
 fun StandardSummaryView(
@@ -220,7 +222,7 @@ fun InlineSummaryRow(
         val annotated = buildAnnotatedString {
             append(text)
             distinctSources.forEachIndexed { index, source ->
-                val sourceName = sourceLabelMap[source.key()] ?: source.name
+                val sourceName = formatSummarySourceChipName(sourceLabelMap[source.key()] ?: source.name)
                 val inlineId = "summary_inline_chip_$index"
                 val labelWidthPx = textMeasurer.measure(
                     text = sourceName,
@@ -276,7 +278,7 @@ fun InlineSummaryRow(
         val annotated = buildAnnotatedString {
             append(text)
             distinctSources.forEach { source ->
-                val sourceName = sourceLabelMap[source.key()] ?: source.name
+                val sourceName = formatSummarySourceChipName(sourceLabelMap[source.key()] ?: source.name)
                 append(" ")
                 pushStringAnnotation(tag = InlineSourceAnnotationTag, annotation = source.url)
                 pushStyle(
@@ -322,8 +324,7 @@ fun rememberSourceLabelMap(
         }
     }
     val compareSources = buildList {
-        compareBlocks?.common?.forEach { addAll(it.sources) }
-        compareBlocks?.different?.forEach { addAll(it.sources) }
+        compareBlocks?.items?.forEach { addAll(it.sources) }
     }
     val resultSources = summaryResult?.collectSourceLinks().orEmpty()
     return buildSourceLabelMap(summarySources + compareSources + resultSources)
@@ -351,22 +352,31 @@ fun buildSourceLabelMap(sources: List<SummarySourceLinkUi>): Map<String, String>
     }
 }
 
+fun formatSummarySourceChipName(sourceName: String): String {
+    val trimmed = sourceName.trim()
+    return if (trimmed.length <= SummarySourceChipMaxChars) {
+        trimmed
+    } else {
+        trimmed.take(SummarySourceChipMaxChars) + SummarySourceChipOverflowSuffix
+    }
+}
+
 fun SummarySourceLinkUi.key(): String = "$name|$url"
 
 data class CompareItemUi(val text: String, val sources: List<SummarySourceLinkUi>)
-data class CompareBlocksUi(val common: List<CompareItemUi>, val different: List<CompareItemUi>)
+data class CompareBlocksUi(val main: String?, val items: List<CompareItemUi>)
 
 fun SummaryResult.asCompareBlocksUi(): CompareBlocksUi? {
     val compare = this as? SummaryResult.Compare ?: return null
     return CompareBlocksUi(
-        common = compare.common.map { CompareItemUi(text = it.text, sources = it.sources.map(SummarySourceRef::toLinkUi)) },
-        different = compare.unique.map { CompareItemUi(text = it.text, sources = it.sources.map(SummarySourceRef::toLinkUi)) }
+        main = compare.main,
+        items = compare.points.map { CompareItemUi(text = it.text, sources = it.sources.map(SummarySourceRef::toLinkUi)) }
     )
 }
 
 fun SummaryResult.collectSourceLinks(): List<SummarySourceLinkUi> = when (this) {
     is SummaryResult.Single -> (points.flatMap { it.sources } + sources).distinct().map { it.toLinkUi() }
-    is SummaryResult.Compare -> (common + unique).flatMap { it.sources }.distinct().map { it.toLinkUi() }
+    is SummaryResult.Compare -> points.flatMap { it.sources }.distinct().map { it.toLinkUi() }
     is SummaryResult.Digest -> themes.flatMap(DigestTheme::items).flatMap { it.sources }.distinct().map { it.toLinkUi() }
     is SummaryResult.QA -> (details.flatMap { it.sources } + sources).distinct().map { it.toLinkUi() }
     is SummaryResult.Error -> emptyList()

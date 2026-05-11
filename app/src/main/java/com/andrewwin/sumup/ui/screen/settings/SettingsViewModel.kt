@@ -455,12 +455,20 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(showInfographicNewsCount = count) } }
     }
 
-    fun updateAiMaxCharsPerArticle(count: Int) {
-        viewModelScope.launch { updatePreferences { it.copy(aiMaxCharsPerArticle = count) } }
+    fun updateAiMaxCharsSingleArticle(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(aiMaxCharsSingleArticle = count) } }
     }
 
-    fun updateAiMaxCharsPerFeedArticle(count: Int) {
-        viewModelScope.launch { updatePreferences { it.copy(aiMaxCharsPerFeedArticle = count) } }
+    fun updateAiMaxCharsNewsCluster(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(aiMaxCharsNewsCluster = count) } }
+    }
+
+    fun updateAiMaxCharsSingleFeedArticle(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(aiMaxCharsSingleFeedArticle = count) } }
+    }
+
+    fun updateAiMaxCharsFeedCluster(count: Int) {
+        viewModelScope.launch { updatePreferences { it.copy(aiMaxCharsFeedCluster = count) } }
     }
 
     fun updateAiMaxCharsTotal(count: Int) {

@@ -22,38 +22,11 @@ class FormatSummaryResultUseCase @Inject constructor() {
                     }
                 }
                 is SummaryResult.Compare -> {
-                    val isSingleSectionCompare = result.common.isNotEmpty() && result.unique.isEmpty()
-                    if (result.common.isNotEmpty()) {
-                        if (!isSingleSectionCompare) {
-                            append("Спільне\n")
-                        }
-                        result.common.forEach { fact ->
-                            append("— ${fact.text}\n")
-                            fact.sources.forEach { source ->
-                                append("${SummarySourceMeta.PREFIX}${source.name}|${source.url}\n")
-                            }
-                        }
-                        append("\n")
-                    }
-                    if (result.unique.isNotEmpty()) {
-                        append("Унікальне\n")
-                        result.unique.forEach { fact ->
-                            append("— ${fact.text}\n")
-                            fact.sources.forEach { source ->
-                                append("${SummarySourceMeta.PREFIX}${source.name}|${source.url}\n")
-                            }
-                        }
-                        append("\n")
-                    }
+                    appendMainAndDetails(result.main, result.points)
                 }
                 is SummaryResult.Single -> {
                     result.title?.let { append("${it}\n") }
-                    result.points.forEach { point ->
-                        append("— ${point.text}\n")
-                        point.sources.forEach { source ->
-                            append("${SummarySourceMeta.PREFIX}${source.name}|${source.url}\n")
-                        }
-                    }
+                    appendMainAndDetails(result.main, result.points)
                     result.sources.forEach { source ->
                         append("${SummarySourceMeta.PREFIX}${source.name}|${source.url}\n")
                     }
@@ -79,5 +52,21 @@ class FormatSummaryResultUseCase @Inject constructor() {
                 }
             }
         }.trim()
+    }
+
+    private fun StringBuilder.appendMainAndDetails(main: String?, details: List<com.andrewwin.sumup.domain.usecase.ai.SummaryItem>) {
+        main?.takeIf { it.isNotBlank() }?.let {
+            append("Основне\n")
+            append("$it\n\n")
+        }
+        if (details.isNotEmpty()) {
+            append("Детальніше\n")
+            details.forEach { detail ->
+                append("— ${detail.text}\n")
+                detail.sources.forEach { source ->
+                    append("${SummarySourceMeta.PREFIX}${source.name}|${source.url}\n")
+                }
+            }
+        }
     }
 }

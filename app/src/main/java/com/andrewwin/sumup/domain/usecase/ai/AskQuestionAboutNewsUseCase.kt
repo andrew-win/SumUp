@@ -13,6 +13,7 @@ class AskQuestionAboutNewsUseCase @Inject constructor(
     private val userPrefsRepo: UserPreferencesRepository,
     private val articleRepo: ArticleRepository,
     private val shrinkTextUseCase: ShrinkTextForAdaptiveStrategyUseCase,
+    private val limitTextsProportionallyUseCase: LimitTextsProportionallyUseCase,
     private val sendCloudAiRequestUseCase: SendCloudAiRequestUseCase,
     private val parseAiJsonResponseUseCase: ParseAiJsonResponseUseCase
 ) {
@@ -20,21 +21,38 @@ class AskQuestionAboutNewsUseCase @Inject constructor(
         val prefs = userPrefsRepo.preferences.first()
         if (prefs.aiStrategy == AiStrategy.LOCAL) throw UnsupportedStrategyException()
 
-        val processedArticles = articles.map { article ->
+        val articlePayloads = articles.map { article ->
             val source = articleRepo.getSourceById(article.sourceId)
             val fullContent = articleRepo.fetchFullContent(article).ifBlank { article.content }
 
             val processedContent = if (prefs.aiStrategy == AiStrategy.ADAPTIVE) {
                 shrinkTextUseCase(fullContent, prefs)
             } else {
-                fullContent.take(prefs.aiMaxCharsPerArticle.coerceAtLeast(1000))
+                fullContent
             }
+            QuestionArticlePayload(
+                article = article,
+                sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело",
+                sourceUrl = article.url.ifBlank { source?.url.orEmpty() },
+                content = processedContent
+            )
+        }
+        val contentLimit = if (articlePayloads.size > 1) {
+            prefs.aiMaxCharsNewsCluster
+        } else {
+            prefs.aiMaxCharsSingleArticle
+        }
+        val limitedContents = limitTextsProportionallyUseCase(
+            texts = articlePayloads.map { it.content },
+            maxTotalChars = contentLimit
+        )
 
+        val processedArticles = articlePayloads.zip(limitedContents).map { (payload, processedContent) ->
             """
-            source_id: ${article.id}
-            source_name: ${source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело"}
-            source_url: ${article.url.ifBlank { source?.url.orEmpty() }}
-            title: ${article.title}
+            source_id: ${payload.article.id}
+            source_name: ${payload.sourceName}
+            source_url: ${payload.sourceUrl}
+            title: ${payload.article.title}
             content: $processedContent
             """.trimIndent()
         }
@@ -57,4 +75,11 @@ class AskQuestionAboutNewsUseCase @Inject constructor(
             parsed
         }
     }
+
+    private data class QuestionArticlePayload(
+        val article: Article,
+        val sourceName: String,
+        val sourceUrl: String,
+        val content: String
+    )
 }

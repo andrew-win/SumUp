@@ -323,8 +323,10 @@ internal fun SettingsAiProcessingGroupContent(
     isHelpMode: Boolean,
     userPreferences: UserPreferences,
     summaryPrompt: String,
-    aiMaxCharsPerArticle: Float,
-    aiMaxCharsPerFeedArticle: Float,
+    aiMaxCharsSingleArticle: Float,
+    aiMaxCharsNewsCluster: Float,
+    aiMaxCharsSingleFeedArticle: Float,
+    aiMaxCharsFeedCluster: Float,
     aiMaxCharsTotal: Float,
     adaptiveExtractiveOnlyBelowChars: Float,
     adaptiveExtractiveHighCompressionAboveChars: Float,
@@ -332,10 +334,14 @@ internal fun SettingsAiProcessingGroupContent(
     adaptiveExtractiveCompressionPercentMedium: Float,
     adaptiveExtractiveCompressionPercentHigh: Float,
     onAiStrategyChange: (AiStrategy) -> Unit,
-    onAiMaxCharsPerArticleChange: (Float) -> Unit,
-    onAiMaxCharsPerArticleCommitted: () -> Unit,
-    onAiMaxCharsPerFeedArticleChange: (Float) -> Unit,
-    onAiMaxCharsPerFeedArticleCommitted: () -> Unit,
+    onAiMaxCharsSingleArticleChange: (Float) -> Unit,
+    onAiMaxCharsSingleArticleCommitted: () -> Unit,
+    onAiMaxCharsNewsClusterChange: (Float) -> Unit,
+    onAiMaxCharsNewsClusterCommitted: () -> Unit,
+    onAiMaxCharsSingleFeedArticleChange: (Float) -> Unit,
+    onAiMaxCharsSingleFeedArticleCommitted: () -> Unit,
+    onAiMaxCharsFeedClusterChange: (Float) -> Unit,
+    onAiMaxCharsFeedClusterCommitted: () -> Unit,
     onAiMaxCharsTotalChange: (Float) -> Unit,
     onAiMaxCharsTotalCommitted: () -> Unit,
     onCustomSummaryPromptEnabledChange: (Boolean) -> Unit,
@@ -419,18 +425,34 @@ internal fun SettingsAiProcessingGroupContent(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SettingsIntSliderItem(
-                    label = stringResource(R.string.settings_ai_chars_per_article_processing, aiMaxCharsPerArticle.toInt()),
-                    value = aiMaxCharsPerArticle,
-                    onValueChange = onAiMaxCharsPerArticleChange,
-                    onValueChangeFinished = onAiMaxCharsPerArticleCommitted,
+                    label = stringResource(R.string.settings_ai_chars_single_article, aiMaxCharsSingleArticle.toInt()),
+                    value = aiMaxCharsSingleArticle,
+                    onValueChange = onAiMaxCharsSingleArticleChange,
+                    onValueChangeFinished = onAiMaxCharsSingleArticleCommitted,
                     valueRange = 200f..3000f,
                     steps = 28
                 )
                 SettingsIntSliderItem(
-                    label = stringResource(R.string.settings_ai_chars_per_feed_article, aiMaxCharsPerFeedArticle.toInt()),
-                    value = aiMaxCharsPerFeedArticle,
-                    onValueChange = onAiMaxCharsPerFeedArticleChange,
-                    onValueChangeFinished = onAiMaxCharsPerFeedArticleCommitted,
+                    label = stringResource(R.string.settings_ai_chars_news_cluster, aiMaxCharsNewsCluster.toInt()),
+                    value = aiMaxCharsNewsCluster,
+                    onValueChange = onAiMaxCharsNewsClusterChange,
+                    onValueChangeFinished = onAiMaxCharsNewsClusterCommitted,
+                    valueRange = 200f..3000f,
+                    steps = 28
+                )
+                SettingsIntSliderItem(
+                    label = stringResource(R.string.settings_ai_chars_single_feed_article, aiMaxCharsSingleFeedArticle.toInt()),
+                    value = aiMaxCharsSingleFeedArticle,
+                    onValueChange = onAiMaxCharsSingleFeedArticleChange,
+                    onValueChangeFinished = onAiMaxCharsSingleFeedArticleCommitted,
+                    valueRange = 200f..3000f,
+                    steps = 28
+                )
+                SettingsIntSliderItem(
+                    label = stringResource(R.string.settings_ai_chars_feed_cluster, aiMaxCharsFeedCluster.toInt()),
+                    value = aiMaxCharsFeedCluster,
+                    onValueChange = onAiMaxCharsFeedClusterChange,
+                    onValueChangeFinished = onAiMaxCharsFeedClusterCommitted,
                     valueRange = 200f..3000f,
                     steps = 28
                 )

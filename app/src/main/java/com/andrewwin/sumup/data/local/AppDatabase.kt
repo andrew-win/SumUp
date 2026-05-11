@@ -33,7 +33,7 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
         Summary::class,
         UserPreferences::class
     ],
-    version = 56,
+    version = 57,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -82,7 +82,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_52_53,
                         MIGRATION_53_54,
                         MIGRATION_54_55,
-                        MIGRATION_55_56
+                        MIGRATION_55_56,
+                        MIGRATION_56_57
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -94,8 +95,8 @@ abstract class AppDatabase : RoomDatabase() {
                                 "INSERT OR IGNORE INTO source_groups (id, name, isEnabled, isDeletable) VALUES (1, 'Без категорії', 1, 0)"
                             )
                             db.execSQL(
-                                "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsPerArticle, aiMaxCharsPerFeedArticle, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
-                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, 0, 0, 'LOCAL', 0.860, 0.84, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 4, 0, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, 3, 'SYSTEM', 'UK', 'UK')"
+                                "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsSingleArticle, aiMaxCharsNewsCluster, aiMaxCharsSingleFeedArticle, aiMaxCharsFeedCluster, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
+                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, 0, 0, 'LOCAL', 0.860, 0.84, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 4, 0, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, 3, 'SYSTEM', 'UK', 'UK')"
                             )
                         }
                     })
@@ -618,6 +619,102 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("DELETE FROM article_similarities")
                 db.execSQL("UPDATE articles SET embedding = NULL, embeddingType = NULL")
+            }
+        }
+
+        private val MIGRATION_56_57 = object : Migration(56, 57) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS user_preferences_new (
+                        id INTEGER NOT NULL PRIMARY KEY,
+                        aiStrategy TEXT NOT NULL,
+                        isScheduledSummaryEnabled INTEGER NOT NULL,
+                        isScheduledSummaryPushEnabled INTEGER NOT NULL,
+                        scheduledHour INTEGER NOT NULL,
+                        scheduledMinute INTEGER NOT NULL,
+                        lastWorkRunTimestamp INTEGER NOT NULL,
+                        isDeduplicationEnabled INTEGER NOT NULL,
+                        deduplicationStrategy TEXT NOT NULL,
+                        localDeduplicationThreshold REAL NOT NULL,
+                        cloudDeduplicationThreshold REAL NOT NULL,
+                        minMentions INTEGER NOT NULL,
+                        isHideSingleNewsEnabled INTEGER NOT NULL,
+                        modelPath TEXT,
+                        isImportanceFilterEnabled INTEGER NOT NULL,
+                        isAdaptiveExtractivePreprocessingEnabled INTEGER NOT NULL,
+                        adaptiveExtractiveOnlyBelowChars INTEGER NOT NULL,
+                        adaptiveExtractiveHighCompressionAboveChars INTEGER NOT NULL,
+                        adaptiveExtractiveCompressionPercentFirst INTEGER NOT NULL,
+                        adaptiveExtractiveCompressionPercentMedium INTEGER NOT NULL,
+                        adaptiveExtractiveCompressionPercentHigh INTEGER NOT NULL,
+                        summaryItemsPerNewsInFeed INTEGER NOT NULL,
+                        summaryItemsPerNewsInScheduled INTEGER NOT NULL,
+                        summaryNewsInFeedCloud INTEGER NOT NULL,
+                        summaryNewsInScheduledCloud INTEGER NOT NULL,
+                        extractiveNewsInFeed INTEGER NOT NULL,
+                        extractiveSentencesInScheduled INTEGER NOT NULL,
+                        extractiveNewsInScheduled INTEGER NOT NULL,
+                        showLastSummariesCount INTEGER NOT NULL,
+                        showInfographicNewsCount INTEGER NOT NULL,
+                        aiMaxCharsSingleArticle INTEGER NOT NULL,
+                        aiMaxCharsNewsCluster INTEGER NOT NULL,
+                        aiMaxCharsSingleFeedArticle INTEGER NOT NULL,
+                        aiMaxCharsFeedCluster INTEGER NOT NULL,
+                        aiMaxCharsTotal INTEGER NOT NULL,
+                        summaryPrompt TEXT NOT NULL,
+                        isCustomSummaryPromptEnabled INTEGER NOT NULL,
+                        isFeedMediaEnabled INTEGER NOT NULL,
+                        isFeedDescriptionEnabled INTEGER NOT NULL,
+                        isFeedSummaryUseFullTextEnabled INTEGER NOT NULL,
+                        isRecommendationsEnabled INTEGER NOT NULL,
+                        articleAutoCleanupDays INTEGER NOT NULL,
+                        appThemeMode TEXT NOT NULL,
+                        appLanguage TEXT NOT NULL,
+                        summaryLanguage TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO user_preferences_new (
+                        id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled,
+                        scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled,
+                        deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold,
+                        minMentions, isHideSingleNewsEnabled, modelPath, isImportanceFilterEnabled,
+                        isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars,
+                        adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst,
+                        adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh,
+                        summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud,
+                        summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled,
+                        extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount,
+                        aiMaxCharsSingleArticle, aiMaxCharsNewsCluster, aiMaxCharsSingleFeedArticle,
+                        aiMaxCharsFeedCluster, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled,
+                        isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled,
+                        isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage,
+                        summaryLanguage
+                    )
+                    SELECT
+                        id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled,
+                        scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled,
+                        deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold,
+                        minMentions, isHideSingleNewsEnabled, modelPath, isImportanceFilterEnabled,
+                        isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars,
+                        adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst,
+                        adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh,
+                        summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud,
+                        summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled,
+                        extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount,
+                        aiMaxCharsPerArticle, aiMaxCharsPerArticle, aiMaxCharsPerFeedArticle,
+                        aiMaxCharsPerFeedArticle, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled,
+                        isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled,
+                        isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage,
+                        summaryLanguage
+                    FROM user_preferences
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE user_preferences")
+                db.execSQL("ALTER TABLE user_preferences_new RENAME TO user_preferences")
             }
         }
     }

@@ -6,14 +6,18 @@ object SummaryLimits {
     var currentPrefs: UserPreferences? = null
 
     object Single {
+        const val mainSentences = 1
         const val maxPoints = 5
-        const val maxWordsPerPoint = 20
+        const val localExtractiveSentences = mainSentences + maxPoints
+        const val uiMaxDetails = maxPoints
+        const val maxWordsPerPoint = 25
     }
 
     object Compare {
-        const val maxCommon = 5
-        const val maxUnique = 5
-        const val maxWordsPerPoint = 20
+        const val mainSentences = 1
+        const val maxBullets = 5
+        const val uiMaxDetails = maxBullets
+        const val maxWordsPerPoint = 25
     }
 
     object LocalClusterSummary {
@@ -24,10 +28,11 @@ object SummaryLimits {
     }
 
     object Digest {
-        const val maxThemes = 5
+        const val minThemes = 2
+        const val maxThemes = 4
         const val minItemsPerTheme = 2
         const val maxItemsPerTheme = 5
-        const val maxWordsPerTitle = 15
+        const val maxWordsPerTitle = 25
         const val maxLocalArticles = 8
         const val emojiesCount = 3
     }
@@ -35,7 +40,7 @@ object SummaryLimits {
     object QA {
         const val maxDetailPoints = 5
         const val maxWordsShortAnswer = 15
-        const val maxWordsPerDetailedBullet = 20
+        const val maxWordsPerDetailedBullet = 25
     }
 
     object Extractive {
@@ -49,11 +54,11 @@ object SummaryLimits {
         val shortTextThresholdChars: Int
             get() = currentPrefs?.adaptiveExtractiveOnlyBelowChars ?: 1000
         val mediumTextThresholdChars: Int
-            get() = currentPrefs?.adaptiveExtractiveHighCompressionAboveChars ?: 3000
+            get() = currentPrefs?.adaptiveExtractiveHighCompressionAboveChars ?: 2200
         val firstCompressionPercent: Int
             get() = currentPrefs?.adaptiveExtractiveCompressionPercentFirst ?: 0
         val mediumCompressionPercent: Int
-            get() = currentPrefs?.adaptiveExtractiveCompressionPercentMedium ?: 30
+            get() = currentPrefs?.adaptiveExtractiveCompressionPercentMedium ?: 22
         val highCompressionPercent: Int
             get() = currentPrefs?.adaptiveExtractiveCompressionPercentHigh ?: 15
     }

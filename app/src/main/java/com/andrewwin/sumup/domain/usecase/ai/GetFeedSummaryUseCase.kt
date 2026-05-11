@@ -40,7 +40,7 @@ class GetFeedSummaryUseCase @Inject constructor(
         }
 
         return buildCloudOrAdaptiveSummary(
-            articles = feedSummaryArticles.map { it.article },
+            feedSummaryArticles = feedSummaryArticles,
             strategy = strategy
         )
     }
@@ -74,7 +74,7 @@ class GetFeedSummaryUseCase @Inject constructor(
     }
 
     private suspend fun buildCloudOrAdaptiveSummary(
-        articles: List<Article>,
+        feedSummaryArticles: List<FeedSummaryArticle>,
         strategy: AiStrategy
     ): SummaryResult {
         val prefs = userPreferencesRepository.preferences.first()
@@ -85,13 +85,14 @@ class GetFeedSummaryUseCase @Inject constructor(
         var originalContentChars = 0
         var includedArticlesCount = 0
         var partiallyIncludedArticlesCount = 0
-        val totalArticlesCount = articles.size
+        val totalArticlesCount = feedSummaryArticles.size
         val cloudInput = buildString {
             append(PAYLOAD_HEADER)
             remainingTotal -= PAYLOAD_HEADER.length
             availablePayloadChars += PAYLOAD_HEADER.length
 
-            for (article in articles) {
+            for (feedSummaryArticle in feedSummaryArticles) {
+                val article = feedSummaryArticle.article
                 val source = articleRepository.getSourceById(article.sourceId)
                 val sourceName = source?.name?.trim()?.ifBlank { sourceFallbackName } ?: sourceFallbackName
                 val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
@@ -100,10 +101,17 @@ class GetFeedSummaryUseCase @Inject constructor(
                 val contentToProcess = fullContent.ifBlank { article.content }
                 originalContentChars += contentToProcess.length
 
-                val textForCloud = if (strategy == AiStrategy.ADAPTIVE) {
-                    shrinkTextForAdaptiveStrategyUseCase.shrinkDigestArticle(contentToProcess)
+                val maxCharsForFeedItem = if (feedSummaryArticle.similarArticlesCount > 0) {
+                    prefs.aiMaxCharsFeedCluster
                 } else {
-                    contentToProcess.take(prefs.aiMaxCharsPerFeedArticle.coerceAtLeast(MIN_CHARS_PER_FEED_ARTICLE))
+                    prefs.aiMaxCharsSingleFeedArticle
+                }
+                val textForCloud = if (strategy == AiStrategy.ADAPTIVE) {
+                    shrinkTextForAdaptiveStrategyUseCase
+                        .shrinkDigestArticle(contentToProcess)
+                        .take(maxCharsForFeedItem.coerceAtLeast(0))
+                } else {
+                    contentToProcess.take(maxCharsForFeedItem.coerceAtLeast(0))
                 }
                 processedContentChars += textForCloud.length
 
@@ -148,8 +156,15 @@ class GetFeedSummaryUseCase @Inject constructor(
 
         val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
         val prompt = AiPromptBuilder.buildFeedDigestPrompt(prefs.summaryLanguage, customPrompt)
-        val jsonResponse = sendCloudAiRequestUseCase(prompt, cloudInput)
-        return parseAiJsonResponseUseCase.parseFeed(jsonResponse, cloudInput)
+        val cloudResult = runCatching {
+            val jsonResponse = sendCloudAiRequestUseCase(prompt, cloudInput)
+            parseAiJsonResponseUseCase.parseFeed(jsonResponse, cloudInput)
+        }
+        return if (strategy == AiStrategy.ADAPTIVE) {
+            cloudResult.getOrElse { buildLocalSummary(feedSummaryArticles) }
+        } else {
+            cloudResult.getOrThrow()
+        }
     }
 
     private suspend fun buildFeedSummaryArticles(articles: List<Article>): List<FeedSummaryArticle> {
@@ -206,7 +221,6 @@ class GetFeedSummaryUseCase @Inject constructor(
     companion object {
         private const val LOCAL_SIMILAR_NEWS_BONUS_PER_MATCH = 0.25f
         private const val MIN_TOTAL_CHARS = 1000
-        private const val MIN_CHARS_PER_FEED_ARTICLE = 200
         private const val CLOUD_CHARS_LOG_TAG = "CloudChars"
         private const val PAYLOAD_FIELD_SEPARATOR = "|"
         private const val PAYLOAD_HEADER = "# id|src|url|title|content\n"

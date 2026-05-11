@@ -18,6 +18,7 @@ class SendCloudAiRequestUseCase @Inject constructor(
             throw NoActiveModelException()
         }
 
+        var lastFailure: AiServiceException? = null
         for (config in enabledConfigs) {
             try {
                 val response = aiService.generateResponse(
@@ -30,11 +31,12 @@ class SendCloudAiRequestUseCase @Inject constructor(
                 aiModelConfigRepository.setLastUsedSummaryModelName(config.modelName.takeIf { it.isNotBlank() })
                 return response
             } catch (e: AiServiceException) {
+                lastFailure = e
                 // If this model fails, try the next one
                 continue
             }
         }
 
-        throw AllAiModelsFailedException()
+        throw AllAiModelsFailedException(lastFailure)
     }
 }

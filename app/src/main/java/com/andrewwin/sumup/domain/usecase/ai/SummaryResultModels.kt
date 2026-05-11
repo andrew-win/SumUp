@@ -19,13 +19,14 @@ data class DigestTheme(
 sealed class SummaryResult {
     data class Single(
         val title: String? = null,
+        val main: String? = null,
         val points: List<SummaryItem>,
         val sources: List<SummarySourceRef> = emptyList()
     ) : SummaryResult()
 
     data class Compare(
-        val common: List<SummaryItem>,
-        val unique: List<SummaryItem>
+        val main: String? = null,
+        val points: List<SummaryItem>
     ) : SummaryResult()
 
     data class Digest(

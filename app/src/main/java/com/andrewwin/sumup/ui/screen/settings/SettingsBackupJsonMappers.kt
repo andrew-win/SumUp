@@ -71,8 +71,10 @@ internal fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
     put("extractiveNewsInScheduled", extractiveNewsInScheduled)
     put("showLastSummariesCount", showLastSummariesCount)
     put("showInfographicNewsCount", showInfographicNewsCount)
-    put("aiMaxCharsPerArticle", aiMaxCharsPerArticle)
-    put("aiMaxCharsPerFeedArticle", aiMaxCharsPerFeedArticle)
+    put("aiMaxCharsSingleArticle", aiMaxCharsSingleArticle)
+    put("aiMaxCharsNewsCluster", aiMaxCharsNewsCluster)
+    put("aiMaxCharsSingleFeedArticle", aiMaxCharsSingleFeedArticle)
+    put("aiMaxCharsFeedCluster", aiMaxCharsFeedCluster)
     put("aiMaxCharsTotal", aiMaxCharsTotal)
     put("summaryPrompt", summaryPrompt)
     put("isCustomSummaryPromptEnabled", isCustomSummaryPromptEnabled)
@@ -166,8 +168,22 @@ internal fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
         extractiveNewsInScheduled = optInt("extractiveNewsInScheduled", defaults.extractiveNewsInScheduled),
         showLastSummariesCount = optInt("showLastSummariesCount", defaults.showLastSummariesCount),
         showInfographicNewsCount = optInt("showInfographicNewsCount", defaults.showInfographicNewsCount),
-        aiMaxCharsPerArticle = optInt("aiMaxCharsPerArticle", defaults.aiMaxCharsPerArticle),
-        aiMaxCharsPerFeedArticle = optInt("aiMaxCharsPerFeedArticle", defaults.aiMaxCharsPerFeedArticle),
+        aiMaxCharsSingleArticle = optInt(
+            "aiMaxCharsSingleArticle",
+            optInt("aiMaxCharsPerArticle", defaults.aiMaxCharsSingleArticle)
+        ),
+        aiMaxCharsNewsCluster = optInt(
+            "aiMaxCharsNewsCluster",
+            optInt("aiMaxCharsPerArticle", defaults.aiMaxCharsNewsCluster)
+        ),
+        aiMaxCharsSingleFeedArticle = optInt(
+            "aiMaxCharsSingleFeedArticle",
+            optInt("aiMaxCharsPerFeedArticle", defaults.aiMaxCharsSingleFeedArticle)
+        ),
+        aiMaxCharsFeedCluster = optInt(
+            "aiMaxCharsFeedCluster",
+            optInt("aiMaxCharsPerFeedArticle", defaults.aiMaxCharsFeedCluster)
+        ),
         aiMaxCharsTotal = optInt("aiMaxCharsTotal", defaults.aiMaxCharsTotal),
         summaryPrompt = optString("summaryPrompt", defaults.summaryPrompt),
         isCustomSummaryPromptEnabled = optBoolean(

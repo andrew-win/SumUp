@@ -12,6 +12,7 @@ import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
+import com.andrewwin.sumup.domain.support.InvalidAiResponseException
 import com.andrewwin.sumup.domain.support.LocalModelMissingException
 import com.andrewwin.sumup.domain.support.NoActiveModelException
 import com.andrewwin.sumup.domain.support.UnsupportedStrategyException
@@ -134,7 +135,7 @@ class FeedAiSummaryViewModel @Inject constructor(
                 if (forceRefresh || feedAiSessionCache.getArticleSummary(articleId) == null) {
                     feedAiSessionCache.putArticleSummary(
                         articleId,
-                        AiPresentationResult(result = result, rawText = formatSummaryResultUseCase(result))
+                        buildPresentationResult(result)
                     )
                 }
             }
@@ -149,7 +150,7 @@ class FeedAiSummaryViewModel @Inject constructor(
                 if (forceRefresh || feedAiSessionCache.getClusterSummary(articleIds) == null) {
                     feedAiSessionCache.putClusterSummary(
                         articleIds,
-                        AiPresentationResult(result = result, rawText = formatSummaryResultUseCase(result))
+                        buildPresentationResult(result)
                     )
                 }
             }
@@ -164,7 +165,7 @@ class FeedAiSummaryViewModel @Inject constructor(
                 if (forceRefresh || feedAiSessionCache.getFeedSummary(articleIds) == null) {
                     feedAiSessionCache.putFeedSummary(
                         articleIds,
-                        AiPresentationResult(result = result, rawText = formatSummaryResultUseCase(result))
+                        buildPresentationResult(result)
                     )
                 }
             }
@@ -175,22 +176,48 @@ class FeedAiSummaryViewModel @Inject constructor(
         viewModelScope.launch {
             _isAiLoading.value = true
             _aiResult.value = null
+            aiModelConfigRepository.setLastUsedSummaryModelName(null)
             val result = block()
                 .map { summary ->
-                    AiPresentationResult(
-                        result = summary,
-                        rawText = formatSummaryResultUseCase(summary)
-                    )
+                    buildPresentationResult(summary)
                 }
                 .getOrElse { error ->
                     val localized = localizeError(error)
                     AiPresentationResult(
                         result = SummaryResult.Error(localized),
-                        rawText = localized
+                        rawText = localized,
+                        executionLabel = buildExecutionLabel()
                     )
                 }
             _aiResult.value = result
             _isAiLoading.value = false
+        }
+    }
+
+    private fun buildPresentationResult(result: SummaryResult): AiPresentationResult {
+        return AiPresentationResult(
+            result = result,
+            rawText = formatSummaryResultUseCase(result),
+            executionLabel = buildExecutionLabel()
+        )
+    }
+
+    private fun buildExecutionLabel(): String {
+        val context = getApplication<Application>()
+        val strategy = userPreferences.value.aiStrategy
+        val usedModelName = aiModelConfigRepository.lastUsedSummaryModelName.value
+            ?.substringAfter('/')
+            ?.takeIf { it.isNotBlank() }
+
+        return when (strategy) {
+            com.andrewwin.sumup.data.local.entities.AiStrategy.LOCAL ->
+                context.getString(R.string.ai_execution_local)
+            com.andrewwin.sumup.data.local.entities.AiStrategy.CLOUD ->
+                usedModelName?.let { context.getString(R.string.ai_execution_cloud_model, it) }
+                    ?: context.getString(R.string.ai_strategy_cloud)
+            com.andrewwin.sumup.data.local.entities.AiStrategy.ADAPTIVE ->
+                usedModelName?.let { context.getString(R.string.ai_execution_adaptive_cloud_model, it) }
+                    ?: context.getString(R.string.ai_execution_adaptive_local)
         }
     }
 
@@ -204,10 +231,13 @@ class FeedAiSummaryViewModel @Inject constructor(
         val context = getApplication<Application>()
         return when (e) {
             is NoActiveModelException -> context.getString(R.string.error_no_active_model)
-            is AllAiModelsFailedException -> context.getString(R.string.error_all_ai_models_failed)
+            is AllAiModelsFailedException -> e.localizedMessage?.takeIf { it.isNotBlank() }?.let { message ->
+                context.getString(R.string.ai_error_prefix, message)
+            } ?: context.getString(R.string.error_all_ai_models_failed)
+            is InvalidAiResponseException -> context.getString(R.string.error_invalid_ai_response)
             is LocalModelMissingException -> context.getString(R.string.error_local_model_missing)
             is UnsupportedStrategyException -> context.getString(R.string.error_unsupported_strategy)
-            else -> "${context.getString(R.string.ai_error_prefix)} ${e.localizedMessage.orEmpty()}"
+            else -> context.getString(R.string.ai_error_prefix, e.localizedMessage.orEmpty())
         }
     }
 
