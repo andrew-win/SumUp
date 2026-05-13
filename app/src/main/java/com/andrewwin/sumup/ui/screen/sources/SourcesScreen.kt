@@ -228,30 +228,53 @@ fun SourcesScreen(
                         )
 
                         val sortOrder by viewModel.sortOrder.collectAsState()
-                        Row(
-                            modifier = Modifier.clickable {
-                                viewModel.setSortOrder(
-                                    if (sortOrder == SourceSortOrder.BY_NAME) SourceSortOrder.BY_DATE
-                                    else SourceSortOrder.BY_NAME
+                        var showSortDropdown by remember { mutableStateOf(false) }
+
+                        Box {
+                            Row(
+                                modifier = Modifier.clickable { showSortDropdown = true },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = stringResource(
+                                        if (sortOrder == SourceSortOrder.BY_NAME) R.string.sources_sort_name
+                                        else R.string.sources_sort_date
+                                    ),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
-                            },
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = stringResource(
-                                    if (sortOrder == SourceSortOrder.BY_NAME) R.string.sources_sort_name
-                                    else R.string.sources_sort_date
-                                ),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Default.SwapVert,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
+                                Spacer(Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.FilterList,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = showSortDropdown,
+                                onDismissRequest = { showSortDropdown = false },
+                                shape = MaterialTheme.shapes.large,
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.sources_sort_name)) },
+                                    onClick = {
+                                        viewModel.setSortOrder(SourceSortOrder.BY_NAME)
+                                        showSortDropdown = false
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.SortByAlpha, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.sources_sort_date)) },
+                                    onClick = {
+                                        viewModel.setSortOrder(SourceSortOrder.BY_DATE)
+                                        showSortDropdown = false
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                )
+                            }
                         }
                     }
                 }
@@ -1002,7 +1025,7 @@ fun SourceDialog(
                                 { Text(error) }
                             }
                         )
-                        FilledTonalButton(
+                        TextButton(
                             onClick = {
                                 isFetchingName = true
                                 onFetchGeneratedName(url, type) { generatedName ->
@@ -1011,12 +1034,7 @@ fun SourceDialog(
                                 }
                             },
                             enabled = url.isNotBlank() && isSourceUrlValid && !isFetchingName,
-                            shape = MaterialTheme.shapes.large,
-                            contentPadding = PaddingValues(horizontal = 14.dp),
-                            modifier = Modifier
-                                .padding(top = 8.dp)
-                                .height(56.dp)
-                                .widthIn(min = 112.dp)
+                            modifier = Modifier.offset(y = (-2).dp)
                         ) {
                             if (isFetchingName) {
                                 CircularProgressIndicator(

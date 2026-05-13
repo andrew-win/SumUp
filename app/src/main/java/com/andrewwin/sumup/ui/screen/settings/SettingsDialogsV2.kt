@@ -556,45 +556,6 @@ fun SettingsAiConfigDialog(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        OutlinedTextField(
-                            value = name,
-                            onValueChange = { name = it },
-                            label = { Text(stringResource(R.string.dialog_config_name)) },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            shape = MaterialTheme.shapes.large,
-                            isError = configNameErrorText != null,
-                            supportingText = {
-                                if (configNameErrorText != null) {
-                                    Text(configNameErrorText)
-                                }
-                            }
-                        )
-                        FilledTonalButton(
-                            onClick = {
-                                name = buildAutoAiConfigNameV2(
-                                    providerLabel = providerLabel,
-                                    provider = provider,
-                                    existingConfigs = existingConfigs,
-                                    editingConfigId = config?.id
-                                )
-                            },
-                            shape = MaterialTheme.shapes.large,
-                            contentPadding = PaddingValues(horizontal = 14.dp),
-                            modifier = Modifier
-                                .padding(top = 6.dp)
-                                .height(56.dp)
-                                .widthIn(min = 112.dp)
-                        ) {
-                            Text(stringResource(R.string.dialog_config_name_fetch))
-                        }
-                    }
-
                     ExposedDropdownMenuBox(
                         expanded = expandedProvider,
                         onExpandedChange = { expandedProvider = !expandedProvider }
@@ -704,6 +665,39 @@ fun SettingsAiConfigDialog(
                             TextButton(onClick = { viewModel.loadModels(provider, apiKey, type) }) {
                                 Text(stringResource(R.string.dialog_load))
                             }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = { Text(stringResource(R.string.dialog_config_name)) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            shape = MaterialTheme.shapes.large,
+                            isError = configNameErrorText != null,
+                            supportingText = {
+                                if (configNameErrorText != null) {
+                                    Text(configNameErrorText)
+                                }
+                            }
+                        )
+                        Spacer(Modifier.size(8.dp))
+                        TextButton(
+                            onClick = {
+                                name = buildAutoAiConfigNameV2(
+                                    providerLabel = providerLabel,
+                                    provider = provider,
+                                    existingConfigs = existingConfigs,
+                                    editingConfigId = config?.id
+                                )
+                            }
+                        ) {
+                            Text(stringResource(R.string.dialog_config_name_fetch))
                         }
                     }
                 }

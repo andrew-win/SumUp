@@ -45,7 +45,7 @@ fun MainScreen() {
     val currentDestination = navBackStackEntry?.destination
     val mainRoutes = remember(navItems) { navItems.map { it.route }.toSet() }
     val currentRoute = currentDestination?.route
-    val shouldShowNavigationSuite = currentRoute in mainRoutes
+    val shouldShowNavigationSuite = currentRoute in mainRoutes || currentRoute == Screen.SettingsDetail.route
     val navigationActions = remember(navController) {
         FeedNavigationActions(
             onOpenWebView = { url ->
@@ -96,7 +96,9 @@ fun MainScreen() {
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 ) {
                     navItems.forEach { screen ->
-                        val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                        val isSettingsDetail = currentDestination?.hierarchy?.any { it.route == Screen.SettingsDetail.route } == true
+                        val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true ||
+                            (screen == Screen.Settings && isSettingsDetail)
                         NavigationBarItem(
                             icon = {
                                 when (val icon = screen.icon) {

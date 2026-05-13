@@ -68,7 +68,7 @@ class SourcesViewModel @Inject constructor(
         debouncedSearchQuery,
         _sortOrder
     ) { groups, query, sort ->
-        val filtered = if (query.isBlank()) {
+        val filteredByQuery = if (query.isBlank()) {
             groups
         } else {
             val tokens = tokenizeQuery(query)
@@ -87,8 +87,8 @@ class SourcesViewModel @Inject constructor(
         }
 
         when (sort) {
-            SourceSortOrder.BY_NAME -> filtered.sortedBy { it.group.name }
-            SourceSortOrder.BY_DATE -> filtered.sortedByDescending { it.group.id }
+            SourceSortOrder.BY_NAME -> filteredByQuery.sortedBy { it.group.name }
+            SourceSortOrder.BY_DATE -> filteredByQuery.sortedByDescending { it.group.id }
         }.let(SourcesUiState::Content)
     }
         .stateIn(
