@@ -1,7 +1,6 @@
 package com.andrewwin.sumup.ui.screen.settings
 
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
-import com.andrewwin.sumup.data.local.entities.AiConfigPriority
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.local.entities.AiStrategy
@@ -229,8 +228,7 @@ internal fun AiModelConfig.toBackupJson(
     put("modelName", modelName)
     put("isEnabled", isEnabled)
     put("type", type.name)
-    put("priority", priority.name)
-    put("isUseNow", isUseNow)
+    put("sortOrder", sortOrder)
 }
 
 internal fun AiModelConfig.toBackupJson(
@@ -242,8 +240,7 @@ internal fun AiModelConfig.toBackupJson(
     put("modelName", modelName)
     put("isEnabled", isEnabled)
     put("type", type.name)
-    put("priority", priority.name)
-    put("isUseNow", isUseNow)
+    put("sortOrder", sortOrder)
 }
 
 internal fun AiModelConfig.Companion.fromBackupJson(
@@ -269,9 +266,14 @@ internal fun AiModelConfig.Companion.fromBackupJson(
     require(name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()) { "Invalid AI config in backup." }
     val provider = runCatching { AiProvider.valueOf(item.optString("provider")) }.getOrThrow()
     val type = runCatching { AiModelType.valueOf(item.optString("type")) }.getOrThrow()
-    val priority = runCatching {
-        AiConfigPriority.valueOf(item.optString("priority", AiConfigPriority.MEDIUM.name))
-    }.getOrDefault(AiConfigPriority.MEDIUM)
+    val sortOrder = if (item.has("sortOrder")) {
+        item.optInt("sortOrder", Int.MAX_VALUE)
+    } else {
+        legacyApiConfigSortOrder(
+            priority = item.optString("priority", "MEDIUM"),
+            isUseNow = item.optBoolean("isUseNow", false)
+        )
+    }
     
     return AiModelConfig(
         name = name,
@@ -280,9 +282,17 @@ internal fun AiModelConfig.Companion.fromBackupJson(
         modelName = modelName,
         isEnabled = item.optBoolean("isEnabled", true),
         type = type,
-        priority = priority,
-        isUseNow = item.optBoolean("isUseNow", false)
+        sortOrder = sortOrder
     )
+}
+
+private fun legacyApiConfigSortOrder(priority: String, isUseNow: Boolean): Int {
+    val priorityOffset = when (priority) {
+        "HIGH" -> 0
+        "MEDIUM" -> 1000
+        else -> 2000
+    }
+    return priorityOffset - if (isUseNow) 10000 else 0
 }
 
 internal fun JSONArray?.toAiConfigsFromBackup(

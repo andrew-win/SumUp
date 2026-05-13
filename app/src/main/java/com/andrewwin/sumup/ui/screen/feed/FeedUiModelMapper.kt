@@ -5,14 +5,14 @@ import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
-import com.andrewwin.sumup.domain.service.ArticleCluster
-import com.andrewwin.sumup.domain.usecase.common.FormatArticleHeadlineUseCase
+import com.andrewwin.sumup.domain.news.ArticleCluster
+import com.andrewwin.sumup.domain.news.ArticleDisplayTextFormatter
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import javax.inject.Inject
 
 class FeedUiModelMapper @Inject constructor(
-    private val formatArticleHeadlineUseCase: FormatArticleHeadlineUseCase
+    private val formatArticleHeadlineUseCase: ArticleDisplayTextFormatter
 ) {
     fun map(
         clusters: List<ArticleCluster>,

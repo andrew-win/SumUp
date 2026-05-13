@@ -246,13 +246,9 @@ sources</string>
     <string name="settings_cloud_vectorization">Cloud vectorization</string>
     <string name="settings_cloud_summary_api_keys">Cloud API keys for summarization</string>
     <string name="settings_cloud_vectorization_api_keys">Cloud API keys for vectorization</string>
-    <string name="settings_api_priority">Priority</string>
-    <string name="settings_api_priority_low">Low</string>
-    <string name="settings_api_priority_medium">Medium</string>
-    <string name="settings_api_priority_high">High</string>
-    <string name="settings_api_currently_used">currently used</string>
-    <string name="settings_api_use_now">Use now</string>
     <string name="settings_api_current_model">Currently used: %1$s</string>
+    <string name="settings_api_key_move_up">Move key up</string>
+    <string name="settings_api_key_move_down">Move key down</string>
     <string name="settings_summary_prompt">Summarization prompt</string>
     <string name="settings_summary_prompt_hint">Write instructions for the model</string>
     <string name="settings_custom_summary_prompt">Custom prompt</string>
@@ -311,6 +307,7 @@ scheduled</string>
     <string name="sources_tab_custom">Custom</string>
     <string name="sources_tab_presets">Presets</string>
     <string name="sources_search_placeholder">Search sources here…</string>
+    <string name="sources_groups_empty">There are no source folders yet</string>
     <string name="sources_group_empty">There are no sources in this group</string>
     <string name="sources_header_folders">Folders</string>
     <string name="sources_sort_name">Name (A-Z)</string>
@@ -337,9 +334,9 @@ scheduled</string>
     <string name="sources_help_group_card">— This is a source group card, or folder.\n— Inside it you can enable or disable the whole group or individual sources.\n— A disabled group does not participate in feed generation.</string>
     <string name="sources_help_recommended_themes">— This area shows ready-made topic subscriptions.\n— It helps add sets of sources without manual search.\n— After subscribing, themes become separate structured groups.</string>
     <string name="source_dialog_help_title">How to add a source</string>
-    <string name="source_dialog_help_name">1. Name: enter it manually or tap “Fetch” to fill it automatically.</string>
-    <string name="source_dialog_help_url">2. URL: link to an RSS, Telegram, or YouTube source.</string>
-    <string name="source_dialog_help_type">3. Source type controls how the parser reads content (RSS/Telegram/YouTube).</string>
+    <string name="source_dialog_help_name">3. Name: enter it manually or tap “Fetch” to fill it automatically.</string>
+    <string name="source_dialog_help_url">2. URL: — Telegram: name, @name, t.me/name, t.me/s/name, https://t.me/name, or www.t.me/name.\n— YouTube: channel ID that starts with UC.\n— RSS: website/feed domain or URL, for example site.com or https://site.com/rss.</string>
+    <string name="source_dialog_help_type">1. Source type controls how the parser reads content (RSS/Telegram/YouTube).</string>
     <string name="source_dialog_help_groups">4. Subscriptions are organized into folders (groups), so they can be enabled and filtered separately.</string>
     <string name="summary_help_status">— This block shows the scheduled summary state.\n— It displays the previous and next summary generation times.\n— It is a quick indicator of when a summary was created or is expected next.</string>
     <string name="summary_help_latest">— This area shows the current main summary.\n— The cards below group key themes and stories.\n— From here you can jump to related sources and content.</string>
@@ -355,8 +352,8 @@ scheduled</string>
     <string name="settings_help_section_app_language">— App language changes the UI localization.\n— It affects menus, buttons, dialogs, and help texts.\n— The change applies across the whole app, not only to the current group.</string>
     <string name="settings_help_section_summary_language">— Summary language defines which language AI should use for generated summaries.\n— Ukrainian forces responses in Ukrainian regardless of the source language.\n— English forces responses in English.\n— This setting affects summaries, AI answers in the feed, and related summary flows.</string>
     <string name="settings_help_section_theme">— Theme controls how the app looks visually.\n— System follows the device theme.\n— Light and Dark force the chosen appearance regardless of the system setting.</string>
-    <string name="settings_help_section_summary_api_keys">— This block stores keys and models used for summary generation.\n— You can add multiple configurations and keep only the needed ones enabled.\n— Editing changes the model, display name, or access key.\n— Disabled configurations are ignored during AI requests.</string>
-    <string name="settings_help_section_embedding_api_keys">— This block manages models used for embeddings and similarity-related tasks.\n— These configurations are used for vectorization and parts of deduplication.\n— You can add, edit, disable, or delete individual models.</string>
+    <string name="settings_help_section_summary_api_keys">— This block stores keys and models used for summary generation.\n— The top enabled key is used first.\n— Use the arrows to change key order.\n— Disabled configurations are ignored during AI requests.</string>
+    <string name="settings_help_section_embedding_api_keys">— This block manages models used for embeddings and similarity-related tasks.\n— The top enabled key is used first.\n— Use the arrows to change key order.\n— Disabled configurations are ignored during vectorization.</string>
     <string name="settings_help_section_ai_strategy">— Local strategy tries to work without cloud models.\n— Cloud strategy relies on external AI providers.\n— Adaptive strategy switches between local and cloud processing depending on limits and runtime conditions.</string>
     <string name="settings_help_section_ai_limits">— Limit for a specific single news item caps cloud text for one-news summaries.\n— Limit for a specific news cluster caps total cloud text across all news in a comparison.\n— Limit for a single news item in scheduled/full-feed summaries caps one item in cloud digests.\n— Limit for a cluster in scheduled/full-feed summaries caps total cluster text when cluster payloads are used.\n— Total character limit for sending caps the total payload of one cloud request.\n— Lower values speed requests up, but they may cut useful context.</string>
     <string name="settings_help_section_dedup_strategy">— Local deduplication compares news without a cloud call.\n— Cloud deduplication relies on external AI processing.\n— Adaptive deduplication switches between those approaches depending on available context and runtime conditions.</string>
@@ -430,6 +427,7 @@ scheduled</string>
     <string name="validation_group_name_reserved_by_subscription">This folder name matches an existing subscription</string>
     <string name="validation_source_name_exists">A source with this name already exists</string>
     <string name="validation_source_url_required">URL is required</string>
+    <string name="validation_source_url_type_mismatch">The link does not match the selected source type</string>
     <string name="validation_source_url_exists">A source with this URL already exists</string>
     <string name="validation_source_in_active_subscriptions">This source is already included in subscriptions</string>
     <string name="validation_ai_config_name_exists">A config with this name already exists</string>

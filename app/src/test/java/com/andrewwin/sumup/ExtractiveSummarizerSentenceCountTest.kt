@@ -1,6 +1,6 @@
 package com.andrewwin.sumup
 
-import com.andrewwin.sumup.domain.usecase.ai.GetExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -15,7 +15,7 @@ class ExtractiveSummarizerSentenceCountTest {
             Fourth long sentence that should usually be ignored for n=3.
         """.trimIndent()
 
-        val result = GetExtractiveSummaryUseCase()(text, n = 3)
+        val result = ExtractiveSummaryService()(text, n = 3)
 
         assertEquals(3, result.size)
         assertTrue(result.all { it.length >= 20 })

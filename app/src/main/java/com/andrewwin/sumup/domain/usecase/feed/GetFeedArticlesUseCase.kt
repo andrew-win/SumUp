@@ -8,11 +8,12 @@ import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
-import com.andrewwin.sumup.domain.service.ArticleCluster
-import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
-import com.andrewwin.sumup.domain.service.DedupRuntimeCoordinator
-import com.andrewwin.sumup.domain.service.EmbeddingUtils
-import com.andrewwin.sumup.domain.service.SimilarityScorer
+import com.andrewwin.sumup.domain.news.ArticleCluster
+import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.news.DedupRuntimeCoordinator
+import com.andrewwin.sumup.domain.news.EmbeddingUtils
+import com.andrewwin.sumup.domain.news.SimilarityScorer
+import com.andrewwin.sumup.domain.feed.FeedSearchMatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -36,7 +37,8 @@ class GetFeedArticlesUseCase @Inject constructor(
     private val sourceRepository: SourceRepository,
     private val similarityScorer: SimilarityScorer,
     private val importanceScorer: ArticleImportanceScorer,
-    private val dedupRuntimeCoordinator: DedupRuntimeCoordinator
+    private val dedupRuntimeCoordinator: DedupRuntimeCoordinator,
+    private val feedSearchMatcher: FeedSearchMatcher
 ) {
     private val tag = "GetFeedArticles"
     private var lastDedupInputKey: String? = null
@@ -137,9 +139,9 @@ class GetFeedArticlesUseCase @Inject constructor(
             }
 
             if (!savedOnly && query.isNotBlank()) {
-                val tokens = tokenizeQuery(query)
+                val tokens = feedSearchMatcher.tokenizeQuery(query)
                 processedArticles = processedArticles.filter { article ->
-                    matchesQueryWithTokenThreshold(
+                    feedSearchMatcher.matchesQueryWithTokenThreshold(
                         title = article.title,
                         content = article.content,
                         queryTokens = tokens
@@ -598,7 +600,6 @@ class GetFeedArticlesUseCase @Inject constructor(
 
     companion object {
         private const val DEDUP_EMIT_EVERY = 32
-        private const val SEARCH_TOKEN_MATCH_RATIO = 0.6f
         private const val DEBUG_CHANGED_ENTRY_LIMIT = 5
         private const val DEBUG_CHANGED_IDS_LIMIT = 10
         private const val DEBUG_TITLE_PREVIEW_LENGTH = 80
@@ -874,33 +875,5 @@ class GetFeedArticlesUseCase @Inject constructor(
         val totalArticlesCount: Int = 0,
         val isComplete: Boolean = false
     )
-
-    private fun matchesQueryWithTokenThreshold(
-        title: String,
-        content: String,
-        queryTokens: List<String>
-    ): Boolean {
-        if (queryTokens.isEmpty()) return true
-        val normalizedText = normalizeForSearch("$title $content")
-        if (normalizedText.isBlank()) return false
-
-        val matchedCount = queryTokens.count { token -> normalizedText.contains(token) }
-        val requiredMatches = kotlin.math.ceil(queryTokens.size * SEARCH_TOKEN_MATCH_RATIO).toInt().coerceAtLeast(1)
-        return matchedCount >= requiredMatches
-    }
-
-    private fun tokenizeQuery(query: String): List<String> =
-        normalizeForSearch(query)
-            .split(" ")
-            .map { it.trim() }
-            .filter { it.length >= 2 }
-            .distinct()
-
-    private fun normalizeForSearch(value: String): String =
-        value
-            .lowercase()
-            .replace(Regex("[\\p{Punct}\\p{S}]"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
 
 }

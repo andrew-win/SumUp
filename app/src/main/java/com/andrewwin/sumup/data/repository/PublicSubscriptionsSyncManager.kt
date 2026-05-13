@@ -3,6 +3,7 @@ package com.andrewwin.sumup.data.repository
 import android.content.Context
 import com.andrewwin.sumup.data.remote.PublicSourcesCatalogService
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
+import com.andrewwin.sumup.domain.repository.PublicSubscriptionsCatalog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
@@ -16,7 +17,7 @@ import javax.inject.Singleton
 class PublicSubscriptionsSyncManager @Inject constructor(
     @ApplicationContext context: Context,
     private val publicSourcesCatalogService: PublicSourcesCatalogService
-) {
+) : PublicSubscriptionsCatalog {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val syncStateMutex = Mutex()
     private var activeSync: CompletableDeferred<Boolean>? = null
@@ -62,7 +63,7 @@ class PublicSubscriptionsSyncManager @Inject constructor(
 
     fun hasSyncFailure(): Boolean = prefs.getBoolean(KEY_LAST_SYNC_FAILED, false)
 
-    fun getCachedGroups(): List<ImportedSourceGroup> {
+    override fun getCachedGroups(): List<ImportedSourceGroup> {
         val json = prefs.getString(KEY_CACHED_GROUPS_JSON, null).orEmpty()
         if (json.isBlank()) return emptyList()
         val groups = JSONArray(json)

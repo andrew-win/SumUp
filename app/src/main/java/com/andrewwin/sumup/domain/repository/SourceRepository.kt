@@ -31,6 +31,11 @@ interface SourceRepository {
     suspend fun updateSource(source: Source)
     suspend fun deleteSource(source: Source)
     suspend fun getGroupsWithSourcesSnapshot(): List<GroupWithSources>
+    suspend fun subscribeToImportedGroup(
+        group: ImportedSourceGroup,
+        displayName: String
+    )
+    suspend fun unsubscribeFromImportedGroup(group: ImportedSourceGroup)
     suspend fun importGroupsWithSources(
         groups: List<ImportedSourceGroup>,
         merge: Boolean

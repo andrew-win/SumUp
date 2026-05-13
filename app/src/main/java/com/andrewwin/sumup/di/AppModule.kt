@@ -15,6 +15,11 @@ import com.andrewwin.sumup.data.local.scheduler.SummarySchedulerImpl
 import com.andrewwin.sumup.data.provider.AiPromptProviderImpl
 import com.andrewwin.sumup.data.provider.AppDispatcherProvider
 import com.andrewwin.sumup.data.remote.AiService
+import com.andrewwin.sumup.data.ai.AiSummaryResponseMapper
+import com.andrewwin.sumup.data.ai.CloudAiRequestSender
+import com.andrewwin.sumup.data.ai.CloudEmbeddingGenerator
+import com.andrewwin.sumup.data.news.ArticleTextCleaner
+import com.andrewwin.sumup.data.ai.LocalEmbeddingService
 import com.andrewwin.sumup.data.remote.RssParser
 import com.andrewwin.sumup.data.remote.TelegramParser
 import com.andrewwin.sumup.data.remote.YouTubeParser
@@ -25,36 +30,40 @@ import com.andrewwin.sumup.data.repository.SourceRepositoryImpl
 import com.andrewwin.sumup.data.repository.SuggestedThemesStateRepositoryImpl
 import com.andrewwin.sumup.data.repository.SummaryRepositoryImpl
 import com.andrewwin.sumup.data.repository.UserPreferencesRepositoryImpl
+import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
-import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
-import com.andrewwin.sumup.domain.service.CloudEmbeddingService
-import com.andrewwin.sumup.domain.service.DedupRuntimeCoordinator
-import com.andrewwin.sumup.domain.service.LocalEmbeddingService
-import com.andrewwin.sumup.domain.service.SimilarityScorer
+import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
+import com.andrewwin.sumup.domain.ai.AiRequestSender
+import com.andrewwin.sumup.domain.ai.CloudEmbeddingProvider
+import com.andrewwin.sumup.domain.news.ArticleContentCleaner
+import com.andrewwin.sumup.domain.ai.LocalEmbeddingProvider
+import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.news.DedupRuntimeCoordinator
+import com.andrewwin.sumup.domain.news.SimilarityScorer
 import com.andrewwin.sumup.domain.support.AiPromptProvider
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.ModelRepository
+import com.andrewwin.sumup.domain.repository.PublicSubscriptionsCatalog
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.ai.BuildExtractiveSummaryUseCase
-import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
-import com.andrewwin.sumup.domain.usecase.common.FormatArticleHeadlineUseCase
-import com.andrewwin.sumup.domain.usecase.ai.GetExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.summary.ExtractiveSummaryTextFormatter
+import com.andrewwin.sumup.domain.news.ArticleDisplayTextFormatter
+import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
 import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCaseImpl
-import com.andrewwin.sumup.domain.usecase.common.FormatSummaryResultUseCase
+import com.andrewwin.sumup.domain.summary.SummaryResultFormatter
 import com.andrewwin.sumup.domain.usecase.ai.GetScheduledSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
-import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
-import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCaseImpl
+import com.andrewwin.sumup.domain.ai.LocalModelManager
+import com.andrewwin.sumup.domain.ai.LocalModelManagerImpl
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Module
 import dagger.Provides
@@ -148,7 +157,7 @@ object AppModule {
         sourceDao: SourceDao,
         userPreferencesDao: UserPreferencesDao,
         remoteArticleDataSource: RemoteArticleDataSource,
-        cleanArticleTextUseCase: CleanArticleTextUseCase
+        cleanArticleTextUseCase: ArticleContentCleaner
     ): ArticleRepository = ArticleRepositoryImpl(
         articleDao,
         articleSimilarityDao,
@@ -164,7 +173,7 @@ object AppModule {
     fun provideSourceRepository(
         sourceDao: SourceDao,
         remoteArticleDataSource: RemoteArticleDataSource,
-        cleanArticleTextUseCase: CleanArticleTextUseCase
+        cleanArticleTextUseCase: ArticleContentCleaner
     ): SourceRepository = SourceRepositoryImpl(
         sourceDao,
         remoteArticleDataSource,
@@ -208,8 +217,8 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideManageModelUseCase(modelRepository: ModelRepository): ManageModelUseCase =
-        ManageModelUseCaseImpl(modelRepository)
+    fun provideLocalModelManager(modelRepository: ModelRepository): LocalModelManager =
+        LocalModelManagerImpl(modelRepository)
 
     @Provides
     @Singleton
@@ -226,26 +235,36 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideLocalEmbeddingService(@ApplicationContext context: Context): LocalEmbeddingService =
+    fun provideLocalEmbeddingProvider(@ApplicationContext context: Context): LocalEmbeddingProvider =
         LocalEmbeddingService(context)
 
     @Provides
     @Singleton
-    fun provideCloudEmbeddingService(
-        generateCloudEmbeddingUseCase: com.andrewwin.sumup.domain.usecase.ai.GenerateCloudEmbeddingUseCase
-    ): CloudEmbeddingService = CloudEmbeddingService(generateCloudEmbeddingUseCase)
+    fun provideCloudEmbeddingProvider(impl: CloudEmbeddingGenerator): CloudEmbeddingProvider = impl
+
+    @Provides
+    @Singleton
+    fun provideAiRequestSender(impl: CloudAiRequestSender): AiRequestSender = impl
+
+    @Provides
+    @Singleton
+    fun provideSummaryResponseMapper(impl: AiSummaryResponseMapper): SummaryResponseMapper = impl
+
+    @Provides
+    @Singleton
+    fun providePublicSubscriptionsCatalog(impl: PublicSubscriptionsSyncManager): PublicSubscriptionsCatalog = impl
 
     @Provides
     @Singleton
     fun provideSimilarityScorer(
         articleRepository: ArticleRepository,
-        localEmbeddingService: LocalEmbeddingService,
-        cloudEmbeddingService: CloudEmbeddingService,
+        localEmbeddingProvider: LocalEmbeddingProvider,
+        cloudEmbeddingProvider: CloudEmbeddingProvider,
         dedupRuntimeCoordinator: DedupRuntimeCoordinator
     ): SimilarityScorer = SimilarityScorer(
         articleRepository,
-        localEmbeddingService,
-        cloudEmbeddingService,
+        localEmbeddingProvider,
+        cloudEmbeddingProvider,
         dedupRuntimeCoordinator
     )
 
@@ -272,20 +291,20 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideFormatArticleHeadlineUseCase(): FormatArticleHeadlineUseCase = FormatArticleHeadlineUseCase()
+    fun provideArticleDisplayTextFormatter(): ArticleDisplayTextFormatter = ArticleDisplayTextFormatter()
 
     @Provides
     @Singleton
-    fun provideCleanArticleTextUseCase(
+    fun provideArticleTextCleaner(
         dispatcherProvider: com.andrewwin.sumup.domain.support.DispatcherProvider
-    ): CleanArticleTextUseCase = CleanArticleTextUseCase(dispatcherProvider)
+    ): ArticleContentCleaner = ArticleTextCleaner(dispatcherProvider)
 
     @Provides
     @Singleton
-    fun provideBuildExtractiveSummaryUseCase(
-        getExtractiveSummaryUseCase: GetExtractiveSummaryUseCase,
+    fun provideExtractiveSummaryTextFormatter(
+        getExtractiveSummaryUseCase: ExtractiveSummaryService,
         dispatcherProvider: com.andrewwin.sumup.domain.support.DispatcherProvider
-    ): BuildExtractiveSummaryUseCase = BuildExtractiveSummaryUseCase(
+    ): ExtractiveSummaryTextFormatter = ExtractiveSummaryTextFormatter(
         getExtractiveSummaryUseCase,
         dispatcherProvider
     )
@@ -298,13 +317,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideFormatSummaryResultUseCase(): FormatSummaryResultUseCase = FormatSummaryResultUseCase()
+    fun provideSummaryResultFormatter(): SummaryResultFormatter = SummaryResultFormatter()
 
     @Provides
     @Singleton
     fun provideGenerateSummaryUseCase(
         getScheduledSummaryUseCase: GetScheduledSummaryUseCase,
-        formatSummaryResultUseCase: FormatSummaryResultUseCase
+        formatSummaryResultUseCase: SummaryResultFormatter
     ): GenerateSummaryUseCase = GenerateSummaryUseCaseImpl(
         getScheduledSummaryUseCase,
         formatSummaryResultUseCase

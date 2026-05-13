@@ -563,10 +563,14 @@ internal fun SettingsScreen(
                             onEditSummaryConfig = { showConfigDialog = it to AiModelType.SUMMARY },
                             onDeleteSummaryConfig = { deleteAiConfigConfirm = it },
                             onToggleSummaryConfig = viewModel::toggleAiConfig,
+                            onMoveSummaryConfigUp = viewModel::moveAiConfigUp,
+                            onMoveSummaryConfigDown = viewModel::moveAiConfigDown,
                             onAddEmbeddingConfig = { showConfigDialog = null to AiModelType.EMBEDDING },
                             onEditEmbeddingConfig = { showConfigDialog = it to AiModelType.EMBEDDING },
                             onDeleteEmbeddingConfig = { deleteAiConfigConfirm = it },
-                            onToggleEmbeddingConfig = viewModel::toggleAiConfig
+                            onToggleEmbeddingConfig = viewModel::toggleAiConfig,
+                            onMoveEmbeddingConfigUp = viewModel::moveAiConfigUp,
+                            onMoveEmbeddingConfigDown = viewModel::moveAiConfigDown
                         )
                     }
 

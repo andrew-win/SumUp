@@ -1,13 +1,13 @@
 package com.andrewwin.sumup
 
-import com.andrewwin.sumup.domain.usecase.ai.ParseAiJsonResponseUseCase
+import com.andrewwin.sumup.data.ai.AiSummaryResponseMapper
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AiJsonResponseParserContractsTest {
 
-    private val parser = ParseAiJsonResponseUseCase()
+    private val parser = AiSummaryResponseMapper()
 
     @Test
     fun parseSingle_usesMainAndDetailsSchema() {

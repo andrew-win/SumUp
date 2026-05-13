@@ -211,10 +211,14 @@ internal fun SettingsApiKeysGroupContent(
     onEditSummaryConfig: (AiModelConfig) -> Unit,
     onDeleteSummaryConfig: (AiModelConfig) -> Unit,
     onToggleSummaryConfig: (AiModelConfig, Boolean) -> Unit,
+    onMoveSummaryConfigUp: (AiModelConfig) -> Unit,
+    onMoveSummaryConfigDown: (AiModelConfig) -> Unit,
     onAddEmbeddingConfig: () -> Unit,
     onEditEmbeddingConfig: (AiModelConfig) -> Unit,
     onDeleteEmbeddingConfig: (AiModelConfig) -> Unit,
-    onToggleEmbeddingConfig: (AiModelConfig, Boolean) -> Unit
+    onToggleEmbeddingConfig: (AiModelConfig, Boolean) -> Unit,
+    onMoveEmbeddingConfigUp: (AiModelConfig) -> Unit,
+    onMoveEmbeddingConfigDown: (AiModelConfig) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SettingsSection(
@@ -231,7 +235,9 @@ internal fun SettingsApiKeysGroupContent(
                 configs = summaryConfigs,
                 onEdit = onEditSummaryConfig,
                 onDelete = onDeleteSummaryConfig,
-                onToggle = onToggleSummaryConfig
+                onToggle = onToggleSummaryConfig,
+                onMoveUp = onMoveSummaryConfigUp,
+                onMoveDown = onMoveSummaryConfigDown
             )
             currentSummaryConfig?.let { activeConfig ->
                 Text(
@@ -260,7 +266,9 @@ internal fun SettingsApiKeysGroupContent(
                 configs = embeddingConfigs,
                 onEdit = onEditEmbeddingConfig,
                 onDelete = onDeleteEmbeddingConfig,
-                onToggle = onToggleEmbeddingConfig
+                onToggle = onToggleEmbeddingConfig,
+                onMoveUp = onMoveEmbeddingConfigUp,
+                onMoveDown = onMoveEmbeddingConfigDown
             )
             currentEmbeddingConfig?.let { activeConfig ->
                 Text(
@@ -296,7 +304,9 @@ private fun AiConfigList(
     configs: List<AiModelConfig>,
     onEdit: (AiModelConfig) -> Unit,
     onDelete: (AiModelConfig) -> Unit,
-    onToggle: (AiModelConfig, Boolean) -> Unit
+    onToggle: (AiModelConfig, Boolean) -> Unit,
+    onMoveUp: (AiModelConfig) -> Unit,
+    onMoveDown: (AiModelConfig) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (configs.isEmpty()) {
@@ -306,12 +316,16 @@ private fun AiConfigList(
                 modifier = Modifier.fillMaxWidth()
             )
         } else {
-            configs.forEach { config ->
+            configs.forEachIndexed { index, config ->
                 SettingsAiKeyItem(
                     config = config,
                     onEdit = { onEdit(config) },
                     onDelete = { onDelete(config) },
-                    onToggle = { onToggle(config, it) }
+                    onToggle = { onToggle(config, it) },
+                    onMoveUp = { onMoveUp(config) },
+                    onMoveDown = { onMoveDown(config) },
+                    canMoveUp = index > 0,
+                    canMoveDown = index < configs.lastIndex
                 )
             }
         }

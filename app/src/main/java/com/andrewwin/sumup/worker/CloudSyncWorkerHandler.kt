@@ -322,7 +322,7 @@ class CloudSyncWorkerHandler @Inject constructor(
                             aiModelConfigRepository.updateConfig(
                                 normalizedImported.copy(
                                     id = existing.id,
-                                    isUseNow = normalizedImported.isUseNow || existing.isUseNow
+                                    sortOrder = existing.sortOrder
                                 )
                             )
                         }

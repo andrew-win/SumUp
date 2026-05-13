@@ -2,18 +2,19 @@ package com.andrewwin.sumup.domain.usecase.sources
 
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
-import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
-import com.andrewwin.sumup.domain.service.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.ai.CloudEmbeddingProvider
+import com.andrewwin.sumup.domain.ai.LocalEmbeddingProvider
+import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
-import com.andrewwin.sumup.domain.usecase.ai.GenerateCloudEmbeddingUseCase
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.repository.PublicSubscriptionsCatalog
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.service.EmbeddingUtils
-import com.andrewwin.sumup.domain.service.LocalEmbeddingService
+import com.andrewwin.sumup.domain.news.EmbeddingUtils
+import com.andrewwin.sumup.domain.source.SuggestedThemesRefreshPolicy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -33,17 +34,17 @@ class GetSuggestedThemesUseCase @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
     private val aiModelConfigRepository: AiModelConfigRepository,
-    private val generateCloudEmbeddingUseCase: GenerateCloudEmbeddingUseCase,
+    private val cloudEmbeddingProvider: CloudEmbeddingProvider,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val localEmbeddingService: LocalEmbeddingService,
+    private val localEmbeddingProvider: LocalEmbeddingProvider,
     private val articleImportanceScorer: ArticleImportanceScorer,
     private val suggestedThemesStateRepository: SuggestedThemesStateRepository,
-    private val publicSubscriptionsSyncManager: PublicSubscriptionsSyncManager
+    private val publicSubscriptionsCatalog: PublicSubscriptionsCatalog
 ) {
     operator fun invoke(forceRefresh: Boolean = false): Flow<List<ThemeSuggestion>> = flow {
         val prefsData = userPreferencesRepository.preferences.first()
 
-        val themeProfiles = publicSubscriptionsSyncManager.getCachedGroups()
+        val themeProfiles = publicSubscriptionsCatalog.getCachedGroups()
             .filter { it.isEnabled && (it.sources.isNotEmpty() || it.recommendationAnchors.isNotEmpty()) }
             .sortedBy { it.sortOrder }
         if (themeProfiles.isEmpty()) {
@@ -64,7 +65,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
         val lastFeedRefreshAt = suggestedThemesStateRepository.getLastFeedRefreshAt()
         val now = System.currentTimeMillis()
         val shouldRecalculate = forceRefresh || (
-            (now - lastRecommendationAt) >= SuggestedThemesRefreshConstants.REFRESH_INTERVAL_MS &&
+            (now - lastRecommendationAt) >= SuggestedThemesRefreshPolicy.REFRESH_INTERVAL_MS &&
             lastFeedRefreshAt > lastRecommendationAt
         )
 
@@ -98,7 +99,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
         val recommendationMode = resolveRecommendationMode(prefsData.deduplicationStrategy)
         val isModelLoaded = when (recommendationMode) {
             RecommendationMode.CLOUD -> aiModelConfigRepository.getEnabledConfigsByType(AiModelType.EMBEDDING).isNotEmpty()
-            RecommendationMode.LOCAL -> localEmbeddingService.initialize()
+            RecommendationMode.LOCAL -> localEmbeddingProvider.initialize()
         }
 
         if (!isModelLoaded) {
@@ -274,9 +275,9 @@ class GetSuggestedThemesUseCase @Inject constructor(
 
     private suspend fun getEmbedding(text: String, recommendationMode: RecommendationMode): FloatArray {
         if (recommendationMode == RecommendationMode.CLOUD) {
-            generateCloudEmbeddingUseCase(text)?.let { return it }
+            cloudEmbeddingProvider.generateEmbedding(text)?.let { return it }
         }
-        return localEmbeddingService.computeLocalEmbedding(text)
+        return localEmbeddingProvider.computeLocalEmbedding(text)
     }
 
     private fun com.andrewwin.sumup.data.local.entities.Article.getStoredEmbeddingForStrategy(

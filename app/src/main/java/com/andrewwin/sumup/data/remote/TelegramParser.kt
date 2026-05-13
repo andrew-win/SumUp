@@ -13,6 +13,7 @@ class TelegramParser {
             ?.text()
             ?.removeTelegramTitleSuffix()
             ?.takeIf { it.isNotBlank() }
+            ?.takeUnless { it.equals(TELEGRAM_DEFAULT_TITLE, ignoreCase = true) }
     }
 
     fun parse(html: String, sourceId: Long): List<Article> {
@@ -282,6 +283,8 @@ private fun extractMediaUrl(element: org.jsoup.nodes.Element): String? {
 
 private fun String.removeTelegramTitleSuffix(): String =
     replace(Regex("\\s+[–-]\\s*Telegram\\s*$", RegexOption.IGNORE_CASE), "").trim()
+
+private const val TELEGRAM_DEFAULT_TITLE = "Telegram Messenger"
 
 data class TelegramParseDebug(
     val key: String,

@@ -265,13 +265,9 @@
     <string name="settings_cloud_vectorization">Хмарна векторизація</string>
     <string name="settings_cloud_summary_api_keys">Хмарні API ключі для сумаризації</string>
     <string name="settings_cloud_vectorization_api_keys">Хмарні API ключі для векторизації</string>
-    <string name="settings_api_priority">Пріоритет</string>
-    <string name="settings_api_priority_low">Низький</string>
-    <string name="settings_api_priority_medium">Середній</string>
-    <string name="settings_api_priority_high">Високий</string>
-    <string name="settings_api_currently_used">використовується зараз</string>
-    <string name="settings_api_use_now">Використовувати зараз</string>
     <string name="settings_api_current_model">Зараз використовується: %1$s</string>
+    <string name="settings_api_key_move_up">Перемістити ключ вище</string>
+    <string name="settings_api_key_move_down">Перемістити ключ нижче</string>
     <string name="settings_scheduled_push_notifications">Push-сповіщення про зведення</string>
     <string name="summary_notification_channel_name">Заплановані зведення</string>
     <string name="summary_notification_channel_description">Сповіщення про готові заплановані зведення</string>
@@ -334,6 +330,7 @@
     <string name="sources_tab_custom">Користувацькі</string>
     <string name="sources_tab_presets">Пресети</string>
     <string name="sources_search_placeholder">Шукайте джерела тут…</string>
+    <string name="sources_groups_empty">Папок джерел ще немає</string>
     <string name="sources_group_empty">Немає джерел у цій групі</string>
     <string name="sources_header_folders">Папки</string>
     <string name="sources_sort_name">Ім’я (А-Я)</string>
@@ -360,9 +357,9 @@
     <string name="sources_help_group_card">— Це картка групи джерел, тобто папки.\n— Усередині можна вмикати або вимикати групу й окремі джерела.\n— Вимкнена група не бере участі у формуванні стрічки.</string>
     <string name="sources_help_recommended_themes">— Тут показуються готові тематичні підписки.\n— Вони допомагають швидко додати набір джерел без ручного пошуку.\n— Після підписки теми створюються як окремі структуровані групи.</string>
     <string name="source_dialog_help_title">Як правильно додавати джерело</string>
-    <string name="source_dialog_help_name">1. Назва: введіть вручну або натисніть «Отримати», щоб підставити її автоматично.</string>
-    <string name="source_dialog_help_url">2. URL: посилання на RSS, Telegram або YouTube-джерело.</string>
-    <string name="source_dialog_help_type">3. Тип джерела визначає, як парсер читає контент (RSS/Telegram/YouTube).</string>
+    <string name="source_dialog_help_name">3. Назва: введіть вручну або натисніть «Отримати», щоб підставити її автоматично.</string>
+    <string name="source_dialog_help_url">2. URL: — Telegram: name, @name, t.me/name, t.me/s/name, https://t.me/name або www.t.me/name.\n— YouTube: ID каналу, який починається з UC.\n— RSS: домен або URL сайту/feed, наприклад site.com чи https://site.com/rss.</string>
+    <string name="source_dialog_help_type">1. Тип джерела визначає, як парсер читає контент (RSS/Telegram/YouTube).</string>
     <string name="source_dialog_help_groups">4. Підписки організовуються по папках (групах), щоб їх можна було окремо вмикати та фільтрувати.</string>
     <string name="summary_help_status">— Блок показує стан запланованих зведень.\n— Тут видно попередній і наступний час генерації summary.\n— Це швидкий індикатор того, коли зведення вже було або коли очікується далі.</string>
     <string name="summary_help_latest">— Тут показується поточне актуальне зведення.\n— Картки нижче групують ключові теми та новини.\n— Із цього блоку можна перейти до пов’язаних джерел і контенту.</string>
@@ -378,8 +375,8 @@
     <string name="settings_help_section_app_language">— Мова застосунку змінює локалізацію інтерфейсу.\n— Вона впливає на тексти меню, кнопок, діалогів і підказок.\n— Зміна застосовується до всіх екранів, а не лише до поточної групи.</string>
     <string name="settings_help_section_summary_language">— Мова сумаризації визначає, якою мовою ШІ має формувати summary.\n— Українська примушує відповідати українською незалежно від джерела.\n— English примушує відповідати англійською.\n— Це налаштування стосується зведень, AI-відповідей по стрічці та пов’язаних сценаріїв summary.</string>
     <string name="settings_help_section_theme">— Тема оформлення визначає, як застосунок виглядає візуально.\n— System підлаштовується під системну тему пристрою.\n— Light і Dark примусово вмикають відповідний режим незалежно від системи.</string>
-    <string name="settings_help_section_summary_api_keys">— Тут зберігаються ключі та моделі для генерації summary.\n— Можна додавати кілька конфігурацій і вмикати лише потрібні.\n— Редагування змінює модель, ім’я або ключ доступу.\n— Вимкнені конфігурації не беруть участі у запитах до ШІ.</string>
-    <string name="settings_help_section_embedding_api_keys">— Тут керуються моделі для embedding і задач, пов’язаних зі схожістю.\n— Саме ці конфігурації використовуються для векторизації та частини дедублікації.\n— Можна додавати, редагувати, вимикати й видаляти окремі моделі.</string>
+    <string name="settings_help_section_summary_api_keys">— Тут зберігаються ключі та моделі для генерації summary.\n— Верхній увімкнений ключ використовується першим.\n— Стрілками можна змінювати порядок ключів.\n— Вимкнені конфігурації не беруть участі у запитах до ШІ.</string>
+    <string name="settings_help_section_embedding_api_keys">— Тут керуються моделі для embedding і задач, пов’язаних зі схожістю.\n— Верхній увімкнений ключ використовується першим.\n— Стрілками можна змінювати порядок ключів.\n— Вимкнені конфігурації не беруть участі у векторизації.</string>
     <string name="settings_help_section_ai_strategy">— Локальна стратегія намагається працювати без хмарних моделей.\n— Хмарна стратегія покладається на зовнішні AI-провайдери.\n— Адаптивна стратегія автоматично обирає між локальною та хмарною обробкою залежно від умов і лімітів.</string>
     <string name="settings_help_section_ai_limits">— Ліміт на конкретну одинарну новину обмежує cloud-текст для самарі однієї новини.\n— Ліміт на конкретний кластер новин обмежує сумарний cloud-текст усіх новин у порівнянні.\n— Ліміт на одинарну новину для запланованих/усієї стрічки обмежує одну новину в cloud-дайджесті.\n— Ліміт на кластер для запланованих/усієї стрічки обмежує сумарний текст кластера в дайджесті, якщо кластерний payload використовується.\n— Загальний ліміт символів для відправки обмежує сумарний payload одного cloud-запиту.\n— Менші значення пришвидшують запити, але можуть урізати контекст.</string>
     <string name="settings_help_section_dedup_strategy">— Локальна дедублікація порівнює новини без хмарного виклику.\n— Хмарна дедублікація покладається на зовнішню AI-обробку.\n— Адаптивна дедублікація перемикається між підходами залежно від доступного контексту та умов.</string>
@@ -456,6 +453,7 @@
     <string name="validation_group_name_reserved_by_subscription">Назва папки збігається з назвою підписки</string>
     <string name="validation_source_name_exists">Джерело з такою назвою вже існує</string>
     <string name="validation_source_url_required">Посилання обовязкове</string>
+    <string name="validation_source_url_type_mismatch">Посилання не відповідає обраному типу</string>
     <string name="validation_source_url_exists">Джерело з таким посиланням вже існує</string>
     <string name="validation_source_in_active_subscriptions">Це джерело уже є в підписках</string>
     <string name="validation_ai_config_name_exists">Конфіг з такою назвою вже існує</string>

@@ -5,9 +5,18 @@ import android.util.Log
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
+import com.andrewwin.sumup.domain.ai.AiPromptBuilder
+import com.andrewwin.sumup.domain.ai.AdaptiveTextShrinker
+import com.andrewwin.sumup.domain.ai.AiRequestSender
+import com.andrewwin.sumup.domain.feed.FeedSummaryArticle
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.feed.FeedSummaryArticle
+import com.andrewwin.sumup.domain.summary.DigestTheme
+import com.andrewwin.sumup.domain.summary.SummaryItem
+import com.andrewwin.sumup.domain.summary.SummaryLimits
+import com.andrewwin.sumup.domain.summary.SummaryResult
+import com.andrewwin.sumup.domain.summary.SummarySourceRef
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -16,9 +25,9 @@ class GetFeedSummaryUseCase @Inject constructor(
     @ApplicationContext private val context: Context,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val articleRepository: ArticleRepository,
-    private val shrinkTextForAdaptiveStrategyUseCase: ShrinkTextForAdaptiveStrategyUseCase,
-    private val sendCloudAiRequestUseCase: SendCloudAiRequestUseCase,
-    private val parseAiJsonResponseUseCase: ParseAiJsonResponseUseCase
+    private val shrinkTextForAdaptiveStrategyUseCase: AdaptiveTextShrinker,
+    private val aiRequestSender: AiRequestSender,
+    private val summaryResponseMapper: SummaryResponseMapper
 ) {
     suspend fun summarizeArticles(articles: List<Article>): Result<SummaryResult> = runCatching {
         if (articles.isEmpty()) return@runCatching SummaryResult.Digest(emptyList())
@@ -157,8 +166,8 @@ class GetFeedSummaryUseCase @Inject constructor(
         val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
         val prompt = AiPromptBuilder.buildFeedDigestPrompt(prefs.summaryLanguage, customPrompt)
         val cloudResult = runCatching {
-            val jsonResponse = sendCloudAiRequestUseCase(prompt, cloudInput)
-            parseAiJsonResponseUseCase.parseFeed(jsonResponse, cloudInput)
+            val jsonResponse = aiRequestSender.sendSummaryRequest(prompt, cloudInput)
+            summaryResponseMapper.parseFeed(jsonResponse, cloudInput)
         }
         return if (strategy == AiStrategy.ADAPTIVE) {
             cloudResult.getOrElse { buildLocalSummary(feedSummaryArticles) }

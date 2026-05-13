@@ -39,9 +39,9 @@ import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.service.DedupRuntimeCoordinator
+import com.andrewwin.sumup.domain.news.DedupRuntimeCoordinator
 import com.andrewwin.sumup.domain.support.DispatcherProvider
-import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
+import com.andrewwin.sumup.domain.ai.LocalModelManager
 import com.andrewwin.sumup.domain.usecase.settings.UpdateCustomSummaryPromptEnabledUseCase
 import com.andrewwin.sumup.domain.usecase.settings.UpdateSummaryPromptUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -108,7 +108,7 @@ class SettingsViewModel @Inject constructor(
     private val sourceRepository: SourceRepository,
     private val summaryRepository: SummaryRepository,
     private val dispatcherProvider: DispatcherProvider,
-    private val manageModelUseCase: ManageModelUseCase,
+    private val manageModelUseCase: LocalModelManager,
     private val scheduleSummaryUseCase: ScheduleSummaryUseCase,
     private val updateSummaryPromptUseCase: UpdateSummaryPromptUseCase,
     private val updateCustomSummaryPromptEnabledUseCase: UpdateCustomSummaryPromptEnabledUseCase,
@@ -312,10 +312,17 @@ class SettingsViewModel @Inject constructor(
 
     fun toggleAiConfig(config: AiModelConfig, isEnabled: Boolean) {
         viewModelScope.launch {
-            val updated = if (!isEnabled) config.copy(isEnabled = false, isUseNow = false)
-            else config.copy(isEnabled = true)
+            val updated = config.copy(isEnabled = isEnabled)
             persistAiConfigWithUseNow(updated, isNew = false)
         }
+    }
+
+    fun moveAiConfigUp(config: AiModelConfig) {
+        viewModelScope.launch { aiModelConfigRepository.moveConfig(config, -1) }
+    }
+
+    fun moveAiConfigDown(config: AiModelConfig) {
+        viewModelScope.launch { aiModelConfigRepository.moveConfig(config, 1) }
     }
 
     private suspend fun persistAiConfigWithUseNow(config: AiModelConfig, isNew: Boolean) {
@@ -342,14 +349,6 @@ class SettingsViewModel @Inject constructor(
                 getApplication<Application>().getString(com.andrewwin.sumup.R.string.validation_ai_config_name_exists)
             )
             return
-        }
-        if (config.isUseNow) {
-            val configs = aiModelConfigRepository.getConfigsByType(config.type).first()
-            configs
-                .filter { it.id != config.id && it.isUseNow }
-                .forEach { existing ->
-                    aiModelConfigRepository.updateConfig(existing.copy(isUseNow = false))
-                }
         }
         val normalizedConfig = config.copy(
             name = config.name.trim(),
@@ -1032,7 +1031,7 @@ class SettingsViewModel @Inject constructor(
                         aiModelConfigRepository.updateConfig(
                             imported.copy(
                                 id = existing.id,
-                                isUseNow = imported.isUseNow || existing.isUseNow
+                                sortOrder = existing.sortOrder
                             )
                         )
                         updatedCount++

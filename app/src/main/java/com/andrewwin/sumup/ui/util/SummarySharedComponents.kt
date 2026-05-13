@@ -23,10 +23,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
-import com.andrewwin.sumup.domain.usecase.ai.DigestTheme
-import com.andrewwin.sumup.domain.usecase.ai.SummaryItem
-import com.andrewwin.sumup.domain.usecase.ai.SummaryResult
-import com.andrewwin.sumup.domain.usecase.ai.SummarySourceRef
+import com.andrewwin.sumup.domain.summary.DigestTheme
+import com.andrewwin.sumup.domain.summary.SummaryItem
+import com.andrewwin.sumup.domain.summary.SummaryResult
+import com.andrewwin.sumup.domain.summary.SummarySourceRef
 import com.andrewwin.sumup.ui.components.AppCardSurface
 import com.andrewwin.sumup.ui.theme.appCardBorder
 

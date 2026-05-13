@@ -12,6 +12,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 class RemoteArticleDataSource @Inject constructor(
@@ -20,6 +21,14 @@ class RemoteArticleDataSource @Inject constructor(
     private val telegramParser: TelegramParser,
     private val youtubeParser: YouTubeParser
 ) {
+
+    private val displayNameOkHttpClient = okHttpClient.newBuilder()
+        .connectTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .callTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .build()
+    private val displayNameRssParser = RssParser(displayNameOkHttpClient)
 
     private inner class OkHttpYoutubeClient(private val client: OkHttpClient) : YoutubeClient {
         override fun get(url: String, headers: Map<String, String>): String {
@@ -56,7 +65,7 @@ class RemoteArticleDataSource @Inject constructor(
         try {
             val youtubeUrl = buildYouTubeFeedUrl(url)
             val request = Request.Builder().url(youtubeUrl).build()
-            okHttpClient.newCall(request).execute().use { response ->
+            displayNameOkHttpClient.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
                     val body = response.body?.byteStream()
                     if (body != null) {
@@ -74,7 +83,7 @@ class RemoteArticleDataSource @Inject constructor(
         try {
             val telegramUrl = buildTelegramChannelPreviewUrl(url)
             val request = Request.Builder().url(telegramUrl).build()
-            okHttpClient.newCall(request).execute().use { response ->
+            displayNameOkHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext null
                 response.body?.string()
                     ?.let(telegramParser::parseChannelDisplayName)
@@ -87,9 +96,9 @@ class RemoteArticleDataSource @Inject constructor(
 
     suspend fun fetchRssChannelDisplayName(url: String): String? = withContext(Dispatchers.IO) {
         val httpsUrl = if (url.startsWith("http://")) "https://${url.removePrefix("http://")}" else url
-        val primary = rssParser.parseChannelTitleUrl(httpsUrl)
+        val primary = displayNameRssParser.parseChannelTitleUrl(httpsUrl)
         if (!primary.isNullOrBlank() || httpsUrl == url) return@withContext primary
-        rssParser.parseChannelTitleUrl(url)
+        displayNameRssParser.parseChannelTitleUrl(url)
     }
 
     private suspend fun fetchRssArticles(sourceId: Long, url: String): List<Article> {
@@ -266,6 +275,7 @@ class RemoteArticleDataSource @Inject constructor(
         private const val YT_BLOCK_WINDOW_SECONDS = 22.0
         private const val YT_BLOCK_GAP_SECONDS = 2.2
         private const val YT_BLOCK_MAX_CHARS = 260
+        private const val DISPLAY_NAME_TIMEOUT_SECONDS = 7L
     }
 }
 

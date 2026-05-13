@@ -3,8 +3,14 @@ package com.andrewwin.sumup.domain.usecase.ai
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
+import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
+import com.andrewwin.sumup.domain.ai.AiPromptBuilder
+import com.andrewwin.sumup.domain.ai.AdaptiveTextShrinker
+import com.andrewwin.sumup.domain.ai.AiRequestSender
+import com.andrewwin.sumup.domain.ai.ProportionalTextLimiter
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.summary.SummaryResult
 import com.andrewwin.sumup.domain.support.UnsupportedStrategyException
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -12,10 +18,10 @@ import javax.inject.Inject
 class AskQuestionAboutNewsUseCase @Inject constructor(
     private val userPrefsRepo: UserPreferencesRepository,
     private val articleRepo: ArticleRepository,
-    private val shrinkTextUseCase: ShrinkTextForAdaptiveStrategyUseCase,
-    private val limitTextsProportionallyUseCase: LimitTextsProportionallyUseCase,
-    private val sendCloudAiRequestUseCase: SendCloudAiRequestUseCase,
-    private val parseAiJsonResponseUseCase: ParseAiJsonResponseUseCase
+    private val shrinkTextUseCase: AdaptiveTextShrinker,
+    private val limitTextsProportionallyUseCase: ProportionalTextLimiter,
+    private val aiRequestSender: AiRequestSender,
+    private val summaryResponseMapper: SummaryResponseMapper
 ) {
     suspend operator fun invoke(articles: List<Article>, question: String): Result<SummaryResult> = runCatching {
         val prefs = userPrefsRepo.preferences.first()
@@ -61,8 +67,8 @@ class AskQuestionAboutNewsUseCase @Inject constructor(
 
         val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
         val prompt = AiPromptBuilder.buildQuestionPrompt(prefs.summaryLanguage, question, customPrompt)
-        val jsonResponse = sendCloudAiRequestUseCase(prompt, cloudInput)
-        val parsed = parseAiJsonResponseUseCase.parseQuestion(jsonResponse, cloudInput, question)
+        val jsonResponse = aiRequestSender.sendSummaryRequest(prompt, cloudInput)
+        val parsed = summaryResponseMapper.parseQuestion(jsonResponse, cloudInput, question)
 
         if (parsed.details.isEmpty() && parsed.shortAnswer.isBlank()) {
             val fallback = if (prefs.summaryLanguage == SummaryLanguage.UK) {

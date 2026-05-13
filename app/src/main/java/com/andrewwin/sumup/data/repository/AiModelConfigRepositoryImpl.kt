@@ -46,13 +46,13 @@ class AiModelConfigRepositoryImpl @Inject constructor(
             val existingConfigs = getAllDecryptedConfigsSnapshot()
             val existingConflict = findConfigConflict(existingConfigs, normalizedConfig)
             if (existingConflict == null) {
-                aiModelDao.insertConfig(encryptConfig(normalizedConfig))
+                aiModelDao.insertConfig(encryptConfig(normalizedConfig.withSortOrderAtEnd(existingConfigs)))
             } else {
                 aiModelDao.updateConfig(
                     encryptConfig(
                         normalizedConfig.copy(
                             id = existingConflict.id,
-                            isUseNow = normalizedConfig.isUseNow || existingConflict.isUseNow
+                            sortOrder = existingConflict.sortOrder
                         )
                     )
                 )
@@ -76,7 +76,7 @@ class AiModelConfigRepositoryImpl @Inject constructor(
                     encryptConfig(
                         normalizedConfig.copy(
                             id = existingConflict.id,
-                            isUseNow = normalizedConfig.isUseNow || existingConflict.isUseNow
+                            sortOrder = existingConflict.sortOrder
                         )
                     )
                 )
@@ -92,6 +92,26 @@ class AiModelConfigRepositoryImpl @Inject constructor(
         configWriteMutex.withLock {
             aiModelDao.deleteConfig(encryptConfig(config))
         }
+
+    override suspend fun moveConfig(config: AiModelConfig, direction: Int) {
+        if (direction == 0) return
+        configWriteMutex.withLock {
+            val configs = getAllDecryptedConfigsSnapshot()
+                .filter { it.type == config.type }
+                .sortedWith(compareBy<AiModelConfig> { it.sortOrder }.thenBy { it.id })
+            val currentIndex = configs.indexOfFirst { it.id == config.id }
+            if (currentIndex < 0) return@withLock
+            val targetIndex = (currentIndex + direction).coerceIn(configs.indices)
+            if (currentIndex == targetIndex) return@withLock
+
+            val reordered = configs.toMutableList().apply {
+                add(targetIndex, removeAt(currentIndex))
+            }
+            reordered.forEachIndexed { index, item ->
+                aiModelDao.updateConfig(encryptConfig(item.copy(sortOrder = index)))
+            }
+        }
+    }
 
     override suspend fun migrateLegacyApiKeys() {
         configWriteMutex.withLock {
@@ -123,7 +143,7 @@ class AiModelConfigRepositoryImpl @Inject constructor(
                 } else {
                     val mergedConfig = normalizedConfig.copy(
                         id = existingConflict.id,
-                        isUseNow = normalizedConfig.isUseNow || existingConflict.isUseNow
+                        sortOrder = existingConflict.sortOrder
                     )
                     val existingIndex = keptConfigs.indexOfFirst { it.id == existingConflict.id }
                     if (existingIndex >= 0) {
@@ -161,6 +181,15 @@ class AiModelConfigRepositoryImpl @Inject constructor(
             name = config.name.trim(),
             apiKey = normalizeApiKey(config.apiKey)
         )
+    }
+
+    private fun AiModelConfig.withSortOrderAtEnd(existingConfigs: List<AiModelConfig>): AiModelConfig {
+        if (sortOrder != Int.MAX_VALUE) return this
+        val lastSortOrder = existingConfigs
+            .filter { it.type == type }
+            .maxOfOrNull { it.sortOrder }
+            ?: -1
+        return copy(sortOrder = lastSortOrder + 1)
     }
 
     private fun normalizeApiKey(apiKey: String): String = apiKey.trim()

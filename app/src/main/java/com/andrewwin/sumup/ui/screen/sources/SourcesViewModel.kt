@@ -14,7 +14,7 @@ import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
 import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
 import com.andrewwin.sumup.domain.usecase.sources.ThemeSuggestion
-import com.andrewwin.sumup.domain.usecase.settings.ManageModelUseCase
+import com.andrewwin.sumup.domain.ai.LocalModelManager
 import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -36,11 +36,18 @@ enum class SourceSortOrder {
     BY_DATE
 }
 
+sealed interface SourcesUiState {
+    data object Loading : SourcesUiState
+    data class Content(
+        val groups: List<GroupWithSources>
+    ) : SourcesUiState
+}
+
 @HiltViewModel
 @OptIn(FlowPreview::class)
 class SourcesViewModel @Inject constructor(
     private val repository: SourceRepository,
-    private val manageModelUseCase: ManageModelUseCase,
+    private val manageModelUseCase: LocalModelManager,
     private val publicSubscriptionsSyncManager: PublicSubscriptionsSyncManager,
     private val refreshFeedUseCase: RefreshFeedUseCase,
     private val getSuggestedThemesUseCase: GetSuggestedThemesUseCase,
@@ -53,9 +60,12 @@ class SourcesViewModel @Inject constructor(
     private val _sortOrder = MutableStateFlow(SourceSortOrder.BY_NAME)
     val sortOrder: StateFlow<SourceSortOrder> = _sortOrder.asStateFlow()
 
-    val uiState: StateFlow<List<GroupWithSources>> = combine(
+    private val debouncedSearchQuery = _searchQuery
+        .debounce { query -> if (query.isBlank()) 0L else SEARCH_QUERY_DEBOUNCE_MS }
+
+    val uiState: StateFlow<SourcesUiState> = combine(
         repository.groupsWithSources,
-        _searchQuery.debounce(300),
+        debouncedSearchQuery,
         _sortOrder
     ) { groups, query, sort ->
         val filtered = if (query.isBlank()) {
@@ -79,12 +89,12 @@ class SourcesViewModel @Inject constructor(
         when (sort) {
             SourceSortOrder.BY_NAME -> filtered.sortedBy { it.group.name }
             SourceSortOrder.BY_DATE -> filtered.sortedByDescending { it.group.id }
-        }
+        }.let(SourcesUiState::Content)
     }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
+            initialValue = SourcesUiState.Loading
         )
 
     private val _suggestedThemes = MutableStateFlow<List<FirebaseThemeSuggestion>>(emptyList())
@@ -125,7 +135,7 @@ class SourcesViewModel @Inject constructor(
             loadSuggestedThemes()
         }
         viewModelScope.launch {
-            isRecommendationsEnabled.collect { loadSuggestedThemes() }
+            isRecommendationsEnabled.drop(1).collect { loadSuggestedThemes() }
         }
     }
 
@@ -232,56 +242,13 @@ class SourcesViewModel @Inject constructor(
                     if (isSubscribed) {
                         val currentLanguage = appLanguage.value
                         val targetGroupName = suggestion.group.displayName(currentLanguage)
-                        val groupsSnapshot = repository.groupsWithSources.first()
-                        val themeGroup = groupsSnapshot.firstOrNull {
-                            suggestion.group.sources.all { source ->
-                                it.sources.any { existing -> existing.url.equals(source.url, ignoreCase = true) }
-                            }
-                        }?.group
-                        val groupId = when {
-                            themeGroup != null -> themeGroup.id
-                            else -> {
-                                repository.addGroup(targetGroupName)
-                                repository.groupsWithSources.first()
-                                    .firstOrNull { it.group.name.equals(targetGroupName, ignoreCase = true) }
-                                    ?.group
-                                    ?.id
-                            }
-                        }
-                        if (groupId != null) {
-                            suggestion.group.sources.forEachIndexed { index, source ->
-                                repository.addSource(
-                                    groupId = groupId,
-                                    name = source.name.ifBlank { "${suggestion.group.displayName(currentLanguage)} #${index + 1}" },
-                                    url = source.url,
-                                    type = source.type,
-                                    titleSelector = source.titleSelector,
-                                    postLinkSelector = source.postLinkSelector,
-                                    descriptionSelector = source.descriptionSelector,
-                                    dateSelector = source.dateSelector,
-                                    useHeadlessBrowser = source.useHeadlessBrowser,
-                                    detectFooterPattern = false
-                                )
-                            }
-                            refreshFeedUseCase()
-                        }
+                        repository.subscribeToImportedGroup(
+                            group = suggestion.group,
+                            displayName = targetGroupName
+                        )
+                        refreshFeedInBackground()
                     } else {
-                        val groupsWithSources = repository.groupsWithSources.first()
-                        val themeGroupWithSources = groupsWithSources.firstOrNull {
-                            suggestion.group.sources.all { source ->
-                                it.sources.any { existing -> existing.url.equals(source.url, ignoreCase = true) }
-                            }
-                        }
-                        if (themeGroupWithSources != null) {
-                            themeGroupWithSources.sources.forEach { repository.deleteSource(it) }
-                            repository.deleteGroup(themeGroupWithSources.group)
-                        } else {
-                            suggestion.group.sources.forEach { ts ->
-                                groupsWithSources.flatMap { it.sources }
-                                    .firstOrNull { it.url == ts.url }
-                                    ?.let { repository.deleteSource(it) }
-                            }
-                        }
+                        repository.unsubscribeFromImportedGroup(suggestion.group)
                     }
                 }
             }.isSuccess
@@ -324,7 +291,8 @@ class SourcesViewModel @Inject constructor(
         if (groups.isEmpty()) return
         viewModelScope.launch {
             val deletedGroupIds = groups.map { it.id }.toSet()
-            val deletedGroupUrls = uiState.value
+            val currentGroups = (uiState.value as? SourcesUiState.Content)?.groups.orEmpty()
+            val deletedGroupUrls = currentGroups
                 .filter { it.group.id in deletedGroupIds }
                 .flatMap { groupWithSources -> groupWithSources.sources }
                 .map { it.url.trim().lowercase() }
@@ -360,8 +328,14 @@ class SourcesViewModel @Inject constructor(
                 _messages.tryEmit(com.andrewwin.sumup.R.string.validation_source_in_active_subscriptions)
                 return@launch
             }
-            repository.addSource(groupId, name, url, type)
-            refreshFeedUseCase()
+            repository.addSource(
+                groupId = groupId,
+                name = name,
+                url = url,
+                type = type,
+                detectFooterPattern = false
+            )
+            refreshFeedInBackground()
         }
     }
 
@@ -390,9 +364,10 @@ class SourcesViewModel @Inject constructor(
                 postLinkSelector = postLinkSelector,
                 descriptionSelector = descriptionSelector,
                 dateSelector = dateSelector,
-                useHeadlessBrowser = useHeadlessBrowser
+                useHeadlessBrowser = useHeadlessBrowser,
+                detectFooterPattern = false
             )
-            refreshFeedUseCase()
+            refreshFeedInBackground()
         }
     }
 
@@ -448,6 +423,12 @@ class SourcesViewModel @Inject constructor(
         _sortOrder.value = order
     }
 
+    private fun refreshFeedInBackground() {
+        viewModelScope.launch {
+            refreshFeedUseCase()
+        }
+    }
+
     private fun matchesQuery(text: String, queryTokens: List<String>): Boolean {
         if (queryTokens.isEmpty()) return true
         val normalizedText = normalizeForSearch(text)
@@ -499,6 +480,8 @@ class SourcesViewModel @Inject constructor(
             .trim()
 
     private fun normalizeGroupNameForComparison(name: String): String = name.trim().lowercase()
+
+    private companion object {
+        private const val SEARCH_QUERY_DEBOUNCE_MS = 300L
+    }
 }
-
-

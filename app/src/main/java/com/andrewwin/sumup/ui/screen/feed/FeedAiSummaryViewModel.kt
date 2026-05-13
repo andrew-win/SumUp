@@ -20,8 +20,8 @@ import com.andrewwin.sumup.domain.usecase.ai.AskQuestionAboutNewsUseCase
 import com.andrewwin.sumup.domain.usecase.ai.CompareNewsUseCase
 import com.andrewwin.sumup.domain.usecase.ai.GetFeedSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.ai.SummarizeSingleArticleUseCase
-import com.andrewwin.sumup.domain.usecase.ai.SummaryResult
-import com.andrewwin.sumup.domain.usecase.common.FormatSummaryResultUseCase
+import com.andrewwin.sumup.domain.summary.SummaryResult
+import com.andrewwin.sumup.domain.summary.SummaryResultFormatter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -44,7 +44,7 @@ class FeedAiSummaryViewModel @Inject constructor(
     private val getFeedSummaryUseCase: GetFeedSummaryUseCase,
     private val compareNewsUseCase: CompareNewsUseCase,
     private val askQuestionAboutNewsUseCase: AskQuestionAboutNewsUseCase,
-    private val formatSummaryResultUseCase: FormatSummaryResultUseCase,
+    private val formatSummaryResultUseCase: SummaryResultFormatter,
     private val aiModelConfigRepository: AiModelConfigRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val feedAiSessionCache: FeedAiSessionCache

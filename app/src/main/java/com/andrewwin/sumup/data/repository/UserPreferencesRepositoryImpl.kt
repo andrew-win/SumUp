@@ -16,7 +16,7 @@ class UserPreferencesRepositoryImpl @Inject constructor(
     override val preferences: Flow<UserPreferences> = userPreferencesDao
         .getUserPreferences()
         .map { it ?: UserPreferences() }
-        .onEach { com.andrewwin.sumup.domain.usecase.ai.SummaryLimits.currentPrefs = it }
+        .onEach { com.andrewwin.sumup.domain.summary.SummaryLimits.currentPrefs = it }
 
     override suspend fun updatePreferences(preferences: UserPreferences) {
         userPreferencesDao.insertUserPreferences(preferences)

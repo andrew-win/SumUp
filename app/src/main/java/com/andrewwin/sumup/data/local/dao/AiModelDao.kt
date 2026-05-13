@@ -11,12 +11,8 @@ interface AiModelDao {
         """
         SELECT * FROM ai_model_configs
         ORDER BY
-            isUseNow DESC,
-            CASE priority
-                WHEN 'HIGH' THEN 3
-                WHEN 'MEDIUM' THEN 2
-                ELSE 1
-            END DESC,
+            type ASC,
+            sortOrder ASC,
             isEnabled DESC,
             id ASC
         """
@@ -28,13 +24,7 @@ interface AiModelDao {
         SELECT * FROM ai_model_configs
         WHERE type = :type
         ORDER BY
-            isEnabled DESC,
-            isUseNow DESC,
-            CASE priority
-                WHEN 'HIGH' THEN 3
-                WHEN 'MEDIUM' THEN 2
-                ELSE 1
-            END DESC,
+            sortOrder ASC,
             id ASC
         """
     )
@@ -54,12 +44,8 @@ interface AiModelDao {
         SELECT * FROM ai_model_configs
         WHERE isEnabled = 1
         ORDER BY
-            isUseNow DESC,
-            CASE priority
-                WHEN 'HIGH' THEN 3
-                WHEN 'MEDIUM' THEN 2
-                ELSE 1
-            END DESC,
+            type ASC,
+            sortOrder ASC,
             id ASC
         """
     )
@@ -70,12 +56,7 @@ interface AiModelDao {
         SELECT * FROM ai_model_configs
         WHERE isEnabled = 1 AND type = :type
         ORDER BY
-            isUseNow DESC,
-            CASE priority
-                WHEN 'HIGH' THEN 3
-                WHEN 'MEDIUM' THEN 2
-                ELSE 1
-            END DESC,
+            sortOrder ASC,
             id ASC
         """
     )
@@ -86,12 +67,7 @@ interface AiModelDao {
         SELECT * FROM ai_model_configs
         WHERE isEnabled = 1 AND type = :type
         ORDER BY
-            isUseNow DESC,
-            CASE priority
-                WHEN 'HIGH' THEN 3
-                WHEN 'MEDIUM' THEN 2
-                ELSE 1
-            END DESC,
+            sortOrder ASC,
             id ASC
         LIMIT 1
         """
@@ -103,12 +79,8 @@ interface AiModelDao {
         SELECT * FROM ai_model_configs
         WHERE isEnabled = 1
         ORDER BY
-            isUseNow DESC,
-            CASE priority
-                WHEN 'HIGH' THEN 3
-                WHEN 'MEDIUM' THEN 2
-                ELSE 1
-            END DESC,
+            type ASC,
+            sortOrder ASC,
             id ASC
         LIMIT 1
         """

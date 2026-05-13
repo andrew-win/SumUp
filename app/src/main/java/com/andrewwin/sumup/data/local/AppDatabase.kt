@@ -33,7 +33,7 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
         Summary::class,
         UserPreferences::class
     ],
-    version = 57,
+    version = 58,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -83,7 +83,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_53_54,
                         MIGRATION_54_55,
                         MIGRATION_55_56,
-                        MIGRATION_56_57
+                        MIGRATION_56_57,
+                        MIGRATION_57_58
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -715,6 +716,76 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                 db.execSQL("DROP TABLE user_preferences")
                 db.execSQL("ALTER TABLE user_preferences_new RENAME TO user_preferences")
+            }
+        }
+
+        private val MIGRATION_57_58 = object : Migration(57, 58) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS ai_model_configs_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        provider TEXT NOT NULL,
+                        apiKey TEXT NOT NULL,
+                        modelName TEXT NOT NULL,
+                        isEnabled INTEGER NOT NULL,
+                        type TEXT NOT NULL,
+                        sortOrder INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO ai_model_configs_new (
+                        id, name, provider, apiKey, modelName, isEnabled, type, sortOrder
+                    )
+                    SELECT
+                        c.id,
+                        c.name,
+                        c.provider,
+                        c.apiKey,
+                        c.modelName,
+                        c.isEnabled,
+                        c.type,
+                        (
+                            SELECT COUNT(*)
+                            FROM ai_model_configs p
+                            WHERE p.type = c.type
+                                AND (
+                                    p.isUseNow > c.isUseNow
+                                    OR (
+                                        p.isUseNow = c.isUseNow
+                                        AND CASE p.priority
+                                            WHEN 'HIGH' THEN 0
+                                            WHEN 'MEDIUM' THEN 1
+                                            ELSE 2
+                                        END < CASE c.priority
+                                            WHEN 'HIGH' THEN 0
+                                            WHEN 'MEDIUM' THEN 1
+                                            ELSE 2
+                                        END
+                                    )
+                                    OR (
+                                        p.isUseNow = c.isUseNow
+                                        AND CASE p.priority
+                                            WHEN 'HIGH' THEN 0
+                                            WHEN 'MEDIUM' THEN 1
+                                            ELSE 2
+                                        END = CASE c.priority
+                                            WHEN 'HIGH' THEN 0
+                                            WHEN 'MEDIUM' THEN 1
+                                            ELSE 2
+                                        END
+                                        AND p.id < c.id
+                                    )
+                                )
+                        )
+                    FROM ai_model_configs c
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE ai_model_configs")
+                db.execSQL("ALTER TABLE ai_model_configs_new RENAME TO ai_model_configs")
             }
         }
     }

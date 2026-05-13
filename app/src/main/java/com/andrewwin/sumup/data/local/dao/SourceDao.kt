@@ -33,6 +33,9 @@ interface SourceDao {
     @Query("SELECT * FROM sources WHERE groupId = :groupId")
     fun getSourcesByGroupId(groupId: Long): Flow<List<Source>>
 
+    @Query("SELECT * FROM sources WHERE groupId = :groupId")
+    suspend fun getSourcesByGroupIdOnce(groupId: Long): List<Source>
+
     @Query("SELECT * FROM sources WHERE id = :sourceId")
     suspend fun getSourceById(sourceId: Long): Source?
 
@@ -61,6 +64,9 @@ interface SourceDao {
 
     @Delete
     suspend fun deleteGroup(group: SourceGroup)
+
+    @Query("DELETE FROM source_groups WHERE id = :groupId")
+    suspend fun deleteGroupById(groupId: Long)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertSource(source: Source): Long

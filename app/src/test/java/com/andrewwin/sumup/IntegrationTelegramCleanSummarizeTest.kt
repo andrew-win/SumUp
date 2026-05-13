@@ -2,13 +2,13 @@ package com.andrewwin.sumup
 
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.TelegramParser
-import com.andrewwin.sumup.domain.usecase.ai.GetExtractiveSummaryUseCase
+import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IntegrationTelegramCleanSummarizeTest {
-    private val getExtractiveSummaryUseCase = GetExtractiveSummaryUseCase()
+    private val getExtractiveSummaryUseCase = ExtractiveSummaryService()
 
     @Test
     fun integration_telegramToCleanToSummarize_producesNonEmptySummary() = runBlocking {

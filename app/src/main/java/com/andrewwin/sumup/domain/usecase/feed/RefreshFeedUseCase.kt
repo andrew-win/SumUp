@@ -5,7 +5,7 @@ import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
-import com.andrewwin.sumup.domain.usecase.sources.SuggestedThemesRefreshConstants
+import com.andrewwin.sumup.domain.source.SuggestedThemesRefreshPolicy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
@@ -43,7 +43,7 @@ class RefreshFeedUseCaseImpl @Inject constructor(
                 suggestedThemesStateRepository.setLastFeedRefreshAt(now)
                 val lastRecommendationAt = suggestedThemesStateRepository.getLastRecommendationAt()
                 shouldRefreshSuggestedThemes =
-                    (now - lastRecommendationAt) >= SuggestedThemesRefreshConstants.REFRESH_INTERVAL_MS
+                    (now - lastRecommendationAt) >= SuggestedThemesRefreshPolicy.REFRESH_INTERVAL_MS
             }
 
             refreshResult

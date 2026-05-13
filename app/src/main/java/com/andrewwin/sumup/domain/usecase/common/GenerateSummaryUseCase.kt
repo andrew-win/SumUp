@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.domain.usecase.common
 
-import com.andrewwin.sumup.domain.usecase.ai.SummaryResult
+import com.andrewwin.sumup.domain.summary.SummaryResultFormatter
+import com.andrewwin.sumup.domain.summary.SummaryResult
 import com.andrewwin.sumup.domain.usecase.ai.GetScheduledSummaryUseCase
 import javax.inject.Inject
 
@@ -10,7 +11,7 @@ interface GenerateSummaryUseCase {
 
 class GenerateSummaryUseCaseImpl @Inject constructor(
     private val getScheduledSummaryUseCase: GetScheduledSummaryUseCase,
-    private val formatSummaryResultUseCase: FormatSummaryResultUseCase
+    private val formatSummaryResultUseCase: SummaryResultFormatter
 ) : GenerateSummaryUseCase {
 
     override suspend fun invoke(refresh: Boolean): String {

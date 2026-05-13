@@ -2,18 +2,27 @@ package com.andrewwin.sumup.domain.usecase.ai
 
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
+import com.andrewwin.sumup.domain.ai.AiPromptBuilder
+import com.andrewwin.sumup.domain.ai.AdaptiveTextShrinker
+import com.andrewwin.sumup.domain.ai.AiRequestSender
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.summary.SummaryItem
+import com.andrewwin.sumup.domain.summary.SummaryLimits
+import com.andrewwin.sumup.domain.summary.SummaryResult
+import com.andrewwin.sumup.domain.summary.SummarySourceRef
+import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 class SummarizeSingleArticleUseCase @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val articleRepository: ArticleRepository,
-    private val getExtractiveSummaryUseCase: GetExtractiveSummaryUseCase,
-    private val shrinkTextForAdaptiveStrategyUseCase: ShrinkTextForAdaptiveStrategyUseCase,
-    private val sendCloudAiRequestUseCase: SendCloudAiRequestUseCase,
-    private val parseAiJsonResponseUseCase: ParseAiJsonResponseUseCase
+    private val getExtractiveSummaryUseCase: ExtractiveSummaryService,
+    private val shrinkTextForAdaptiveStrategyUseCase: AdaptiveTextShrinker,
+    private val aiRequestSender: AiRequestSender,
+    private val summaryResponseMapper: SummaryResponseMapper
 ) {
     suspend operator fun invoke(article: Article): Result<SummaryResult> = runCatching {
         val source = articleRepository.getSourceById(article.sourceId)
@@ -78,8 +87,8 @@ class SummarizeSingleArticleUseCase @Inject constructor(
         }
 
         val cloudResult = runCatching {
-            val jsonResponse = sendCloudAiRequestUseCase(prompt, cloudInput)
-            val parsedResult = parseAiJsonResponseUseCase.parseSingle(jsonResponse, cloudInput)
+            val jsonResponse = aiRequestSender.sendSummaryRequest(prompt, cloudInput)
+            val parsedResult = summaryResponseMapper.parseSingle(jsonResponse, cloudInput)
 
             if (parsedResult.sources.isEmpty()) {
                 parsedResult.copy(

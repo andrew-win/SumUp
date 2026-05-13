@@ -7,11 +7,12 @@ import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
+import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
+import com.andrewwin.sumup.domain.source.SourceUrlValidator
+import com.andrewwin.sumup.domain.news.ArticleContentCleaner
 import com.andrewwin.sumup.domain.repository.ImportedSource
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
-import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
-import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -19,7 +20,7 @@ import javax.inject.Inject
 class SourceRepositoryImpl @Inject constructor(
     private val sourceDao: SourceDao,
     private val remoteArticleDataSource: RemoteArticleDataSource,
-    private val cleanArticleTextUseCase: CleanArticleTextUseCase
+    private val cleanArticleTextUseCase: ArticleContentCleaner
 ) : SourceRepository {
 
     override val groupsWithSources: Flow<List<GroupWithSources>> = sourceDao.getGroupsWithSources()
@@ -121,7 +122,7 @@ class SourceRepositoryImpl @Inject constructor(
                 )
             ).take(10)
             if (sampleArticles.size >= 2) {
-                cleanArticleTextUseCase(sampleArticles.map { it.content })
+                cleanArticleTextUseCase.detectFooterPattern(sampleArticles.map { it.content })
             } else null
         } catch (e: Exception) {
             null
@@ -157,6 +158,7 @@ class SourceRepositoryImpl @Inject constructor(
     }
 
     override suspend fun fetchGeneratedSourceName(url: String, type: SourceType): String {
+        if (!SourceUrlValidator.isValid(url, type)) return ""
         val normalizedUrl = normalizeUrl(url, type)
         if (normalizedUrl.isBlank()) return ""
         return generateSourceName(normalizedUrl, type)
@@ -168,6 +170,73 @@ class SourceRepositoryImpl @Inject constructor(
 
     override suspend fun getGroupsWithSourcesSnapshot(): List<GroupWithSources> =
         sourceDao.getGroupsWithSourcesOnce()
+
+    override suspend fun subscribeToImportedGroup(
+        group: ImportedSourceGroup,
+        displayName: String
+    ) {
+        val normalizedGroupName = displayName.trim()
+        if (normalizedGroupName.isBlank()) return
+
+        val groupsSnapshot = sourceDao.getGroupsWithSourcesOnce()
+        val existingGroupWithSources = if (group.sources.isEmpty()) {
+            null
+        } else {
+            groupsSnapshot.firstOrNull { groupWithSources ->
+                group.sources.all { importedSource ->
+                    val normalizedImportedUrl = normalizeUrl(importedSource.url, importedSource.type)
+                    groupWithSources.sources.any { existing ->
+                        existing.type == importedSource.type &&
+                            existing.url.equals(normalizedImportedUrl, ignoreCase = true)
+                    }
+                }
+            }
+        }
+        val targetGroupId = existingGroupWithSources?.group?.id ?: run {
+            val existingGroup = sourceDao.findGroupByName(normalizedGroupName)
+            existingGroup?.id ?: sourceDao.insertGroup(
+                SourceGroup(
+                    name = normalizedGroupName,
+                    isEnabled = group.isEnabled,
+                    isDeletable = group.isDeletable
+                )
+            ).takeIf { it > 0L } ?: sourceDao.findGroupByName(normalizedGroupName)?.id ?: return
+        }
+
+        for (importedSource in group.sources) {
+            upsertImportedSource(targetGroupId, importedSource)
+        }
+    }
+
+    override suspend fun unsubscribeFromImportedGroup(group: ImportedSourceGroup) {
+        if (group.sources.isEmpty()) return
+
+        val sourcesToRemove = group.sources
+            .mapNotNull { importedSource ->
+                val normalizedUrl = normalizeUrl(importedSource.url, importedSource.type)
+                normalizedUrl.takeIf { it.isNotBlank() }?.let { importedSource.type to it }
+            }
+            .toSet()
+        if (sourcesToRemove.isEmpty()) return
+
+        val groupsSnapshot = sourceDao.getGroupsWithSourcesOnce()
+        val matchingGroups = groupsSnapshot.filter { groupWithSources ->
+            groupWithSources.sources.any { source ->
+                source.type to source.url in sourcesToRemove
+            }
+        }
+
+        matchingGroups.forEach { groupWithSources ->
+            groupWithSources.sources
+                .filter { source -> source.type to source.url in sourcesToRemove }
+                .forEach { source -> sourceDao.deleteSource(source) }
+
+            val remainingSources = sourceDao.getSourcesByGroupIdOnce(groupWithSources.group.id)
+            if (remainingSources.isEmpty()) {
+                sourceDao.deleteGroupById(groupWithSources.group.id)
+            }
+        }
+    }
 
     override suspend fun importGroupsWithSources(
         groups: List<ImportedSourceGroup>,

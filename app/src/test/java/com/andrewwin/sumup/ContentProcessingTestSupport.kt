@@ -1,7 +1,7 @@
 package com.andrewwin.sumup
 
 import com.andrewwin.sumup.domain.support.DispatcherProvider
-import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
+import com.andrewwin.sumup.data.news.ArticleTextCleaner
 import kotlinx.coroutines.Dispatchers
 
 object ContentProcessingTestSupport {
@@ -11,7 +11,7 @@ object ContentProcessingTestSupport {
         override val main = Dispatchers.Unconfined
     }
 
-    val cleanArticleTextUseCase = CleanArticleTextUseCase(dispatcherProvider)
+    val cleanArticleTextUseCase = ArticleTextCleaner(dispatcherProvider)
 
     fun parseRssItemsForTest(xml: String, sourceId: Long): List<TestParsedArticle> {
         val itemRegex = Regex("<item>(.*?)</item>", RegexOption.DOT_MATCHES_ALL)
@@ -59,4 +59,3 @@ data class TestParsedArticle(
     val url: String,
     val publishedAt: Long
 )
-

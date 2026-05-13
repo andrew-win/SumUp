@@ -41,6 +41,7 @@ import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.domain.source.SourceUrlValidator
 import com.andrewwin.sumup.ui.displayName
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
@@ -94,6 +95,7 @@ fun SourcesScreen(
     val addGroupHelpDescription = stringResource(R.string.sources_help_add_group)
     val groupCardHelpDescription = stringResource(R.string.sources_help_group_card)
     val suggestedThemesHelpDescription = stringResource(R.string.sources_help_recommended_themes)
+    val currentGroups = (uiState as? SourcesUiState.Content)?.groups.orEmpty()
 
     LaunchedEffect(isSelectionMode) {
         if (isSelectionMode && isHelpMode) {
@@ -150,7 +152,7 @@ fun SourcesScreen(
                     }
                 ) {
                     Icon(
-                        Icons.Default.Add,
+                        painter = painterResource(id = R.drawable.ic_add_group),
                         contentDescription = stringResource(R.string.add_group),
                         modifier = Modifier.size(48.dp)
                     )
@@ -254,32 +256,59 @@ fun SourcesScreen(
                     }
                 }
 
-                items(uiState, key = { it.group.id }) { groupWithSources ->
-                    AppHelpOverlayTarget(
-                        isEnabled = isHelpMode,
-                        description = groupCardHelpDescription,
-                        onShowDescription = { helpDescription = it }
-                    ) {
-                        GroupCard(
-                            groupWithSources = groupWithSources,
-                            isSelected = selectedGroupIds.contains(groupWithSources.group.id),
-                            isSelectionMode = isSelectionMode,
-                            onLongSelectGroup = {
-                                val id = groupWithSources.group.id
-                                if (!selectedGroupIds.contains(id)) selectedGroupIds.add(id)
-                            },
-                            onToggleSelectGroup = {
-                                val id = groupWithSources.group.id
-                                if (selectedGroupIds.contains(id)) selectedGroupIds.remove(id) else selectedGroupIds.add(id)
-                            },
-                            onAddSource = { selectedGroupIdForSource = groupWithSources.group.id },
-                            onToggleGroup = { viewModel.toggleGroup(groupWithSources.group, it) },
-                            onEditGroup = { editGroup = it },
-                            onDeleteGroup = { deleteGroupConfirm = it },
-                            onToggleSource = { viewModel.updateSource(it) },
-                            onEditSource = { editSource = it },
-                            onDeleteSource = { deleteSourceConfirm = it }
-                        )
+                when (val sourcesState = uiState) {
+                    SourcesUiState.Loading -> {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                            }
+                        }
+                    }
+                    is SourcesUiState.Content -> {
+                        if (sourcesState.groups.isEmpty()) {
+                            item {
+                                Text(
+                                    text = stringResource(R.string.sources_groups_empty),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp)
+                                )
+                            }
+                        } else {
+                            items(sourcesState.groups, key = { it.group.id }) { groupWithSources ->
+                                AppHelpOverlayTarget(
+                                    isEnabled = isHelpMode,
+                                    description = groupCardHelpDescription,
+                                    onShowDescription = { helpDescription = it }
+                                ) {
+                                    GroupCard(
+                                        groupWithSources = groupWithSources,
+                                        isSelected = selectedGroupIds.contains(groupWithSources.group.id),
+                                        isSelectionMode = isSelectionMode,
+                                        onLongSelectGroup = {
+                                            val id = groupWithSources.group.id
+                                            if (!selectedGroupIds.contains(id)) selectedGroupIds.add(id)
+                                        },
+                                        onToggleSelectGroup = {
+                                            val id = groupWithSources.group.id
+                                            if (selectedGroupIds.contains(id)) selectedGroupIds.remove(id) else selectedGroupIds.add(id)
+                                        },
+                                        onAddSource = { selectedGroupIdForSource = groupWithSources.group.id },
+                                        onToggleGroup = { viewModel.toggleGroup(groupWithSources.group, it) },
+                                        onEditGroup = { editGroup = it },
+                                        onDeleteGroup = { deleteGroupConfirm = it },
+                                        onToggleSource = { viewModel.updateSource(it) },
+                                        onEditSource = { editSource = it },
+                                        onDeleteSource = { deleteSourceConfirm = it }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -381,7 +410,7 @@ fun SourcesScreen(
 
         if (showAddGroupDialog) {
             GroupDialog(
-                existingGroupNames = uiState.map { it.group.name },
+                existingGroupNames = currentGroups.map { it.group.name },
                 reservedGroupNames = reservedGroupNames,
                 onDismiss = { showAddGroupDialog = false },
                 onConfirm = { viewModel.addGroup(it) }
@@ -391,7 +420,7 @@ fun SourcesScreen(
         editGroup?.let { group ->
             GroupDialog(
                 group = group,
-                existingGroupNames = uiState.map { it.group.name },
+                existingGroupNames = currentGroups.map { it.group.name },
                 reservedGroupNames = reservedGroupNames,
                 onDismiss = { editGroup = null },
                 onConfirm = { viewModel.updateGroup(group.copy(name = it)) }
@@ -400,8 +429,8 @@ fun SourcesScreen(
 
         selectedGroupIdForSource?.let { groupId ->
             SourceDialog(
-                existingSources = uiState.flatMap { it.sources },
-                existingSourceNames = uiState.flatMap { it.sources }.map { it.name },
+                existingSources = currentGroups.flatMap { it.sources },
+                existingSourceNames = currentGroups.flatMap { it.sources }.map { it.name },
                 showDetailedHelp = isHelpMode,
                 onFetchGeneratedName = viewModel::fetchGeneratedSourceName,
                 onDismiss = { selectedGroupIdForSource = null },
@@ -424,8 +453,8 @@ fun SourcesScreen(
         editSource?.let { source ->
             SourceDialog(
                 source = source,
-                existingSources = uiState.flatMap { it.sources },
-                existingSourceNames = uiState.flatMap { it.sources }.map { it.name },
+                existingSources = currentGroups.flatMap { it.sources },
+                existingSourceNames = currentGroups.flatMap { it.sources }.map { it.name },
                 showDetailedHelp = isHelpMode,
                 onFetchGeneratedName = viewModel::fetchGeneratedSourceName,
                 onDismiss = { editSource = null },
@@ -475,7 +504,7 @@ fun SourcesScreen(
                 title = stringResource(R.string.delete),
                 text = stringResource(R.string.delete_selected_groups_confirm, selectedGroupIds.size),
                 onConfirm = {
-                    val selected = uiState
+                    val selected = currentGroups
                         .map { it.group }
                         .filter { selectedGroupIds.contains(it.id) }
                     viewModel.deleteGroups(selected)
@@ -587,6 +616,15 @@ fun GroupCard(
                                 },
                                 onClick = { onToggleGroup(!groupWithSources.group.isEnabled) }
                             )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.add_source)) },
+                                trailingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                enabled = groupWithSources.group.isEnabled,
+                                onClick = {
+                                    onAddSource()
+                                    showDropdown = false
+                                }
+                            )
                             if (groupWithSources.group.isDeletable) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.edit_group)) },
@@ -637,31 +675,6 @@ fun GroupCard(
                                 onEdit = { onEditSource(it) },
                                 onDelete = { onDeleteSource(it) }
                             )
-                        }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-                    
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = AppDimens.CardContentPadding),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        FilledTonalButton(
-                            onClick = onAddSource,
-                            enabled = groupWithSources.group.isEnabled,
-                            shape = MaterialTheme.shapes.medium,
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            modifier = Modifier.height(32.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
-                                contentColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(stringResource(R.string.add_source), style = MaterialTheme.typography.labelLarge)
                         }
                     }
                 }
@@ -839,15 +852,21 @@ fun SourceDialog(
                 normalizeSourceUrl(it.url, it.type).equals(normalizedUrl, ignoreCase = true)
         }
     }
-    val errorText = when {
+    val isSourceUrlValid = SourceUrlValidator.isValid(url, type)
+    val nameErrorText = when {
         normalizedName.isBlank() -> stringResource(R.string.validation_name_required)
         isDuplicate -> stringResource(R.string.validation_source_name_exists)
+        else -> null
+    }
+    val urlErrorText = when {
         url.isBlank() -> stringResource(R.string.validation_source_url_required)
+        !isSourceUrlValid -> stringResource(R.string.validation_source_url_type_mismatch)
         isDuplicateUrl -> stringResource(R.string.validation_source_url_exists)
         else -> null
     }
-    val isNameError = normalizedName.isBlank() || isDuplicate
-    val isUrlError = url.isBlank() || isDuplicateUrl
+    val isNameError = nameErrorText != null
+    val isUrlError = urlErrorText != null
+    val formHasError = isNameError || isUrlError
 
     AppAnimatedDialog(
         visible = true,
@@ -908,55 +927,6 @@ fun SourceDialog(
                             }
                         }
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = name,
-                            onValueChange = { name = it },
-                            label = { Text(stringResource(R.string.source_name)) },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                            shape = MaterialTheme.shapes.large,
-                            isError = isNameError
-                        )
-                        FilledTonalButton(
-                            onClick = {
-                                isFetchingName = true
-                                onFetchGeneratedName(url, type) { generatedName ->
-                                    generatedName?.let { name = it }
-                                    isFetchingName = false
-                                }
-                            },
-                            enabled = url.isNotBlank() && !isFetchingName,
-                            shape = MaterialTheme.shapes.large,
-                            contentPadding = PaddingValues(horizontal = 14.dp),
-                            modifier = Modifier
-                                .padding(top = 8.dp)
-                                .height(56.dp)
-                                .widthIn(min = 112.dp)
-                        ) {
-                            if (isFetchingName) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Text(stringResource(R.string.source_name_fetch))
-                            }
-                        }
-                    }
-                    OutlinedTextField(
-                        value = url,
-                        onValueChange = { url = it },
-                        label = { Text(stringResource(R.string.source_url)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large,
-                        isError = isUrlError
-                    )
                     ExposedDropdownMenuBox(
                         expanded = expanded,
                         onExpandedChange = { expanded = !expanded }
@@ -1003,8 +973,60 @@ fun SourceDialog(
                             }
                         }
                     }
-                    if (errorText != null) {
-                        Text(text = errorText, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = url,
+                        onValueChange = { url = it },
+                        label = { Text(stringResource(R.string.source_url)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large,
+                        isError = isUrlError,
+                        supportingText = urlErrorText?.let { error ->
+                            { Text(error) }
+                        }
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = { Text(stringResource(R.string.source_name)) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.large,
+                            isError = isNameError,
+                            supportingText = nameErrorText?.let { error ->
+                                { Text(error) }
+                            }
+                        )
+                        FilledTonalButton(
+                            onClick = {
+                                isFetchingName = true
+                                onFetchGeneratedName(url, type) { generatedName ->
+                                    generatedName?.let { name = it }
+                                    isFetchingName = false
+                                }
+                            },
+                            enabled = url.isNotBlank() && isSourceUrlValid && !isFetchingName,
+                            shape = MaterialTheme.shapes.large,
+                            contentPadding = PaddingValues(horizontal = 14.dp),
+                            modifier = Modifier
+                                .padding(top = 8.dp)
+                                .height(56.dp)
+                                .widthIn(min = 112.dp)
+                        ) {
+                            if (isFetchingName) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text(stringResource(R.string.source_name_fetch))
+                            }
+                        }
                     }
                 }
 
@@ -1017,7 +1039,7 @@ fun SourceDialog(
                     }
                     Button(
                         onClick = {
-                            if (errorText == null) {
+                            if (!formHasError) {
                                 onConfirm(
                                     normalizedName,
                                     url,
@@ -1031,7 +1053,7 @@ fun SourceDialog(
                                 onDismiss()
                             }
                         },
-                        enabled = errorText == null,
+                        enabled = !formHasError,
                         modifier = Modifier.weight(1f),
                         shape = MaterialTheme.shapes.large
                     ) {

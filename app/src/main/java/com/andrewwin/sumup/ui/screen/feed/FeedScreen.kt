@@ -203,7 +203,7 @@ fun FeedScreen(
                     Icon(
                         painter = painterResource(R.drawable.ic_ask_ai),
                         contentDescription = null,
-                        modifier = Modifier.size(44.dp)
+                        modifier = Modifier.size(48.dp)
                     )
                 }
             }

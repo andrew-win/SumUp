@@ -13,8 +13,8 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.ArticleStableKeyFactory
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
+import com.andrewwin.sumup.domain.news.ArticleContentCleaner
 import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.usecase.common.CleanArticleTextUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,7 +31,7 @@ class ArticleRepositoryImpl @Inject constructor(
     private val sourceDao: SourceDao,
     private val userPreferencesDao: UserPreferencesDao,
     private val remoteArticleDataSource: RemoteArticleDataSource,
-    private val cleanArticleTextUseCase: CleanArticleTextUseCase
+    private val cleanArticleTextUseCase: ArticleContentCleaner
 ) : ArticleRepository {
 
     override val enabledArticles: Flow<List<Article>> =
@@ -58,7 +58,7 @@ class ArticleRepositoryImpl @Inject constructor(
 
                         if (fetchedArticles.isNotEmpty()) {
                             val contentsForFooter = fetchedArticles.take(10).map { it.content }
-                            val newFooterPattern = cleanArticleTextUseCase(contentsForFooter)
+                            val newFooterPattern = cleanArticleTextUseCase.detectFooterPattern(contentsForFooter)
 
                             if (newFooterPattern != null && newFooterPattern != source.footerPattern) {
                                 sourceDao.updateSource(source.copy(footerPattern = newFooterPattern))
@@ -67,7 +67,7 @@ class ArticleRepositoryImpl @Inject constructor(
                             val currentFooter = newFooterPattern ?: source.footerPattern
                             val cleanedArticles = mutableListOf<Article>()
                             for (article in fetchedArticles) {
-                                val cleanedContent = cleanArticleTextUseCase(article.content, source.type, currentFooter)
+                                val cleanedContent = cleanArticleTextUseCase.clean(article.content, source.type, currentFooter)
                                 cleanedArticles.add(article.copy(content = cleanedContent))
                             }
 
@@ -183,7 +183,7 @@ class ArticleRepositoryImpl @Inject constructor(
         val fetchedRemote = remoteArticleDataSource.fetchFullContent(article.url, source.type)
         val remoteContent = fetchedRemote ?: article.content
         val mainContent = cleanArticleTextUseCase.extractMainContent(article.url, remoteContent, source.type)
-        val cleaned = cleanArticleTextUseCase(mainContent, source.type, source.footerPattern)
+        val cleaned = cleanArticleTextUseCase.clean(mainContent, source.type, source.footerPattern)
         return cleaned
     }
 
@@ -552,7 +552,6 @@ class ArticleRepositoryImpl @Inject constructor(
     private fun uiArticleIdToSavedId(uiId: Long): Long? =
         if (uiId < 0L) (-uiId) - 1L else null
 }
-
 
 
 

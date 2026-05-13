@@ -18,6 +18,7 @@ interface AiModelConfigRepository {
     suspend fun addConfig(config: AiModelConfig)
     suspend fun updateConfig(config: AiModelConfig)
     suspend fun deleteConfig(config: AiModelConfig)
+    suspend fun moveConfig(config: AiModelConfig, direction: Int)
     
     suspend fun migrateLegacyApiKeys()
     

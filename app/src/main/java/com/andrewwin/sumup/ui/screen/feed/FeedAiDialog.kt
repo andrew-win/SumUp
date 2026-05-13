@@ -72,11 +72,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
-import com.andrewwin.sumup.domain.usecase.ai.DigestTheme
-import com.andrewwin.sumup.domain.usecase.ai.SummaryItem
-import com.andrewwin.sumup.domain.usecase.ai.SummaryLimits
-import com.andrewwin.sumup.domain.usecase.ai.SummaryResult
-import com.andrewwin.sumup.domain.usecase.ai.SummarySourceRef
+import com.andrewwin.sumup.domain.summary.DigestTheme
+import com.andrewwin.sumup.domain.summary.SummaryItem
+import com.andrewwin.sumup.domain.summary.SummaryLimits
+import com.andrewwin.sumup.domain.summary.SummaryResult
+import com.andrewwin.sumup.domain.summary.SummarySourceRef
 import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppMotion
