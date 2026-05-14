@@ -6,6 +6,7 @@ import com.andrewwin.sumup.data.local.dao.GroupWithSources
 import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
+import com.andrewwin.sumup.data.local.entities.SourceGroupOrigin
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
@@ -148,7 +149,7 @@ class SourcesViewModel @Inject constructor(
         suggestedThemesJob = viewModelScope.launch {
             _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
             val suggestions = getSuggestedThemesUseCase(forceRefresh = false).first()
-            _suggestedThemes.value = applyPendingOverrides(suggestions.toFirebaseThemeSuggestions())
+            updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
             refreshReservedGroupNames()
         }
     }
@@ -165,7 +166,7 @@ class SourcesViewModel @Inject constructor(
                 _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
                 if (!isRecommendationsEnabled.value) {
                     val suggestions = getSuggestedThemesUseCase(forceRefresh = false).first()
-                    _suggestedThemes.value = applyPendingOverrides(suggestions.toFirebaseThemeSuggestions())
+                    updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
                     refreshReservedGroupNames()
                     return@launch
                 }
@@ -173,14 +174,14 @@ class SourcesViewModel @Inject constructor(
                     _isRefreshingThemeRecommendations.value = true
                     try {
                         getSuggestedThemesUseCase(forceRefresh = true).collect { suggestions ->
-                            _suggestedThemes.value = applyPendingOverrides(suggestions.toFirebaseThemeSuggestions())
+                            updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
                         }
                     } finally {
                         _isRefreshingThemeRecommendations.value = false
                     }
                 } else {
                     val suggestions = getSuggestedThemesUseCase(forceRefresh = false).first()
-                    _suggestedThemes.value = applyPendingOverrides(suggestions.toFirebaseThemeSuggestions())
+                    updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
                 }
                 refreshReservedGroupNames()
             } finally {
@@ -209,6 +210,12 @@ class SourcesViewModel @Inject constructor(
         return mapped
     }
 
+    private suspend fun updateSuggestedThemes(themes: List<FirebaseThemeSuggestion>) {
+        val updatedThemes = applyPendingOverrides(themes)
+        _suggestedThemes.value = updatedThemes
+        repository.syncSubscribedImportedGroups(updatedThemes.map { it.group })
+    }
+
     private fun List<ThemeSuggestion>.toFirebaseThemeSuggestions(): List<FirebaseThemeSuggestion> {
         return filter { it.theme.name.isNotBlank() }
             .map { suggestion ->
@@ -230,41 +237,18 @@ class SourcesViewModel @Inject constructor(
 
     fun toggleThemeSubscription(suggestion: FirebaseThemeSuggestion, isSubscribed: Boolean) {
         setPendingOverride(suggestion.group.id, isSubscribed)
-        _suggestedThemes.update { themes ->
-            themes.map { current ->
-                if (current.group.id.equals(suggestion.group.id, ignoreCase = true)) current.copy(isSubscribed = isSubscribed) else current
-            }
-        }
+        updateSuggestedThemeSubscriptionState(suggestion.group.id, isSubscribed)
 
         viewModelScope.launch {
             val applied = runCatching {
                 subscriptionMutex.withLock {
-                    if (isSubscribed) {
-                        val currentLanguage = appLanguage.value
-                        val targetGroupName = suggestion.group.displayName(currentLanguage)
-                        repository.subscribeToImportedGroup(
-                            group = suggestion.group,
-                            displayName = targetGroupName
-                        )
-                        refreshFeedInBackground()
-                    } else {
-                        repository.unsubscribeFromImportedGroup(suggestion.group)
-                    }
+                    applyThemeSubscriptionChange(suggestion, isSubscribed)
                 }
             }.isSuccess
 
             if (!applied) {
                 clearPendingOverride(suggestion.group.id)
-                // Rollback optimistic UI state on failure to avoid stuck toggles.
-                _suggestedThemes.update { themes ->
-                    themes.map { current ->
-                        if (current.group.id.equals(suggestion.group.id, ignoreCase = true)) {
-                            current.copy(isSubscribed = !isSubscribed)
-                        } else {
-                            current
-                        }
-                    }
-                }
+                updateSuggestedThemeSubscriptionState(suggestion.group.id, !isSubscribed)
             }
         }
     }
@@ -289,6 +273,16 @@ class SourcesViewModel @Inject constructor(
 
     fun deleteGroups(groups: List<SourceGroup>) {
         if (groups.isEmpty()) return
+        val subscriptionSuggestionByGroupId = groups.mapNotNull { group ->
+            findSubscriptionSuggestionForGroup(group)?.let { suggestion -> group.id to suggestion }
+        }.toMap()
+        val subscriptionSuggestions = subscriptionSuggestionByGroupId.values
+            .distinctBy { it.group.id.trim().lowercase() }
+        subscriptionSuggestions.forEach { suggestion ->
+            setPendingOverride(suggestion.group.id, false)
+            updateSuggestedThemeSubscriptionState(suggestion.group.id, false)
+        }
+
         viewModelScope.launch {
             val deletedGroupIds = groups.map { it.id }.toSet()
             val currentGroups = (uiState.value as? SourcesUiState.Content)?.groups.orEmpty()
@@ -298,10 +292,76 @@ class SourcesViewModel @Inject constructor(
                 .map { it.url.trim().lowercase() }
                 .toSet()
 
-            groups.forEach { group ->
+            val regularGroups = groups.filterNot { group ->
+                group.id in subscriptionSuggestionByGroupId.keys
+            }
+
+            val unsubscribed = runCatching {
+                subscriptionMutex.withLock {
+                    subscriptionSuggestions.forEach { suggestion ->
+                        applyThemeSubscriptionChange(suggestion, isSubscribed = false)
+                    }
+                }
+            }.isSuccess
+
+            regularGroups.forEach { group ->
                 repository.deleteGroup(group)
             }
             updateSuggestedThemesAfterDeletedUrls(deletedGroupUrls)
+            if (!unsubscribed) {
+                subscriptionSuggestions.forEach { suggestion ->
+                    clearPendingOverride(suggestion.group.id)
+                    updateSuggestedThemeSubscriptionState(suggestion.group.id, true)
+                }
+            }
+        }
+    }
+
+    private suspend fun applyThemeSubscriptionChange(
+        suggestion: FirebaseThemeSuggestion,
+        isSubscribed: Boolean
+    ) {
+        if (isSubscribed) {
+            val currentLanguage = appLanguage.value
+            val targetGroupName = suggestion.group.displayName(currentLanguage)
+            repository.subscribeToImportedGroup(
+                group = suggestion.group,
+                displayName = targetGroupName
+            )
+            refreshFeedInBackground()
+        } else {
+            repository.unsubscribeFromImportedGroup(suggestion.group)
+        }
+    }
+
+    private fun updateSuggestedThemeSubscriptionState(themeId: String, isSubscribed: Boolean) {
+        _suggestedThemes.update { themes ->
+            themes.map { current ->
+                if (current.group.id.equals(themeId, ignoreCase = true)) {
+                    current.copy(isSubscribed = isSubscribed)
+                } else {
+                    current
+                }
+            }
+        }
+    }
+
+    private fun findSubscriptionSuggestionForGroup(group: SourceGroup): FirebaseThemeSuggestion? {
+        group.subscriptionId
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { subscriptionId ->
+                _suggestedThemes.value.firstOrNull { suggestion ->
+                    suggestion.group.id.equals(subscriptionId, ignoreCase = true)
+                }
+            }
+            ?.let { return it }
+
+        if (group.origin != SourceGroupOrigin.PUBLIC_SUBSCRIPTION) return null
+        val groupName = group.name.trim().lowercase()
+        return _suggestedThemes.value.firstOrNull { suggestion ->
+            listOf(suggestion.group.name, suggestion.group.nameUk, suggestion.group.nameEn)
+                .any { it.trim().lowercase() == groupName }
         }
     }
 

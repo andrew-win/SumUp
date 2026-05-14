@@ -20,7 +20,7 @@ object ArticleStableKeyFactory {
         buildKey(
             prefix = "youtube",
             sourceId = sourceId,
-            rawIdentity = normalizedUrlIdentity(url).ifBlank { videoId.trim() }
+            rawIdentity = videoId.trim().ifBlank { normalizedUrlIdentity(url) }
         )
 
     fun buildSavedKey(url: String): String =

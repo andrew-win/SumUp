@@ -146,7 +146,9 @@ class RemoteArticleDataSource @Inject constructor(
                 }
             }
             emptyList()
-        } catch (e: Exception) { emptyList() }
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
     private fun buildYouTubeFeedUrl(url: String): String {

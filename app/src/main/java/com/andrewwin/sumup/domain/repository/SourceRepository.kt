@@ -35,6 +35,8 @@ interface SourceRepository {
         group: ImportedSourceGroup,
         displayName: String
     )
+    suspend fun markImportedGroupsAsSubscriptions(groups: List<ImportedSourceGroup>)
+    suspend fun syncSubscribedImportedGroups(groups: List<ImportedSourceGroup>)
     suspend fun unsubscribeFromImportedGroup(group: ImportedSourceGroup)
     suspend fun importGroupsWithSources(
         groups: List<ImportedSourceGroup>,
@@ -49,6 +51,8 @@ data class ImportedSourceGroup(
     val nameEn: String,
     val isEnabled: Boolean,
     val isDeletable: Boolean,
+    val origin: String? = null,
+    val subscriptionId: String? = null,
     val sources: List<ImportedSource>,
     val recommendationAnchors: List<String> = emptyList(),
     val sortOrder: Int = 0

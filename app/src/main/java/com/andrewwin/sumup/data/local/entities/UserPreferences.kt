@@ -32,7 +32,7 @@ data class UserPreferences(
     val scheduledHour: Int = 8,
     val scheduledMinute: Int = 0,
     val lastWorkRunTimestamp: Long = 0,
-    val isDeduplicationEnabled: Boolean = false,
+    val isDeduplicationEnabled: Boolean = true,
     val deduplicationStrategy: DeduplicationStrategy = DeduplicationStrategy.LOCAL,
     val localDeduplicationThreshold: Float = 0.860f,
     val cloudDeduplicationThreshold: Float = 0.84f,

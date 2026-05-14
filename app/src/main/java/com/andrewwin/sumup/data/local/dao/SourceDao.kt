@@ -56,6 +56,9 @@ interface SourceDao {
     @Query("SELECT * FROM source_groups WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name)) LIMIT 1")
     suspend fun findGroupByName(name: String): SourceGroup?
 
+    @Query("SELECT * FROM source_groups WHERE id = :groupId LIMIT 1")
+    suspend fun findGroupById(groupId: Long): SourceGroup?
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertGroup(group: SourceGroup): Long
 

@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.WorkManager
 import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
+import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.google.firebase.FirebaseApp
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +23,9 @@ class SumUpApp : Application(), Configuration.Provider {
     @Inject
     lateinit var publicSubscriptionsSyncManager: PublicSubscriptionsSyncManager
 
+    @Inject
+    lateinit var sourceRepository: SourceRepository
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
@@ -29,7 +33,11 @@ class SumUpApp : Application(), Configuration.Provider {
         runCatching { FirebaseApp.initializeApp(this) }
             .onFailure { e -> }
         applicationScope.launch {
-            runCatching { publicSubscriptionsSyncManager.sync(force = true) }
+            runCatching {
+                if (publicSubscriptionsSyncManager.sync(force = true)) {
+                    sourceRepository.syncSubscribedImportedGroups(publicSubscriptionsSyncManager.getCachedGroups())
+                }
+            }
         }
         try {
             Configuration.Builder()

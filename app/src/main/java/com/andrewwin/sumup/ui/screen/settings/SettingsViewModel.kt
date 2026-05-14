@@ -904,6 +904,8 @@ class SettingsViewModel @Inject constructor(
                             put("name", groupWithSources.group.name)
                             put("isEnabled", groupWithSources.group.isEnabled)
                             put("isDeletable", groupWithSources.group.isDeletable)
+                            put("origin", groupWithSources.group.origin)
+                            put("subscriptionId", groupWithSources.group.subscriptionId)
                             put("sources", JSONArray().apply {
                                 groupWithSources.sources.forEach { source -> put(source.toBackupJson()) }
                             })

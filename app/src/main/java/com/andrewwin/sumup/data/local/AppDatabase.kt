@@ -18,6 +18,7 @@ import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
+import com.andrewwin.sumup.data.local.entities.SourceGroupOrigin
 import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.local.entities.SavedArticle
@@ -33,7 +34,7 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
         Summary::class,
         UserPreferences::class
     ],
-    version = 58,
+    version = 59,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -84,7 +85,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_54_55,
                         MIGRATION_55_56,
                         MIGRATION_56_57,
-                        MIGRATION_57_58
+                        MIGRATION_57_58,
+                        MIGRATION_58_59
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -93,11 +95,11 @@ abstract class AppDatabase : RoomDatabase() {
                             val defaultPrompt = context.getString(com.andrewwin.sumup.R.string.summary_prompt_default)
                                 .replace("'", "''")
                             db.execSQL(
-                                "INSERT OR IGNORE INTO source_groups (id, name, isEnabled, isDeletable) VALUES (1, 'Без категорії', 1, 0)"
+                                "INSERT OR IGNORE INTO source_groups (id, name, isEnabled, isDeletable, origin, subscriptionId) VALUES (1, 'Без категорії', 1, 0, '${SourceGroupOrigin.SYSTEM}', NULL)"
                             )
                             db.execSQL(
                                 "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsSingleArticle, aiMaxCharsNewsCluster, aiMaxCharsSingleFeedArticle, aiMaxCharsFeedCluster, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
-                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, 0, 0, 'LOCAL', 0.860, 0.84, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 4, 0, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, 3, 'SYSTEM', 'UK', 'UK')"
+                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, 0, 1, 'LOCAL', 0.860, 0.84, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 4, 0, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, 3, 'SYSTEM', 'UK', 'UK')"
                             )
                         }
                     })
@@ -786,6 +788,22 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                 db.execSQL("DROP TABLE ai_model_configs")
                 db.execSQL("ALTER TABLE ai_model_configs_new RENAME TO ai_model_configs")
+            }
+        }
+
+        private val MIGRATION_58_59 = object : Migration(58, 59) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE source_groups ADD COLUMN origin TEXT NOT NULL DEFAULT '${SourceGroupOrigin.USER}'"
+                )
+                db.execSQL("ALTER TABLE source_groups ADD COLUMN subscriptionId TEXT")
+                db.execSQL(
+                    """
+                    UPDATE source_groups
+                    SET origin = '${SourceGroupOrigin.SYSTEM}'
+                    WHERE id = 1 AND isDeletable = 0
+                    """.trimIndent()
+                )
             }
         }
     }

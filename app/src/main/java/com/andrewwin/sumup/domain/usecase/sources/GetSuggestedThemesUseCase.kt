@@ -15,6 +15,8 @@ import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.news.EmbeddingUtils
 import com.andrewwin.sumup.domain.source.SuggestedThemesRefreshPolicy
+import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
+import com.andrewwin.sumup.data.local.dao.GroupWithSources
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -75,7 +77,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
                     ThemeSuggestion(
                         theme = it,
                         score = 0f,
-                        isSubscribed = it.sources.all { source -> allSourcesUrls.contains(source.url) },
+                        isSubscribed = isSubscribedToTheme(it, groupsWithSources, allSourcesUrls),
                         isRecommended = false
                     )
                 }
@@ -88,7 +90,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
                 ThemeSuggestion(
                     it,
                     score = 10f,
-                    isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) },
+                    isSubscribed = isSubscribedToTheme(it, groupsWithSources, allSourcesUrls),
                     isRecommended = isThemeSaved(it, savedThemeIds, savedThemeTitlesLegacy)
                 )
             }.sortedByDescending { if (it.isRecommended) 1 else 0 }
@@ -104,7 +106,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
 
         if (!isModelLoaded) {
             emit(themeProfiles.map { 
-                ThemeSuggestion(it, 0f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) })
+                ThemeSuggestion(it, 0f, isSubscribed = isSubscribedToTheme(it, groupsWithSources, allSourcesUrls))
             })
             return@flow
         }
@@ -112,14 +114,14 @@ class GetSuggestedThemesUseCase @Inject constructor(
         // Initial emit: if no cache, emit all. If cache exists (even if out of date or forcing), emit it while recalculating
         if (savedThemeIds == null && savedThemeTitlesLegacy == null) {
             emit(themeProfiles.map { 
-                ThemeSuggestion(it, 0f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) })
+                ThemeSuggestion(it, 0f, isSubscribed = isSubscribedToTheme(it, groupsWithSources, allSourcesUrls))
             })
         } else {
             val cached = themeProfiles.map { 
                  ThemeSuggestion(
                      it,
                      score = 10f,
-                     isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) },
+                     isSubscribed = isSubscribedToTheme(it, groupsWithSources, allSourcesUrls),
                      isRecommended = isThemeSaved(it, savedThemeIds, savedThemeTitlesLegacy)
                  ) 
             }.sortedByDescending { if (it.isRecommended) 1 else 0 }
@@ -171,7 +173,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
 
         if (normalizedUserEmbeddingsBySourceId.isEmpty()) {
             emit(themeProfiles.map { 
-                ThemeSuggestion(it, 0f, isSubscribed = it.sources.all { s -> allSourcesUrls.contains(s.url) })
+                ThemeSuggestion(it, 0f, isSubscribed = isSubscribedToTheme(it, groupsWithSources, allSourcesUrls))
             })
             return@flow
         }
@@ -204,7 +206,7 @@ class GetSuggestedThemesUseCase @Inject constructor(
                 ThemeSuggestion(
                     theme = theme,
                     score = score,
-                    isSubscribed = theme.sources.all { allSourcesUrls.contains(it.url) },
+                    isSubscribed = isSubscribedToTheme(theme, groupsWithSources, allSourcesUrls),
                     isRecommended = hasAnchorMatch
                 )
             )
@@ -307,13 +309,43 @@ class GetSuggestedThemesUseCase @Inject constructor(
             savedThemeTitlesLegacy?.contains(theme.nameEn) == true
     }
 
+    private fun isSubscribedToTheme(
+        theme: ImportedSourceGroup,
+        groupsWithSources: List<GroupWithSources>,
+        allSourcesUrls: Set<String>
+    ): Boolean {
+        val normalizedThemeId = theme.id.trim().lowercase()
+        return groupsWithSources.any { groupWithSources ->
+            groupWithSources.group.subscriptionId?.trim()?.lowercase() == normalizedThemeId ||
+                groupWithSources.isLegacySubscriptionMatch(theme)
+        } || theme.sources.all { source -> allSourcesUrls.contains(source.url) }
+    }
+
+    private fun GroupWithSources.isLegacySubscriptionMatch(theme: ImportedSourceGroup): Boolean {
+        val publicNames = listOf(theme.name, theme.nameUk, theme.nameEn)
+            .map { it.trim().lowercase() }
+            .filter { it.isNotBlank() }
+            .toSet()
+        if (group.name.trim().lowercase() !in publicNames) return false
+
+        val themeSourceKeys = theme.sources
+            .mapNotNull { source ->
+                SourceUrlNormalizer.normalize(source.url, source.type)
+                    .takeIf { it.isNotBlank() }
+                    ?.let { source.type to it }
+            }
+            .toSet()
+        return themeSourceKeys.isNotEmpty() &&
+            sources.any { source -> source.type to source.url in themeSourceKeys }
+    }
+
     private companion object {
         private const val MAX_ARTICLES_PER_SOURCE_FOR_THEME_RECOMMENDATIONS = 4
         private const val MAX_ANCHORS_PER_THEME_RECOMMENDATIONS = 3
         private const val MIN_MATCHED_ARTICLES_PER_SOURCE_FOR_THEME_RECOMMENDATION = 2
         private const val MIN_MATCHED_SOURCE_RATIO_FOR_THEME_RECOMMENDATION = 0.2f
         private const val CLOUD_RECOMMENDATION_SIMILARITY_THRESHOLD_OFFSET = 0.015f
-        private const val LOCAL_RECOMMENDATION_SIMILARITY_THRESHOLD = 0.815f
+        private const val LOCAL_RECOMMENDATION_SIMILARITY_THRESHOLD = 0.825f
         private const val PERCENT_SCALE = 100f
     }
 }

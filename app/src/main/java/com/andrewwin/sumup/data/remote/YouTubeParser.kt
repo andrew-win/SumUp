@@ -8,8 +8,6 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 class YouTubeParser {
-    private val tag = "YouTubeParser"
-
     fun parse(inputStream: InputStream, sourceId: Long): List<Article> {
         inputStream.use {
             val parser = Xml.newPullParser()

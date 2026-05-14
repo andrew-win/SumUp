@@ -87,7 +87,7 @@ fun SourcesScreen(
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
     var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
-    val tabIcons = listOf(Icons.Default.PersonAddAlt1, Icons.Default.LibraryBooks)
+    val tabIcons = listOf(Icons.Default.Person, Icons.Default.Subscriptions)
     val tabLabels = listOf(
         stringResource(R.string.sources_tab_custom),
         stringResource(R.string.sources_tab_presets)
@@ -232,7 +232,10 @@ fun SourcesScreen(
 
                         Box {
                             Row(
-                                modifier = Modifier.clickable { showSortDropdown = true },
+                                modifier = Modifier
+                                    .heightIn(min = 44.dp)
+                                    .clickable { showSortDropdown = true }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
@@ -620,7 +623,7 @@ fun GroupCard(
                             onClick = { showDropdown = true },
                             modifier = Modifier.size(32.dp)
                         ) {
-                            Icon(Icons.Default.MoreVert, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.MoreHoriz, contentDescription = null, modifier = Modifier.size(20.dp))
                         }
                         DropdownMenu(
                             expanded = showDropdown,
@@ -642,7 +645,7 @@ fun GroupCard(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.add_source)) },
                                 trailingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                enabled = groupWithSources.group.isEnabled,
+                                enabled = canAddSourceToGroup(groupWithSources.group),
                                 onClick = {
                                     onAddSource()
                                     showDropdown = false
@@ -763,11 +766,56 @@ fun SourceItem(
             enabled = isGroupEnabled,
             modifier = Modifier.scale(0.7f)
         )
-        IconButton(onClick = { onEdit(source) }, enabled = isGroupEnabled, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        IconButton(onClick = { onDelete(source) }, enabled = isGroupEnabled, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
+        Box {
+            var showDropdown by remember { mutableStateOf(false) }
+            IconButton(
+                onClick = { showDropdown = true },
+                enabled = isGroupEnabled,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            DropdownMenu(
+                expanded = showDropdown,
+                onDismissRequest = { showDropdown = false },
+                shape = MaterialTheme.shapes.large,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.edit_source)) },
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    onClick = {
+                        onEdit(source)
+                        showDropdown = false
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    },
+                    onClick = {
+                        onDelete(source)
+                        showDropdown = false
+                    }
+                )
+            }
         }
     }
 }

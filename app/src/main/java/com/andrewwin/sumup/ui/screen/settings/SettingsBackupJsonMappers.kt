@@ -9,6 +9,7 @@ import com.andrewwin.sumup.data.local.entities.AppThemeMode
 import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.SavedArticle
 import com.andrewwin.sumup.data.local.entities.Source
+import com.andrewwin.sumup.data.local.entities.SourceGroupOrigin
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 import com.andrewwin.sumup.data.local.entities.UserPreferences
@@ -331,14 +332,26 @@ internal fun JSONArray?.toImportedGroupsFromBackup(): List<ImportedSourceGroup> 
         val item = optJSONObject(index) ?: continue
         val name = item.optString("name", "").trim()
         if (name.isBlank()) continue
+        val isDeletable = item.optBoolean("isDeletable", true)
+        val fallbackOrigin = if (isDeletable) SourceGroupOrigin.USER else SourceGroupOrigin.SYSTEM
+        val rawOrigin = item.optString("origin", fallbackOrigin).trim()
+        val origin = when (rawOrigin) {
+            SourceGroupOrigin.USER,
+            SourceGroupOrigin.PUBLIC_SUBSCRIPTION,
+            SourceGroupOrigin.SYSTEM -> rawOrigin
+            else -> fallbackOrigin
+        }
+        val subscriptionId = item.optNullableString("subscriptionId")
         groups.add(
             ImportedSourceGroup(
-                id = name.lowercase(),
+                id = subscriptionId ?: name.lowercase(),
                 name = name,
                 nameUk = name,
                 nameEn = name,
                 isEnabled = item.optBoolean("isEnabled", true),
-                isDeletable = item.optBoolean("isDeletable", true),
+                isDeletable = isDeletable,
+                origin = origin,
+                subscriptionId = subscriptionId,
                 sources = item.optJSONArray("sources").toImportedSourcesFromBackup(),
                 recommendationAnchors = item.optJSONArray("anchors").toStringListFromBackup(),
                 sortOrder = item.optInt("sortOrder", 0)

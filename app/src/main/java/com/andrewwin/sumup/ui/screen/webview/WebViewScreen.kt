@@ -1,11 +1,14 @@
 package com.andrewwin.sumup.ui.screen.webview
 
+import android.content.Intent
+import android.net.Uri
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -31,6 +34,15 @@ fun WebViewScreen(
     var webView: WebView? by remember { mutableStateOf(null) }
     var title by remember { mutableStateOf("") }
     val cookieManager = remember { CookieManager.getInstance() }
+
+    BackHandler {
+        val currentWebView = webView
+        if (currentWebView?.canGoBack() == true) {
+            currentWebView.goBack()
+        } else {
+            onNavigateBack()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -85,11 +97,6 @@ fun WebViewScreen(
                         webViewClient = object : WebViewClient() {
                             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                                 isLoading = true
-                                settings.blockNetworkImage = true
-                            }
-
-                            override fun onPageCommitVisible(view: WebView?, url: String?) {
-                                settings.blockNetworkImage = false
                             }
 
                             override fun onPageFinished(view: WebView?, url: String?) {
@@ -98,14 +105,31 @@ fun WebViewScreen(
                             }
 
                             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                                return false
+                                val nextUrl = request?.url?.toString().orEmpty()
+                                if (nextUrl.isBlank()) return false
+
+                                if (nextUrl.isWebUrl()) return false
+
+                                val telegramWebUrl = nextUrl.toTelegramWebUrlOrNull()
+                                if (telegramWebUrl != null) {
+                                    view?.loadUrl(telegramWebUrl)
+                                    return true
+                                }
+
+                                return runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(nextUrl)))
+                                }.isSuccess
                             }
                         }
                         with(settings) {
                             javaScriptEnabled = true
                             domStorageEnabled = true
+                            databaseEnabled = true
 
                             cacheMode = WebSettings.LOAD_DEFAULT
+                            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                            useWideViewPort = true
+                            loadWithOverviewMode = true
                             setSupportZoom(false)
                             builtInZoomControls = false
                             displayZoomControls = false
@@ -143,6 +167,27 @@ fun WebViewScreen(
     }
 }
 
+private fun String.isWebUrl(): Boolean {
+    val scheme = runCatching { Uri.parse(this).scheme }.getOrNull()
+    return scheme.equals("http", ignoreCase = true) || scheme.equals("https", ignoreCase = true)
+}
 
+private fun String.toTelegramWebUrlOrNull(): String? {
+    val uri = runCatching { Uri.parse(this) }.getOrNull() ?: return null
+    val scheme = uri.scheme?.lowercase() ?: return null
+    if (scheme != "tg") return null
 
+    val isResolveLink = uri.schemeSpecificPart.startsWith("resolve", ignoreCase = true) ||
+        uri.host.equals("resolve", ignoreCase = true)
+    if (!isResolveLink) return null
 
+    val query = uri.query ?: uri.schemeSpecificPart.substringAfter("?", missingDelimiterValue = "")
+    val queryUri = runCatching { Uri.parse("https://t.me/?$query") }.getOrNull() ?: return null
+    val domain = queryUri.getQueryParameter("domain")?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    val post = queryUri.getQueryParameter("post")?.trim().orEmpty()
+    return if (post.isBlank()) {
+        "https://t.me/s/$domain"
+    } else {
+        "https://t.me/s/$domain/$post"
+    }
+}

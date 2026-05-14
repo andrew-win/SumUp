@@ -35,6 +35,18 @@
           "url": "https://champion.com.ua/ukr/rss",
           "type": "RSS",
           "isEnabled": true
+        },
+        {
+          "name": "Tribuna Chelsea",
+          "url": "https://rss.ua.tribuna.com/uk/football/club/chelsea/feed.xml",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Sport v Ukr",
+          "url": "https://t.me/sportvukr",
+          "type": "TELEGRAM",
+          "isEnabled": true
         }
       ]
     },
@@ -71,6 +83,18 @@
         {
           "name": "dev.ua",
           "url": "https://dev.ua/rss",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "iTechua",
+          "url": "https://itechua.com/feed",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Highload",
+          "url": "https://highload.tech/uk/feed/",
           "type": "RSS",
           "isEnabled": true
         }
@@ -111,6 +135,18 @@
           "url": "https://www.rbc.ua/static/rss/ukrnet.politics.ukr.rss.xml",
           "type": "RSS",
           "isEnabled": true
+        },
+        {
+          "name": "Ukrinform",
+          "url": "https://www.ukrinform.ua/rss/block-lastnews",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Fakty ICTV",
+          "url": "https://fakty.com.ua/ua/feed/",
+          "type": "RSS",
+          "isEnabled": true
         }
       ]
     },
@@ -149,6 +185,18 @@
           "url": "https://t.me/delo_ua",
           "type": "TELEGRAM",
           "isEnabled": true
+        },
+        {
+          "name": "Sud.ua",
+          "url": "https://sud.ua/rss/rss_news_uk.xml",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "PSM7",
+          "url": "https://psm7.com/uk/feed",
+          "type": "RSS",
+          "isEnabled": true
         }
       ]
     },
@@ -185,6 +233,18 @@
         {
           "name": "AutoCentre",
           "url": "https://www.autocentre.ua/rss",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Auto-Consulting",
+          "url": "https://www.autoconsulting.com.ua/rss.html",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "AvtoMir",
+          "url": "https://www.avtomir.ua/feed/",
           "type": "RSS",
           "isEnabled": true
         }
@@ -225,6 +285,18 @@
           "url": "https://cikavosti.com/feed/",
           "type": "RSS",
           "isEnabled": true
+        },
+        {
+          "name": "UST Magazine",
+          "url": "https://t.me/ustmagazine",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "Expert",
+          "url": "https://expert.com.ua/feed",
+          "type": "RSS",
+          "isEnabled": true
         }
       ]
     },
@@ -263,6 +335,18 @@
           "url": "https://chytomo.com/feed/",
           "type": "RSS",
           "isEnabled": true
+        },
+        {
+          "name": "Suspilne Culture",
+          "url": "https://t.me/suspilne_culture",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "LiRoom",
+          "url": "https://t.me/liroom",
+          "type": "TELEGRAM",
+          "isEnabled": true
         }
       ]
     },
@@ -300,6 +384,112 @@
           "name": "Gameverse",
           "url": "https://gameverse.com.ua/rss",
           "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Alex Game Pass",
+          "url": "https://t.me/alex_gamepass",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "UNIAN Games",
+          "url": "https://t.me/uniangames",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        }
+      ]
+    },
+    {
+      "id": "weather",
+      "sortOrder": 90,
+      "title": {
+        "uk": "Погода",
+        "en": "Weather"
+      },
+      "name": "Погода",
+      "nameUk": "Погода",
+      "nameEn": "Weather",
+      "isEnabled": true,
+      "isDeletable": true,
+      "anchors": [
+        "Синоптики попередили про дощ, сніг, спеку, мороз або сильний вітер.",
+        "У регіоні оголосили штормове попередження чи небезпечні погодні явища.",
+        "Метеорологи оновили прогноз погоди для міста, області або всієї України."
+      ],
+      "sources": [
+        {
+          "name": "Pohoda Natalka",
+          "url": "https://t.me/PohodaNatalka",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "HMC Odesa",
+          "url": "https://t.me/HMC_Odesa",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "Lviv RCHM",
+          "url": "https://t.me/lviv_rchm",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "UHMC",
+          "url": "https://t.me/uhmc2022",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        }
+      ]
+    },
+    {
+      "id": "health",
+      "sortOrder": 100,
+      "title": {
+        "uk": "Здоров'я",
+        "en": "Health"
+      },
+      "name": "Здоров'я",
+      "nameUk": "Здоров'я",
+      "nameEn": "Health",
+      "isEnabled": true,
+      "isDeletable": true,
+      "anchors": [
+        "Лікарі пояснили симптоми, профілактику, лікування або нові медичні поради.",
+        "МОЗ чи медичні установи повідомили про вакцинацію, епідемії або реформу.",
+        "Фармацевтичний ринок оновив правила, ліки, дослідження або доступність препаратів."
+      ],
+      "sources": [
+        {
+          "name": "50plus",
+          "url": "https://50plus.com.ua/feed/",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "The Pharma Media",
+          "url": "https://thepharma.media/rss/news.xml",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Medinfo ZP",
+          "url": "https://medinfo.zp.ua/feed/",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Zelena Gazeta",
+          "url": "https://www.zelenagazeta.com/feed/",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "eHealth Ukraine",
+          "url": "https://t.me/ehealthukraine",
+          "type": "TELEGRAM",
           "isEnabled": true
         }
       ]
