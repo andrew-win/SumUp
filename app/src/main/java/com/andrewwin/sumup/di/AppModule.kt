@@ -36,6 +36,7 @@ import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
 import com.andrewwin.sumup.domain.ai.AiRequestSender
 import com.andrewwin.sumup.domain.ai.CloudEmbeddingProvider
 import com.andrewwin.sumup.domain.news.ArticleContentCleaner
+import com.andrewwin.sumup.domain.news.ArticleTitleFormatter
 import com.andrewwin.sumup.domain.ai.LocalEmbeddingProvider
 import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.news.DedupRuntimeCoordinator
@@ -51,7 +52,6 @@ import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.summary.ExtractiveSummaryTextFormatter
-import com.andrewwin.sumup.domain.news.ArticleDisplayTextFormatter
 import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
 import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCaseImpl
@@ -157,7 +157,8 @@ object AppModule {
         sourceDao: SourceDao,
         userPreferencesDao: UserPreferencesDao,
         remoteArticleDataSource: RemoteArticleDataSource,
-        cleanArticleTextUseCase: ArticleContentCleaner
+        cleanArticleTextUseCase: ArticleContentCleaner,
+        articleTitleFormatter: ArticleTitleFormatter
     ): ArticleRepository = ArticleRepositoryImpl(
         articleDao,
         articleSimilarityDao,
@@ -165,7 +166,8 @@ object AppModule {
         sourceDao,
         userPreferencesDao,
         remoteArticleDataSource,
-        cleanArticleTextUseCase
+        cleanArticleTextUseCase,
+        articleTitleFormatter
     )
 
     @Provides
@@ -288,10 +290,6 @@ object AppModule {
         userPreferencesRepository = userPreferencesRepository,
         dispatcherProvider = dispatcherProvider
     )
-
-    @Provides
-    @Singleton
-    fun provideArticleDisplayTextFormatter(): ArticleDisplayTextFormatter = ArticleDisplayTextFormatter()
 
     @Provides
     @Singleton

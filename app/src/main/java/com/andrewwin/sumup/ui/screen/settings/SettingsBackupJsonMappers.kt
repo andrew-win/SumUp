@@ -39,6 +39,23 @@ private fun parseDeduplicationStrategyOrDefault(
     }
 }
 
+private fun JSONObject.optArticleAutoCleanupHours(defaultValue: Int): Int {
+    if (has("articleAutoCleanupHours")) {
+        return optInt("articleAutoCleanupHours", defaultValue).coerceIn(
+            UserPreferences.MIN_ARTICLE_AUTO_CLEANUP_HOURS,
+            UserPreferences.MAX_ARTICLE_AUTO_CLEANUP_HOURS
+        )
+    }
+    if (has("articleAutoCleanupDays")) {
+        val legacyDays = optInt("articleAutoCleanupDays", 1)
+        return (legacyDays * 24).coerceIn(
+            UserPreferences.MIN_ARTICLE_AUTO_CLEANUP_HOURS,
+            UserPreferences.MAX_ARTICLE_AUTO_CLEANUP_HOURS
+        )
+    }
+    return defaultValue
+}
+
 internal fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
     put("id", id)
     put("aiStrategy", aiStrategy.name)
@@ -82,7 +99,7 @@ internal fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
     put("isFeedDescriptionEnabled", isFeedDescriptionEnabled)
     put("isFeedSummaryUseFullTextEnabled", isFeedSummaryUseFullTextEnabled)
     put("isRecommendationsEnabled", isRecommendationsEnabled)
-    put("articleAutoCleanupDays", articleAutoCleanupDays)
+    put("articleAutoCleanupHours", articleAutoCleanupHours)
     put("appThemeMode", appThemeMode.name)
     put("appLanguage", appLanguage.name)
     put("summaryLanguage", summaryLanguage.name)
@@ -197,7 +214,7 @@ internal fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
             defaults.isFeedSummaryUseFullTextEnabled
         ),
         isRecommendationsEnabled = optBoolean("isRecommendationsEnabled", defaults.isRecommendationsEnabled),
-        articleAutoCleanupDays = optInt("articleAutoCleanupDays", defaults.articleAutoCleanupDays),
+        articleAutoCleanupHours = optArticleAutoCleanupHours(defaults.articleAutoCleanupHours),
         appThemeMode = runCatching { AppThemeMode.valueOf(optString("appThemeMode", defaults.appThemeMode.name)) }
             .getOrDefault(defaults.appThemeMode),
         appLanguage = runCatching { AppLanguage.valueOf(optString("appLanguage", defaults.appLanguage.name)) }

@@ -496,9 +496,16 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun updateArticleAutoCleanupDays(days: Int) {
+    fun updateArticleAutoCleanupHours(hours: Int) {
         viewModelScope.launch {
-            updatePreferences { it.copy(articleAutoCleanupDays = days.coerceIn(1, 10)) }
+            updatePreferences {
+                it.copy(
+                    articleAutoCleanupHours = hours.coerceIn(
+                        UserPreferences.MIN_ARTICLE_AUTO_CLEANUP_HOURS,
+                        UserPreferences.MAX_ARTICLE_AUTO_CLEANUP_HOURS
+                    )
+                )
+            }
         }
     }
 

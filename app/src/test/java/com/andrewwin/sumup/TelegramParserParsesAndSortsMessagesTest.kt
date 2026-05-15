@@ -31,5 +31,5 @@ class TelegramParserParsesAndSortsMessagesTest {
         assertEquals("https://t.me/s/channel/1", articles[1].url)
         assertTrue(articles[0].publishedAt >= articles[1].publishedAt)
     }
-}
 
+}

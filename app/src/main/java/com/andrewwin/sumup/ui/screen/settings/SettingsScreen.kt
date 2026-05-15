@@ -660,8 +660,8 @@ internal fun SettingsScreen(
                         MemorySettingsSection(
                             showTitle = false,
                             isHelpMode = isHelpMode,
-                            articleAutoCleanupDays = userPreferences.articleAutoCleanupDays,
-                            onArticleAutoCleanupDaysChange = viewModel::updateArticleAutoCleanupDays,
+                            articleAutoCleanupHours = userPreferences.articleAutoCleanupHours,
+                            onArticleAutoCleanupHoursChange = viewModel::updateArticleAutoCleanupHours,
                             onClearArticles = { showClearArticlesDialog = true },
                             onClearEmbeddings = { showClearEmbeddingsDialog = true },
                             onClearScheduledSummaries = { showClearScheduledSummariesDialog = true },

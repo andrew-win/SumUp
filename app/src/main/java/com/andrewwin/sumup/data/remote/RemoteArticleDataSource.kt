@@ -53,10 +53,13 @@ class RemoteArticleDataSource @Inject constructor(
 
     private val youtubeTranscriptApi = TranscriptApiFactory.createWithClient(OkHttpYoutubeClient(okHttpClient))
 
-    suspend fun fetchArticles(source: Source): List<Article> = withContext(Dispatchers.IO) {
+    suspend fun fetchArticles(
+        source: Source,
+        oldestAllowedPublishedAt: Long? = null
+    ): List<Article> = withContext(Dispatchers.IO) {
         when (source.type) {
             SourceType.RSS -> fetchRssArticles(source.id, source.url)
-            SourceType.TELEGRAM -> fetchTelegramArticles(source.id, source.url)
+            SourceType.TELEGRAM -> fetchTelegramArticles(source.id, source.url, oldestAllowedPublishedAt)
             SourceType.YOUTUBE -> fetchYouTubeArticles(source.id, source.url)
         }
     }
@@ -111,18 +114,85 @@ class RemoteArticleDataSource @Inject constructor(
         }
     }
 
-    private fun fetchTelegramArticles(sourceId: Long, url: String): List<Article> {
+    private fun fetchTelegramArticles(
+        sourceId: Long,
+        url: String,
+        oldestAllowedPublishedAt: Long?
+    ): List<Article> {
         return try {
             val telegramUrl = buildTelegramChannelPreviewUrl(url)
-            val request = Request.Builder().url(telegramUrl).build()
-            okHttpClient.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val html = response.body?.string()
-                    if (html != null) return telegramParser.parse(html, sourceId)
-                }
+            val articlesByKey = linkedMapOf<String, Article>()
+            var pageArticles = fetchTelegramPageArticles(telegramUrl, sourceId)
+            addTelegramArticles(articlesByKey, pageArticles)
+
+            var oldestMessageId = findOldestTelegramMessageId(pageArticles)
+            var pageCount = 0
+            while (
+                oldestAllowedPublishedAt != null &&
+                shouldFetchOlderTelegramPage(pageArticles, oldestAllowedPublishedAt) &&
+                oldestMessageId != null &&
+                pageCount < TELEGRAM_MAX_EXTRA_PAGES
+            ) {
+                val nextUrl = buildTelegramBeforeUrl(telegramUrl, oldestMessageId)
+                pageArticles = fetchTelegramPageArticles(nextUrl, sourceId)
+                val previousSize = articlesByKey.size
+                addTelegramArticles(articlesByKey, pageArticles)
+                if (articlesByKey.size == previousSize) break
+                oldestMessageId = findOldestTelegramMessageId(pageArticles)
+                pageCount++
             }
-            emptyList()
+
+            articlesByKey.values.sortedByDescending { it.publishedAt }
         } catch (e: Exception) { emptyList() }
+    }
+
+    private fun fetchTelegramPageArticles(url: String, sourceId: Long): List<Article> {
+        val request = Request.Builder().url(url).build()
+        okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return emptyList()
+            val html = response.body?.string() ?: return emptyList()
+            return telegramParser.parse(html, sourceId)
+        }
+    }
+
+    private fun addTelegramArticles(
+        articlesByKey: MutableMap<String, Article>,
+        articles: List<Article>
+    ) {
+        articles.forEach { article ->
+            val key = article.stableArticleKey.ifBlank { article.url }
+            if (key.isNotBlank()) {
+                articlesByKey[key] = article
+            }
+        }
+    }
+
+    private fun shouldFetchOlderTelegramPage(
+        articles: List<Article>,
+        oldestAllowedPublishedAt: Long
+    ): Boolean {
+        val oldestPublishedAt = articles.minOfOrNull { it.publishedAt } ?: return false
+        return oldestPublishedAt > oldestAllowedPublishedAt
+    }
+
+    private fun findOldestTelegramMessageId(articles: List<Article>): Long? {
+        return articles
+            .mapNotNull { extractTelegramMessageId(it.url) }
+            .minOrNull()
+    }
+
+    private fun extractTelegramMessageId(url: String): Long? {
+        return url
+            .substringBefore("?")
+            .trimEnd('/')
+            .substringAfterLast("/")
+            .toLongOrNull()
+            ?.takeIf { it > 0L }
+    }
+
+    private fun buildTelegramBeforeUrl(baseUrl: String, beforeMessageId: Long): String {
+        val cleanBaseUrl = baseUrl.substringBefore("?").trimEnd('/')
+        return "$cleanBaseUrl?before=$beforeMessageId"
     }
 
     private fun buildTelegramChannelPreviewUrl(url: String): String {
@@ -278,6 +348,7 @@ class RemoteArticleDataSource @Inject constructor(
         private const val YT_BLOCK_GAP_SECONDS = 2.2
         private const val YT_BLOCK_MAX_CHARS = 260
         private const val DISPLAY_NAME_TIMEOUT_SECONDS = 7L
+        private const val TELEGRAM_MAX_EXTRA_PAGES = 5
     }
 }
 

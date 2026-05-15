@@ -842,11 +842,7 @@ class GetFeedArticlesUseCase @Inject constructor(
     private fun selectRepresentativeArticleForCluster(
         articles: List<com.andrewwin.sumup.data.local.entities.Article>
     ): com.andrewwin.sumup.data.local.entities.Article {
-        return articles.maxWith(
-            compareBy<com.andrewwin.sumup.data.local.entities.Article> { it.importanceScore }
-                .thenBy { it.publishedAt }
-                .thenBy { it.title.trim().length }
-        )
+        return articles.minBy { it.publishedAt }
     }
 
     private fun buildSimilaritiesFromClusters(clusters: List<ArticleCluster>): List<ArticleSimilarity> {

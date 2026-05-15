@@ -77,7 +77,7 @@ class TelegramParser {
             val cleanedLines = dropLeadingQuotedLines(lines)
             val cleanedText = cleanedLines.joinToString("\n").trim()
             val titleSource = if (cleanedLines.isNotEmpty()) cleanedLines else lines
-            val title = titleSource.firstOrNull()?.take(100) ?: ""
+            val title = titleSource.firstOrNull()?.trim()?.take(MAX_TITLE_LENGTH).orEmpty()
 
             val publishedAt = parseDate(parts.dateStr)
                 ?: parseEpoch(parts.epochStr)
@@ -285,6 +285,7 @@ private fun String.removeTelegramTitleSuffix(): String =
     replace(Regex("\\s+[–-]\\s*Telegram\\s*$", RegexOption.IGNORE_CASE), "").trim()
 
 private const val TELEGRAM_DEFAULT_TITLE = "Telegram Messenger"
+private const val MAX_TITLE_LENGTH = 150
 
 data class TelegramParseDebug(
     val key: String,

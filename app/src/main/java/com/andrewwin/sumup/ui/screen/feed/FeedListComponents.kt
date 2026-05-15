@@ -422,7 +422,6 @@ fun ArticleItem(
                         fontWeight = FontWeight.SemiBold,
                         lineHeight = 22.sp
                     ),
-                    maxLines = 5,
                     overflow = TextOverflow.Ellipsis
                 )
             }
@@ -452,7 +451,6 @@ fun ArticleItem(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 20.sp,
-                maxLines = 4,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -603,7 +601,6 @@ fun DuplicateItemCard(
                     fontWeight = FontWeight.Medium,
                     lineHeight = 19.sp
                 ),
-                maxLines = 4,
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.weight(1f))

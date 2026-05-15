@@ -6,14 +6,11 @@ import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.domain.news.ArticleCluster
-import com.andrewwin.sumup.domain.news.ArticleDisplayTextFormatter
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import javax.inject.Inject
 
-class FeedUiModelMapper @Inject constructor(
-    private val formatArticleHeadlineUseCase: ArticleDisplayTextFormatter
-) {
+class FeedUiModelMapper @Inject constructor() {
     fun map(
         clusters: List<ArticleCluster>,
         groupsWithSources: List<GroupWithSources>,
@@ -59,13 +56,11 @@ class FeedUiModelMapper @Inject constructor(
         val group = source?.groupId?.let { groups[it] }
         val sourceType = source?.type ?: SourceType.RSS
 
-        val formatted = formatArticleHeadlineUseCase(article, sourceType)
-
         return ArticleUiModel(
             article = article,
             sourceType = sourceType,
-            displayTitle = formatted.displayTitle,
-            displayContent = formatDescription(formatted.displayContent, ellipsis),
+            displayTitle = article.title.trim(),
+            displayContent = formatDescription(article.content.trim(), ellipsis),
             sourceName = source?.name,
             groupName = if (includeGroup) group?.name else null,
             savedAt = favoriteSavedAt[article.id]

@@ -171,12 +171,7 @@ scheduled</string>
     <string name="settings_clear_embeddings">Clear embeddings</string>
     <string name="settings_clear_scheduled_summaries">Clear scheduled summaries</string>
     <string name="settings_article_auto_cleanup_interval">Article auto cleanup</string>
-    <string name="settings_article_auto_cleanup_1_day">1 day</string>
-    <string name="settings_article_auto_cleanup_3_days">3 days</string>
-    <string name="settings_article_auto_cleanup_5_days">5 days</string>
-    <string name="settings_article_auto_cleanup_7_days">7 days</string>
-    <string name="settings_article_auto_cleanup_10_days">10 days</string>
-    <string name="settings_article_auto_cleanup_30_days">30 days</string>
+    <string name="settings_article_auto_cleanup_interval_hours">Article auto cleanup: %1$d h</string>
     <string name="settings_reset_settings">Reset settings</string>
     <string name="settings_clear_articles_confirm">Delete all feed articles? Sources will stay.</string>
     <string name="settings_clear_embeddings_confirm">Delete all embeddings? This will also clear similarity cache.</string>

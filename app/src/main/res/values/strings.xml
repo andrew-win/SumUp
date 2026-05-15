@@ -171,12 +171,7 @@
     <string name="settings_clear_embeddings">Очистити ембедінги</string>
     <string name="settings_clear_scheduled_summaries">Очистити заплановані зведення</string>
     <string name="settings_article_auto_cleanup_interval">Автоочистка статей</string>
-    <string name="settings_article_auto_cleanup_1_day">1 день</string>
-    <string name="settings_article_auto_cleanup_3_days">3 дні</string>
-    <string name="settings_article_auto_cleanup_5_days">5 днів</string>
-    <string name="settings_article_auto_cleanup_7_days">7 днів</string>
-    <string name="settings_article_auto_cleanup_10_days">10 днів</string>
-    <string name="settings_article_auto_cleanup_30_days">30 днів</string>
+    <string name="settings_article_auto_cleanup_interval_hours">Автоочистка статей: %1$d год</string>
     <string name="settings_reset_settings">Скинути налаштування</string>
     <string name="settings_clear_articles_confirm">Видалити всі статті зі стрічки? Це не видалить джерела.</string>
     <string name="settings_clear_embeddings_confirm">Видалити всі ембедінги? Це також очистить кеш схожостей.</string>

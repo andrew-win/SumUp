@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.data.local.entities
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -66,11 +67,18 @@ data class UserPreferences(
     val isFeedDescriptionEnabled: Boolean = false,
     val isFeedSummaryUseFullTextEnabled: Boolean = false,
     val isRecommendationsEnabled: Boolean = false,
-    val articleAutoCleanupDays: Int = 3,
+    @ColumnInfo(name = "articleAutoCleanupDays")
+    val articleAutoCleanupHours: Int = DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS,
     val appThemeMode: AppThemeMode = AppThemeMode.SYSTEM,
     val appLanguage: AppLanguage = AppLanguage.UK,
     val summaryLanguage: SummaryLanguage = SummaryLanguage.UK
-)
+) {
+    companion object {
+        const val MIN_ARTICLE_AUTO_CLEANUP_HOURS = 6
+        const val MAX_ARTICLE_AUTO_CLEANUP_HOURS = 24
+        const val DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS = 16
+    }
+}
 
 
 

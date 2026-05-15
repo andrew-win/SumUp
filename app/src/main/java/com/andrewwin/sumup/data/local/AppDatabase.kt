@@ -34,7 +34,7 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
         Summary::class,
         UserPreferences::class
     ],
-    version = 59,
+    version = 61,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -86,7 +86,9 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_55_56,
                         MIGRATION_56_57,
                         MIGRATION_57_58,
-                        MIGRATION_58_59
+                        MIGRATION_58_59,
+                        MIGRATION_59_60,
+                        MIGRATION_60_61
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -99,7 +101,7 @@ abstract class AppDatabase : RoomDatabase() {
                             )
                             db.execSQL(
                                 "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsSingleArticle, aiMaxCharsNewsCluster, aiMaxCharsSingleFeedArticle, aiMaxCharsFeedCluster, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
-                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, 0, 1, 'LOCAL', 0.860, 0.84, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 4, 0, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, 3, 'SYSTEM', 'UK', 'UK')"
+                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, 0, 1, 'LOCAL', 0.860, 0.84, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 4, 0, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}, 'SYSTEM', 'UK', 'UK')"
                             )
                         }
                     })
@@ -144,7 +146,7 @@ abstract class AppDatabase : RoomDatabase() {
         private val MIGRATION_35_36 = object : Migration(35, 36) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
-                    "ALTER TABLE user_preferences ADD COLUMN articleAutoCleanupDays INTEGER NOT NULL DEFAULT 3"
+                    "ALTER TABLE user_preferences ADD COLUMN articleAutoCleanupDays INTEGER NOT NULL DEFAULT ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}"
                 )
             }
         }
@@ -802,6 +804,29 @@ abstract class AppDatabase : RoomDatabase() {
                     UPDATE source_groups
                     SET origin = '${SourceGroupOrigin.SYSTEM}'
                     WHERE id = 1 AND isDeletable = 0
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_59_60 = object : Migration(59, 60) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    UPDATE user_preferences
+                    SET articleAutoCleanupDays = 1
+                    WHERE articleAutoCleanupDays = 3
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_60_61 = object : Migration(60, 61) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    UPDATE user_preferences
+                    SET articleAutoCleanupDays = ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}
                     """.trimIndent()
                 )
             }

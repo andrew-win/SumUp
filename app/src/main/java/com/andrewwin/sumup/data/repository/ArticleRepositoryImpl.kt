@@ -11,9 +11,11 @@ import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.data.local.entities.SavedArticle
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.remote.ArticleStableKeyFactory
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.news.ArticleContentCleaner
+import com.andrewwin.sumup.domain.news.ArticleTitleFormatter
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -31,7 +33,8 @@ class ArticleRepositoryImpl @Inject constructor(
     private val sourceDao: SourceDao,
     private val userPreferencesDao: UserPreferencesDao,
     private val remoteArticleDataSource: RemoteArticleDataSource,
-    private val cleanArticleTextUseCase: ArticleContentCleaner
+    private val cleanArticleTextUseCase: ArticleContentCleaner,
+    private val articleTitleFormatter: ArticleTitleFormatter
 ) : ArticleRepository {
 
     override val enabledArticles: Flow<List<Article>> =
@@ -50,11 +53,17 @@ class ArticleRepositoryImpl @Inject constructor(
 
     override suspend fun refreshArticles() = withContext(Dispatchers.IO) {
         val groups = sourceDao.getGroupsWithSources().first()
+        val cleanupHours = userPreferencesDao.getUserPreferences().first()?.articleAutoCleanupHours
+            ?: UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS
+        val cutoffTimestamp = System.currentTimeMillis() - (cleanupHours.toLong() * 60 * 60 * 1000L)
         for (groupWithSources in groups) {
             if (groupWithSources.group.isEnabled) {
                 for (source in groupWithSources.sources) {
                     if (source.isEnabled) {
-                        val fetchedArticles = remoteArticleDataSource.fetchArticles(source)
+                        val fetchedArticles = remoteArticleDataSource.fetchArticles(
+                            source = source,
+                            oldestAllowedPublishedAt = cutoffTimestamp
+                        )
 
                         if (fetchedArticles.isNotEmpty()) {
                             val contentsForFooter = fetchedArticles.take(10).map { it.content }
@@ -68,7 +77,8 @@ class ArticleRepositoryImpl @Inject constructor(
                             val cleanedArticles = mutableListOf<Article>()
                             for (article in fetchedArticles) {
                                 val cleanedContent = cleanArticleTextUseCase.clean(article.content, source.type, currentFooter)
-                                cleanedArticles.add(article.copy(content = cleanedContent))
+                                val articleWithCleanContent = article.copy(content = cleanedContent)
+                                cleanedArticles.add(articleTitleFormatter.format(articleWithCleanContent, source.type))
                             }
 
                             articleDao.insertArticles(cleanedArticles)
@@ -101,8 +111,6 @@ class ArticleRepositoryImpl @Inject constructor(
                 }
             }
         }
-        val cleanupDays = userPreferencesDao.getUserPreferences().first()?.articleAutoCleanupDays ?: 3
-        val cutoffTimestamp = System.currentTimeMillis() - (cleanupDays.toLong() * 24 * 60 * 60 * 1000L)
         val newerCount = articleDao.countArticlesNewerThan(cutoffTimestamp)
         if (newerCount > 0) {
             articleDao.deleteOldArticles(cutoffTimestamp)
@@ -552,7 +560,3 @@ class ArticleRepositoryImpl @Inject constructor(
     private fun uiArticleIdToSavedId(uiId: Long): Long? =
         if (uiId < 0L) (-uiId) - 1L else null
 }
-
-
-
-
