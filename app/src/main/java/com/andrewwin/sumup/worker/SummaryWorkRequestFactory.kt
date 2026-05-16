@@ -16,6 +16,7 @@ object SummaryWorkRequestFactory {
 
         return OneTimeWorkRequestBuilder<SummaryWorker>()
             .setConstraints(constraints)
+            .addTag(WorkerContracts.SCHEDULED_SUMMARY_WORK_TAG)
             .setInputData(
                 workDataOf(
                     WorkerContracts.KEY_SCHEDULED_SUMMARY_WORK_KIND to kind.name,

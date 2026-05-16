@@ -66,7 +66,7 @@ class SummaryViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
 
     val workInfo: StateFlow<List<WorkInfo>> =
-        workManager.getWorkInfosForUniqueWorkFlow(WorkerContracts.PREPARE_SCHEDULED_SUMMARY_WORK_NAME)
+        workManager.getWorkInfosByTagFlow(WorkerContracts.SCHEDULED_SUMMARY_WORK_TAG)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _isGenerating = MutableStateFlow(false)

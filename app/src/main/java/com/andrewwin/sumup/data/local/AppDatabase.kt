@@ -37,7 +37,7 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
         Summary::class,
         UserPreferences::class
     ],
-    version = 63,
+    version = 64,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -94,7 +94,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_59_60,
                         MIGRATION_60_61,
                         MIGRATION_61_62,
-                        MIGRATION_62_63
+                        MIGRATION_62_63,
+                        MIGRATION_63_64
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -106,8 +107,8 @@ abstract class AppDatabase : RoomDatabase() {
                                 "INSERT OR IGNORE INTO source_groups (id, name, isEnabled, isDeletable, origin, subscriptionId) VALUES (1, 'Без категорії', 1, 0, '${SourceGroupOrigin.SYSTEM}', NULL)"
                             )
                             db.execSQL(
-                                "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsSingleArticle, aiMaxCharsNewsCluster, aiMaxCharsSingleFeedArticle, aiMaxCharsFeedCluster, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
-                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, 0, 1, 'LOCAL', 0.860, 0.84, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 6, 0, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}, 'SYSTEM', 'UK', 'UK')"
+                                "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, scheduledSummaryTimes, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsSingleArticle, aiMaxCharsNewsCluster, aiMaxCharsSingleFeedArticle, aiMaxCharsFeedCluster, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
+                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, '08:00', 0, 1, 'LOCAL', 0.860, 0.84, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 6, 0, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}, 'SYSTEM', 'UK', 'UK')"
                             )
                         }
                     })
@@ -861,6 +862,22 @@ abstract class AppDatabase : RoomDatabase() {
                     UPDATE user_preferences
                     SET showInfographicNewsCount = 6
                     WHERE showInfographicNewsCount = 5
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_63_64 = object : Migration(63, 64) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE user_preferences ADD COLUMN scheduledSummaryTimes TEXT NOT NULL DEFAULT '08:00'"
+                )
+                db.execSQL(
+                    """
+                    UPDATE user_preferences
+                    SET scheduledSummaryTimes =
+                        printf('%02d:%02d', scheduledHour, scheduledMinute)
+                    WHERE scheduledSummaryTimes = '08:00'
                     """.trimIndent()
                 )
             }

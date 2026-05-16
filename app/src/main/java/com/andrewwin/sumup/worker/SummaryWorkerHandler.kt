@@ -120,7 +120,7 @@ class SummaryWorkerHandler @Inject constructor(
         val preparedSummary = summaryRepository.getPreparedScheduledSummary(scheduledAt)
         if (preparedSummary == null) {
             summaryScheduler.prepareNow(scheduledAt)
-            summaryScheduler.schedule(prefs.scheduledHour, prefs.scheduledMinute)
+            summaryScheduler.schedule(prefs.scheduledSummaryTimeList)
             return ListenableWorker.Result.success()
         }
 
@@ -138,7 +138,7 @@ class SummaryWorkerHandler @Inject constructor(
             prefs.copy(lastWorkRunTimestamp = System.currentTimeMillis())
         )
         maybeShowScheduledSummaryNotification(prefs)
-        summaryScheduler.schedule(prefs.scheduledHour, prefs.scheduledMinute)
+        summaryScheduler.schedule(prefs.scheduledSummaryTimeList)
         Log.d(SCHEDULED_SUMMARY_LOG_TAG, "deliver_finished scheduledAt=$scheduledAt")
         return ListenableWorker.Result.success()
     }
@@ -192,5 +192,4 @@ class SummaryWorkerHandler @Inject constructor(
         private const val SCHEDULED_SUMMARY_LOG_TAG = "ScheduledSummary"
     }
 }
-
 

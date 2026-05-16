@@ -32,20 +32,21 @@ class ScheduledSummaryRescheduleReceiver : BroadcastReceiver() {
             runCatching {
                 val prefs = userPreferencesRepository.preferences.first()
                 if (prefs.isScheduledSummaryEnabled) {
-                    if (
-                        timeCalculator.wasTodayTriggerMissed(
-                            prefs.scheduledHour,
-                            prefs.scheduledMinute,
-                            prefs.lastWorkRunTimestamp
-                        )
-                    ) {
-                        val scheduledAt = timeCalculator.triggerTodayAtMillis(
-                            prefs.scheduledHour,
-                            prefs.scheduledMinute
-                        )
-                        summaryScheduler.deliverNow(scheduledAt)
+                    val scheduledTimes = prefs.scheduledSummaryTimeList
+                    scheduledTimes.forEach { time ->
+                        if (
+                            timeCalculator.wasTodayTriggerMissed(
+                                time.hour,
+                                time.minute,
+                                prefs.lastWorkRunTimestamp
+                            )
+                        ) {
+                            summaryScheduler.deliverNow(
+                                timeCalculator.triggerTodayAtMillis(time.hour, time.minute)
+                            )
+                        }
                     }
-                    summaryScheduler.schedule(prefs.scheduledHour, prefs.scheduledMinute)
+                    summaryScheduler.schedule(scheduledTimes)
                 } else {
                     summaryScheduler.cancel()
                 }

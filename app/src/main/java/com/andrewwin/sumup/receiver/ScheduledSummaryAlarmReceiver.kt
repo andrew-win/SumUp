@@ -19,13 +19,13 @@ class ScheduledSummaryAlarmReceiver : BroadcastReceiver() {
         val scheduledAt = intent.getLongExtra(WorkerContracts.KEY_SCHEDULED_SUMMARY_AT, 0L)
             .takeIf { it > 0L }
             ?: System.currentTimeMillis()
-        val workName = when (kind) {
+        val baseWorkName = when (kind) {
             ScheduledSummaryWorkKind.PREPARE -> WorkerContracts.PREPARE_SCHEDULED_SUMMARY_WORK_NAME
             ScheduledSummaryWorkKind.DELIVER -> WorkerContracts.DELIVER_SCHEDULED_SUMMARY_WORK_NAME
         }
 
         WorkManager.getInstance(context).enqueueUniqueWork(
-            workName,
+            WorkerContracts.scheduledSummaryWorkName(baseWorkName, scheduledAt),
             ExistingWorkPolicy.REPLACE,
             SummaryWorkRequestFactory.create(kind, scheduledAt)
         )

@@ -293,8 +293,7 @@ class CloudSyncWorkerHandler @Inject constructor(
             AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
             scheduleSummaryUseCase(
                 importedPrefs.isScheduledSummaryEnabled,
-                importedPrefs.scheduledHour,
-                importedPrefs.scheduledMinute
+                importedPrefs.scheduledSummaryTimeList
             )
         }
 

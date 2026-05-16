@@ -8,11 +8,14 @@ import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.AppThemeMode
 import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
 import com.andrewwin.sumup.data.local.entities.SavedArticle
+import com.andrewwin.sumup.data.local.entities.ScheduledSummaryTime
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroupOrigin
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 import com.andrewwin.sumup.data.local.entities.UserPreferences
+import com.andrewwin.sumup.data.local.entities.toScheduledSummaryTimes
+import com.andrewwin.sumup.data.local.entities.toScheduledSummaryTimesStorageValue
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
 import com.andrewwin.sumup.domain.repository.ImportedSource
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
@@ -56,6 +59,21 @@ private fun JSONObject.optArticleAutoCleanupHours(defaultValue: Int): Int {
     return defaultValue
 }
 
+private fun JSONObject.optScheduledSummaryTimes(defaults: UserPreferences): String {
+    if (has("scheduledSummaryTimes")) {
+        return optString("scheduledSummaryTimes", defaults.scheduledSummaryTimes)
+            .toScheduledSummaryTimes()
+            .toScheduledSummaryTimesStorageValue()
+    }
+    val legacyTime = ScheduledSummaryTime(
+        hour = optInt("scheduledHour", defaults.scheduledHour),
+        minute = optInt("scheduledMinute", defaults.scheduledMinute)
+    )
+    return listOf(legacyTime).toScheduledSummaryTimesStorageValue().ifBlank {
+        defaults.scheduledSummaryTimes
+    }
+}
+
 internal fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
     put("id", id)
     put("aiStrategy", aiStrategy.name)
@@ -63,6 +81,7 @@ internal fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
     put("isScheduledSummaryPushEnabled", isScheduledSummaryPushEnabled)
     put("scheduledHour", scheduledHour)
     put("scheduledMinute", scheduledMinute)
+    put("scheduledSummaryTimes", scheduledSummaryTimeList.toScheduledSummaryTimesStorageValue())
     put("lastWorkRunTimestamp", lastWorkRunTimestamp)
     put("isDeduplicationEnabled", isDeduplicationEnabled)
     put("deduplicationStrategy", deduplicationStrategy.name)
@@ -118,6 +137,7 @@ internal fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
         ),
         scheduledHour = optInt("scheduledHour", defaults.scheduledHour),
         scheduledMinute = optInt("scheduledMinute", defaults.scheduledMinute),
+        scheduledSummaryTimes = optScheduledSummaryTimes(defaults),
         lastWorkRunTimestamp = optLong("lastWorkRunTimestamp", defaults.lastWorkRunTimestamp),
         isDeduplicationEnabled = optBoolean("isDeduplicationEnabled", defaults.isDeduplicationEnabled),
         deduplicationStrategy = parseDeduplicationStrategyOrDefault(

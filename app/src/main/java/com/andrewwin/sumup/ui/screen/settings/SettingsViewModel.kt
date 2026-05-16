@@ -28,9 +28,11 @@ import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.AppLanguage
 import com.andrewwin.sumup.data.local.entities.AppThemeMode
 import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
+import com.andrewwin.sumup.data.local.entities.ScheduledSummaryTime
 import com.andrewwin.sumup.data.local.entities.SummaryLanguage
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.local.entities.normalizedStableKey
+import com.andrewwin.sumup.data.local.entities.normalizedScheduledSummaryTimes
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
@@ -357,9 +359,38 @@ class SettingsViewModel @Inject constructor(
         if (isNew) aiModelConfigRepository.addConfig(normalizedConfig) else aiModelConfigRepository.updateConfig(normalizedConfig)
     }
 
-    fun updateScheduledSummary(enabled: Boolean, hour: Int, minute: Int) {
+    fun updateScheduledSummary(enabled: Boolean, times: List<ScheduledSummaryTime>) {
         viewModelScope.launch {
-            scheduleSummaryUseCase(enabled, hour, minute)
+            scheduleSummaryUseCase(enabled, times)
+        }
+    }
+
+    fun addScheduledSummaryTime(hour: Int, minute: Int) {
+        viewModelScope.launch {
+            val prefs = userPreferences.first()
+            val times = (prefs.scheduledSummaryTimeList + ScheduledSummaryTime(hour, minute))
+                .normalizedScheduledSummaryTimes()
+            scheduleSummaryUseCase(true, times)
+        }
+    }
+
+    fun updateScheduledSummaryTime(index: Int, hour: Int, minute: Int) {
+        viewModelScope.launch {
+            val prefs = userPreferences.first()
+            val times = prefs.scheduledSummaryTimeList.toMutableList()
+            if (index !in times.indices) return@launch
+            times[index] = ScheduledSummaryTime(hour, minute)
+            scheduleSummaryUseCase(true, times.normalizedScheduledSummaryTimes())
+        }
+    }
+
+    fun removeScheduledSummaryTime(index: Int) {
+        viewModelScope.launch {
+            val prefs = userPreferences.first()
+            val times = prefs.scheduledSummaryTimeList.toMutableList()
+            if (index !in times.indices || times.size <= 1) return@launch
+            times.removeAt(index)
+            scheduleSummaryUseCase(prefs.isScheduledSummaryEnabled, times.normalizedScheduledSummaryTimes())
         }
     }
 
@@ -520,8 +551,7 @@ class SettingsViewModel @Inject constructor(
             AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
             scheduleSummaryUseCase(
                 defaults.isScheduledSummaryEnabled,
-                defaults.scheduledHour,
-                defaults.scheduledMinute
+                defaults.scheduledSummaryTimeList
             )
         }
     }
@@ -1006,8 +1036,7 @@ class SettingsViewModel @Inject constructor(
             AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
             scheduleSummaryUseCase(
                 importedPrefs.isScheduledSummaryEnabled,
-                importedPrefs.scheduledHour,
-                importedPrefs.scheduledMinute
+                importedPrefs.scheduledSummaryTimeList
             )
         }
 

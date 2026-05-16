@@ -103,7 +103,7 @@ internal fun SettingsScreen(
     val currentEmbeddingConfig = remember(embeddingConfigs) { embeddingConfigs.firstOrNull { it.isEnabled } }
 
     var showConfigDialog by remember { mutableStateOf<Pair<AiModelConfig?, AiModelType>?>(null) }
-    var showTimePicker by remember { mutableStateOf(false) }
+    var scheduledTimePickerIndex by remember { mutableStateOf<Int?>(null) }
     var summaryPrompt by remember(userPreferences.summaryPrompt) { mutableStateOf(userPreferences.summaryPrompt) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var isSearchFocused by remember { mutableStateOf(false) }
@@ -614,8 +614,7 @@ internal fun SettingsScreen(
                             onScheduledSummaryToggle = {
                                 viewModel.updateScheduledSummary(
                                     it,
-                                    userPreferences.scheduledHour,
-                                    userPreferences.scheduledMinute
+                                    userPreferences.scheduledSummaryTimeList
                                 )
                             },
                             onScheduledPushToggle = { enabled ->
@@ -633,7 +632,9 @@ internal fun SettingsScreen(
                                     viewModel.updateScheduledSummaryPushEnabled(true)
                                 }
                             },
-                            onPickTime = { showTimePicker = true },
+                            onAddTime = { scheduledTimePickerIndex = -1 },
+                            onEditTime = { scheduledTimePickerIndex = it },
+                            onRemoveTime = viewModel::removeScheduledSummaryTime,
                             onHelpRequest = { helpDescription = it }
                         )
                     }
@@ -685,14 +686,20 @@ internal fun SettingsScreen(
             )
         }
 
-        if (showTimePicker) {
+        scheduledTimePickerIndex?.let { pickerIndex ->
+            val editedTime = userPreferences.scheduledSummaryTimeList.getOrNull(pickerIndex)
+                ?: userPreferences.scheduledSummaryTimeList.first()
             SettingsScheduledTimePickerDialog(
-                hour = userPreferences.scheduledHour,
-                minute = userPreferences.scheduledMinute,
-                onDismiss = { showTimePicker = false },
+                hour = editedTime.hour,
+                minute = editedTime.minute,
+                onDismiss = { scheduledTimePickerIndex = null },
                 onConfirm = { h, m ->
-                    viewModel.updateScheduledSummary(true, h, m)
-                    showTimePicker = false
+                    if (pickerIndex >= 0) {
+                        viewModel.updateScheduledSummaryTime(pickerIndex, h, m)
+                    } else {
+                        viewModel.addScheduledSummaryTime(h, m)
+                    }
+                    scheduledTimePickerIndex = null
                 }
             )
         }

@@ -235,10 +235,9 @@ fun SummaryScreen(
                                 previousSummaryAt = lastSummary?.createdAt,
                                 isScheduledEnabled = userPreferences.isScheduledSummaryEnabled,
                                 nextScheduledAt = if (userPreferences.isScheduledSummaryEnabled) {
-                                    getNextScheduledTimeMillis(
-                                        userPreferences.scheduledHour,
-                                        userPreferences.scheduledMinute
-                                    )
+                                    userPreferences.scheduledSummaryTimeList.minOfOrNull {
+                                        getNextScheduledTimeMillis(it.hour, it.minute)
+                                    }
                                 } else null
                             )
                         }

@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,7 +38,9 @@ fun ScheduledSummarySettingsSection(
     onShowInfographicNewsCountCommitted: () -> Unit,
     onScheduledSummaryToggle: (Boolean) -> Unit,
     onScheduledPushToggle: (Boolean) -> Unit,
-    onPickTime: () -> Unit,
+    onAddTime: () -> Unit,
+    onEditTime: (Int) -> Unit,
+    onRemoveTime: (Int) -> Unit,
     onHelpRequest: (String) -> Unit = {}
 ) {
     SettingsSection(
@@ -58,25 +63,32 @@ fun ScheduledSummarySettingsSection(
                 onCheckedChange = onScheduledPushToggle
             )
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = userPreferences.isScheduledSummaryEnabled) { onPickTime() }
-                    .padding(vertical = 8.dp)
-            ) {
-                Icon(Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.size(8.dp))
-                val timeText = String.format(
-                    Locale.getDefault(),
-                    "%02d:%02d",
-                    userPreferences.scheduledHour,
-                    userPreferences.scheduledMinute
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = stringResource(R.string.settings_time_label, timeText),
-                    style = MaterialTheme.typography.bodyLarge
+                    text = stringResource(R.string.settings_times_label),
+                    style = MaterialTheme.typography.titleSmall
                 )
+
+                userPreferences.scheduledSummaryTimeList.forEachIndexed { index, time ->
+                    ScheduledSummaryTimeRow(
+                        timeText = String.format(Locale.getDefault(), "%02d:%02d", time.hour, time.minute),
+                        enabled = userPreferences.isScheduledSummaryEnabled,
+                        canRemove = userPreferences.scheduledSummaryTimeList.size > 1,
+                        onClick = { onEditTime(index) },
+                        onRemove = { onRemoveTime(index) }
+                    )
+                }
+
+                Button(
+                    onClick = onAddTime,
+                    enabled = userPreferences.isScheduledSummaryEnabled,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.extraLarge
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text(stringResource(R.string.settings_add_scheduled_time))
+                }
             }
 
             Text(
@@ -95,6 +107,40 @@ fun ScheduledSummarySettingsSection(
                 onValueChangeFinished = onShowInfographicNewsCountCommitted,
                 valueRange = 1f..10f,
                 steps = 8
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScheduledSummaryTimeRow(
+    timeText: String,
+    enabled: Boolean,
+    canRemove: Boolean,
+    onClick: () -> Unit,
+    onRemove: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 8.dp)
+    ) {
+        Icon(Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.size(8.dp))
+        Text(
+            text = stringResource(R.string.settings_time_label, timeText),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(
+            onClick = onRemove,
+            enabled = enabled && canRemove
+        ) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = stringResource(R.string.settings_remove_scheduled_time)
             )
         }
     }

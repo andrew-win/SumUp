@@ -24,6 +24,44 @@ enum class SummaryLanguage {
     UK, EN
 }
 
+data class ScheduledSummaryTime(
+    val hour: Int,
+    val minute: Int
+) {
+    fun toStorageValue(): String = "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+
+    companion object {
+        val DEFAULT = ScheduledSummaryTime(8, 0)
+
+        fun fromStorageValue(value: String): ScheduledSummaryTime? {
+            val parts = value.trim().split(":")
+            if (parts.size != 2) return null
+            val hour = parts[0].toIntOrNull() ?: return null
+            val minute = parts[1].toIntOrNull() ?: return null
+            return ScheduledSummaryTime(hour, minute).takeIf { it.isValid() }
+        }
+    }
+}
+
+fun ScheduledSummaryTime.isValid(): Boolean = hour in 0..23 && minute in 0..59
+
+fun List<ScheduledSummaryTime>.normalizedScheduledSummaryTimes(): List<ScheduledSummaryTime> =
+    asSequence()
+        .filter { it.isValid() }
+        .distinctBy { it.hour * 60 + it.minute }
+        .sortedWith(compareBy<ScheduledSummaryTime> { it.hour }.thenBy { it.minute })
+        .toList()
+
+fun List<ScheduledSummaryTime>.toScheduledSummaryTimesStorageValue(): String =
+    normalizedScheduledSummaryTimes().joinToString(",") { it.toStorageValue() }
+
+fun String.toScheduledSummaryTimes(fallback: ScheduledSummaryTime = ScheduledSummaryTime.DEFAULT): List<ScheduledSummaryTime> {
+    val times = split(",")
+        .mapNotNull(ScheduledSummaryTime::fromStorageValue)
+        .normalizedScheduledSummaryTimes()
+    return times.ifEmpty { listOf(fallback) }
+}
+
 @Entity(tableName = "user_preferences")
 data class UserPreferences(
     @PrimaryKey val id: Int = 0,
@@ -32,6 +70,7 @@ data class UserPreferences(
     val isScheduledSummaryPushEnabled: Boolean = false,
     val scheduledHour: Int = 8,
     val scheduledMinute: Int = 0,
+    val scheduledSummaryTimes: String = ScheduledSummaryTime.DEFAULT.toStorageValue(),
     val lastWorkRunTimestamp: Long = 0,
     val isDeduplicationEnabled: Boolean = true,
     val deduplicationStrategy: DeduplicationStrategy = DeduplicationStrategy.LOCAL,
@@ -73,6 +112,12 @@ data class UserPreferences(
     val appLanguage: AppLanguage = AppLanguage.UK,
     val summaryLanguage: SummaryLanguage = SummaryLanguage.UK
 ) {
+    val scheduledSummaryTimeList: List<ScheduledSummaryTime>
+        get() = scheduledSummaryTimes.toScheduledSummaryTimes(
+            fallback = ScheduledSummaryTime(scheduledHour, scheduledMinute).takeIf { it.isValid() }
+                ?: ScheduledSummaryTime.DEFAULT
+        )
+
     companion object {
         const val MIN_ARTICLE_AUTO_CLEANUP_HOURS = 6
         const val MAX_ARTICLE_AUTO_CLEANUP_HOURS = 24
