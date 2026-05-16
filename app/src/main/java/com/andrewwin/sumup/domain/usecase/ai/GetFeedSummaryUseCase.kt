@@ -5,6 +5,7 @@ import android.util.Log
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
 import com.andrewwin.sumup.domain.ai.AiPromptBuilder
 import com.andrewwin.sumup.domain.ai.AdaptiveTextShrinker
@@ -94,6 +95,7 @@ class GetFeedSummaryUseCase @Inject constructor(
         var originalContentChars = 0
         var includedArticlesCount = 0
         var partiallyIncludedArticlesCount = 0
+        var youtubeFullTextArticlesCount = 0
         val totalArticlesCount = feedSummaryArticles.size
         val cloudInput = buildString {
             append(PAYLOAD_HEADER)
@@ -106,8 +108,17 @@ class GetFeedSummaryUseCase @Inject constructor(
                 val sourceName = source?.name?.trim()?.ifBlank { sourceFallbackName } ?: sourceFallbackName
                 val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
 
-                val fullContent = articleRepository.fetchFullContent(article)
-                val contentToProcess = fullContent.ifBlank { article.content }
+                val shouldFetchFullContent = prefs.isFeedSummaryUseFullTextEnabled &&
+                    (source?.type != SourceType.YOUTUBE ||
+                        youtubeFullTextArticlesCount < MAX_YOUTUBE_FULL_TEXT_ARTICLES_IN_FEED_SUMMARY)
+                if (shouldFetchFullContent && source?.type == SourceType.YOUTUBE) {
+                    youtubeFullTextArticlesCount++
+                }
+                val contentToProcess = if (shouldFetchFullContent) {
+                    articleRepository.fetchFullContent(article).ifBlank { article.content }
+                } else {
+                    article.content
+                }
                 originalContentChars += contentToProcess.length
 
                 val maxCharsForFeedItem = if (feedSummaryArticle.similarArticlesCount > 0) {
@@ -229,6 +240,7 @@ class GetFeedSummaryUseCase @Inject constructor(
 
     companion object {
         private const val LOCAL_SIMILAR_NEWS_BONUS_PER_MATCH = 0.25f
+        private const val MAX_YOUTUBE_FULL_TEXT_ARTICLES_IN_FEED_SUMMARY = 7
         private const val MIN_TOTAL_CHARS = 1000
         private const val CLOUD_CHARS_LOG_TAG = "CloudChars"
         private const val PAYLOAD_FIELD_SEPARATOR = "|"

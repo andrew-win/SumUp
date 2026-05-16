@@ -446,10 +446,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { updatePreferences { it.copy(summaryNewsInScheduledCloud = count) } }
     }
 
-    fun updateShowLastSummariesCount(count: Int) {
-        viewModelScope.launch { updatePreferences { it.copy(showLastSummariesCount = count) } }
-    }
-
     fun updateShowInfographicNewsCount(count: Int) {
         viewModelScope.launch { updatePreferences { it.copy(showInfographicNewsCount = count) } }
     }

@@ -39,7 +39,11 @@ class ScheduledSummaryRescheduleReceiver : BroadcastReceiver() {
                             prefs.lastWorkRunTimestamp
                         )
                     ) {
-                        summaryScheduler.runNow()
+                        val scheduledAt = timeCalculator.triggerTodayAtMillis(
+                            prefs.scheduledHour,
+                            prefs.scheduledMinute
+                        )
+                        summaryScheduler.deliverNow(scheduledAt)
                     }
                     summaryScheduler.schedule(prefs.scheduledHour, prefs.scheduledMinute)
                 } else {

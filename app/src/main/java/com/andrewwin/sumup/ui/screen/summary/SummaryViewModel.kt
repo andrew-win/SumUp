@@ -8,6 +8,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
@@ -23,6 +24,8 @@ import com.andrewwin.sumup.domain.usecase.common.NoArticlesException
 import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
 import com.andrewwin.sumup.worker.SummaryWorker
+import com.andrewwin.sumup.worker.ScheduledSummaryWorkKind
+import com.andrewwin.sumup.worker.WorkerContracts
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
@@ -63,7 +66,7 @@ class SummaryViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
 
     val workInfo: StateFlow<List<WorkInfo>> =
-        workManager.getWorkInfosForUniqueWorkFlow(SCHEDULED_SUMMARY_WORK_NAME)
+        workManager.getWorkInfosForUniqueWorkFlow(WorkerContracts.PREPARE_SCHEDULED_SUMMARY_WORK_NAME)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _isGenerating = MutableStateFlow(false)
@@ -207,6 +210,12 @@ class SummaryViewModel @Inject constructor(
                     .setRequiredNetworkType(NetworkType.CONNECTED)
                     .build()
             )
+            .setInputData(
+                workDataOf(
+                    WorkerContracts.KEY_SCHEDULED_SUMMARY_WORK_KIND to ScheduledSummaryWorkKind.PREPARE.name,
+                    WorkerContracts.KEY_SCHEDULED_SUMMARY_AT to System.currentTimeMillis()
+                )
+            )
             .build()
         workManager.enqueue(request)
     }
@@ -229,9 +238,6 @@ class SummaryViewModel @Inject constructor(
         }
     }
 
-    companion object {
-        private const val SCHEDULED_SUMMARY_WORK_NAME = "scheduled_summary"
-    }
 }
 
 

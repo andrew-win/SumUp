@@ -295,9 +295,6 @@ internal fun SettingsScreen(
     var aiMaxCharsTotal by rememberSaveable(userPreferences.aiMaxCharsTotal) {
         mutableStateOf(userPreferences.aiMaxCharsTotal.toFloat())
     }
-    var showLastSummariesCount by rememberSaveable(userPreferences.showLastSummariesCount) {
-        mutableStateOf(userPreferences.showLastSummariesCount.toFloat())
-    }
     var showInfographicNewsCount by rememberSaveable(userPreferences.showInfographicNewsCount) {
         mutableStateOf(userPreferences.showInfographicNewsCount.toFloat())
     }
@@ -609,11 +606,6 @@ internal fun SettingsScreen(
                             showTitle = false,
                             isHelpMode = isHelpMode,
                             userPreferences = userPreferences,
-                            showLastSummariesCount = showLastSummariesCount,
-                            onShowLastSummariesCountChange = { showLastSummariesCount = it },
-                            onShowLastSummariesCountCommitted = {
-                                viewModel.updateShowLastSummariesCount(showLastSummariesCount.toInt())
-                            },
                             showInfographicNewsCount = showInfographicNewsCount,
                             onShowInfographicNewsCountChange = { showInfographicNewsCount = it },
                             onShowInfographicNewsCountCommitted = {
@@ -882,10 +874,10 @@ private fun SettingsGroup.searchableTextResIds(): List<Int> = when (this) {
 
     SettingsGroup.SCHEDULED_SUMMARY -> listOf(
         R.string.settings_scheduled_summary,
-        R.string.settings_show_last_summaries_count,
         R.string.settings_show_infographic_news_count,
         R.string.settings_time_label,
-        R.string.settings_scheduled_push_notifications
+        R.string.settings_scheduled_push_notifications,
+        R.string.settings_scheduled_background_recommendation
     )
 
     SettingsGroup.RECOMMENDATIONS -> listOf(

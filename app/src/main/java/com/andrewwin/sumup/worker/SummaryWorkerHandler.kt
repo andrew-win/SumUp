@@ -8,13 +8,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.work.ListenableWorker
+import androidx.work.Data
 import com.andrewwin.sumup.R
+import com.andrewwin.sumup.data.local.entities.PreparedScheduledSummary
 import com.andrewwin.sumup.data.local.entities.Summary
-import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
@@ -26,57 +28,119 @@ import javax.inject.Inject
 
 class SummaryWorkerHandler @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val articleRepository: ArticleRepository,
     private val summaryRepository: SummaryRepository,
     private val summaryScheduler: SummaryScheduler,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val generateSummaryUseCase: GenerateSummaryUseCase,
 ) {
-    suspend fun execute(runAttemptCount: Int): ListenableWorker.Result {
+    suspend fun execute(inputData: Data, runAttemptCount: Int): ListenableWorker.Result {
+        val kind = inputData.getString(WorkerContracts.KEY_SCHEDULED_SUMMARY_WORK_KIND)
+            ?.let { runCatching { ScheduledSummaryWorkKind.valueOf(it) }.getOrNull() }
+            ?: ScheduledSummaryWorkKind.PREPARE
+        val scheduledAt = inputData.getLong(WorkerContracts.KEY_SCHEDULED_SUMMARY_AT, 0L)
+            .takeIf { it > 0L }
+            ?: System.currentTimeMillis()
+        return when (kind) {
+            ScheduledSummaryWorkKind.PREPARE -> prepareScheduledSummary(scheduledAt, runAttemptCount)
+            ScheduledSummaryWorkKind.DELIVER -> deliverScheduledSummary(scheduledAt)
+        }
+    }
+
+    private suspend fun prepareScheduledSummary(
+        scheduledAt: Long,
+        runAttemptCount: Int
+    ): ListenableWorker.Result {
         val prefs = userPreferencesRepository.preferences.first()
         if (!prefs.isScheduledSummaryEnabled) {
             summaryScheduler.cancel()
             return ListenableWorker.Result.success()
         }
 
-        userPreferencesRepository.updatePreferences(
-            prefs.copy(lastWorkRunTimestamp = System.currentTimeMillis())
-        )
-
-        val result = try {
+        Log.d(SCHEDULED_SUMMARY_LOG_TAG, "prepare_started scheduledAt=$scheduledAt")
+        return try {
             val summaryText = generateSummaryUseCase(refresh = true)
-
-                if (summaryText.isBlank()) {
-                    val message = context.getString(R.string.summary_worker_empty_response)
-                    throw IllegalStateException(message)
-                }
-
-                summaryRepository.insertSummary(Summary(content = summaryText, strategy = prefs.aiStrategy))
-                maybeShowScheduledSummaryNotification(prefs)
+            if (summaryText.isBlank()) {
+                val message = context.getString(R.string.summary_worker_empty_response)
+                throw IllegalStateException(message)
+            }
+            summaryRepository.upsertPreparedScheduledSummary(
+                PreparedScheduledSummary(
+                    scheduledAt = scheduledAt,
+                    content = summaryText,
+                    strategy = prefs.aiStrategy
+                )
+            )
+            Log.d(SCHEDULED_SUMMARY_LOG_TAG, "prepare_finished scheduledAt=$scheduledAt")
+            if (System.currentTimeMillis() >= scheduledAt) {
+                return deliverScheduledSummary(scheduledAt)
+            }
             ListenableWorker.Result.success()
         } catch (e: com.andrewwin.sumup.domain.usecase.common.NoArticlesException) {
             val message = context.getString(R.string.summary_worker_no_articles_today)
-            summaryRepository.insertSummary(Summary(content = message, strategy = prefs.aiStrategy))
-            maybeShowScheduledSummaryNotification(prefs)
+            summaryRepository.upsertPreparedScheduledSummary(
+                PreparedScheduledSummary(
+                    scheduledAt = scheduledAt,
+                    content = message,
+                    strategy = prefs.aiStrategy
+                )
+            )
+            if (System.currentTimeMillis() >= scheduledAt) {
+                return deliverScheduledSummary(scheduledAt)
+            }
             ListenableWorker.Result.success()
         } catch (e: Exception) {
             val prefix = context.getString(R.string.summary_worker_error_prefix)
-            summaryRepository.insertSummary(Summary(content = "$prefix: ${e.localizedMessage.orEmpty()}", strategy = prefs.aiStrategy))
             if (runAttemptCount < WorkerContracts.MAX_RETRY_ATTEMPTS) {
                 ListenableWorker.Result.retry()
             } else {
-                ListenableWorker.Result.failure()
+                summaryRepository.upsertPreparedScheduledSummary(
+                    PreparedScheduledSummary(
+                        scheduledAt = scheduledAt,
+                        content = "$prefix: ${e.localizedMessage.orEmpty()}",
+                        strategy = prefs.aiStrategy,
+                        isError = true
+                    )
+                )
+                if (System.currentTimeMillis() >= scheduledAt) {
+                    return deliverScheduledSummary(scheduledAt)
+                }
+                ListenableWorker.Result.success()
             }
         }
-        if (result !is ListenableWorker.Result.Retry) {
-            val latestPrefs = userPreferencesRepository.preferences.first()
-            if (latestPrefs.isScheduledSummaryEnabled) {
-                summaryScheduler.schedule(latestPrefs.scheduledHour, latestPrefs.scheduledMinute)
-            } else {
-                summaryScheduler.cancel()
-            }
+    }
+
+    private suspend fun deliverScheduledSummary(scheduledAt: Long): ListenableWorker.Result {
+        val prefs = userPreferencesRepository.preferences.first()
+        if (!prefs.isScheduledSummaryEnabled) {
+            summaryScheduler.cancel()
+            return ListenableWorker.Result.success()
         }
-        return result
+
+        Log.d(SCHEDULED_SUMMARY_LOG_TAG, "deliver_started scheduledAt=$scheduledAt")
+        val preparedSummary = summaryRepository.getPreparedScheduledSummary(scheduledAt)
+        if (preparedSummary == null) {
+            summaryScheduler.prepareNow(scheduledAt)
+            summaryScheduler.schedule(prefs.scheduledHour, prefs.scheduledMinute)
+            return ListenableWorker.Result.success()
+        }
+
+        summaryRepository.insertSummary(
+            Summary(
+                content = preparedSummary.content,
+                strategy = preparedSummary.strategy,
+                createdAt = scheduledAt,
+                isError = preparedSummary.isError
+            )
+        )
+        summaryRepository.deletePreparedScheduledSummary(scheduledAt)
+        summaryRepository.deletePreparedScheduledSummariesBefore(scheduledAt)
+        userPreferencesRepository.updatePreferences(
+            prefs.copy(lastWorkRunTimestamp = System.currentTimeMillis())
+        )
+        maybeShowScheduledSummaryNotification(prefs)
+        summaryScheduler.schedule(prefs.scheduledHour, prefs.scheduledMinute)
+        Log.d(SCHEDULED_SUMMARY_LOG_TAG, "deliver_finished scheduledAt=$scheduledAt")
+        return ListenableWorker.Result.success()
     }
 
     private fun maybeShowScheduledSummaryNotification(prefs: com.andrewwin.sumup.data.local.entities.UserPreferences) {
@@ -123,8 +187,10 @@ class SummaryWorkerHandler @Inject constructor(
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
     }
+
+    private companion object {
+        private const val SCHEDULED_SUMMARY_LOG_TAG = "ScheduledSummary"
+    }
 }
-
-
 
 

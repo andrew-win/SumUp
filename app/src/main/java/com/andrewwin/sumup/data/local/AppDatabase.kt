@@ -9,6 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
+import com.andrewwin.sumup.data.local.dao.PreparedScheduledSummaryDao
 import com.andrewwin.sumup.data.local.dao.SavedArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
@@ -16,6 +17,7 @@ import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
+import com.andrewwin.sumup.data.local.entities.PreparedScheduledSummary
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceGroupOrigin
@@ -29,18 +31,20 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
         Source::class, 
         Article::class, 
         ArticleSimilarity::class,
+        PreparedScheduledSummary::class,
         SavedArticle::class,
         AiModelConfig::class, 
         Summary::class,
         UserPreferences::class
     ],
-    version = 61,
+    version = 63,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sourceDao(): SourceDao
     abstract fun articleDao(): ArticleDao
     abstract fun articleSimilarityDao(): ArticleSimilarityDao
+    abstract fun preparedScheduledSummaryDao(): PreparedScheduledSummaryDao
     abstract fun savedArticleDao(): SavedArticleDao
     abstract fun aiModelDao(): AiModelDao
     abstract fun summaryDao(): SummaryDao
@@ -88,7 +92,9 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_57_58,
                         MIGRATION_58_59,
                         MIGRATION_59_60,
-                        MIGRATION_60_61
+                        MIGRATION_60_61,
+                        MIGRATION_61_62,
+                        MIGRATION_62_63
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -101,7 +107,7 @@ abstract class AppDatabase : RoomDatabase() {
                             )
                             db.execSQL(
                                 "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsSingleArticle, aiMaxCharsNewsCluster, aiMaxCharsSingleFeedArticle, aiMaxCharsFeedCluster, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
-                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, 0, 1, 'LOCAL', 0.860, 0.84, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 4, 0, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}, 'SYSTEM', 'UK', 'UK')"
+                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, 0, 1, 'LOCAL', 0.860, 0.84, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 6, 0, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}, 'SYSTEM', 'UK', 'UK')"
                             )
                         }
                     })
@@ -827,6 +833,34 @@ abstract class AppDatabase : RoomDatabase() {
                     """
                     UPDATE user_preferences
                     SET articleAutoCleanupDays = ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_61_62 = object : Migration(61, 62) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS prepared_scheduled_summaries (
+                        scheduledAt INTEGER NOT NULL PRIMARY KEY,
+                        content TEXT NOT NULL,
+                        strategy TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        isError INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_62_63 = object : Migration(62, 63) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    UPDATE user_preferences
+                    SET showInfographicNewsCount = 6
+                    WHERE showInfographicNewsCount = 5
                     """.trimIndent()
                 )
             }

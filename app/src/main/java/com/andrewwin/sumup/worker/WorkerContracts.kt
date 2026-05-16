@@ -23,13 +23,17 @@ object WorkerContracts {
 
     const val SUMMARY_CHANNEL_ID = "scheduled_summary_channel"
     const val SUMMARY_NOTIFICATION_ID = 1001
-    const val SCHEDULED_SUMMARY_WORK_NAME = "scheduled_summary"
-    const val ACTION_RUN_SCHEDULED_SUMMARY = "com.andrewwin.sumup.action.RUN_SCHEDULED_SUMMARY"
-    const val SCHEDULED_SUMMARY_ALARM_REQUEST_CODE = 2001
-    const val MAX_ARTICLES_FOR_SUMMARIZATION = 15
+    const val PREPARE_SCHEDULED_SUMMARY_WORK_NAME = "prepare_scheduled_summary"
+    const val DELIVER_SCHEDULED_SUMMARY_WORK_NAME = "deliver_scheduled_summary"
+    const val ACTION_PREPARE_SCHEDULED_SUMMARY = "com.andrewwin.sumup.action.PREPARE_SCHEDULED_SUMMARY"
+    const val ACTION_DELIVER_SCHEDULED_SUMMARY = "com.andrewwin.sumup.action.DELIVER_SCHEDULED_SUMMARY"
+    const val KEY_SCHEDULED_SUMMARY_WORK_KIND = "scheduled_summary_work_kind"
+    const val KEY_SCHEDULED_SUMMARY_AT = "scheduled_summary_at"
+    const val SCHEDULED_SUMMARY_PREPARE_ALARM_REQUEST_CODE = 2001
+    const val SCHEDULED_SUMMARY_DELIVER_ALARM_REQUEST_CODE = 2002
+    const val SCHEDULED_SUMMARY_PREPARATION_LEAD_TIME_MINUTES = 30L
     const val MAX_RETRY_ATTEMPTS = 2
 }
-
 
 
 

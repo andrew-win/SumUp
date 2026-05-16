@@ -14,7 +14,7 @@ class SummaryWorker @AssistedInject constructor(
     private val handler: SummaryWorkerHandler
 ) : CoroutineWorker(context, params) {
 
-    override suspend fun doWork(): Result = handler.execute(runAttemptCount)
+    override suspend fun doWork(): Result = handler.execute(inputData, runAttemptCount)
 }
 
 

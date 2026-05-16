@@ -55,7 +55,7 @@ data class UserPreferences(
     val extractiveSentencesInScheduled: Int = 3,
     val extractiveNewsInScheduled: Int = 4,
     val showLastSummariesCount: Int = 5,
-    val showInfographicNewsCount: Int = 5,
+    val showInfographicNewsCount: Int = 6,
     val aiMaxCharsSingleArticle: Int = 1000,
     val aiMaxCharsNewsCluster: Int = 1000,
     val aiMaxCharsSingleFeedArticle: Int = 1000,

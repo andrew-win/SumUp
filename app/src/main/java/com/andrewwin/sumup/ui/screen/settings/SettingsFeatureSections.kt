@@ -30,9 +30,6 @@ fun ScheduledSummarySettingsSection(
     showTitle: Boolean = true,
     isHelpMode: Boolean = false,
     userPreferences: UserPreferences,
-    showLastSummariesCount: Float,
-    onShowLastSummariesCountChange: (Float) -> Unit,
-    onShowLastSummariesCountCommitted: () -> Unit,
     showInfographicNewsCount: Float,
     onShowInfographicNewsCountChange: (Float) -> Unit,
     onShowInfographicNewsCountCommitted: () -> Unit,
@@ -82,16 +79,10 @@ fun ScheduledSummarySettingsSection(
                 )
             }
 
-            SettingsIntSliderItem(
-                label = stringResource(
-                    R.string.settings_show_last_summaries_count,
-                    showLastSummariesCount.toInt()
-                ),
-                value = showLastSummariesCount,
-                onValueChange = onShowLastSummariesCountChange,
-                onValueChangeFinished = onShowLastSummariesCountCommitted,
-                valueRange = 1f..20f,
-                steps = 18
+            Text(
+                text = stringResource(R.string.settings_scheduled_background_recommendation),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             SettingsIntSliderItem(

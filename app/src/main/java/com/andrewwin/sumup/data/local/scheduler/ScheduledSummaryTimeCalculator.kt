@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.data.local.scheduler
 
+import com.andrewwin.sumup.worker.WorkerContracts
 import java.util.Calendar
 
 class ScheduledSummaryTimeCalculator {
@@ -24,7 +25,13 @@ class ScheduledSummaryTimeCalculator {
         lastRunTimestamp: Long,
         nowMillis: Long = System.currentTimeMillis()
     ): Boolean {
-        val triggerToday = Calendar.getInstance().apply {
+        val triggerToday = triggerTodayAtMillis(hour, minute, nowMillis)
+
+        return nowMillis >= triggerToday && lastRunTimestamp < triggerToday
+    }
+
+    fun triggerTodayAtMillis(hour: Int, minute: Int, nowMillis: Long = System.currentTimeMillis()): Long =
+        Calendar.getInstance().apply {
             timeInMillis = nowMillis
             set(Calendar.HOUR_OF_DAY, hour)
             set(Calendar.MINUTE, minute)
@@ -32,6 +39,12 @@ class ScheduledSummaryTimeCalculator {
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
 
-        return nowMillis >= triggerToday && lastRunTimestamp < triggerToday
+    fun preparationTriggerAtMillis(
+        scheduledAtMillis: Long,
+        nowMillis: Long = System.currentTimeMillis()
+    ): Long {
+        val preparationAtMillis = scheduledAtMillis -
+            WorkerContracts.SCHEDULED_SUMMARY_PREPARATION_LEAD_TIME_MINUTES * 60L * 1000L
+        return preparationAtMillis.coerceAtLeast(nowMillis)
     }
 }

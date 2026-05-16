@@ -6,6 +6,7 @@ import com.andrewwin.sumup.data.local.AppDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
+import com.andrewwin.sumup.data.local.dao.PreparedScheduledSummaryDao
 import com.andrewwin.sumup.data.local.dao.SavedArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
@@ -88,6 +89,10 @@ object AppModule {
 
     @Provides
     fun provideArticleSimilarityDao(db: AppDatabase): ArticleSimilarityDao = db.articleSimilarityDao()
+
+    @Provides
+    fun providePreparedScheduledSummaryDao(db: AppDatabase): PreparedScheduledSummaryDao =
+        db.preparedScheduledSummaryDao()
 
     @Provides
     fun provideSavedArticleDao(db: AppDatabase): SavedArticleDao = db.savedArticleDao()
@@ -203,8 +208,10 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideSummaryRepository(summaryDao: SummaryDao): SummaryRepository =
-        SummaryRepositoryImpl(summaryDao)
+    fun provideSummaryRepository(
+        summaryDao: SummaryDao,
+        preparedScheduledSummaryDao: PreparedScheduledSummaryDao
+    ): SummaryRepository = SummaryRepositoryImpl(summaryDao, preparedScheduledSummaryDao)
 
     @Provides
     @Singleton
