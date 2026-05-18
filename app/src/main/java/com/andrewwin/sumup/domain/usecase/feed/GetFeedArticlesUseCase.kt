@@ -269,11 +269,18 @@ class GetFeedArticlesUseCase @Inject constructor(
                                 "articles=${state.articles.size} strategy=${state.prefs.deduplicationStrategy.name} " +
                                 "threshold=$deduplicationThreshold keyHash=${dedupInputKey.hashCode()}"
                         )
+                        emit(
+                            FeedResult(
+                                clusters = initial,
+                                isDedupInProgress = true,
+                                processedArticlesCount = 0,
+                                totalArticlesCount = state.articles.size
+                            )
+                        )
                         clusterArticlesIncremental(
                             articles = state.articles,
                             strategy = state.prefs.deduplicationStrategy,
-                            threshold = deduplicationThreshold,
-                            emitEvery = DEDUP_EMIT_EVERY
+                            threshold = deduplicationThreshold
                         ).collect { result ->
                             val filtered = applyMinMentionsFilter(result.clusters, state.prefs, state.savedOnly)
                             lastClusters = filtered
@@ -599,7 +606,6 @@ class GetFeedArticlesUseCase @Inject constructor(
     )
 
     companion object {
-        private const val DEDUP_EMIT_EVERY = 32
         private const val DEBUG_CHANGED_ENTRY_LIMIT = 5
         private const val DEBUG_CHANGED_IDS_LIMIT = 10
         private const val DEBUG_TITLE_PREVIEW_LENGTH = 80
@@ -615,8 +621,7 @@ class GetFeedArticlesUseCase @Inject constructor(
     private fun clusterArticlesIncremental(
         articles: List<Article>,
         strategy: DeduplicationStrategy,
-        threshold: Float,
-        emitEvery: Int = 32
+        threshold: Float
     ): Flow<DedupClusterResult> = flow {
         if (articles.size < 2) {
             emit(
@@ -638,7 +643,7 @@ class GetFeedArticlesUseCase @Inject constructor(
             if (embeddingProgress.cloudMissingGenerationFailed) {
                 emit(
                     DedupClusterResult(
-                        clusters = buildPreviewClusters(allArticles, pairScores),
+                        clusters = buildFinalClusters(allArticles, pairScores),
                         shouldCacheDedupResult = false,
                         processedArticlesCount = embeddingProgress.processedArticlesCount,
                         totalArticlesCount = embeddingProgress.totalArticlesCount,
@@ -665,79 +670,25 @@ class GetFeedArticlesUseCase @Inject constructor(
                     }
                 }
 
-                if (!embeddingProgress.isComplete && emitEvery > 0 && (i + 1) % emitEvery == 0) {
-                    emit(
-                        DedupClusterResult(
-                            clusters = buildPreviewClusters(allArticles, pairScores),
-                            shouldCacheDedupResult = false,
-                            processedArticlesCount = embeddingProgress.processedArticlesCount,
-                            totalArticlesCount = embeddingProgress.totalArticlesCount,
-                            isComplete = false
-                        )
-                    )
-                }
             }
 
-            val clusters = if (embeddingProgress.isComplete) {
-                buildFinalClusters(allArticles, pairScores)
-            } else {
-                buildPreviewClusters(allArticles, pairScores)
-            }
+            if (!embeddingProgress.isComplete) return@collect
+
+            val clusters = buildFinalClusters(allArticles, pairScores)
             emit(
                 DedupClusterResult(
                     clusters = clusters,
-                    shouldCacheDedupResult = embeddingProgress.isComplete,
+                    shouldCacheDedupResult = true,
                     processedArticlesCount = embeddingProgress.processedArticlesCount,
                     totalArticlesCount = embeddingProgress.totalArticlesCount,
-                    isComplete = embeddingProgress.isComplete
+                    isComplete = true
                 )
             )
 
-            if (embeddingProgress.isComplete) {
-                val similarities = buildSimilaritiesFromClusters(clusters)
-                articleRepository.upsertSimilarities(similarities)
-            }
+            val similarities = buildSimilaritiesFromClusters(clusters)
+            articleRepository.upsertSimilarities(similarities)
         }
     }.flowOn(Dispatchers.Default)
-
-    private fun buildPreviewClusters(
-        articles: List<com.andrewwin.sumup.data.local.entities.Article>,
-        pairScores: Map<ArticlePairKey, Float>
-    ): List<ArticleCluster> {
-        val assignedArticleIds = mutableSetOf<Long>()
-        val result = mutableListOf<ArticleCluster>()
-
-        for (representative in articles) {
-            if (representative.id in assignedArticleIds) continue
-            assignedArticleIds.add(representative.id)
-
-            val duplicates = mutableListOf<Pair<com.andrewwin.sumup.data.local.entities.Article, Float>>()
-            for (candidate in articles) {
-                if (candidate.id == representative.id || candidate.id in assignedArticleIds) continue
-
-                val score = pairScores[ArticlePairKey.of(representative.id, candidate.id)] ?: continue
-                duplicates.add(candidate to score)
-                assignedArticleIds.add(candidate.id)
-            }
-            val clusterArticles = buildList {
-                add(representative)
-                addAll(duplicates.map { it.first })
-            }
-            val selectedRepresentative = selectRepresentativeArticleForCluster(clusterArticles)
-            val selectedDuplicates = clusterArticles
-                .asSequence()
-                .filterNot { it.id == selectedRepresentative.id }
-                .mapNotNull { article ->
-                    val score = pairScores[ArticlePairKey.of(selectedRepresentative.id, article.id)]
-                        ?: return@mapNotNull null
-                    article to score
-                }
-                .sortedByDescending { it.first.publishedAt }
-                .toList()
-            result.add(ArticleCluster(selectedRepresentative, selectedDuplicates))
-        }
-        return result
-    }
 
     private fun buildFinalClusters(
         articles: List<com.andrewwin.sumup.data.local.entities.Article>,

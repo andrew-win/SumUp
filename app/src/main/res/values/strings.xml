@@ -112,8 +112,9 @@
     <string name="settings_time_format">%1$02d:%2$02d</string>
     <string name="feed_similar_news">Схожі новини (%d)</string>
     <string name="feed_similarity_score">%d%%</string>
-    <string name="feed_loading_news">Завантажуємо новини…</string>
-    <string name="feed_deduplicating">Виконуємо дедублікацію…</string>
+    <string name="feed_loading_from_database">Завантаження із БД…</string>
+    <string name="feed_loading_news">Парсинг новин…</string>
+    <string name="feed_deduplicating">Дедублікація новин…</string>
     <string name="summary_no_articles_today">Немає нових статей для сумаризації.</string>
     <string name="summary_worker_no_articles_today">Немає нових статей для зведення за сьогодні.</string>
     <string name="summary_worker_empty_response">Порожня відповідь при генерації зведення</string>

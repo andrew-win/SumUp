@@ -17,8 +17,10 @@ import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.milliseconds
 import javax.inject.Inject
 
@@ -34,6 +36,12 @@ enum class DateFilter(@StringRes val labelRes: Int, val hours: Int?) {
 enum class SavedFilter(@StringRes val labelRes: Int, val savedOnly: Boolean) {
     ALL(R.string.filter_saved_all, false),
     SAVED(R.string.filter_saved_only, true)
+}
+
+enum class FeedLoadingStage(@StringRes val messageRes: Int) {
+    LOADING_FROM_DATABASE(R.string.feed_loading_from_database),
+    PARSING_NEWS(R.string.feed_loading_news),
+    DEDUPLICATING_NEWS(R.string.feed_deduplicating)
 }
 
 @HiltViewModel
@@ -63,6 +71,10 @@ class FeedViewModel @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
+    private val _feedLoadingStage = MutableStateFlow<FeedLoadingStage?>(FeedLoadingStage.LOADING_FROM_DATABASE)
+    private val frozenClustersWhileProcessing = MutableStateFlow<List<ArticleClusterUiModel>?>(null)
+    private var lastRefreshFinishedAt = 0L
+
     val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.preferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
 
@@ -75,7 +87,7 @@ class FeedViewModel @Inject constructor(
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val feedResultFlow = getFeedArticlesUseCase(
+    private val feedResultState: StateFlow<FeedResultState> = getFeedArticlesUseCase(
         _searchQuery
             .debounce(300.milliseconds)
             .distinctUntilChanged(),
@@ -95,10 +107,12 @@ class FeedViewModel @Inject constructor(
                 old.clusters.map { cluster -> cluster.duplicates.map { duplicate -> duplicate.first.isFavorite } } ==
                 new.clusters.map { cluster -> cluster.duplicates.map { duplicate -> duplicate.first.isFavorite } }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GetFeedArticlesUseCase.FeedResult(emptyList(), false))
+        .map<GetFeedArticlesUseCase.FeedResult, FeedResultState> { FeedResultState.Loaded(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FeedResultState.Initial)
 
-    private val favoriteSavedAtFlow: StateFlow<Map<Long, Long>> = feedResultFlow
-        .mapLatest { feed ->
+    private val favoriteSavedAtFlow: StateFlow<Map<Long, Long>> = feedResultState
+        .mapLatest { feedState ->
+            val feed = (feedState as? FeedResultState.Loaded)?.feedResult ?: return@mapLatest emptyMap()
             val ids = buildList {
                 feed.clusters.forEach { cluster ->
                     add(cluster.representative.id)
@@ -110,11 +124,17 @@ class FeedViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     private val feedUiState: StateFlow<FeedUiState> = combine(
-        feedResultFlow,
+        feedResultState,
         groupsWithSources,
         favoriteOverrides,
         favoriteSavedAtFlow
-    ) { feed, groupsList, overrides, favoriteSavedAt ->
+    ) { feedState, groupsList, overrides, favoriteSavedAt ->
+        val feed = (feedState as? FeedResultState.Loaded)?.feedResult
+            ?: return@combine FeedUiState(
+                clusters = emptyList(),
+                isDedupInProgress = false,
+                isInitial = true
+            )
         val mappedClusters = feedUiModelMapper.map(
             clusters = feed.clusters,
             groupsWithSources = groupsList,
@@ -125,71 +145,119 @@ class FeedViewModel @Inject constructor(
 
         FeedUiState(
             clusters = clusters,
-            isDedupInProgress = feed.isDedupInProgress
+            isDedupInProgress = feed.isDedupInProgress,
+            isInitial = false
         )
     }
         .distinctUntilChanged()
         .flowOn(Dispatchers.Default)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FeedUiState(emptyList(), false))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FeedUiState(emptyList(), false, true))
 
     val isDedupInProgress: StateFlow<Boolean> = feedUiState
         .map { it.isDedupInProgress }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    val isAnyLoading: StateFlow<Boolean> = combine(
-        _isRefreshing,
+    val feedLoadingStage: StateFlow<FeedLoadingStage?> = _feedLoadingStage
+        .withStableVisibleStageDuration()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FeedLoadingStage.LOADING_FROM_DATABASE)
+
+    val isAnyLoading: StateFlow<Boolean> = _feedLoadingStage
+        .map { it != null }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    private val isFeedProcessing: StateFlow<Boolean> = combine(
+        isAnyLoading,
         isDedupInProgress
-    ) { refreshing, deduping ->
-        refreshing || deduping
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    ) { loadingStageVisible, deduping -> loadingStageVisible || deduping }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     val articleClusters: StateFlow<List<ArticleClusterUiModel>> = feedUiState
-        .map { state -> state.clusters to state.isDedupInProgress }
-        .scan(emptyList<ArticleClusterUiModel>()) { previous, (clusters, inProgress) ->
+        .combine(frozenClustersWhileProcessing) { state, frozenClusters -> state to frozenClusters }
+        .scan(emptyList<ArticleClusterUiModel>()) { previous, (state, frozenClusters) ->
             when {
-                clusters.isNotEmpty() -> clusters
-                inProgress -> previous
+                frozenClusters != null -> frozenClusters
+                state.isDedupInProgress && previous.isNotEmpty() -> previous
+                state.clusters.isNotEmpty() -> state.clusters
                 else -> emptyList()
             }
         }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val hasVisibleFeedResult: StateFlow<Boolean> = articleClusters
-        .map { it.isNotEmpty() }
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-
-    val feedLoadingMessage: StateFlow<String?> = combine(
-        _isRefreshing,
-        isDedupInProgress,
-        hasVisibleFeedResult
-    ) { refreshing, deduping, hasVisibleResult ->
-        when {
-            deduping -> getApplication<Application>().getString(R.string.feed_deduplicating)
-            refreshing && !hasVisibleResult -> getApplication<Application>().getString(R.string.feed_loading_news)
-            else -> null
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-
     init {
-        refresh()
+        viewModelScope.launch {
+            val firstLocalState = feedUiState.first { !it.isInitial }
+            val initialFrozenClusters = if (firstLocalState.isDedupInProgress) {
+                isDedupInProgress.first { !it }
+                articleClusters.value.ifEmpty { feedUiState.value.clusters }
+            } else {
+                firstLocalState.clusters
+            }
+            _feedLoadingStage.value = null
+            refresh(frozenClusters = initialFrozenClusters)
+        }
+
+        viewModelScope.launch {
+            isFeedProcessing
+                .collect { isProcessing ->
+                    if (!isProcessing) {
+                        frozenClustersWhileProcessing.value = null
+                    }
+                }
+        }
 
         viewModelScope.launch {
             articleRepository.dataInvalidationSignal
                 .drop(1) // Пропускаємо початкове значення 0
                 .collect {
-                    refresh()
+                    val now = System.currentTimeMillis()
+                    if (now - lastRefreshFinishedAt >= AUTO_REFRESH_AFTER_INVALIDATION_SUPPRESSION_MS) {
+                        refresh()
+                    }
                 }
         }
     }
 
     fun refresh() {
+        refresh(frozenClusters = articleClusters.value)
+    }
+
+    private fun refresh(frozenClusters: List<ArticleClusterUiModel>) {
         viewModelScope.launch {
+            if (_isRefreshing.value || isDedupInProgress.value) return@launch
+            if (frozenClustersWhileProcessing.value == null) {
+                frozenClustersWhileProcessing.value = frozenClusters
+            }
             _isRefreshing.value = true
-            refreshFeedUseCase()
-            _isRefreshing.value = false
+            _feedLoadingStage.value = FeedLoadingStage.PARSING_NEWS
+            try {
+                val result = refreshFeedUseCase()
+                if (result.isSuccess) {
+                    _feedLoadingStage.value = FeedLoadingStage.DEDUPLICATING_NEWS
+                    waitForPostRefreshDeduplication()
+                }
+            } finally {
+                _feedLoadingStage.value = null
+                _isRefreshing.value = false
+                lastRefreshFinishedAt = System.currentTimeMillis()
+            }
+        }
+    }
+
+    private suspend fun waitForPostRefreshDeduplication() {
+        if (isDedupInProgress.value) {
+            isDedupInProgress.first { !it }
+            return
+        }
+
+        val nextDedupState = withTimeoutOrNull(POST_REFRESH_DEDUP_START_WAIT_MS) {
+            isDedupInProgress.drop(1).first()
+        }
+        if (nextDedupState == true) {
+            isDedupInProgress.first { !it }
         }
     }
 
@@ -267,8 +335,46 @@ class FeedViewModel @Inject constructor(
 
     private data class FeedUiState(
         val clusters: List<ArticleClusterUiModel>,
-        val isDedupInProgress: Boolean
+        val isDedupInProgress: Boolean,
+        val isInitial: Boolean
     )
+
+    private sealed interface FeedResultState {
+        data object Initial : FeedResultState
+        data class Loaded(val feedResult: GetFeedArticlesUseCase.FeedResult) : FeedResultState
+    }
+
+    private fun StateFlow<FeedLoadingStage?>.withStableVisibleStageDuration(): Flow<FeedLoadingStage?> = flow {
+        var visibleStage: FeedLoadingStage? = null
+        var visibleStageStartedAt = 0L
+
+        collect { requestedStage ->
+            if (requestedStage == visibleStage) return@collect
+            if (requestedStage == null) {
+                delay(LOADING_STAGE_FINISH_SETTLE_MS)
+            }
+
+            val now = System.currentTimeMillis()
+            val visibleDuration = now - visibleStageStartedAt
+            if (visibleStageStartedAt > 0L && visibleDuration < MIN_LOADING_STAGE_VISIBLE_MS) {
+                delay(MIN_LOADING_STAGE_VISIBLE_MS - visibleDuration)
+            }
+
+            val latestStage = value
+            if (latestStage != visibleStage) {
+                visibleStage = latestStage
+                visibleStageStartedAt = System.currentTimeMillis()
+                emit(latestStage)
+            }
+        }
+    }
+
+    private companion object {
+        private const val MIN_LOADING_STAGE_VISIBLE_MS = 500L
+        private const val LOADING_STAGE_FINISH_SETTLE_MS = 500L
+        private const val POST_REFRESH_DEDUP_START_WAIT_MS = 1_000L
+        private const val AUTO_REFRESH_AFTER_INVALIDATION_SUPPRESSION_MS = 6_000L
+    }
 }
 
 

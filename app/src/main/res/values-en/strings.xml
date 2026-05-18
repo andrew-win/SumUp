@@ -112,8 +112,9 @@ scheduled</string>
     <string name="settings_time_format">%1$02d:%2$02d</string>
     <string name="feed_similar_news">Similar news (%d)</string>
     <string name="feed_similarity_score">%d%%</string>
-    <string name="feed_loading_news">Loading news…</string>
-    <string name="feed_deduplicating">Performing deduplication…</string>
+    <string name="feed_loading_from_database">Loading from database…</string>
+    <string name="feed_loading_news">Parsing news…</string>
+    <string name="feed_deduplicating">Deduplicating news…</string>
     <string name="summary_no_articles_today">No new articles for summarization.</string>
     <string name="summary_worker_no_articles_today">No new articles for today’s summary.</string>
     <string name="summary_worker_empty_response">Empty response while generating summary</string>

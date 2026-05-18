@@ -140,19 +140,18 @@ class SimilarityScorer(
                     "missing=${missingArticles.size}"
             )
 
-            emit(
-                EmbeddingProgress(
-                    embeddingsById = result.toMap(),
-                    processedArticlesCount = result.size,
-                    totalArticlesCount = articles.size,
-                    isComplete = missingArticles.isEmpty()
-                )
-            )
-
             if (missingArticles.isEmpty()) {
                 Log.d(
                     EMBEDDINGS_TEST_LOG_TAG,
                     "embedding_generated runId=$runId strategy=${strategy.name} total=0 usable=0 nulls=0 zeroCount=0"
+                )
+                emit(
+                    EmbeddingProgress(
+                        embeddingsById = result.toMap(),
+                        processedArticlesCount = result.size,
+                        totalArticlesCount = articles.size,
+                        isComplete = true
+                    )
                 )
                 return@withLock
             }
@@ -179,23 +178,6 @@ class SimilarityScorer(
                         }
                         val batchFailed = batchResult.shouldStop &&
                             batchResult.generatedEmbeddings.none { isUsableEmbedding(it.embedding) }
-                        logEmbeddingProgress(
-                            runId = runId,
-                            strategy = strategy,
-                            result = result,
-                            totalArticles = articles.size,
-                            isComplete = batchResult.shouldStop || chunkIndex == chunks.lastIndex,
-                            cloudMissingGenerationFailed = batchFailed
-                        )
-                        emit(
-                            EmbeddingProgress(
-                                embeddingsById = result.toMap(),
-                                processedArticlesCount = result.size,
-                                totalArticlesCount = articles.size,
-                                isComplete = batchResult.shouldStop || chunkIndex == chunks.lastIndex,
-                                cloudMissingGenerationFailed = batchFailed
-                            )
-                        )
                         if (batchResult.shouldStop) {
                             cloudMissingGenerationFailed = batchFailed
                             break
@@ -219,36 +201,37 @@ class SimilarityScorer(
                                 ?.takeIf(::isUsableEmbedding)
                                 ?.let { result[generated.article.id] = it }
                         }
-                        logEmbeddingProgress(
-                            runId = runId,
-                            strategy = strategy,
-                            result = result,
-                            totalArticles = articles.size,
-                            isComplete = chunkIndex == chunks.lastIndex
-                        )
-                        emit(
-                            EmbeddingProgress(
-                                embeddingsById = result.toMap(),
-                                processedArticlesCount = result.size,
-                                totalArticlesCount = articles.size,
-                                isComplete = chunkIndex == chunks.lastIndex
-                            )
-                        )
                     }
                 }
             }
 
             logGeneratedEmbeddingDiagnostics(runId, strategy, generatedEmbeddings)
-            if (!cloudMissingGenerationFailed && result.size < articles.size) {
-                emit(
-                    EmbeddingProgress(
-                        embeddingsById = result.toMap(),
-                        processedArticlesCount = result.size,
-                        totalArticlesCount = articles.size,
-                        isComplete = true
-                    )
+            if (dedupRuntimeCoordinator.currentEmbeddingsGeneration() == runGeneration) {
+                saveGeneratedEmbeddings(generatedEmbeddings, embeddingType)
+            } else {
+                Log.d(
+                    EMBEDDINGS_TEST_LOG_TAG,
+                    "embedding_save_skipped_after_clear runId=$runId strategy=${strategy.name} " +
+                        "generated=${generatedEmbeddings.size}"
                 )
             }
+            logEmbeddingProgress(
+                runId = runId,
+                strategy = strategy,
+                result = result,
+                totalArticles = articles.size,
+                isComplete = true,
+                cloudMissingGenerationFailed = cloudMissingGenerationFailed
+            )
+            emit(
+                EmbeddingProgress(
+                    embeddingsById = result.toMap(),
+                    processedArticlesCount = result.size,
+                    totalArticlesCount = articles.size,
+                    isComplete = true,
+                    cloudMissingGenerationFailed = cloudMissingGenerationFailed
+                )
+            )
         }
     }
 
@@ -297,9 +280,7 @@ class SimilarityScorer(
             GeneratedEmbedding(article, embedding)
         }
 
-        if (dedupRuntimeCoordinator.currentEmbeddingsGeneration() == runGeneration) {
-            saveGeneratedEmbeddings(batchGeneratedEmbeddings, embeddingTypeForStrategy(DeduplicationStrategy.CLOUD))
-        } else {
+        if (dedupRuntimeCoordinator.currentEmbeddingsGeneration() != runGeneration) {
             Log.d(
                 EMBEDDINGS_TEST_LOG_TAG,
                 "embedding_save_skipped_after_clear runId=$runId strategy=${DeduplicationStrategy.CLOUD.name} " +
@@ -356,9 +337,7 @@ class SimilarityScorer(
             embeddings = batchGeneratedEmbeddings.map { it.embedding }
         )
 
-        if (dedupRuntimeCoordinator.currentEmbeddingsGeneration() == runGeneration) {
-            saveGeneratedEmbeddings(batchGeneratedEmbeddings, embeddingTypeForStrategy(DeduplicationStrategy.LOCAL))
-        } else {
+        if (dedupRuntimeCoordinator.currentEmbeddingsGeneration() != runGeneration) {
             Log.d(
                 EMBEDDINGS_TEST_LOG_TAG,
                 "embedding_save_skipped_after_clear runId=$runId strategy=${DeduplicationStrategy.LOCAL.name} " +

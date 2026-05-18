@@ -10,6 +10,7 @@ import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.data.local.entities.SavedArticle
+import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.remote.ArticleStableKeyFactory
@@ -56,6 +57,8 @@ class ArticleRepositoryImpl @Inject constructor(
         val cleanupHours = userPreferencesDao.getUserPreferences().first()?.articleAutoCleanupHours
             ?: UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS
         val cutoffTimestamp = System.currentTimeMillis() - (cleanupHours.toLong() * 60 * 60 * 1000L)
+        val fetchedArticlesToSave = mutableListOf<Article>()
+        val sourceFooterUpdates = mutableListOf<Source>()
         for (groupWithSources in groups) {
             if (groupWithSources.group.isEnabled) {
                 for (source in groupWithSources.sources) {
@@ -70,7 +73,7 @@ class ArticleRepositoryImpl @Inject constructor(
                             val newFooterPattern = cleanArticleTextUseCase.detectFooterPattern(contentsForFooter)
 
                             if (newFooterPattern != null && newFooterPattern != source.footerPattern) {
-                                sourceDao.updateSource(source.copy(footerPattern = newFooterPattern))
+                                sourceFooterUpdates.add(source.copy(footerPattern = newFooterPattern))
                             }
 
                             val currentFooter = newFooterPattern ?: source.footerPattern
@@ -81,36 +84,45 @@ class ArticleRepositoryImpl @Inject constructor(
                                 cleanedArticles.add(articleTitleFormatter.format(articleWithCleanContent, source.type))
                             }
 
-                            articleDao.insertArticles(cleanedArticles)
-
-                            for (article in cleanedArticles) {
-                                articleDao.updateFetchedArticleByStableArticleKey(
-                                    stableArticleKey = article.stableArticleKey,
-                                    sourceId = article.sourceId,
-                                    title = article.title,
-                                    content = article.content,
-                                    mediaUrl = article.mediaUrl,
-                                    videoId = article.videoId,
-                                    publishedAt = article.publishedAt,
-                                    viewCount = article.viewCount,
-                                    url = article.url
-                                )
-                            }
-
-                            for (article in cleanedArticles) {
-                                if (!article.mediaUrl.isNullOrBlank() || !article.videoId.isNullOrBlank()) {
-                                    articleDao.updateMediaByStableArticleKey(
-                                        stableArticleKey = article.stableArticleKey,
-                                        mediaUrl = article.mediaUrl,
-                                        videoId = article.videoId
-                                    )
-                                }
-                            }
+                            fetchedArticlesToSave.addAll(cleanedArticles)
                         }
                     }
                 }
             }
         }
+
+        for (sourceUpdate in sourceFooterUpdates) {
+            sourceDao.updateSource(sourceUpdate)
+        }
+
+        if (fetchedArticlesToSave.isNotEmpty()) {
+            articleDao.insertArticles(fetchedArticlesToSave)
+
+            for (article in fetchedArticlesToSave) {
+                articleDao.updateFetchedArticleByStableArticleKey(
+                    stableArticleKey = article.stableArticleKey,
+                    sourceId = article.sourceId,
+                    title = article.title,
+                    content = article.content,
+                    mediaUrl = article.mediaUrl,
+                    videoId = article.videoId,
+                    publishedAt = article.publishedAt,
+                    viewCount = article.viewCount,
+                    url = article.url
+                )
+            }
+
+            for (article in fetchedArticlesToSave) {
+                if (!article.mediaUrl.isNullOrBlank() || !article.videoId.isNullOrBlank()) {
+                    articleDao.updateMediaByStableArticleKey(
+                        stableArticleKey = article.stableArticleKey,
+                        mediaUrl = article.mediaUrl,
+                        videoId = article.videoId
+                    )
+                }
+            }
+        }
+
         val newerCount = articleDao.countArticlesNewerThan(cutoffTimestamp)
         if (newerCount > 0) {
             articleDao.deleteOldArticles(cutoffTimestamp)

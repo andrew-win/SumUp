@@ -75,10 +75,8 @@ fun FeedScreen(
     val selectedGroupId by viewModel.selectedGroupId.collectAsState()
     val dateFilter by viewModel.dateFilter.collectAsState()
     val savedFilter by viewModel.savedFilter.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
     val isAnyLoading by viewModel.isAnyLoading.collectAsState()
-    val loadingMessage by viewModel.feedLoadingMessage.collectAsState()
-    val isDedupInProgress by viewModel.isDedupInProgress.collectAsState()
+    val loadingStage by viewModel.feedLoadingStage.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
     val groups by viewModel.groups.collectAsState()
     val context = LocalContext.current
@@ -256,27 +254,7 @@ fun FeedScreen(
                     }
                 }
 
-                val showLoading = sortedArticleClusters.isEmpty() && isAnyLoading
-
-                if (showLoading) {
-                    item {
-                        AppHelpOverlayTarget(
-                            isEnabled = isHelpMode,
-                            description = feedProcessingHelpDescription,
-                            onShowDescription = { helpDescription = it }
-                        ) {
-                            AppMessageState(
-                                message = loadingMessage ?: "",
-                                modifier = Modifier.fillParentMaxHeight(0.7f)
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(AppDimens.StateIconSize),
-                                    strokeWidth = 2.dp
-                                )
-                            }
-                        }
-                    }
-                } else if (sortedArticleClusters.isEmpty()) {
+                if (sortedArticleClusters.isEmpty() && loadingStage == null) {
                     item {
                         AppHelpOverlayTarget(
                             isEnabled = isHelpMode,
@@ -330,6 +308,25 @@ fun FeedScreen(
                             )
                         }
                     }
+                }
+            }
+
+            if (loadingStage != null) {
+                AppHelpOverlayTarget(
+                    isEnabled = isHelpMode,
+                    description = feedProcessingHelpDescription,
+                    onShowDescription = { helpDescription = it },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(
+                            start = AppDimens.ScreenHorizontalPadding,
+                            end = AppDimens.ScreenHorizontalPadding,
+                            bottom = 104.dp
+                        )
+                ) {
+                    FeedLoadingStatusOverlay(
+                        message = stringResource(loadingStage!!.messageRes)
+                    )
                 }
             }
         }
