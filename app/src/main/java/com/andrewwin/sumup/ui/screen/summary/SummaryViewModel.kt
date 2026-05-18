@@ -22,7 +22,7 @@ import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.common.NoArticlesException
 import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
-import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
+import com.andrewwin.sumup.domain.usecase.feed.FeedArticlesBuilder
 import com.andrewwin.sumup.worker.SummaryWorker
 import com.andrewwin.sumup.worker.ScheduledSummaryWorkKind
 import com.andrewwin.sumup.worker.WorkerContracts
@@ -53,7 +53,7 @@ class SummaryViewModel @Inject constructor(
     private val workManager: WorkManager,
     private val refreshArticlesUseCase: RefreshArticlesUseCase,
     private val generateSummaryUseCase: GenerateSummaryUseCase,
-    private val getFeedArticlesUseCase: GetFeedArticlesUseCase,
+    private val feedArticlesBuilder: FeedArticlesBuilder,
     private val importanceScorer: ArticleImportanceScorer,
     private val sourceRepository: SourceRepository,
     private val aiModelConfigRepository: AiModelConfigRepository
@@ -90,7 +90,7 @@ class SummaryViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val chartData: StateFlow<List<SummaryChartItem>> = combine(
-        getFeedArticlesUseCase(
+        feedArticlesBuilder(
             searchQueryFlow = flowOf(""),
             selectedGroupIdFlow = flowOf(null),
             dateFilterHoursFlow = flowOf(24), // Last 24h for chart

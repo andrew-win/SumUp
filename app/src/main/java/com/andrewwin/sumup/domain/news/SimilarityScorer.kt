@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.domain.news
 
+import android.os.SystemClock
 import android.util.Log
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
@@ -46,7 +47,6 @@ class SimilarityScorer(
         }
 
         // 3. Generate based on strategy
-        val startMs = System.currentTimeMillis()
         val deduplicationEmbeddingTitle = article.title.removeEmojiForDeduplicationEmbeddingInput()
         val embedding = when (strategy) {
             DeduplicationStrategy.CLOUD -> {
@@ -60,11 +60,6 @@ class SimilarityScorer(
                 EmbeddingUtils.normalize(raw)
             }
         }
-//        Log.d(
-//            EMBEDDINGS_TEST_LOG_TAG,
-//            "embedding_created strategy=${strategy.name} articleId=${article.id} " +
-//                "ms=${System.currentTimeMillis() - startMs} title=${article.title}"
-//        )
 
         return if (embedding != null) {
             saveEmbedding(article, embedding, embeddingType)
@@ -106,8 +101,6 @@ class SimilarityScorer(
             val result = mutableMapOf<Long, FloatArray>()
             val storedEmbeddings = articleRepository.getArticleEmbeddingsByIds(articles.map { it.id })
                 .associateBy { it.id }
-            var cacheZeroRejected = 0
-            var cacheWrongType = 0
 
             articles.forEach { article ->
                 val articleEmbedding = article.embedding
@@ -117,7 +110,6 @@ class SimilarityScorer(
                     return@forEach
                 }
                 if (article.embeddingType == embeddingType && articleEmbeddingVector != null) {
-                    cacheZeroRejected++
                     return@forEach
                 }
 
@@ -126,25 +118,13 @@ class SimilarityScorer(
                 if (stored?.embeddingType == embeddingType && isUsableEmbedding(storedEmbeddingVector)) {
                     storedEmbeddingVector?.let { result[article.id] = it }
                 } else if (stored?.embeddingType == embeddingType && storedEmbeddingVector != null) {
-                    cacheZeroRejected++
-                } else if (stored != null && stored.embeddingType != embeddingType) {
-                    cacheWrongType++
+                    return@forEach
                 }
             }
 
             val missingArticles = articles.filterNot { result.containsKey(it.id) }
-            Log.d(
-                EMBEDDINGS_TEST_LOG_TAG,
-                "embedding_cache runId=$runId strategy=${strategy.name} total=${articles.size} " +
-                    "cacheHits=${result.size} zeroRejected=$cacheZeroRejected wrongType=$cacheWrongType " +
-                    "missing=${missingArticles.size}"
-            )
 
             if (missingArticles.isEmpty()) {
-                Log.d(
-                    EMBEDDINGS_TEST_LOG_TAG,
-                    "embedding_generated runId=$runId strategy=${strategy.name} total=0 usable=0 nulls=0 zeroCount=0"
-                )
                 emit(
                     EmbeddingProgress(
                         embeddingsById = result.toMap(),
@@ -192,8 +172,7 @@ class SimilarityScorer(
                             runId = runId,
                             chunk = chunk,
                             chunkIndex = chunkIndex,
-                            totalChunkCount = chunks.size,
-                            runGeneration = runGeneration
+                            totalChunkCount = chunks.size
                         )
                         generatedEmbeddings.addAll(batchGeneratedEmbeddings)
                         batchGeneratedEmbeddings.forEach { generated ->
@@ -205,24 +184,9 @@ class SimilarityScorer(
                 }
             }
 
-            logGeneratedEmbeddingDiagnostics(runId, strategy, generatedEmbeddings)
             if (dedupRuntimeCoordinator.currentEmbeddingsGeneration() == runGeneration) {
                 saveGeneratedEmbeddings(generatedEmbeddings, embeddingType)
-            } else {
-                Log.d(
-                    EMBEDDINGS_TEST_LOG_TAG,
-                    "embedding_save_skipped_after_clear runId=$runId strategy=${strategy.name} " +
-                        "generated=${generatedEmbeddings.size}"
-                )
             }
-            logEmbeddingProgress(
-                runId = runId,
-                strategy = strategy,
-                result = result,
-                totalArticles = articles.size,
-                isComplete = true,
-                cloudMissingGenerationFailed = cloudMissingGenerationFailed
-            )
             emit(
                 EmbeddingProgress(
                     embeddingsById = result.toMap(),
@@ -235,21 +199,6 @@ class SimilarityScorer(
         }
     }
 
-    private fun logEmbeddingProgress(
-        runId: Long,
-        strategy: DeduplicationStrategy,
-        result: Map<Long, FloatArray>,
-        totalArticles: Int,
-        isComplete: Boolean,
-        cloudMissingGenerationFailed: Boolean = false
-    ) {
-        Log.d(
-            EMBEDDINGS_TEST_LOG_TAG,
-            "embedding_progress runId=$runId strategy=${strategy.name} processed=${result.size} total=$totalArticles " +
-                "complete=$isComplete cloudMissingGenerationFailed=$cloudMissingGenerationFailed"
-        )
-    }
-
     private suspend fun getCloudEmbeddingBatch(
         runId: Long,
         chunk: List<Article>,
@@ -258,19 +207,10 @@ class SimilarityScorer(
         runGeneration: Long
 ) : BatchResult {
         val cloudEmbeddings = cloudEmbeddingSemaphore.withPermit {
-            val startMs = System.currentTimeMillis()
-            val embeddings = cloudEmbeddingProvider.generateEmbeddings(
+            cloudEmbeddingProvider.generateEmbeddings(
                 chunk.map { it.title.removeEmojiForDeduplicationEmbeddingInput() },
                 runId
             ).map { embedding -> embedding?.let(EmbeddingUtils::normalize) }
-            logEmbeddingBatchDiagnostics(
-                runId = runId,
-                strategy = DeduplicationStrategy.CLOUD,
-                batchSize = chunk.size,
-                elapsedMs = System.currentTimeMillis() - startMs,
-                embeddings = embeddings
-            )
-            embeddings
         }
 
         val batchGeneratedEmbeddings = chunk.mapIndexed { index, article ->
@@ -281,22 +221,11 @@ class SimilarityScorer(
         }
 
         if (dedupRuntimeCoordinator.currentEmbeddingsGeneration() != runGeneration) {
-            Log.d(
-                EMBEDDINGS_TEST_LOG_TAG,
-                "embedding_save_skipped_after_clear runId=$runId strategy=${DeduplicationStrategy.CLOUD.name} " +
-                    "processedBatches=${chunkIndex + 1}"
-            )
             return BatchResult(batchGeneratedEmbeddings, shouldStop = true)
         }
 
         val shouldStop = batchGeneratedEmbeddings.none { isUsableEmbedding(it.embedding) }
-        if (shouldStop) {
-            Log.d(
-                EMBEDDINGS_TEST_LOG_TAG,
-                "embedding_cloud_batch_stop runId=$runId reason=all_null_or_zero_batch " +
-                    "processedBatches=${chunkIndex + 1} remainingBatches=${totalChunkCount - chunkIndex - 1}"
-            )
-        } else if (chunkIndex < totalChunkCount - 1) {
+        if (!shouldStop && chunkIndex < totalChunkCount - 1) {
             delay(CLOUD_EMBEDDING_BATCH_DELAY_MS)
         }
 
@@ -307,87 +236,28 @@ class SimilarityScorer(
         runId: Long,
         chunk: List<Article>,
         chunkIndex: Int,
-        totalChunkCount: Int,
-        runGeneration: Long
+        totalChunkCount: Int
 ) : List<GeneratedEmbedding> {
-        Log.d(
-            EMBEDDINGS_TEST_LOG_TAG,
-            "local_embedding_batch_start runId=$runId batchIndex=${chunkIndex + 1} " +
-                "batchCount=$totalChunkCount batchSize=${chunk.size}"
-        )
-        val startMs = System.currentTimeMillis()
+        val batchStartMs = SystemClock.elapsedRealtime()
         val batchGeneratedEmbeddings = mutableListOf<GeneratedEmbedding>()
+        var totalEmbeddingMs = 0L
         chunk.forEach { article ->
             localEmbeddingSemaphore.withPermit {
                 val titleForEmbedding = article.title.removeEmojiForDeduplicationEmbeddingInput()
+                val embeddingStartMs = SystemClock.elapsedRealtime()
                 val embedding = EmbeddingUtils.normalize(localEmbeddingProvider.computeLocalEmbedding(titleForEmbedding))
-//                    Log.d(
-//                        EMBEDDINGS_TEST_LOG_TAG,
-//                        "embedding_created strategy=${DeduplicationStrategy.LOCAL.name} articleId=${article.id} " +
-//                            "ms=${System.currentTimeMillis() - startMs} title=${article.title}"
-//                    )
+                totalEmbeddingMs += SystemClock.elapsedRealtime() - embeddingStartMs
                 batchGeneratedEmbeddings.add(GeneratedEmbedding(article, embedding))
             }
         }
-        logEmbeddingBatchDiagnostics(
-            runId = runId,
-            strategy = DeduplicationStrategy.LOCAL,
-            batchSize = chunk.size,
-            elapsedMs = System.currentTimeMillis() - startMs,
-            embeddings = batchGeneratedEmbeddings.map { it.embedding }
+        Log.d(
+            EMBEDDINGS_TEST_LOG_TAG,
+            "local_embedding_avg_ms=${totalEmbeddingMs / chunk.size.coerceAtLeast(1)} " +
+                "count=${chunk.size} total_ms=${SystemClock.elapsedRealtime() - batchStartMs} " +
+                "runId=$runId batch=${chunkIndex + 1}/$totalChunkCount"
         )
 
-        if (dedupRuntimeCoordinator.currentEmbeddingsGeneration() != runGeneration) {
-            Log.d(
-                EMBEDDINGS_TEST_LOG_TAG,
-                "embedding_save_skipped_after_clear runId=$runId strategy=${DeduplicationStrategy.LOCAL.name} " +
-                    "processedBatches=${chunkIndex + 1}"
-            )
-        }
         return batchGeneratedEmbeddings
-    }
-
-    private fun logEmbeddingBatchDiagnostics(
-        runId: Long,
-        strategy: DeduplicationStrategy,
-        batchSize: Int,
-        elapsedMs: Long,
-        embeddings: List<FloatArray?>
-    ) {
-        val presentEmbeddings = embeddings.filterNotNull()
-        val dimensions = presentEmbeddings.map { it.size }.distinct().sorted()
-        val zeroCount = presentEmbeddings.count(EmbeddingUtils::isZeroVector)
-        val norms = presentEmbeddings.map(::calculateVectorNorm)
-        Log.d(
-            EMBEDDINGS_TEST_LOG_TAG,
-            "embedding_batch runId=$runId strategy=${strategy.name} batchSize=$batchSize " +
-                "received=${embeddings.size} present=${presentEmbeddings.size} nulls=${embeddings.count { it == null }} " +
-                "dims=$dimensions zeroCount=$zeroCount minNorm=${norms.minOrNull()} maxNorm=${norms.maxOrNull()} " +
-                "ms=$elapsedMs"
-        )
-    }
-
-    private fun logGeneratedEmbeddingDiagnostics(
-        runId: Long,
-        strategy: DeduplicationStrategy,
-        generatedEmbeddings: List<GeneratedEmbedding>
-    ) {
-        val generatedVectors = generatedEmbeddings.mapNotNull { it.embedding }
-        val zeroCount = generatedVectors.count(EmbeddingUtils::isZeroVector)
-        Log.d(
-            EMBEDDINGS_TEST_LOG_TAG,
-            "embedding_generated runId=$runId strategy=${strategy.name} total=${generatedEmbeddings.size} " +
-                "usable=${generatedVectors.size - zeroCount} nulls=${generatedEmbeddings.count { it.embedding == null }} " +
-                "zeroCount=$zeroCount"
-        )
-    }
-
-    private fun calculateVectorNorm(vector: FloatArray): Float {
-        var sum = 0f
-        for (value in vector) {
-            sum += value * value
-        }
-        return kotlin.math.sqrt(sum)
     }
 
     private suspend fun saveGeneratedEmbeddings(generatedEmbeddings: List<GeneratedEmbedding>, embeddingType: String) {

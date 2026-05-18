@@ -17,11 +17,17 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 interface RefreshFeedUseCase {
-    suspend operator fun invoke(): Result<Unit>
+    suspend operator fun invoke(onStageChange: suspend (FeedRefreshStage) -> Unit = {}): Result<Unit>
+}
+
+enum class FeedRefreshStage {
+    PARSING_NEWS,
+    DEDUPLICATING_NEWS
 }
 
 class RefreshFeedUseCaseImpl @Inject constructor(
     private val refreshArticlesUseCase: RefreshArticlesUseCase,
+    private val feedDeduplicationProcessor: FeedDeduplicationProcessor,
     private val getSuggestedThemesUseCase: GetSuggestedThemesUseCase,
     private val suggestedThemesStateRepository: SuggestedThemesStateRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
@@ -31,12 +37,18 @@ class RefreshFeedUseCaseImpl @Inject constructor(
     private var lastRefreshAt: Long = 0
     private val backgroundScope = CoroutineScope(SupervisorJob() + dispatcherProvider.io)
 
-    override suspend fun invoke(): Result<Unit> = withContext(dispatcherProvider.io) {
+    override suspend fun invoke(onStageChange: suspend (FeedRefreshStage) -> Unit): Result<Unit> = withContext(dispatcherProvider.io) {
         var shouldRefreshSuggestedThemes = false
         val result = mutex.withLock {
             val now = System.currentTimeMillis()
             if (now - lastRefreshAt < MIN_REFRESH_INTERVAL_MS) return@withLock Result.success(Unit)
-            val refreshResult = runCatching { refreshArticlesUseCase() }
+            val refreshResult = runCatching {
+                onStageChange(FeedRefreshStage.PARSING_NEWS)
+                refreshArticlesUseCase()
+                val prefs = userPreferencesRepository.preferences.first()
+                onStageChange(FeedRefreshStage.DEDUPLICATING_NEWS)
+                feedDeduplicationProcessor.rebuildSimilarities(prefs).getOrThrow()
+            }
             
             if (refreshResult.isSuccess) {
                 lastRefreshAt = now

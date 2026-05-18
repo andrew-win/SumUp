@@ -62,6 +62,7 @@ import com.andrewwin.sumup.domain.summary.SummaryResultFormatter
 import com.andrewwin.sumup.domain.usecase.ai.GetScheduledSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCaseImpl
+import com.andrewwin.sumup.domain.usecase.feed.FeedDeduplicationProcessor
 import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
 import com.andrewwin.sumup.domain.ai.LocalModelManager
 import com.andrewwin.sumup.domain.ai.LocalModelManagerImpl
@@ -286,12 +287,14 @@ object AppModule {
     @Singleton
     fun provideRefreshFeedUseCase(
         refreshArticlesUseCase: RefreshArticlesUseCase,
+        feedDeduplicationProcessor: FeedDeduplicationProcessor,
         getSuggestedThemesUseCase: GetSuggestedThemesUseCase,
         suggestedThemesStateRepository: SuggestedThemesStateRepository,
         userPreferencesRepository: UserPreferencesRepository,
         dispatcherProvider: com.andrewwin.sumup.domain.support.DispatcherProvider
     ): RefreshFeedUseCase = RefreshFeedUseCaseImpl(
         refreshArticlesUseCase = refreshArticlesUseCase,
+        feedDeduplicationProcessor = feedDeduplicationProcessor,
         getSuggestedThemesUseCase = getSuggestedThemesUseCase,
         suggestedThemesStateRepository = suggestedThemesStateRepository,
         userPreferencesRepository = userPreferencesRepository,

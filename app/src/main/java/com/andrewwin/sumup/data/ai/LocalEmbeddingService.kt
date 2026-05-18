@@ -5,6 +5,7 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.extensions.OrtxPackage
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import com.andrewwin.sumup.domain.ai.LocalEmbeddingProvider
 import com.andrewwin.sumup.domain.news.EmbeddingUtils
@@ -28,7 +29,8 @@ class LocalEmbeddingService(
         if (tokenizerSession != null && modelSession != null) return@withLock true
 
         withContext(Dispatchers.IO) {
-            runCatching {
+            val startMs = SystemClock.elapsedRealtime()
+            val initialized = runCatching {
                 val tokenizerOptions = OrtSession.SessionOptions().apply {
                     setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
                     setIntraOpNumThreads(TOKENIZER_INTRA_OP_THREADS)
@@ -54,6 +56,11 @@ class LocalEmbeddingService(
             }.onFailure { e ->
                 Log.e("LocalEmbeddingService", "Failed to initialize ONNX session", e)
             }.getOrDefault(false)
+            Log.d(
+                LOCAL_EMBEDDING_SPEED_LOG_TAG,
+                "local_embedding_init_ms=${SystemClock.elapsedRealtime() - startMs} success=$initialized"
+            )
+            initialized
         }
     }
 
@@ -226,5 +233,6 @@ class LocalEmbeddingService(
         private const val TOKENIZER_INTER_OP_THREADS = 1
         private const val MODEL_INTRA_OP_THREADS = 1
         private const val MODEL_INTER_OP_THREADS = 1
+        private const val LOCAL_EMBEDDING_SPEED_LOG_TAG = "LocalEmbeddingSpeedTest"
     }
 }

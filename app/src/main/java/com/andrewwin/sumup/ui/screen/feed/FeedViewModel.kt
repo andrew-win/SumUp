@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.ui.screen.feed
 
 import android.app.Application
+import android.util.Log
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,7 +12,8 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.feed.GetFeedArticlesUseCase
+import com.andrewwin.sumup.domain.usecase.feed.FeedArticlesBuilder
+import com.andrewwin.sumup.domain.usecase.feed.FeedRefreshStage
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
@@ -20,7 +22,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.milliseconds
 import javax.inject.Inject
 
@@ -49,7 +50,7 @@ class FeedViewModel @Inject constructor(
     application: Application,
     private val articleRepository: ArticleRepository,
     private val refreshFeedUseCase: RefreshFeedUseCase,
-    private val getFeedArticlesUseCase: GetFeedArticlesUseCase,
+    private val feedArticlesBuilder: FeedArticlesBuilder,
     private val sourceRepository: SourceRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val feedUiModelMapper: FeedUiModelMapper
@@ -87,7 +88,7 @@ class FeedViewModel @Inject constructor(
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val feedResultState: StateFlow<FeedResultState> = getFeedArticlesUseCase(
+    private val feedResultState: StateFlow<FeedResultState> = feedArticlesBuilder(
         _searchQuery
             .debounce(300.milliseconds)
             .distinctUntilChanged(),
@@ -107,7 +108,7 @@ class FeedViewModel @Inject constructor(
                 old.clusters.map { cluster -> cluster.duplicates.map { duplicate -> duplicate.first.isFavorite } } ==
                 new.clusters.map { cluster -> cluster.duplicates.map { duplicate -> duplicate.first.isFavorite } }
         }
-        .map<GetFeedArticlesUseCase.FeedResult, FeedResultState> { FeedResultState.Loaded(it) }
+        .map<FeedArticlesBuilder.FeedResult, FeedResultState> { FeedResultState.Loaded(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FeedResultState.Initial)
 
     private val favoriteSavedAtFlow: StateFlow<Map<Long, Long>> = feedResultState
@@ -196,7 +197,7 @@ class FeedViewModel @Inject constructor(
             } else {
                 firstLocalState.clusters
             }
-            _feedLoadingStage.value = null
+            setFeedLoadingStage(null, "database_loaded_before_initial_refresh")
             refresh(frozenClusters = initialFrozenClusters)
         }
 
@@ -213,6 +214,7 @@ class FeedViewModel @Inject constructor(
             articleRepository.dataInvalidationSignal
                 .drop(1) // Пропускаємо початкове значення 0
                 .collect {
+                    if (_isRefreshing.value) return@collect
                     val now = System.currentTimeMillis()
                     if (now - lastRefreshFinishedAt >= AUTO_REFRESH_AFTER_INVALIDATION_SUPPRESSION_MS) {
                         refresh()
@@ -227,38 +229,50 @@ class FeedViewModel @Inject constructor(
 
     private fun refresh(frozenClusters: List<ArticleClusterUiModel>) {
         viewModelScope.launch {
-            if (_isRefreshing.value || isDedupInProgress.value) return@launch
+            if (_isRefreshing.value || isDedupInProgress.value) {
+                Log.d(
+                    FEED_STATES_LOG_TAG,
+                    "refresh_rejected refreshing=${_isRefreshing.value} dedupActive=${isDedupInProgress.value} " +
+                        "stage=${_feedLoadingStage.value}"
+                )
+                return@launch
+            }
+            Log.d(
+                FEED_STATES_LOG_TAG,
+                "refresh_start frozenClusters=${frozenClusters.size} dedupActive=${isDedupInProgress.value} " +
+                    "currentStage=${_feedLoadingStage.value}"
+            )
             if (frozenClustersWhileProcessing.value == null) {
                 frozenClustersWhileProcessing.value = frozenClusters
             }
             _isRefreshing.value = true
-            _feedLoadingStage.value = FeedLoadingStage.PARSING_NEWS
+            setFeedLoadingStage(FeedLoadingStage.PARSING_NEWS, "refresh_started")
             try {
-                val result = refreshFeedUseCase()
+                val result = refreshFeedUseCase { stage ->
+                    setFeedLoadingStage(stage.toFeedLoadingStage(), "refresh_use_case_stage")
+                }
+                Log.d(FEED_STATES_LOG_TAG, "refresh_use_case_complete success=${result.isSuccess}")
                 if (result.isSuccess) {
-                    _feedLoadingStage.value = FeedLoadingStage.DEDUPLICATING_NEWS
-                    waitForPostRefreshDeduplication()
+                    Log.d(FEED_STATES_LOG_TAG, "post_refresh_invalidation_triggered")
+                    articleRepository.triggerDataInvalidation()
                 }
             } finally {
-                _feedLoadingStage.value = null
+                setFeedLoadingStage(null, "refresh_finally")
                 _isRefreshing.value = false
                 lastRefreshFinishedAt = System.currentTimeMillis()
+                Log.d(FEED_STATES_LOG_TAG, "refresh_finish lastRefreshFinishedAt=$lastRefreshFinishedAt")
             }
         }
     }
 
-    private suspend fun waitForPostRefreshDeduplication() {
-        if (isDedupInProgress.value) {
-            isDedupInProgress.first { !it }
+    private fun setFeedLoadingStage(stage: FeedLoadingStage?, reason: String) {
+        val previousStage = _feedLoadingStage.value
+        if (previousStage == stage) {
+            Log.d(FEED_STATES_LOG_TAG, "stage_unchanged stage=$stage reason=$reason")
             return
         }
-
-        val nextDedupState = withTimeoutOrNull(POST_REFRESH_DEDUP_START_WAIT_MS) {
-            isDedupInProgress.drop(1).first()
-        }
-        if (nextDedupState == true) {
-            isDedupInProgress.first { !it }
-        }
+        Log.d(FEED_STATES_LOG_TAG, "stage_change from=$previousStage to=$stage reason=$reason")
+        _feedLoadingStage.value = stage
     }
 
     fun onSearchQueryChange(query: String) { _searchQuery.value = query }
@@ -341,7 +355,14 @@ class FeedViewModel @Inject constructor(
 
     private sealed interface FeedResultState {
         data object Initial : FeedResultState
-        data class Loaded(val feedResult: GetFeedArticlesUseCase.FeedResult) : FeedResultState
+        data class Loaded(val feedResult: FeedArticlesBuilder.FeedResult) : FeedResultState
+    }
+
+    private fun FeedRefreshStage.toFeedLoadingStage(): FeedLoadingStage {
+        return when (this) {
+            FeedRefreshStage.PARSING_NEWS -> FeedLoadingStage.PARSING_NEWS
+            FeedRefreshStage.DEDUPLICATING_NEWS -> FeedLoadingStage.DEDUPLICATING_NEWS
+        }
     }
 
     private fun StateFlow<FeedLoadingStage?>.withStableVisibleStageDuration(): Flow<FeedLoadingStage?> = flow {
@@ -364,6 +385,7 @@ class FeedViewModel @Inject constructor(
             if (latestStage != visibleStage) {
                 visibleStage = latestStage
                 visibleStageStartedAt = System.currentTimeMillis()
+                Log.d(FEED_STATES_LOG_TAG, "visible_stage_emit stage=$latestStage")
                 emit(latestStage)
             }
         }
@@ -372,8 +394,8 @@ class FeedViewModel @Inject constructor(
     private companion object {
         private const val MIN_LOADING_STAGE_VISIBLE_MS = 500L
         private const val LOADING_STAGE_FINISH_SETTLE_MS = 500L
-        private const val POST_REFRESH_DEDUP_START_WAIT_MS = 1_000L
         private const val AUTO_REFRESH_AFTER_INVALIDATION_SUPPRESSION_MS = 6_000L
+        private const val FEED_STATES_LOG_TAG = "FeedStatesDebug"
     }
 }
 
