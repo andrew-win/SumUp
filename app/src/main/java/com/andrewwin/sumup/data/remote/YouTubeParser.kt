@@ -203,7 +203,7 @@ class YouTubeParser {
     }
 
     private fun parseDate(dateString: String): Long {
-        val formatters = formattersThreadLocal.get()
+        val formatters = formattersThreadLocal.get().orEmpty()
         for (f in formatters) {
             val date = runCatching { f.parse(dateString) }.getOrNull()
             if (date != null) return date.time
@@ -224,23 +224,23 @@ class YouTubeParser {
 
     private fun extractVideoIdFromUrl(url: String?): String? {
         if (url.isNullOrBlank()) return null
-        val vParam = Regex("[?&]v=([^?&#]+)").find(url)?.groupValues?.get(1)
+        val vParam = VIDEO_QUERY_REGEX.find(url)?.groupValues?.get(1)
         if (!vParam.isNullOrBlank()) return extractVideoIdFromText(vParam)
-        val shorts = Regex("youtube\\.com/shorts/([^?&#]+)").find(url)?.groupValues?.get(1)
+        val shorts = SHORTS_URL_REGEX.find(url)?.groupValues?.get(1)
         if (!shorts.isNullOrBlank()) return extractVideoIdFromText(shorts)
-        val embed = Regex("youtube\\.com/embed/([^?&#]+)").find(url)?.groupValues?.get(1)
+        val embed = EMBED_URL_REGEX.find(url)?.groupValues?.get(1)
         if (!embed.isNullOrBlank()) return extractVideoIdFromText(embed)
-        val legacy = Regex("youtube\\.com/v/([^?&#]+)").find(url)?.groupValues?.get(1)
+        val legacy = LEGACY_VIDEO_URL_REGEX.find(url)?.groupValues?.get(1)
         if (!legacy.isNullOrBlank()) return extractVideoIdFromText(legacy)
-        val thumb = Regex("ytimg\\.com/vi/([^/]+)/").find(url)?.groupValues?.get(1)
+        val thumb = THUMBNAIL_URL_REGEX.find(url)?.groupValues?.get(1)
         if (!thumb.isNullOrBlank()) return extractVideoIdFromText(thumb)
-        val short = Regex("youtu\\.be/([^?&#]+)").find(url)?.groupValues?.get(1)
+        val short = SHORT_URL_REGEX.find(url)?.groupValues?.get(1)
         return extractVideoIdFromText(short)
     }
 
     private fun extractVideoIdFromText(text: String?): String? {
         if (text.isNullOrBlank()) return null
-        val match = Regex("[A-Za-z0-9_-]{11}").find(text)
+        val match = VIDEO_ID_REGEX.find(text)
         return match?.value
     }
 
@@ -280,6 +280,16 @@ class YouTubeParser {
         val thumbnailUrl: String?,
         val videoId: String?
     )
+
+    private companion object {
+        private val VIDEO_QUERY_REGEX = Regex("[?&]v=([^?&#]+)")
+        private val SHORTS_URL_REGEX = Regex("youtube\\.com/shorts/([^?&#]+)")
+        private val EMBED_URL_REGEX = Regex("youtube\\.com/embed/([^?&#]+)")
+        private val LEGACY_VIDEO_URL_REGEX = Regex("youtube\\.com/v/([^?&#]+)")
+        private val THUMBNAIL_URL_REGEX = Regex("ytimg\\.com/vi/([^/]+)/")
+        private val SHORT_URL_REGEX = Regex("youtu\\.be/([^?&#]+)")
+        private val VIDEO_ID_REGEX = Regex("[A-Za-z0-9_-]{11}")
+    }
 }
 
 

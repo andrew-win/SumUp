@@ -74,6 +74,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
+import javax.inject.Named
 import javax.inject.Singleton
 
 @Module
@@ -112,27 +113,60 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient =
+    @Named(AI_OK_HTTP_CLIENT)
+    fun provideAiOkHttpClient(): OkHttpClient =
         OkHttpClient.Builder()
-            .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
-            .callTimeout(75, TimeUnit.SECONDS)
+            .connectTimeout(AI_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(AI_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(AI_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .callTimeout(AI_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .addInterceptor { chain ->
-                val request = chain.request()
-                val startNanos = System.nanoTime()
-                val response = chain.proceed(request)
-                val tookMs = (System.nanoTime() - startNanos) / 1_000_000
-                response
+                chain.proceed(chain.request())
             }
             .build()
 
     @Provides
     @Singleton
-    fun provideAiService(okHttpClient: OkHttpClient): AiService = AiService(okHttpClient)
+    @Named(NEWS_OK_HTTP_CLIENT)
+    fun provideNewsOkHttpClient(
+        @Named(AI_OK_HTTP_CLIENT) okHttpClient: OkHttpClient
+    ): OkHttpClient = okHttpClient.newBuilder()
+        .connectTimeout(NEWS_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(NEWS_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(NEWS_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .callTimeout(NEWS_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .build()
 
     @Provides
-    fun provideRssParser(okHttpClient: OkHttpClient): RssParser = RssParser(okHttpClient)
+    @Singleton
+    @Named(DISPLAY_NAME_OK_HTTP_CLIENT)
+    fun provideDisplayNameOkHttpClient(
+        @Named(AI_OK_HTTP_CLIENT) okHttpClient: OkHttpClient
+    ): OkHttpClient = okHttpClient.newBuilder()
+        .connectTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .callTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .build()
+
+    @Provides
+    @Singleton
+    @Named(MODEL_DOWNLOAD_OK_HTTP_CLIENT)
+    fun provideModelDownloadOkHttpClient(
+        @Named(AI_OK_HTTP_CLIENT) okHttpClient: OkHttpClient
+    ): OkHttpClient = okHttpClient.newBuilder()
+        .connectTimeout(MODEL_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(MODEL_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(MODEL_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .callTimeout(0, TimeUnit.SECONDS)
+        .build()
+
+    @Provides
+    @Singleton
+    fun provideAiService(@Named(AI_OK_HTTP_CLIENT) okHttpClient: OkHttpClient): AiService = AiService(okHttpClient)
+
+    @Provides
+    fun provideRssParser(@Named(NEWS_OK_HTTP_CLIENT) okHttpClient: OkHttpClient): RssParser = RssParser(okHttpClient)
 
     @Provides
     fun provideTelegramParser(): TelegramParser = TelegramParser()
@@ -143,12 +177,14 @@ object AppModule {
     @Provides
     @Singleton
     fun provideRemoteArticleDataSource(
-        okHttpClient: OkHttpClient,
+        @Named(NEWS_OK_HTTP_CLIENT) okHttpClient: OkHttpClient,
+        @Named(DISPLAY_NAME_OK_HTTP_CLIENT) displayNameOkHttpClient: OkHttpClient,
         rssParser: RssParser,
         telegramParser: TelegramParser,
         youtubeParser: YouTubeParser
     ): RemoteArticleDataSource = RemoteArticleDataSource(
         okHttpClient,
+        displayNameOkHttpClient,
         rssParser,
         telegramParser,
         youtubeParser
@@ -204,7 +240,7 @@ object AppModule {
     @Singleton
     fun provideModelRepository(
         @ApplicationContext context: Context,
-        okHttpClient: OkHttpClient
+        @Named(MODEL_DOWNLOAD_OK_HTTP_CLIENT) okHttpClient: OkHttpClient
     ): ModelRepository = ModelRepositoryImpl(context, okHttpClient)
 
     @Provides
@@ -361,4 +397,21 @@ object AppModule {
     @Singleton
     fun provideDispatcherProvider(): com.andrewwin.sumup.domain.support.DispatcherProvider =
         AppDispatcherProvider()
+
+    private const val AI_OK_HTTP_CLIENT = "aiOkHttpClient"
+    private const val NEWS_OK_HTTP_CLIENT = "newsOkHttpClient"
+    private const val DISPLAY_NAME_OK_HTTP_CLIENT = "displayNameOkHttpClient"
+    private const val MODEL_DOWNLOAD_OK_HTTP_CLIENT = "modelDownloadOkHttpClient"
+    private const val AI_CONNECT_TIMEOUT_SECONDS = 20L
+    private const val AI_READ_TIMEOUT_SECONDS = 60L
+    private const val AI_WRITE_TIMEOUT_SECONDS = 60L
+    private const val AI_CALL_TIMEOUT_SECONDS = 75L
+    private const val NEWS_CONNECT_TIMEOUT_SECONDS = 5L
+    private const val NEWS_READ_TIMEOUT_SECONDS = 10L
+    private const val NEWS_WRITE_TIMEOUT_SECONDS = 5L
+    private const val NEWS_CALL_TIMEOUT_SECONDS = 12L
+    private const val DISPLAY_NAME_TIMEOUT_SECONDS = 7L
+    private const val MODEL_CONNECT_TIMEOUT_SECONDS = 20L
+    private const val MODEL_READ_TIMEOUT_SECONDS = 60L
+    private const val MODEL_WRITE_TIMEOUT_SECONDS = 60L
 }

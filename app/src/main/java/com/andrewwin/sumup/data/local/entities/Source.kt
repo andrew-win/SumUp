@@ -28,6 +28,7 @@ data class Source(
     val type: SourceType,
     val isEnabled: Boolean = true,
     val footerPattern: String? = null,
+    val footerPatternCheckedAt: Long = 0L,
     val titleSelector: String? = null,
     val postLinkSelector: String? = null,
     val descriptionSelector: String? = null,

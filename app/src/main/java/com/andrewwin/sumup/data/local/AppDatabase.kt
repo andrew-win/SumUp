@@ -37,7 +37,7 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
         Summary::class,
         UserPreferences::class
     ],
-    version = 64,
+    version = 65,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -95,7 +95,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_60_61,
                         MIGRATION_61_62,
                         MIGRATION_62_63,
-                        MIGRATION_63_64
+                        MIGRATION_63_64,
+                        MIGRATION_64_65
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -879,6 +880,14 @@ abstract class AppDatabase : RoomDatabase() {
                         printf('%02d:%02d', scheduledHour, scheduledMinute)
                     WHERE scheduledSummaryTimes = '08:00'
                     """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_64_65 = object : Migration(64, 65) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE sources ADD COLUMN footerPatternCheckedAt INTEGER NOT NULL DEFAULT 0"
                 )
             }
         }

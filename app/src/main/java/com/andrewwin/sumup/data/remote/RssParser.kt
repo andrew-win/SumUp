@@ -2,8 +2,6 @@ package com.andrewwin.sumup.data.remote
 
 import com.andrewwin.sumup.data.local.entities.Article
 import com.prof18.rssparser.RssParserBuilder
-import com.prof18.rssparser.model.RssChannel
-import com.prof18.rssparser.model.RssItem
 import okhttp3.OkHttpClient
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -24,12 +22,14 @@ class RssParser @Inject constructor(
     }
 
     suspend fun parseUrl(url: String, sourceId: Long): List<Article> {
+        return parseUrlResult(url, sourceId).getOrDefault(emptyList())
+    }
+
+    suspend fun parseUrlResult(url: String, sourceId: Long): Result<List<Article>> {
         return runCatching {
             val channel = parser.getRssChannel(url)
             val mapped = mapChannel(channel, sourceId)
             mapped
-        }.getOrElse { e ->
-            emptyList()
         }
     }
 
@@ -90,7 +90,7 @@ class RssParser @Inject constructor(
 
     private fun parseRssDate(dateString: String): Long {
         val trimmed = dateString.trim()
-        val formatters = formattersThreadLocal.get()
+        val formatters = formattersThreadLocal.get().orEmpty()
         for (f in formatters) {
             val date = runCatching { f.parse(trimmed) }.getOrNull()
             if (date != null) {
@@ -102,8 +102,7 @@ class RssParser @Inject constructor(
     }
 
     private fun extractImageFromHtml(html: String): String? {
-        val regex = Regex("<img[^>]+src=[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
-        return regex.find(html)?.groups?.get(1)?.value
+        return IMAGE_SRC_REGEX.find(html)?.groups?.get(1)?.value
     }
 
     private fun String.cleanChannelTitle(): String? {
@@ -115,6 +114,7 @@ class RssParser @Inject constructor(
 
     companion object {
         private const val MIN_REASONABLE_TIMESTAMP = 946684800000L // 2000-01-01
+        private val IMAGE_SRC_REGEX = Regex("<img[^>]+src=[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
     }
 }
 

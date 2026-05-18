@@ -355,6 +355,7 @@ internal fun Source.toBackupJson(): JSONObject = JSONObject().apply {
     put("type", type.name)
     put("isEnabled", isEnabled)
     put("footerPattern", footerPattern)
+    put("footerPatternCheckedAt", footerPatternCheckedAt)
     put("titleSelector", titleSelector)
     put("postLinkSelector", postLinkSelector)
     put("descriptionSelector", descriptionSelector)
@@ -416,6 +417,7 @@ internal fun JSONArray?.toImportedSourcesFromBackup(): List<ImportedSource> {
                 type = type,
                 isEnabled = item.optBoolean("isEnabled", true),
                 footerPattern = item.optString("footerPattern", "").takeIf { it.isNotBlank() },
+                footerPatternCheckedAt = item.optLong("footerPatternCheckedAt", 0L),
                 titleSelector = item.optString("titleSelector", "").takeIf { it.isNotBlank() },
                 postLinkSelector = item.optString("postLinkSelector", "").takeIf { it.isNotBlank() },
                 descriptionSelector = item.optString("descriptionSelector", "").takeIf { it.isNotBlank() },

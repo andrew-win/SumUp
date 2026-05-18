@@ -69,6 +69,7 @@ data class ImportedSource(
     val type: SourceType,
     val isEnabled: Boolean,
     val footerPattern: String?,
+    val footerPatternCheckedAt: Long = 0L,
     val titleSelector: String?,
     val postLinkSelector: String?,
     val descriptionSelector: String?,

@@ -110,6 +110,7 @@ class SourceRepositoryImpl @Inject constructor(
 
         if (!detectFooterPattern) return
 
+        val footerPatternCheckedAt = System.currentTimeMillis()
         val footerPattern = try {
             val sampleArticles = remoteArticleDataSource.fetchArticles(
                 Source(
@@ -132,9 +133,13 @@ class SourceRepositoryImpl @Inject constructor(
             null
         }
 
-        if (!footerPattern.isNullOrBlank()) {
-            sourceDao.updateSource(sourceToInsert.copy(id = insertedId, footerPattern = footerPattern))
-        }
+        sourceDao.updateSource(
+            sourceToInsert.copy(
+                id = insertedId,
+                footerPattern = footerPattern?.takeIf { it.isNotBlank() },
+                footerPatternCheckedAt = footerPatternCheckedAt
+            )
+        )
     }
 
     override suspend fun updateSource(source: Source) {
@@ -372,6 +377,10 @@ class SourceRepositoryImpl @Inject constructor(
             type = imported.type,
             isEnabled = imported.isEnabled,
             footerPattern = imported.footerPattern?.trim()?.takeIf { it.isNotEmpty() },
+            footerPatternCheckedAt = imported.footerPatternCheckedAt
+                .takeIf { it > 0L }
+                ?: existing?.footerPatternCheckedAt
+                ?: 0L,
             titleSelector = normalizedTitleSelector,
             postLinkSelector = normalizedPostLinkSelector,
             descriptionSelector = normalizedDescriptionSelector,

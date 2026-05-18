@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.domain.usecase.feed
 
+import android.util.Log
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
@@ -35,13 +36,26 @@ class RefreshFeedUseCaseImpl @Inject constructor(
 ) : RefreshFeedUseCase {
     private val mutex = Mutex()
     private var lastRefreshAt: Long = 0
+    private var nextRunId: Long = 1
     private val backgroundScope = CoroutineScope(SupervisorJob() + dispatcherProvider.io)
 
     override suspend fun invoke(onStageChange: suspend (FeedRefreshStage) -> Unit): Result<Unit> = withContext(dispatcherProvider.io) {
         var shouldRefreshSuggestedThemes = false
+        val requestAt = System.currentTimeMillis()
+        logRefreshDebug(
+            "refresh_use_case_requested ageMs=${refreshAgeMs(requestAt)} " +
+                "isLocked=${mutex.isLocked} caller=${callerStack()}"
+        )
         val result = mutex.withLock {
             val now = System.currentTimeMillis()
-            if (now - lastRefreshAt < MIN_REFRESH_INTERVAL_MS) return@withLock Result.success(Unit)
+            val ageMs = refreshAgeMs(now)
+            if (ageMs in 0 until MIN_REFRESH_INTERVAL_MS) {
+                logRefreshDebug("refresh_use_case_skipped_min_interval ageMs=$ageMs")
+                return@withLock Result.success(Unit)
+            }
+            val runId = nextRunId++
+            val runStartedAt = System.currentTimeMillis()
+            logRefreshDebug("refresh_use_case_started runId=$runId ageMs=$ageMs")
             val refreshResult = runCatching {
                 onStageChange(FeedRefreshStage.PARSING_NEWS)
                 refreshArticlesUseCase()
@@ -58,6 +72,10 @@ class RefreshFeedUseCaseImpl @Inject constructor(
                     (now - lastRecommendationAt) >= SuggestedThemesRefreshPolicy.REFRESH_INTERVAL_MS
             }
 
+            logRefreshDebug(
+                "refresh_use_case_finished runId=$runId success=${refreshResult.isSuccess} " +
+                    "durationMs=${System.currentTimeMillis() - runStartedAt}"
+            )
             refreshResult
         }
 
@@ -71,8 +89,33 @@ class RefreshFeedUseCaseImpl @Inject constructor(
         result
     }
 
+    private fun refreshAgeMs(now: Long): Long =
+        if (lastRefreshAt == 0L) -1L else now - lastRefreshAt
+
+    private fun callerStack(): String =
+        Throwable().stackTrace
+            .asSequence()
+            .filter { frame ->
+                frame.className.startsWith(APP_PACKAGE_PREFIX) &&
+                    !frame.className.contains("RefreshFeedUseCaseImpl")
+            }
+            .take(CALLER_STACK_FRAME_LIMIT)
+            .joinToString(" <- ") { frame ->
+                "${frame.className.substringAfterLast('.')}.${frame.methodName}:${frame.lineNumber}"
+            }
+
+    private fun logRefreshDebug(message: String) {
+        if (REFRESH_TRIGGER_LOGS_ENABLED) {
+            Log.d(REFRESH_TRIGGER_LOG_TAG, message)
+        }
+    }
+
     companion object {
         private const val MIN_REFRESH_INTERVAL_MS = 5_000L
+        private const val REFRESH_TRIGGER_LOGS_ENABLED = true
+        private const val REFRESH_TRIGGER_LOG_TAG = "RefreshTriggerDebug"
+        private const val APP_PACKAGE_PREFIX = "com.andrewwin.sumup"
+        private const val CALLER_STACK_FRAME_LIMIT = 8
     }
 }
 

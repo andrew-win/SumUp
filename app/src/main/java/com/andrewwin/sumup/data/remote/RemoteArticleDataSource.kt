@@ -12,22 +12,16 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 class RemoteArticleDataSource @Inject constructor(
     private val okHttpClient: OkHttpClient,
+    private val displayNameOkHttpClient: OkHttpClient,
     private val rssParser: RssParser,
     private val telegramParser: TelegramParser,
     private val youtubeParser: YouTubeParser
 ) {
 
-    private val displayNameOkHttpClient = okHttpClient.newBuilder()
-        .connectTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .readTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .writeTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .callTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .build()
     private val displayNameRssParser = RssParser(displayNameOkHttpClient)
 
     private inner class OkHttpYoutubeClient(private val client: OkHttpClient) : YoutubeClient {
@@ -57,11 +51,29 @@ class RemoteArticleDataSource @Inject constructor(
         source: Source,
         oldestAllowedPublishedAt: Long? = null
     ): List<Article> = withContext(Dispatchers.IO) {
-        when (source.type) {
-            SourceType.RSS -> fetchRssArticles(source.id, source.url)
-            SourceType.TELEGRAM -> fetchTelegramArticles(source.id, source.url, oldestAllowedPublishedAt)
-            SourceType.YOUTUBE -> fetchYouTubeArticles(source.id, source.url)
+        val startedAt = NewsParsingLogger.now()
+        val safeUrl = NewsParsingLogger.safeUrl(source.url)
+        NewsParsingLogger.debug {
+            "source_fetch_start sourceId=${source.id} type=${source.type} url=$safeUrl"
         }
+        val articles = runCatching {
+            when (source.type) {
+                SourceType.RSS -> fetchRssArticles(source.id, source.url)
+                SourceType.TELEGRAM -> fetchTelegramArticles(source.id, source.url, oldestAllowedPublishedAt)
+                SourceType.YOUTUBE -> fetchYouTubeArticles(source.id, source.url)
+            }
+        }.getOrElse { error ->
+            NewsParsingLogger.error(error) {
+                "source_fetch_error sourceId=${source.id} type=${source.type} url=$safeUrl " +
+                    "durationMs=${NewsParsingLogger.elapsedMs(startedAt)} error=${error.javaClass.simpleName}"
+            }
+            emptyList()
+        }
+        NewsParsingLogger.debug {
+            "source_fetch_complete sourceId=${source.id} type=${source.type} url=$safeUrl " +
+                "articles=${articles.size} durationMs=${NewsParsingLogger.elapsedMs(startedAt)}"
+        }
+        articles
     }
 
     suspend fun fetchYouTubeChannelDisplayName(url: String): String? = withContext(Dispatchers.IO) {
@@ -106,11 +118,26 @@ class RemoteArticleDataSource @Inject constructor(
 
     private suspend fun fetchRssArticles(sourceId: Long, url: String): List<Article> {
         val httpsUrl = if (url.startsWith("http://")) "https://${url.removePrefix("http://")}" else url
-        val primary = rssParser.parseUrl(httpsUrl, sourceId)
-        return if (primary.isNotEmpty() || httpsUrl == url) {
-            primary
+        val primaryStartedAt = NewsParsingLogger.now()
+        val primary = rssParser.parseUrlResult(httpsUrl, sourceId)
+        NewsParsingLogger.debug {
+            "rss_primary_complete sourceId=$sourceId url=${NewsParsingLogger.safeUrl(httpsUrl)} " +
+                "success=${primary.isSuccess} articles=${primary.getOrNull()?.size ?: 0} " +
+                "durationMs=${NewsParsingLogger.elapsedMs(primaryStartedAt)} " +
+                "error=${primary.exceptionOrNull()?.javaClass?.simpleName.orEmpty()}"
+        }
+        return if (primary.isSuccess || httpsUrl == url) {
+            primary.getOrDefault(emptyList())
         } else {
-            rssParser.parseUrl(url, sourceId)
+            val fallbackStartedAt = NewsParsingLogger.now()
+            val fallback = rssParser.parseUrlResult(url, sourceId)
+            NewsParsingLogger.debug {
+                "rss_fallback_complete sourceId=$sourceId url=${NewsParsingLogger.safeUrl(url)} " +
+                    "success=${fallback.isSuccess} articles=${fallback.getOrNull()?.size ?: 0} " +
+                    "durationMs=${NewsParsingLogger.elapsedMs(fallbackStartedAt)} " +
+                    "error=${fallback.exceptionOrNull()?.javaClass?.simpleName.orEmpty()}"
+            }
+            fallback.getOrDefault(emptyList())
         }
     }
 
@@ -120,13 +147,15 @@ class RemoteArticleDataSource @Inject constructor(
         oldestAllowedPublishedAt: Long?
     ): List<Article> {
         return try {
+            val startedAt = NewsParsingLogger.now()
             val telegramUrl = buildTelegramChannelPreviewUrl(url)
             val articlesByKey = linkedMapOf<String, Article>()
-            var pageArticles = fetchTelegramPageArticles(telegramUrl, sourceId)
+            var pageArticles = fetchTelegramPageArticles(telegramUrl, sourceId, pageIndex = 0)
             addTelegramArticles(articlesByKey, pageArticles)
 
             var oldestMessageId = findOldestTelegramMessageId(pageArticles)
             var pageCount = 0
+            var stopReason = TELEGRAM_STOP_FIRST_PAGE_ENOUGH
             while (
                 oldestAllowedPublishedAt != null &&
                 shouldFetchOlderTelegramPage(pageArticles, oldestAllowedPublishedAt) &&
@@ -134,24 +163,68 @@ class RemoteArticleDataSource @Inject constructor(
                 pageCount < TELEGRAM_MAX_EXTRA_PAGES
             ) {
                 val nextUrl = buildTelegramBeforeUrl(telegramUrl, oldestMessageId)
-                pageArticles = fetchTelegramPageArticles(nextUrl, sourceId)
+                pageArticles = fetchTelegramPageArticles(nextUrl, sourceId, pageIndex = pageCount + 1)
                 val previousSize = articlesByKey.size
                 addTelegramArticles(articlesByKey, pageArticles)
-                if (articlesByKey.size == previousSize) break
+                if (articlesByKey.size == previousSize) {
+                    stopReason = TELEGRAM_STOP_NO_NEW_ARTICLES
+                    break
+                }
                 oldestMessageId = findOldestTelegramMessageId(pageArticles)
                 pageCount++
             }
+            if (oldestAllowedPublishedAt == null) {
+                stopReason = TELEGRAM_STOP_NO_CUTOFF
+            } else if (!shouldFetchOlderTelegramPage(pageArticles, oldestAllowedPublishedAt)) {
+                stopReason = TELEGRAM_STOP_REACHED_CUTOFF
+            } else if (oldestMessageId == null) {
+                stopReason = TELEGRAM_STOP_NO_OLDER_ID
+            } else if (pageCount >= TELEGRAM_MAX_EXTRA_PAGES) {
+                stopReason = TELEGRAM_STOP_PAGE_LIMIT
+            }
 
-            articlesByKey.values.sortedByDescending { it.publishedAt }
-        } catch (e: Exception) { emptyList() }
+            val articles = articlesByKey.values.sortedByDescending { it.publishedAt }
+            NewsParsingLogger.debug {
+                "telegram_complete sourceId=$sourceId pages=${pageCount + 1} articles=${articles.size} " +
+                    "stopReason=$stopReason durationMs=${NewsParsingLogger.elapsedMs(startedAt)}"
+            }
+            articles
+        } catch (e: Exception) {
+            NewsParsingLogger.error(e) {
+                "telegram_error sourceId=$sourceId url=${NewsParsingLogger.safeUrl(url)} error=${e.javaClass.simpleName}"
+            }
+            emptyList()
+        }
     }
 
-    private fun fetchTelegramPageArticles(url: String, sourceId: Long): List<Article> {
+    private fun fetchTelegramPageArticles(url: String, sourceId: Long, pageIndex: Int): List<Article> {
+        val startedAt = NewsParsingLogger.now()
         val request = Request.Builder().url(url).build()
-        okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return emptyList()
-            val html = response.body?.string() ?: return emptyList()
-            return telegramParser.parse(html, sourceId)
+        return try {
+            okHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    NewsParsingLogger.warning {
+                        "telegram_page_complete sourceId=$sourceId pageIndex=$pageIndex " +
+                            "status=${response.code} articles=0 durationMs=${NewsParsingLogger.elapsedMs(startedAt)}"
+                    }
+                    return emptyList()
+                }
+                val html = response.body?.string() ?: return emptyList()
+                val articles = telegramParser.parse(html, sourceId)
+                NewsParsingLogger.debug {
+                    "telegram_page_complete sourceId=$sourceId pageIndex=$pageIndex " +
+                        "status=${response.code} htmlChars=${html.length} articles=${articles.size} " +
+                        "durationMs=${NewsParsingLogger.elapsedMs(startedAt)}"
+                }
+                articles
+            }
+        } catch (e: Exception) {
+            NewsParsingLogger.error(e) {
+                "telegram_page_error sourceId=$sourceId pageIndex=$pageIndex " +
+                    "url=${NewsParsingLogger.safeUrl(url)} durationMs=${NewsParsingLogger.elapsedMs(startedAt)} " +
+                    "error=${e.javaClass.simpleName}"
+            }
+            emptyList()
         }
     }
 
@@ -206,17 +279,34 @@ class RemoteArticleDataSource @Inject constructor(
     }
 
     private fun fetchYouTubeArticles(sourceId: Long, url: String): List<Article> {
+        val startedAt = NewsParsingLogger.now()
         return try {
             val youtubeUrl = buildYouTubeFeedUrl(url)
             val request = Request.Builder().url(youtubeUrl).build()
             okHttpClient.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
                     val body = response.body?.byteStream()
-                    if (body != null) return youtubeParser.parse(body, sourceId)
+                    if (body != null) {
+                        val articles = youtubeParser.parse(body, sourceId)
+                        NewsParsingLogger.debug {
+                            "youtube_feed_complete sourceId=$sourceId url=${NewsParsingLogger.safeUrl(youtubeUrl)} " +
+                                "status=${response.code} articles=${articles.size} " +
+                                "durationMs=${NewsParsingLogger.elapsedMs(startedAt)}"
+                        }
+                        return articles
+                    }
+                }
+                NewsParsingLogger.warning {
+                    "youtube_feed_complete sourceId=$sourceId url=${NewsParsingLogger.safeUrl(youtubeUrl)} " +
+                        "status=${response.code} articles=0 durationMs=${NewsParsingLogger.elapsedMs(startedAt)}"
                 }
             }
             emptyList()
         } catch (e: Exception) {
+            NewsParsingLogger.error(e) {
+                "youtube_feed_error sourceId=$sourceId url=${NewsParsingLogger.safeUrl(url)} " +
+                    "durationMs=${NewsParsingLogger.elapsedMs(startedAt)} error=${e.javaClass.simpleName}"
+            }
             emptyList()
         }
     }
@@ -347,8 +437,13 @@ class RemoteArticleDataSource @Inject constructor(
         private const val YT_BLOCK_WINDOW_SECONDS = 22.0
         private const val YT_BLOCK_GAP_SECONDS = 2.2
         private const val YT_BLOCK_MAX_CHARS = 260
-        private const val DISPLAY_NAME_TIMEOUT_SECONDS = 7L
         private const val TELEGRAM_MAX_EXTRA_PAGES = 5
+        private const val TELEGRAM_STOP_FIRST_PAGE_ENOUGH = "first_page_enough"
+        private const val TELEGRAM_STOP_NO_CUTOFF = "no_cutoff"
+        private const val TELEGRAM_STOP_REACHED_CUTOFF = "reached_cutoff"
+        private const val TELEGRAM_STOP_NO_OLDER_ID = "no_older_id"
+        private const val TELEGRAM_STOP_NO_NEW_ARTICLES = "no_new_articles"
+        private const val TELEGRAM_STOP_PAGE_LIMIT = "page_limit"
     }
 }
 

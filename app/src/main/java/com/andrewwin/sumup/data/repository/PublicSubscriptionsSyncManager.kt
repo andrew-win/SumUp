@@ -104,6 +104,7 @@ class PublicSubscriptionsSyncManager @Inject constructor(
                             put("type", source.type.name)
                             put("isEnabled", source.isEnabled)
                             source.footerPattern?.let { put("footerPattern", it) }
+                            put("footerPatternCheckedAt", source.footerPatternCheckedAt)
                             source.titleSelector?.let { put("titleSelector", it) }
                             source.postLinkSelector?.let { put("postLinkSelector", it) }
                             source.descriptionSelector?.let { put("descriptionSelector", it) }
@@ -150,6 +151,7 @@ class PublicSubscriptionsSyncManager @Inject constructor(
                         type = sourceType,
                         isEnabled = sourceJson.optBoolean("isEnabled", true),
                         footerPattern = sourceJson.optString("footerPattern").trim().takeIf { it.isNotEmpty() },
+                        footerPatternCheckedAt = sourceJson.optLong("footerPatternCheckedAt", 0L),
                         titleSelector = sourceJson.optString("titleSelector").trim().takeIf { it.isNotEmpty() },
                         postLinkSelector = sourceJson.optString("postLinkSelector").trim().takeIf { it.isNotEmpty() },
                         descriptionSelector = sourceJson.optString("descriptionSelector").trim().takeIf { it.isNotEmpty() },

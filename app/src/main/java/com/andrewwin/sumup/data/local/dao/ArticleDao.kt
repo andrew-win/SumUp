@@ -103,6 +103,25 @@ interface ArticleDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertArticles(articles: List<Article>): List<Long>
 
+    @Transaction
+    suspend fun insertAndUpdateFetchedArticles(articles: List<Article>) {
+        if (articles.isEmpty()) return
+        insertArticles(articles)
+        for (article in articles) {
+            updateFetchedArticleByStableArticleKey(
+                stableArticleKey = article.stableArticleKey,
+                sourceId = article.sourceId,
+                title = article.title,
+                content = article.content,
+                mediaUrl = article.mediaUrl,
+                videoId = article.videoId,
+                publishedAt = article.publishedAt,
+                viewCount = article.viewCount,
+                url = article.url
+            )
+        }
+    }
+
     @Query(
         """
         UPDATE articles
@@ -180,6 +199,9 @@ interface ArticleDao {
     @Query("SELECT id FROM articles WHERE id IN (:ids)")
     suspend fun getExistingArticleIds(ids: List<Long>): List<Long>
 
+    @Query("SELECT stableArticleKey FROM articles WHERE stableArticleKey IN (:stableArticleKeys)")
+    suspend fun getExistingStableArticleKeys(stableArticleKeys: List<String>): List<String>
+
     @Delete
     suspend fun deleteArticle(article: Article)
 
@@ -232,5 +254,3 @@ data class ArticleWithMeta(
     val sourceName: String?,
     val groupName: String?
 )
-
-

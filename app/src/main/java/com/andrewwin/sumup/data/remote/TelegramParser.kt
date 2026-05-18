@@ -17,10 +17,6 @@ class TelegramParser {
     }
 
     fun parse(html: String, sourceId: Long): List<Article> {
-        return parseWithDebug(html, sourceId).articles
-    }
-
-    fun parseWithDebug(html: String, sourceId: Long): TelegramParseResult {
         val doc = Jsoup.parse(html)
         val messages = doc.select(".tgme_widget_message")
         val partsByKey = linkedMapOf<String, MessageParts>()
@@ -99,22 +95,9 @@ class TelegramParser {
             )
         }
 
-        val sortedArticles = articles
+        return articles
             .distinctBy { it.url }
             .sortedByDescending { it.publishedAt }
-
-        val debug = partsByKey.map { (key, parts) ->
-            TelegramParseDebug(
-                key = key,
-                url = parts.url,
-                dateStr = parts.dateStr,
-                epochStr = parts.epochStr,
-                parsedAt = parseDate(parts.dateStr) ?: parseEpoch(parts.epochStr),
-                textLength = parts.text?.length ?: 0
-            )
-        }
-
-        return TelegramParseResult(sortedArticles, debug)
     }
 
     private fun buildKey(element: org.jsoup.nodes.Element): String {
@@ -130,17 +113,7 @@ class TelegramParser {
     private fun parseDate(value: String?): Long? {
         if (value.isNullOrBlank()) return null
         val normalized = if (value.endsWith("Z")) value.dropLast(1) + "+00:00" else value
-        val formats = listOf(
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US),
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US),
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.US),
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.US),
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US),
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US),
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US),
-            SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        )
-        for (format in formats) {
+        for (format in dateFormattersThreadLocal.get().orEmpty()) {
             runCatching { format.parse(normalized)?.time }.getOrNull()?.let { return it }
         }
         return null
@@ -260,6 +233,21 @@ class TelegramParser {
         var viewCount: Long? = null,
         var mediaUrl: String? = null
     )
+
+    private companion object {
+        private val dateFormattersThreadLocal = ThreadLocal.withInitial {
+            listOf(
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US),
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US),
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.US),
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.US),
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US),
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US),
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US),
+                SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            )
+        }
+    }
 }
 
 private fun extractMediaUrl(element: org.jsoup.nodes.Element): String? {
@@ -269,7 +257,7 @@ private fun extractMediaUrl(element: org.jsoup.nodes.Element): String? {
             candidate.parents().none { it.hasClass("tgme_widget_message_reply") }
         }
     val style = mediaElement?.attr("style").orEmpty()
-    val styleUrl = Regex("url\\(['\\\"]?(.*?)['\\\"]?\\)").find(style)?.groups?.get(1)?.value
+    val styleUrl = STYLE_URL_REGEX.find(style)?.groups?.get(1)?.value
     if (!styleUrl.isNullOrBlank()) return styleUrl
 
     val img = element
@@ -282,24 +270,12 @@ private fun extractMediaUrl(element: org.jsoup.nodes.Element): String? {
 }
 
 private fun String.removeTelegramTitleSuffix(): String =
-    replace(Regex("\\s+[–-]\\s*Telegram\\s*$", RegexOption.IGNORE_CASE), "").trim()
+    replace(TELEGRAM_TITLE_SUFFIX_REGEX, "").trim()
 
 private const val TELEGRAM_DEFAULT_TITLE = "Telegram Messenger"
 private const val MAX_TITLE_LENGTH = 150
-
-data class TelegramParseDebug(
-    val key: String,
-    val url: String?,
-    val dateStr: String?,
-    val epochStr: String?,
-    val parsedAt: Long?,
-    val textLength: Int
-)
-
-data class TelegramParseResult(
-    val articles: List<Article>,
-    val debug: List<TelegramParseDebug>
-)
+private val STYLE_URL_REGEX = Regex("url\\(['\\\"]?(.*?)['\\\"]?\\)")
+private val TELEGRAM_TITLE_SUFFIX_REGEX = Regex("\\s+[–-]\\s*Telegram\\s*$", RegexOption.IGNORE_CASE)
 
 
 

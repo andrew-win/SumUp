@@ -14,16 +14,22 @@ import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.remote.ArticleStableKeyFactory
+import com.andrewwin.sumup.data.remote.NewsParsingLogger
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.news.ArticleContentCleaner
 import com.andrewwin.sumup.domain.news.ArticleTitleFormatter
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
@@ -53,81 +59,186 @@ class ArticleRepositoryImpl @Inject constructor(
     }
 
     override suspend fun refreshArticles() = withContext(Dispatchers.IO) {
+        val refreshStartedAt = NewsParsingLogger.now()
         val groups = sourceDao.getGroupsWithSources().first()
         val cleanupHours = userPreferencesDao.getUserPreferences().first()?.articleAutoCleanupHours
             ?: UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS
         val cutoffTimestamp = System.currentTimeMillis() - (cleanupHours.toLong() * 60 * 60 * 1000L)
         val fetchedArticlesToSave = mutableListOf<Article>()
         val sourceFooterUpdates = mutableListOf<Source>()
-        for (groupWithSources in groups) {
-            if (groupWithSources.group.isEnabled) {
-                for (source in groupWithSources.sources) {
-                    if (source.isEnabled) {
-                        val fetchedArticles = remoteArticleDataSource.fetchArticles(
-                            source = source,
-                            oldestAllowedPublishedAt = cutoffTimestamp
+        val enabledSources = groups
+            .filter { it.group.isEnabled }
+            .flatMap { groupWithSources -> groupWithSources.sources.filter { it.isEnabled } }
+        NewsParsingLogger.debug {
+            "refresh_start groups=${groups.size} enabledGroups=${groups.count { it.group.isEnabled }} " +
+                "enabledSources=${enabledSources.size} parallelism=$NEWS_REFRESH_PARALLELISM " +
+                "cleanupHours=$cleanupHours cutoff=$cutoffTimestamp"
+        }
+
+        val fetchStartedAt = NewsParsingLogger.now()
+        val fetchedArticlesBySource = fetchEnabledSources(enabledSources, cutoffTimestamp)
+        val fetchElapsedMs = NewsParsingLogger.elapsedMs(fetchStartedAt)
+        NewsParsingLogger.debug {
+            "refresh_fetch_complete durationMs=$fetchElapsedMs sources=${fetchedArticlesBySource.size} " +
+                "articles=${fetchedArticlesBySource.sumOf { it.second.size }} " +
+                "emptySources=${fetchedArticlesBySource.count { it.second.isEmpty() }}"
+        }
+
+        val cleaningStartedAt = NewsParsingLogger.now()
+        var oldFetchedArticlesSkipped = 0
+        var existingFetchedArticlesSkipped = 0
+        for ((source, fetchedArticles) in fetchedArticlesBySource) {
+            val freshArticles = fetchedArticles.filter { it.publishedAt >= cutoffTimestamp }
+            oldFetchedArticlesSkipped += fetchedArticles.size - freshArticles.size
+            val articlesToClean = filterArticlesForCleaning(source, freshArticles)
+            existingFetchedArticlesSkipped += freshArticles.size - articlesToClean.size
+            if (articlesToClean.isNotEmpty()) {
+                val sourceCleaningStartedAt = NewsParsingLogger.now()
+                val footerDetection = detectFooterPatternIfNeeded(source, articlesToClean)
+                val newFooterPattern = footerDetection.footerPattern
+
+                if (footerDetection.didRun) {
+                    sourceFooterUpdates.add(
+                        source.copy(
+                            footerPattern = newFooterPattern ?: source.footerPattern,
+                            footerPatternCheckedAt = footerDetection.checkedAt
                         )
+                    )
+                }
 
-                        if (fetchedArticles.isNotEmpty()) {
-                            val contentsForFooter = fetchedArticles.take(10).map { it.content }
-                            val newFooterPattern = cleanArticleTextUseCase.detectFooterPattern(contentsForFooter)
+                val currentFooter = newFooterPattern ?: source.footerPattern
+                val cleanedArticles = mutableListOf<Article>()
+                for (article in articlesToClean) {
+                    val cleanedContent = cleanArticleTextUseCase.clean(article.content, source.type, currentFooter)
+                    val articleWithCleanContent = article.copy(content = cleanedContent)
+                    cleanedArticles.add(articleTitleFormatter.format(articleWithCleanContent, source.type))
+                }
 
-                            if (newFooterPattern != null && newFooterPattern != source.footerPattern) {
-                                sourceFooterUpdates.add(source.copy(footerPattern = newFooterPattern))
-                            }
-
-                            val currentFooter = newFooterPattern ?: source.footerPattern
-                            val cleanedArticles = mutableListOf<Article>()
-                            for (article in fetchedArticles) {
-                                val cleanedContent = cleanArticleTextUseCase.clean(article.content, source.type, currentFooter)
-                                val articleWithCleanContent = article.copy(content = cleanedContent)
-                                cleanedArticles.add(articleTitleFormatter.format(articleWithCleanContent, source.type))
-                            }
-
-                            fetchedArticlesToSave.addAll(cleanedArticles)
-                        }
-                    }
+                fetchedArticlesToSave.addAll(cleanedArticles)
+                NewsParsingLogger.debug {
+                    "source_clean_complete sourceId=${source.id} type=${source.type} " +
+                        "inputArticles=${fetchedArticles.size} freshArticles=${freshArticles.size} " +
+                        "skippedOldArticles=${fetchedArticles.size - freshArticles.size} " +
+                        "skippedExistingArticles=${freshArticles.size - articlesToClean.size} " +
+                        "outputArticles=${cleanedArticles.size} " +
+                        "footerDetectionRan=${footerDetection.didRun} " +
+                        "footerDetectionReason=${footerDetection.reason} " +
+                        "footerUpdated=${newFooterPattern != null && newFooterPattern != source.footerPattern} " +
+                        "durationMs=${NewsParsingLogger.elapsedMs(sourceCleaningStartedAt)}"
+                }
+            } else if (fetchedArticles.isNotEmpty()) {
+                NewsParsingLogger.debug {
+                    "source_clean_skipped sourceId=${source.id} type=${source.type} " +
+                        "inputArticles=${fetchedArticles.size} freshArticles=${freshArticles.size} " +
+                        "skippedOldArticles=${fetchedArticles.size - freshArticles.size} " +
+                        "skippedExistingArticles=${freshArticles.size - articlesToClean.size}"
                 }
             }
         }
+        NewsParsingLogger.debug {
+            "refresh_clean_complete durationMs=${NewsParsingLogger.elapsedMs(cleaningStartedAt)} " +
+                "articlesToSave=${fetchedArticlesToSave.size} footerUpdates=${sourceFooterUpdates.size} " +
+                "skippedOldArticles=$oldFetchedArticlesSkipped " +
+                "skippedExistingArticles=$existingFetchedArticlesSkipped"
+        }
 
+        val databaseStartedAt = NewsParsingLogger.now()
         for (sourceUpdate in sourceFooterUpdates) {
             sourceDao.updateSource(sourceUpdate)
         }
 
         if (fetchedArticlesToSave.isNotEmpty()) {
-            articleDao.insertArticles(fetchedArticlesToSave)
-
-            for (article in fetchedArticlesToSave) {
-                articleDao.updateFetchedArticleByStableArticleKey(
-                    stableArticleKey = article.stableArticleKey,
-                    sourceId = article.sourceId,
-                    title = article.title,
-                    content = article.content,
-                    mediaUrl = article.mediaUrl,
-                    videoId = article.videoId,
-                    publishedAt = article.publishedAt,
-                    viewCount = article.viewCount,
-                    url = article.url
-                )
-            }
-
-            for (article in fetchedArticlesToSave) {
-                if (!article.mediaUrl.isNullOrBlank() || !article.videoId.isNullOrBlank()) {
-                    articleDao.updateMediaByStableArticleKey(
-                        stableArticleKey = article.stableArticleKey,
-                        mediaUrl = article.mediaUrl,
-                        videoId = article.videoId
-                    )
-                }
-            }
+            articleDao.insertAndUpdateFetchedArticles(fetchedArticlesToSave)
+        }
+        NewsParsingLogger.debug {
+            "refresh_database_complete durationMs=${NewsParsingLogger.elapsedMs(databaseStartedAt)} " +
+                "upsertCandidates=${fetchedArticlesToSave.size} footerUpdates=${sourceFooterUpdates.size}"
         }
 
+        val cleanupStartedAt = NewsParsingLogger.now()
         val newerCount = articleDao.countArticlesNewerThan(cutoffTimestamp)
+        var deletedOldArticles = 0
         if (newerCount > 0) {
-            articleDao.deleteOldArticles(cutoffTimestamp)
+            deletedOldArticles = articleDao.deleteOldArticles(cutoffTimestamp)
+        }
+        NewsParsingLogger.debug {
+            "refresh_cleanup_complete durationMs=${NewsParsingLogger.elapsedMs(cleanupStartedAt)} " +
+                "newerCount=$newerCount deletedOldArticles=$deletedOldArticles"
+        }
+        NewsParsingLogger.debug {
+            "refresh_complete totalDurationMs=${NewsParsingLogger.elapsedMs(refreshStartedAt)} " +
+                "sources=${enabledSources.size} fetchedArticles=${fetchedArticlesBySource.sumOf { it.second.size }} " +
+                "skippedOldArticles=$oldFetchedArticlesSkipped " +
+                "skippedExistingArticles=$existingFetchedArticlesSkipped " +
+                "savedCandidates=${fetchedArticlesToSave.size}"
         }
         Unit
+    }
+
+    private suspend fun filterArticlesForCleaning(
+        source: Source,
+        freshArticles: List<Article>
+    ): List<Article> {
+        if (freshArticles.isEmpty() || source.type != SourceType.RSS) return freshArticles
+        val stableArticleKeys = freshArticles
+            .map { it.stableArticleKey }
+            .filter { it.isNotBlank() }
+            .distinct()
+        if (stableArticleKeys.isEmpty()) return freshArticles
+        val existingKeys = articleDao.getExistingStableArticleKeys(stableArticleKeys).toHashSet()
+        if (existingKeys.isEmpty()) return freshArticles
+        return freshArticles.filterNot { it.stableArticleKey in existingKeys }
+    }
+
+    private suspend fun detectFooterPatternIfNeeded(
+        source: Source,
+        articlesToClean: List<Article>
+    ): FooterDetectionResult {
+        val now = System.currentTimeMillis()
+        val reason = footerDetectionReason(source, now)
+            ?: return FooterDetectionResult(
+                didRun = false,
+                reason = FOOTER_DETECTION_REASON_RECENT,
+                footerPattern = null,
+                checkedAt = source.footerPatternCheckedAt
+            )
+        val contentsForFooter = articlesToClean.take(FOOTER_PATTERN_SAMPLE_ARTICLES).map { it.content }
+        val footerPattern = cleanArticleTextUseCase.detectFooterPattern(contentsForFooter)
+        return FooterDetectionResult(
+            didRun = true,
+            reason = reason,
+            footerPattern = footerPattern,
+            checkedAt = now
+        )
+    }
+
+    private fun footerDetectionReason(source: Source, now: Long): String? {
+        if (source.footerPattern.isNullOrBlank()) return FOOTER_DETECTION_REASON_MISSING_PATTERN
+        if (source.footerPatternCheckedAt <= 0L) return FOOTER_DETECTION_REASON_NEVER_CHECKED
+        val ageMs = now - source.footerPatternCheckedAt
+        return if (ageMs >= FOOTER_PATTERN_REFRESH_INTERVAL_MS) {
+            FOOTER_DETECTION_REASON_EXPIRED
+        } else {
+            null
+        }
+    }
+
+    private suspend fun fetchEnabledSources(
+        sources: List<Source>,
+        cutoffTimestamp: Long
+    ): List<Pair<Source, List<Article>>> = coroutineScope {
+        val semaphore = Semaphore(NEWS_REFRESH_PARALLELISM)
+        sources.map { source ->
+            async {
+                semaphore.withPermit {
+                    val articles = remoteArticleDataSource.fetchArticles(
+                        source = source,
+                        oldestAllowedPublishedAt = cutoffTimestamp
+                    )
+                    source to articles
+                }
+            }
+        }.awaitAll()
     }
 
     override suspend fun updateArticle(article: Article) = articleDao.updateArticle(article)
@@ -571,4 +682,23 @@ class ArticleRepositoryImpl @Inject constructor(
     private fun savedArticleUiId(savedId: Long): Long = -(savedId + 1L)
     private fun uiArticleIdToSavedId(uiId: Long): Long? =
         if (uiId < 0L) (-uiId) - 1L else null
+
+    private data class FooterDetectionResult(
+        val didRun: Boolean,
+        val reason: String,
+        val footerPattern: String?,
+        val checkedAt: Long
+    )
+
+    private companion object {
+        private const val NEWS_REFRESH_PARALLELISM = 4
+        private const val FOOTER_PATTERN_SAMPLE_ARTICLES = 10
+        private const val FOOTER_PATTERN_REFRESH_INTERVAL_HOURS = 48L
+        private const val FOOTER_PATTERN_REFRESH_INTERVAL_MS =
+            FOOTER_PATTERN_REFRESH_INTERVAL_HOURS * 60L * 60L * 1000L
+        private const val FOOTER_DETECTION_REASON_MISSING_PATTERN = "missing_pattern"
+        private const val FOOTER_DETECTION_REASON_NEVER_CHECKED = "never_checked"
+        private const val FOOTER_DETECTION_REASON_EXPIRED = "expired"
+        private const val FOOTER_DETECTION_REASON_RECENT = "recent"
+    }
 }

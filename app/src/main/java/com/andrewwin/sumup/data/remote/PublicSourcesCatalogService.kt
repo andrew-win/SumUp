@@ -51,6 +51,7 @@ class PublicSourcesCatalogService @Inject constructor(
                 type = sourceType,
                 isEnabled = map["isEnabled"] as? Boolean ?: true,
                 footerPattern = (map["footerPattern"] as? String)?.trim()?.takeIf { it.isNotEmpty() },
+                footerPatternCheckedAt = (map["footerPatternCheckedAt"] as? Number)?.toLong() ?: 0L,
                 titleSelector = (map["titleSelector"] as? String)?.trim()?.takeIf { it.isNotEmpty() },
                 postLinkSelector = (map["postLinkSelector"] as? String)?.trim()?.takeIf { it.isNotEmpty() },
                 descriptionSelector = (map["descriptionSelector"] as? String)?.trim()?.takeIf { it.isNotEmpty() },
