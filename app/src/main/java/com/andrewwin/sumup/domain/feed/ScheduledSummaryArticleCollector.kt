@@ -1,13 +1,13 @@
 package com.andrewwin.sumup.domain.feed
 
-import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.data.local.entities.SourceType
-import com.andrewwin.sumup.domain.news.ArticleCluster
 import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.news.SimilarityScorer
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
+import com.andrewwin.sumup.domain.usecase.ai.RefreshArticlesUseCase
+import com.andrewwin.sumup.domain.usecase.feed.ArticlePairKey
+import com.andrewwin.sumup.domain.usecase.feed.FeedClusterCalculator
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
@@ -15,7 +15,8 @@ class ScheduledSummaryArticleCollector @Inject constructor(
     private val refreshArticlesUseCase: RefreshArticlesUseCase,
     private val articleRepository: ArticleRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val importanceScorer: ArticleImportanceScorer
+    private val importanceScorer: ArticleImportanceScorer,
+    private val similarityScorer: SimilarityScorer
 ) {
     suspend operator fun invoke(refresh: Boolean): List<FeedSummaryArticle> {
         if (refresh) {
@@ -52,36 +53,21 @@ class ScheduledSummaryArticleCollector @Inject constructor(
         }
         if (filteredArticles.isEmpty()) return emptyList()
 
-        val articlesById = filteredArticles.associateBy { it.id }
-        val similarities = articleRepository
-            .getSimilaritiesForArticles(filteredArticles.map { it.id })
-            .filter { it.representativeId in articlesById && it.articleId in articlesById }
-        val clusteredArticleIds = mutableSetOf<Long>()
-        val clusters = mutableListOf<ArticleCluster>()
-
-        similarities
-            .groupBy { it.representativeId }
-            .forEach { (representativeId, representativeSimilarities) ->
-                val representative = articlesById[representativeId] ?: return@forEach
-                if (representative.id in clusteredArticleIds) return@forEach
-
-                val duplicates = representativeSimilarities
-                    .mapNotNull { similarity ->
-                        articlesById[similarity.articleId]
-                            ?.takeIf { it.id != representative.id }
-                            ?.let { article -> article to similarity.score }
-                    }
-                    .distinctBy { it.first.id }
-                    .sortedByDescending { it.second }
-
-                clusters += ArticleCluster(representative, duplicates)
-                clusteredArticleIds += representative.id
-                clusteredArticleIds += duplicates.map { it.first.id }
+        val currentArticleIds = filteredArticles.mapTo(mutableSetOf()) { it.id }
+        val strategyKey = similarityScorer.similarityCacheKeyForStrategy(prefs.deduplicationStrategy)
+        val threshold = when (prefs.deduplicationStrategy) {
+            com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.LOCAL -> prefs.localDeduplicationThreshold
+            com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.CLOUD -> prefs.cloudDeduplicationThreshold
+        }
+        val pairScores = articleRepository
+            .getSimilaritiesForArticles(filteredArticles.map { it.id }, strategyKey)
+            .asSequence()
+            .filter { it.leftArticleId in currentArticleIds && it.rightArticleId in currentArticleIds }
+            .filter { it.score >= threshold }
+            .associate { similarity ->
+                ArticlePairKey.of(similarity.leftArticleId, similarity.rightArticleId) to similarity.score
             }
-
-        filteredArticles
-            .filter { it.id !in clusteredArticleIds }
-            .forEach { article -> clusters += ArticleCluster(article, emptyList()) }
+        val clusters = FeedClusterCalculator.buildFinalClusters(filteredArticles, pairScores)
 
         return clusters
             .filter { cluster -> !prefs.isHideSingleNewsEnabled || cluster.duplicates.size >= prefs.minMentions }

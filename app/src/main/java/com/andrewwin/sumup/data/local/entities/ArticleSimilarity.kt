@@ -6,29 +6,31 @@ import androidx.room.Index
 
 @Entity(
     tableName = "article_similarities",
-    primaryKeys = ["representativeId", "articleId"],
+    primaryKeys = ["leftArticleId", "rightArticleId", "strategyKey"],
     foreignKeys = [
         ForeignKey(
             entity = Article::class,
             parentColumns = ["id"],
-            childColumns = ["representativeId"],
+            childColumns = ["leftArticleId"],
             onDelete = ForeignKey.CASCADE
         ),
         ForeignKey(
             entity = Article::class,
             parentColumns = ["id"],
-            childColumns = ["articleId"],
+            childColumns = ["rightArticleId"],
             onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [
-        Index("representativeId"),
-        Index("articleId")
+        Index("leftArticleId"),
+        Index("rightArticleId"),
+        Index("strategyKey")
     ]
 )
 data class ArticleSimilarity(
-    val representativeId: Long,
-    val articleId: Long,
+    val leftArticleId: Long,
+    val rightArticleId: Long,
+    val strategyKey: String,
     val score: Float,
     val updatedAt: Long = System.currentTimeMillis()
 )

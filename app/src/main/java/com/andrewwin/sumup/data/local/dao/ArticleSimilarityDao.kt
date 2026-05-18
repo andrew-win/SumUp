@@ -8,8 +8,17 @@ import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 
 @Dao
 interface ArticleSimilarityDao {
-    @Query("SELECT * FROM article_similarities WHERE representativeId IN (:articleIds) OR articleId IN (:articleIds)")
-    suspend fun getSimilaritiesForArticles(articleIds: List<Long>): List<ArticleSimilarity>
+    @Query(
+        """
+        SELECT * FROM article_similarities
+        WHERE strategyKey = :strategyKey
+            AND (leftArticleId IN (:articleIds) OR rightArticleId IN (:articleIds))
+        """
+    )
+    suspend fun getSimilaritiesForArticles(
+        articleIds: List<Long>,
+        strategyKey: String
+    ): List<ArticleSimilarity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSimilarities(items: List<ArticleSimilarity>)

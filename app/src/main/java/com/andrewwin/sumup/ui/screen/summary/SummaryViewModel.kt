@@ -19,9 +19,9 @@ import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
-import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCase
-import com.andrewwin.sumup.domain.usecase.common.NoArticlesException
-import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
+import com.andrewwin.sumup.domain.usecase.ai.GenerateSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.ai.NoArticlesException
+import com.andrewwin.sumup.domain.usecase.ai.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.feed.FeedArticlesBuilder
 import com.andrewwin.sumup.worker.SummaryWorker
 import com.andrewwin.sumup.worker.ScheduledSummaryWorkKind

@@ -20,7 +20,8 @@ import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.common.GenerateSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.ai.GenerateSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.ai.NoArticlesException
 import com.andrewwin.sumup.ui.MainActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
@@ -75,7 +76,7 @@ class SummaryWorkerHandler @Inject constructor(
                 return deliverScheduledSummary(scheduledAt)
             }
             ListenableWorker.Result.success()
-        } catch (e: com.andrewwin.sumup.domain.usecase.common.NoArticlesException) {
+        } catch (e: NoArticlesException) {
             val message = context.getString(R.string.summary_worker_no_articles_today)
             summaryRepository.upsertPreparedScheduledSummary(
                 PreparedScheduledSummary(

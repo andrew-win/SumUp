@@ -37,7 +37,7 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
         Summary::class,
         UserPreferences::class
     ],
-    version = 65,
+    version = 66,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -96,7 +96,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_61_62,
                         MIGRATION_62_63,
                         MIGRATION_63_64,
-                        MIGRATION_64_65
+                        MIGRATION_64_65,
+                        MIGRATION_65_66
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -889,6 +890,29 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE sources ADD COLUMN footerPatternCheckedAt INTEGER NOT NULL DEFAULT 0"
                 )
+            }
+        }
+
+        private val MIGRATION_65_66 = object : Migration(65, 66) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS article_similarities")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS article_similarities (
+                        leftArticleId INTEGER NOT NULL,
+                        rightArticleId INTEGER NOT NULL,
+                        strategyKey TEXT NOT NULL,
+                        score REAL NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        PRIMARY KEY(leftArticleId, rightArticleId, strategyKey),
+                        FOREIGN KEY(leftArticleId) REFERENCES articles(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(rightArticleId) REFERENCES articles(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_article_similarities_leftArticleId ON article_similarities(leftArticleId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_article_similarities_rightArticleId ON article_similarities(rightArticleId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_article_similarities_strategyKey ON article_similarities(strategyKey)")
             }
         }
     }

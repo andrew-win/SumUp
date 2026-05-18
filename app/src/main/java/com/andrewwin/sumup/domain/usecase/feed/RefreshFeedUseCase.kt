@@ -4,7 +4,7 @@ import android.util.Log
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.common.RefreshArticlesUseCase
+import com.andrewwin.sumup.domain.usecase.ai.RefreshArticlesUseCase
 import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
 import com.andrewwin.sumup.domain.source.SuggestedThemesRefreshPolicy
 import kotlinx.coroutines.CoroutineScope

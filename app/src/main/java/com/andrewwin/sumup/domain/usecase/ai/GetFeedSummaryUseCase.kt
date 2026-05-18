@@ -11,6 +11,7 @@ import com.andrewwin.sumup.domain.ai.AiPromptBuilder
 import com.andrewwin.sumup.domain.ai.AdaptiveTextShrinker
 import com.andrewwin.sumup.domain.ai.AiRequestSender
 import com.andrewwin.sumup.domain.feed.FeedSummaryArticle
+import com.andrewwin.sumup.domain.news.SimilarityScorer
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.summary.DigestTheme
@@ -28,7 +29,8 @@ class GetFeedSummaryUseCase @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val shrinkTextForAdaptiveStrategyUseCase: AdaptiveTextShrinker,
     private val aiRequestSender: AiRequestSender,
-    private val summaryResponseMapper: SummaryResponseMapper
+    private val summaryResponseMapper: SummaryResponseMapper,
+    private val similarityScorer: SimilarityScorer
 ) {
     suspend fun summarizeArticles(articles: List<Article>): Result<SummaryResult> = runCatching {
         if (articles.isEmpty()) return@runCatching SummaryResult.Digest(emptyList())
@@ -188,8 +190,15 @@ class GetFeedSummaryUseCase @Inject constructor(
     }
 
     private suspend fun buildFeedSummaryArticles(articles: List<Article>): List<FeedSummaryArticle> {
+        val prefs = userPreferencesRepository.preferences.first()
+        val strategyKey = similarityScorer.similarityCacheKeyForStrategy(prefs.deduplicationStrategy)
+        val threshold = when (prefs.deduplicationStrategy) {
+            com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.LOCAL -> prefs.localDeduplicationThreshold
+            com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.CLOUD -> prefs.cloudDeduplicationThreshold
+        }
         val similarityByArticleId = articleRepository
-            .getSimilaritiesForArticles(articles.map { it.id })
+            .getSimilaritiesForArticles(articles.map { it.id }, strategyKey)
+            .filter { it.score >= threshold }
             .groupBySimilarityCount()
 
         return articles.map { article ->
@@ -204,8 +213,8 @@ class GetFeedSummaryUseCase @Inject constructor(
     private fun List<com.andrewwin.sumup.data.local.entities.ArticleSimilarity>.groupBySimilarityCount(): Map<Long, Int> {
         val relatedArticleIds = mutableMapOf<Long, MutableSet<Long>>()
         forEach { similarity ->
-            relatedArticleIds.getOrPut(similarity.representativeId) { mutableSetOf() }.add(similarity.articleId)
-            relatedArticleIds.getOrPut(similarity.articleId) { mutableSetOf() }.add(similarity.representativeId)
+            relatedArticleIds.getOrPut(similarity.leftArticleId) { mutableSetOf() }.add(similarity.rightArticleId)
+            relatedArticleIds.getOrPut(similarity.rightArticleId) { mutableSetOf() }.add(similarity.leftArticleId)
         }
         return relatedArticleIds.mapValues { it.value.size }
     }

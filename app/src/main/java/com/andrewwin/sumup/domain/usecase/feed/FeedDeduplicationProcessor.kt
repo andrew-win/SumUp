@@ -58,12 +58,10 @@ class FeedDeduplicationProcessor @Inject constructor(
                 return@runCatching
             }
 
-            val similarities = buildSimilaritiesFromClusters(result.clusters)
-            articleRepository.clearSimilarities()
-            articleRepository.upsertSimilarities(similarities)
             Log.d(
                 FEED_STATES_LOG_TAG,
-                "dedup_complete articles=${articles.size} clusters=${result.clusters.size} similarities=${similarities.size}"
+                "dedup_complete articles=${articles.size} clusters=${result.clusters.size} " +
+                    "newSimilarities=${result.newSimilaritiesCount}"
             )
         }
     }
@@ -76,12 +74,38 @@ class FeedDeduplicationProcessor @Inject constructor(
         val allArticles = articles.distinctBy { it.id }
         val embeddingProgress = similarityScorer.getEmbeddingsProgress(allArticles, strategy).first()
         val embeddingsById = embeddingProgress.embeddingsById
-        val pairScores = mutableMapOf<ArticlePairKey, Float>()
+        val strategyKey = similarityScorer.similarityCacheKeyForStrategy(strategy)
+        val currentArticleIds = allArticles.mapTo(mutableSetOf()) { it.id }
+        val pairScores = articleRepository
+            .getSimilaritiesForArticles(allArticles.map { it.id }, strategyKey)
+            .asSequence()
+            .filter { it.leftArticleId in currentArticleIds && it.rightArticleId in currentArticleIds }
+            .associate { similarity ->
+                ArticlePairKey.of(similarity.leftArticleId, similarity.rightArticleId) to similarity.score
+            }
+            .toMutableMap()
+        val newSimilarities = mutableListOf<ArticleSimilarity>()
 
         if (embeddingProgress.cloudMissingGenerationFailed) {
             return DedupResult(
-                clusters = FeedClusterCalculator.buildFinalClusters(allArticles, pairScores),
+                clusters = FeedClusterCalculator.buildFinalClusters(
+                    articles = allArticles,
+                    pairScores = pairScores.filterValues { it >= threshold }
+                ),
+                newSimilaritiesCount = 0,
                 shouldSaveSimilarities = false
+            )
+        }
+
+        val expectedPairCount = allArticles.size.toLong() * (allArticles.size - 1L) / 2L
+        if (pairScores.size.toLong() >= expectedPairCount) {
+            return DedupResult(
+                clusters = FeedClusterCalculator.buildFinalClusters(
+                    articles = allArticles,
+                    pairScores = pairScores.filterValues { it >= threshold }
+                ),
+                newSimilaritiesCount = 0,
+                shouldSaveSimilarities = true
             )
         }
 
@@ -92,33 +116,37 @@ class FeedDeduplicationProcessor @Inject constructor(
             for (j in i + 1 until allArticles.size) {
                 val right = allArticles[j]
                 val rightEmbedding = embeddingsById[right.id] ?: continue
+                val pairKey = ArticlePairKey.of(left.id, right.id)
+                if (pairScores.containsKey(pairKey)) continue
 
                 val score = similarityScorer.calculateSimilarity(
                     embeddingA = leftEmbedding,
                     embeddingB = rightEmbedding
                 )
-                if (score >= threshold) {
-                    pairScores[ArticlePairKey.of(left.id, right.id)] = score
-                }
+                pairScores[pairKey] = score
+                newSimilarities += ArticleSimilarity(
+                    leftArticleId = pairKey.firstId,
+                    rightArticleId = pairKey.secondId,
+                    strategyKey = strategyKey,
+                    score = score
+                )
             }
         }
+        articleRepository.upsertSimilarities(newSimilarities)
 
         return DedupResult(
-            clusters = FeedClusterCalculator.buildFinalClusters(allArticles, pairScores),
+            clusters = FeedClusterCalculator.buildFinalClusters(
+                articles = allArticles,
+                pairScores = pairScores.filterValues { it >= threshold }
+            ),
+            newSimilaritiesCount = newSimilarities.size,
             shouldSaveSimilarities = true
         )
     }
 
-    private fun buildSimilaritiesFromClusters(clusters: List<ArticleCluster>): List<ArticleSimilarity> {
-        return clusters.flatMap { cluster ->
-            cluster.duplicates.map { (article, score) ->
-                ArticleSimilarity(cluster.representative.id, article.id, score)
-            }
-        }
-    }
-
     private data class DedupResult(
         val clusters: List<ArticleCluster>,
+        val newSimilaritiesCount: Int,
         val shouldSaveSimilarities: Boolean
     )
 

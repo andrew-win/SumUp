@@ -271,9 +271,8 @@ class SettingsViewModel @Inject constructor(
 
     private fun updateThreshold(transform: (UserPreferences) -> UserPreferences) {
         viewModelScope.launch {
-            articleRepository.clearSimilarities()
             updatePreferences(transform)
-            articleRepository.refreshArticles()
+            articleRepository.triggerDataInvalidation()
         }
     }
 

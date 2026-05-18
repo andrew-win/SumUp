@@ -1,8 +1,7 @@
-package com.andrewwin.sumup.domain.usecase.common
+package com.andrewwin.sumup.domain.usecase.ai
 
 import com.andrewwin.sumup.domain.summary.SummaryResultFormatter
 import com.andrewwin.sumup.domain.summary.SummaryResult
-import com.andrewwin.sumup.domain.usecase.ai.GetScheduledSummaryUseCase
 import javax.inject.Inject
 
 interface GenerateSummaryUseCase {

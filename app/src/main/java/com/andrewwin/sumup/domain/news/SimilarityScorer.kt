@@ -85,6 +85,9 @@ class SimilarityScorer(
         return EmbeddingUtils.dotProduct(embeddingA, embeddingB)
     }
 
+    fun similarityCacheKeyForStrategy(strategy: DeduplicationStrategy): String =
+        embeddingTypeForStrategy(strategy)
+
     fun getEmbeddingsProgress(
         articles: List<Article>,
         strategy: DeduplicationStrategy
@@ -274,12 +277,6 @@ class SimilarityScorer(
 
     private fun isUsableEmbedding(embedding: FloatArray?): Boolean =
         embedding != null && !EmbeddingUtils.isZeroVector(embedding)
-
-    private fun embeddingSemaphoreForStrategy(strategy: DeduplicationStrategy): Semaphore =
-        when (strategy) {
-            DeduplicationStrategy.CLOUD -> cloudEmbeddingSemaphore
-            DeduplicationStrategy.LOCAL -> localEmbeddingSemaphore
-        }
 
     private fun embeddingTypeForStrategy(strategy: DeduplicationStrategy): String =
         when (strategy) {

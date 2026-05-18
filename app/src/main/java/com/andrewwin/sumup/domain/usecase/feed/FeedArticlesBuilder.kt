@@ -7,6 +7,7 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.feed.FeedSearchMatcher
 import com.andrewwin.sumup.domain.news.ArticleCluster
 import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.news.SimilarityScorer
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +27,8 @@ class FeedArticlesBuilder @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
     private val importanceScorer: ArticleImportanceScorer,
-    private val feedSearchMatcher: FeedSearchMatcher
+    private val feedSearchMatcher: FeedSearchMatcher,
+    private val similarityScorer: SimilarityScorer
 ) {
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     operator fun invoke(
@@ -158,13 +160,13 @@ class FeedArticlesBuilder @Inject constructor(
 
     private suspend fun buildClusters(state: FeedPipelineState): List<ArticleCluster> {
         if (state.articles.isEmpty()) return emptyList()
-        if (state.savedOnly) return buildSavedFavoriteClusters(state.articles)
+        if (state.savedOnly) return buildSavedFavoriteClusters(state.articles, state.prefs)
         if (!state.prefs.isDeduplicationEnabled) {
             return state.articles.map { ArticleCluster(it, emptyList()) }
         }
 
         return withContext(Dispatchers.IO) {
-            buildClustersFromDb(state.articles).ifEmpty {
+            buildClustersFromDb(state.articles, state.prefs).ifEmpty {
                 state.articles.map { ArticleCluster(it, emptyList()) }
             }
         }
@@ -192,33 +194,46 @@ class FeedArticlesBuilder @Inject constructor(
         }
     }
 
-    private suspend fun buildClustersFromDb(currentArticles: List<Article>): List<ArticleCluster> {
+    private suspend fun buildClustersFromDb(
+        currentArticles: List<Article>,
+        prefs: UserPreferences
+    ): List<ArticleCluster> {
         val ids = currentArticles.map { it.id }
-        val similarities = articleRepository.getSimilaritiesForArticles(ids)
+        val strategyKey = similarityScorer.similarityCacheKeyForStrategy(prefs.deduplicationStrategy)
+        val threshold = prefs.deduplicationThreshold()
+        val similarities = articleRepository.getSimilaritiesForArticles(ids, strategyKey)
         if (similarities.isEmpty()) return emptyList()
 
         val currentArticleIds = currentArticles.mapTo(mutableSetOf()) { it.id }
         val pairScores = similarities
             .asSequence()
-            .filter { it.representativeId in currentArticleIds && it.articleId in currentArticleIds }
+            .filter { it.leftArticleId in currentArticleIds && it.rightArticleId in currentArticleIds }
+            .filter { it.score >= threshold }
             .associate { similarity ->
-                ArticlePairKey.of(similarity.representativeId, similarity.articleId) to similarity.score
+                ArticlePairKey.of(similarity.leftArticleId, similarity.rightArticleId) to similarity.score
             }
 
         return FeedClusterCalculator.buildFinalClusters(currentArticles, pairScores)
     }
 
-    private suspend fun buildSavedFavoriteClusters(favoriteArticles: List<Article>): List<ArticleCluster> {
+    private suspend fun buildSavedFavoriteClusters(
+        favoriteArticles: List<Article>,
+        prefs: UserPreferences
+    ): List<ArticleCluster> {
         if (favoriteArticles.isEmpty()) return emptyList()
         val byId = favoriteArticles.associateBy { it.id }
         val mappings = articleRepository.getFavoriteClusterMappings(favoriteArticles.map { it.id })
         val savedAtById = articleRepository.getFavoriteSavedAt(favoriteArticles.map { it.id })
-        val similarities = articleRepository.getFavoriteSimilarities(favoriteArticles.map { it.id })
+        val strategyKey = similarityScorer.similarityCacheKeyForStrategy(prefs.deduplicationStrategy)
+        val threshold = prefs.deduplicationThreshold()
+        val similarities = articleRepository.getFavoriteSimilarities(favoriteArticles.map { it.id }, strategyKey)
         val savedClusterScores = articleRepository.getFavoriteClusterScores(favoriteArticles.map { it.id })
         val scoreMap = buildMap<Pair<Long, Long>, Float> {
-            similarities.forEach { similarity ->
-                put(similarity.representativeId to similarity.articleId, similarity.score)
-                put(similarity.articleId to similarity.representativeId, similarity.score)
+            similarities
+                .filter { it.score >= threshold }
+                .forEach { similarity ->
+                    put(similarity.leftArticleId to similarity.rightArticleId, similarity.score)
+                    put(similarity.rightArticleId to similarity.leftArticleId, similarity.score)
             }
         }
 
@@ -302,3 +317,9 @@ class FeedArticlesBuilder @Inject constructor(
         private var feedCollectorId = 0L
     }
 }
+
+private fun UserPreferences.deduplicationThreshold(): Float =
+    when (deduplicationStrategy) {
+        com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.LOCAL -> localDeduplicationThreshold
+        com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.CLOUD -> cloudDeduplicationThreshold
+    }

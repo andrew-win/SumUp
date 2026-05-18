@@ -318,14 +318,19 @@ class ArticleRepositoryImpl @Inject constructor(
         return cleaned
     }
 
-    override suspend fun getSimilaritiesForArticles(articleIds: List<Long>): List<ArticleSimilarity> =
-        articleSimilarityDao.getSimilaritiesForArticles(articleIds)
+    override suspend fun getSimilaritiesForArticles(
+        articleIds: List<Long>,
+        strategyKey: String
+    ): List<ArticleSimilarity> {
+        if (articleIds.isEmpty() || strategyKey.isBlank()) return emptyList()
+        return articleSimilarityDao.getSimilaritiesForArticles(articleIds, strategyKey)
+    }
 
     override suspend fun upsertSimilarities(items: List<ArticleSimilarity>) {
         if (items.isEmpty()) return
 
         val relatedIds = items.asSequence()
-            .flatMap { sequenceOf(it.representativeId, it.articleId) }
+            .flatMap { sequenceOf(it.leftArticleId, it.rightArticleId) }
             .toSet()
         if (relatedIds.isEmpty()) return
 
@@ -333,7 +338,7 @@ class ArticleRepositoryImpl @Inject constructor(
         if (existingIds.isEmpty()) return
 
         val validItems = items.filter { similarity ->
-            similarity.representativeId in existingIds && similarity.articleId in existingIds
+            similarity.leftArticleId in existingIds && similarity.rightArticleId in existingIds
         }
         if (validItems.isEmpty()) return
 
@@ -490,8 +495,11 @@ class ArticleRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getFavoriteSimilarities(articleIds: List<Long>): List<ArticleSimilarity> {
-        if (articleIds.isEmpty()) return emptyList()
+    override suspend fun getFavoriteSimilarities(
+        articleIds: List<Long>,
+        strategyKey: String
+    ): List<ArticleSimilarity> {
+        if (articleIds.isEmpty() || strategyKey.isBlank()) return emptyList()
 
         val requestedUiIds = articleIds.distinct()
         val savedByUiId = savedArticleDao.getSavedArticlesOnce().associateBy { savedArticleUiId(it.id) }
@@ -515,7 +523,7 @@ class ArticleRepositoryImpl @Inject constructor(
         if (resolvedArticleIdsByUiId.isEmpty()) return emptyList()
 
         val allResolvedArticleIds = resolvedArticleIdsByUiId.values.flatten().distinct()
-        val rawSimilarities = articleSimilarityDao.getSimilaritiesForArticles(allResolvedArticleIds)
+        val rawSimilarities = articleSimilarityDao.getSimilaritiesForArticles(allResolvedArticleIds, strategyKey)
         if (rawSimilarities.isEmpty()) return emptyList()
 
         val uiIdsByArticleId = mutableMapOf<Long, MutableSet<Long>>()
@@ -527,8 +535,8 @@ class ArticleRepositoryImpl @Inject constructor(
 
         val mergedScores = mutableMapOf<Pair<Long, Long>, Float>()
         rawSimilarities.forEach { sim ->
-            val leftUiIds = uiIdsByArticleId[sim.representativeId].orEmpty()
-            val rightUiIds = uiIdsByArticleId[sim.articleId].orEmpty()
+            val leftUiIds = uiIdsByArticleId[sim.leftArticleId].orEmpty()
+            val rightUiIds = uiIdsByArticleId[sim.rightArticleId].orEmpty()
             if (leftUiIds.isEmpty() || rightUiIds.isEmpty()) return@forEach
 
             leftUiIds.forEach { leftUi ->
@@ -545,8 +553,9 @@ class ArticleRepositoryImpl @Inject constructor(
 
         return mergedScores.map { (pair, score) ->
             ArticleSimilarity(
-                representativeId = pair.first,
-                articleId = pair.second,
+                leftArticleId = pair.first,
+                rightArticleId = pair.second,
+                strategyKey = strategyKey,
                 score = score
             )
         }

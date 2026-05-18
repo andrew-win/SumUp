@@ -1,4 +1,4 @@
-package com.andrewwin.sumup.domain.usecase.common
+package com.andrewwin.sumup.domain.usecase.ai
 
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import javax.inject.Inject

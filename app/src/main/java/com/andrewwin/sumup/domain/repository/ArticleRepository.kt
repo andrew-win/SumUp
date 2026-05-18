@@ -21,7 +21,7 @@ interface ArticleRepository {
     suspend fun getEnabledArticlesSince(timestamp: Long): List<Article>
     suspend fun getSourceById(id: Long): com.andrewwin.sumup.data.local.entities.Source?
     suspend fun fetchFullContent(article: Article): String
-    suspend fun getSimilaritiesForArticles(articleIds: List<Long>): List<ArticleSimilarity>
+    suspend fun getSimilaritiesForArticles(articleIds: List<Long>, strategyKey: String): List<ArticleSimilarity>
     suspend fun upsertSimilarities(items: List<ArticleSimilarity>)
     suspend fun clearAllArticles()
     suspend fun clearEmbeddings()
@@ -39,7 +39,7 @@ interface ArticleRepository {
     suspend fun saveFavoriteSavedAt(articleIds: List<Long>, savedAtMillis: Long = System.currentTimeMillis())
     suspend fun clearFavoriteSavedAt(articleIds: List<Long>)
     suspend fun getFavoriteSavedAt(articleIds: List<Long>): Map<Long, Long>
-    suspend fun getFavoriteSimilarities(articleIds: List<Long>): List<ArticleSimilarity>
+    suspend fun getFavoriteSimilarities(articleIds: List<Long>, strategyKey: String): List<ArticleSimilarity>
     suspend fun saveFavoriteClusterScores(scoresByArticleId: Map<Long, Float>)
     suspend fun getFavoriteClusterScores(articleIds: List<Long>): Map<Long, Float>
 }
