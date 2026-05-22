@@ -272,7 +272,6 @@ class SettingsViewModel @Inject constructor(
     private fun updateThreshold(transform: (UserPreferences) -> UserPreferences) {
         viewModelScope.launch {
             updatePreferences(transform)
-            articleRepository.triggerDataInvalidation()
         }
     }
 
@@ -503,7 +502,6 @@ class SettingsViewModel @Inject constructor(
     fun clearAllArticles() {
         viewModelScope.launch {
             articleRepository.clearAllArticles()
-            articleRepository.triggerDataInvalidation()
         }
     }
 
@@ -1133,7 +1131,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val current = userPreferencesRepository.preferences.first()
             userPreferencesRepository.updatePreferences(transform(current))
-            articleRepository.refreshArticles()
         }
     }
 

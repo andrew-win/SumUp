@@ -234,7 +234,7 @@ scheduled</string>
     <string name="summary_extractive_intro">Here are the top news for this period:</string>
     <string name="summary_extractive_item_header">%1$d. %2$s:</string>
     <string name="summary_article_format">%1$s: %2$s</string>
-    <string name="feed_empty_message">No news found. Your filters or settings may be too strict, or there may be no sources.</string>
+    <string name="feed_empty_message">No news. The filters may be too strict. Pull down from the top to refresh.</string>
     <string name="feed_empty_title">No news found</string>
     <string name="feed_empty_actions_title">What you can do:</string>
     <string name="feed_empty_hint_filters">Relax

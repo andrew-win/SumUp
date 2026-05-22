@@ -253,7 +253,7 @@
     <string name="summary_digest_main_news_title">📰📌🧭 Головні новини</string>
     <string name="summary_extractive_item_header">%1$d. %2$s:</string>
     <string name="summary_article_format">%1$s: %2$s</string>
-    <string name="feed_empty_message">Новин не знайдено. Можливо, фільтри чи налаштування занадто жорсткі або немає джерел.</string>
+    <string name="feed_empty_message">Новин немає. Можливо, фільтри занадто жорсткі. Для оновлення потягніть зверху вниз.</string>
     <string name="feed_empty_title">Новин не знайдено</string>
     <string name="feed_empty_actions_title">Що можна зробити:</string>
     <string name="feed_empty_hint_filters">Пом’якшіть
