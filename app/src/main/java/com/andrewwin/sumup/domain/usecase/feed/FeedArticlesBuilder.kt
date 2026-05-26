@@ -72,7 +72,7 @@ class FeedArticlesBuilder @Inject constructor(
             dateFilterHoursFlow,
             savedOnlyFlow,
             userPreferencesFlow,
-            articleRepository.dataInvalidationSignal
+            articleRepository.feedRefreshRequests
         ) { groupId, dateFilterHours, savedOnly, prefs, signal ->
             FeedFilterParams(groupId, dateFilterHours, savedOnly, prefs, signal)
         }
@@ -283,10 +283,7 @@ class FeedArticlesBuilder @Inject constructor(
     }
 
     data class FeedResult(
-        val clusters: List<ArticleCluster>,
-        val isDedupInProgress: Boolean = false,
-        val processedArticlesCount: Int = 0,
-        val totalArticlesCount: Int = 0
+        val clusters: List<ArticleCluster>
     )
 
     private data class FeedPipelineState(

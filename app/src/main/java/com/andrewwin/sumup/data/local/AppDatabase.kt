@@ -37,7 +37,7 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
         Summary::class,
         UserPreferences::class
     ],
-    version = 66,
+    version = 68,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -97,7 +97,9 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_62_63,
                         MIGRATION_63_64,
                         MIGRATION_64_65,
-                        MIGRATION_65_66
+                        MIGRATION_65_66,
+                        MIGRATION_66_67,
+                        MIGRATION_67_68
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -110,7 +112,7 @@ abstract class AppDatabase : RoomDatabase() {
                             )
                             db.execSQL(
                                 "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, scheduledSummaryTimes, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsSingleArticle, aiMaxCharsNewsCluster, aiMaxCharsSingleFeedArticle, aiMaxCharsFeedCluster, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
-                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, '08:00', 0, 1, 'LOCAL', 0.860, 0.84, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 6, 0, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}, 'SYSTEM', 'UK', 'UK')"
+                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, '08:00', 0, 1, 'LOCAL', 0.87, 0.87, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 7, 0, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}, 'SYSTEM', 'UK', 'UK')"
                             )
                         }
                     })
@@ -913,6 +915,41 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_article_similarities_leftArticleId ON article_similarities(leftArticleId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_article_similarities_rightArticleId ON article_similarities(rightArticleId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_article_similarities_strategyKey ON article_similarities(strategyKey)")
+            }
+        }
+
+        private val MIGRATION_66_67 = object : Migration(66, 67) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    UPDATE user_preferences
+                    SET localDeduplicationThreshold = 0.87
+                    WHERE localDeduplicationThreshold = 0.860
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    UPDATE user_preferences
+                    SET cloudDeduplicationThreshold = 0.87
+                    WHERE cloudDeduplicationThreshold = 0.84
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    UPDATE user_preferences
+                    SET showInfographicNewsCount = 7
+                    WHERE showInfographicNewsCount = 6
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_67_68 = object : Migration(67, 68) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE summaries ADD COLUMN executionLabel TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE summaries ADD COLUMN executionNote TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE prepared_scheduled_summaries ADD COLUMN executionLabel TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE prepared_scheduled_summaries ADD COLUMN executionNote TEXT DEFAULT NULL")
             }
         }
     }

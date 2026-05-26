@@ -81,6 +81,7 @@ import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppMotion
 import com.andrewwin.sumup.ui.components.AppCardSurface
+import com.andrewwin.sumup.ui.components.SummaryExecutionMetaBlock
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import com.andrewwin.sumup.ui.theme.AppCardShape
@@ -236,6 +237,7 @@ internal fun FeedAiSummaryContent(
                             )
                             SummaryMetaRow(
                                 executionLabel = aiResult.executionLabel,
+                                executionNote = aiResult.executionNote,
                                 modelName = activeSummaryModelName,
                                 aiStrategy = aiStrategy,
                                 onCopy = {
@@ -262,6 +264,7 @@ internal fun FeedAiSummaryContent(
                             )
                             SummaryMetaRow(
                                 executionLabel = aiResult.executionLabel,
+                                executionNote = aiResult.executionNote,
                                 modelName = activeSummaryModelName,
                                 aiStrategy = aiStrategy,
                                 onCopy = {
@@ -285,6 +288,7 @@ internal fun FeedAiSummaryContent(
                                 result = summaryResult,
                                 onOpenWebView = onOpenWebView,
                                 executionLabel = aiResult.executionLabel,
+                                executionNote = aiResult.executionNote,
                                 modelName = activeSummaryModelName,
                                 aiStrategy = aiStrategy,
                                 onCopy = {
@@ -370,6 +374,7 @@ private fun SingleSummaryCard(
     result: SummaryResult,
     onOpenWebView: (String) -> Unit,
     executionLabel: String?,
+    executionNote: String?,
     modelName: String?,
     aiStrategy: AiStrategy,
     onCopy: () -> Unit,
@@ -382,10 +387,6 @@ private fun SingleSummaryCard(
         compareBlocks = result.asCompareBlocksUi(),
         summaryResult = result
     )
-    val compactModel = modelName
-        ?.substringAfter('/', modelName)
-        ?.takeIf { it.isNotBlank() }
-    val footerText = executionLabel ?: buildAiExecutionLabel(context, aiStrategy, compactModel)
 
     if (result is SummaryResult.QA) {
         Column(
@@ -428,36 +429,14 @@ private fun SingleSummaryCard(
                 }
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = footerText,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = onCopy, modifier = Modifier.size(28.dp)) {
-                    Icon(
-                        imageVector = Icons.Outlined.ContentCopy,
-                        contentDescription = null,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-                IconButton(onClick = onShare, modifier = Modifier.size(28.dp)) {
-                    Icon(
-                        imageVector = Icons.Outlined.Share,
-                        contentDescription = null,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
-            }
+            SummaryMetaRow(
+                executionLabel = executionLabel,
+                executionNote = executionNote,
+                modelName = modelName,
+                aiStrategy = aiStrategy,
+                onCopy = onCopy,
+                onShare = onShare
+            )
         }
     } else {
         val content = when (result) {
@@ -501,37 +480,14 @@ private fun SingleSummaryCard(
                 sourceLabelMap = sourceLabelMap,
                 onOpenWebView = onOpenWebView
             )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = footerText,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = onCopy, modifier = Modifier.size(28.dp)) {
-                    Icon(
-                        imageVector = Icons.Outlined.ContentCopy,
-                        contentDescription = null,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-                IconButton(onClick = onShare, modifier = Modifier.size(28.dp)) {
-                    Icon(
-                        imageVector = Icons.Outlined.Share,
-                        contentDescription = null,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
-            }
+            SummaryMetaRow(
+                executionLabel = executionLabel,
+                executionNote = executionNote,
+                modelName = modelName,
+                aiStrategy = aiStrategy,
+                onCopy = onCopy,
+                onShare = onShare
+            )
         }
     }
 }
@@ -694,6 +650,7 @@ private fun buildAiExecutionLabel(
 @Composable
 private fun SummaryMetaRow(
     executionLabel: String?,
+    executionNote: String?,
     modelName: String?,
     aiStrategy: AiStrategy,
     onCopy: () -> Unit,
@@ -705,43 +662,33 @@ private fun SummaryMetaRow(
         ?.takeIf { it.isNotBlank() }
     val metaText = executionLabel ?: buildAiExecutionLabel(context, aiStrategy, compactModel)
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+    SummaryExecutionMetaBlock(
+        executionLabel = metaText,
+        executionNote = executionNote,
+        isError = false
     ) {
-        Text(
-            text = metaText,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-        Spacer(Modifier.width(6.dp))
-        IconButton(
-            onClick = onCopy,
-            modifier = Modifier.size(28.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.ContentCopy,
-                contentDescription = null,
-                modifier = Modifier.size(17.dp)
-            )
+            IconButton(
+                onClick = onCopy,
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.ContentCopy,
+                    contentDescription = null,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            IconButton(
+                onClick = onShare,
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Share,
+                    contentDescription = null,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
         }
-        Spacer(Modifier.width(8.dp))
-        IconButton(
-            onClick = onShare,
-            modifier = Modifier.size(28.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Share,
-                contentDescription = null,
-                modifier = Modifier.size(17.dp)
-            )
-        }
-    }
 }
 
 @Composable

@@ -11,6 +11,8 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.support.InvalidAiResponseException
 import com.andrewwin.sumup.domain.support.LocalModelMissingException
@@ -47,7 +49,9 @@ class FeedAiSummaryViewModel @Inject constructor(
     private val formatSummaryResultUseCase: SummaryResultFormatter,
     private val aiModelConfigRepository: AiModelConfigRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val feedAiSessionCache: FeedAiSessionCache
+    private val feedAiSessionCache: FeedAiSessionCache,
+    private val summaryExecutionInfoFormatter: SummaryExecutionInfoFormatter,
+    private val summaryExecutionInfoStore: SummaryExecutionInfoStore
 ) : AndroidViewModel(application) {
 
     private val summaryMode = savedStateHandle.get<String>(ARG_MODE)
@@ -177,16 +181,30 @@ class FeedAiSummaryViewModel @Inject constructor(
             _isAiLoading.value = true
             _aiResult.value = null
             aiModelConfigRepository.setLastUsedSummaryModelName(null)
+            summaryExecutionInfoStore.clear()
             val result = block()
                 .map { summary ->
                     buildPresentationResult(summary)
                 }
                 .getOrElse { error ->
-                    val localized = localizeError(error)
+                    val executionInfo = if (error is AllAiModelsFailedException) {
+                        summaryExecutionInfoFormatter.buildCloudFailureInfo(
+                            strategy = userPreferences.value.aiStrategy,
+                            failures = error.failures
+                        )
+                    } else {
+                        summaryExecutionInfoStore.current()
+                    }
+                    val localized = if (error is AllAiModelsFailedException) {
+                        summaryExecutionInfoFormatter.buildCloudFailureText(error.failures)
+                    } else {
+                        localizeError(error)
+                    }
                     AiPresentationResult(
                         result = SummaryResult.Error(localized),
                         rawText = localized,
-                        executionLabel = buildExecutionLabel()
+                        executionLabel = executionInfo.label.takeIf { it.isNotBlank() } ?: buildExecutionLabel(),
+                        executionNote = executionInfo.note.takeIf { it.isNotBlank() }
                     )
                 }
             _aiResult.value = result
@@ -195,10 +213,12 @@ class FeedAiSummaryViewModel @Inject constructor(
     }
 
     private fun buildPresentationResult(result: SummaryResult): AiPresentationResult {
+        val executionInfo = summaryExecutionInfoStore.current()
         return AiPresentationResult(
             result = result,
             rawText = formatSummaryResultUseCase(result),
-            executionLabel = buildExecutionLabel()
+            executionLabel = executionInfo.label.takeIf { it.isNotBlank() } ?: buildExecutionLabel(),
+            executionNote = executionInfo.note.takeIf { it.isNotBlank() }
         )
     }
 
@@ -231,9 +251,7 @@ class FeedAiSummaryViewModel @Inject constructor(
         val context = getApplication<Application>()
         return when (e) {
             is NoActiveModelException -> context.getString(R.string.error_no_active_model)
-            is AllAiModelsFailedException -> e.localizedMessage?.takeIf { it.isNotBlank() }?.let { message ->
-                context.getString(R.string.ai_error_prefix, message)
-            } ?: context.getString(R.string.error_all_ai_models_failed)
+            is AllAiModelsFailedException -> summaryExecutionInfoFormatter.buildCloudFailureText(e.failures)
             is InvalidAiResponseException -> context.getString(R.string.error_invalid_ai_response)
             is LocalModelMissingException -> context.getString(R.string.error_local_model_missing)
             is UnsupportedStrategyException -> context.getString(R.string.error_unsupported_strategy)

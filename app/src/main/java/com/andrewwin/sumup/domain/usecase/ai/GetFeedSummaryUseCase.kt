@@ -10,6 +10,10 @@ import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
 import com.andrewwin.sumup.domain.ai.AiPromptBuilder
 import com.andrewwin.sumup.domain.ai.AdaptiveTextShrinker
 import com.andrewwin.sumup.domain.ai.AiRequestSender
+import com.andrewwin.sumup.domain.ai.LocalSummaryReason
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
+import com.andrewwin.sumup.domain.ai.YoutubeSubtitleFetchSummary
 import com.andrewwin.sumup.domain.feed.FeedSummaryArticle
 import com.andrewwin.sumup.domain.news.SimilarityScorer
 import com.andrewwin.sumup.domain.repository.ArticleRepository
@@ -19,6 +23,8 @@ import com.andrewwin.sumup.domain.summary.SummaryItem
 import com.andrewwin.sumup.domain.summary.SummaryLimits
 import com.andrewwin.sumup.domain.summary.SummaryResult
 import com.andrewwin.sumup.domain.summary.SummarySourceRef
+import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
+import com.andrewwin.sumup.domain.support.NoActiveModelException
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -30,7 +36,9 @@ class GetFeedSummaryUseCase @Inject constructor(
     private val shrinkTextForAdaptiveStrategyUseCase: AdaptiveTextShrinker,
     private val aiRequestSender: AiRequestSender,
     private val summaryResponseMapper: SummaryResponseMapper,
-    private val similarityScorer: SimilarityScorer
+    private val similarityScorer: SimilarityScorer,
+    private val summaryExecutionInfoFormatter: SummaryExecutionInfoFormatter,
+    private val summaryExecutionInfoStore: SummaryExecutionInfoStore
 ) {
     suspend fun summarizeArticles(articles: List<Article>): Result<SummaryResult> = runCatching {
         if (articles.isEmpty()) return@runCatching SummaryResult.Digest(emptyList())
@@ -48,6 +56,9 @@ class GetFeedSummaryUseCase @Inject constructor(
         val strategy = prefs.aiStrategy
 
         if (strategy == AiStrategy.LOCAL) {
+            summaryExecutionInfoStore.update(
+                summaryExecutionInfoFormatter.buildLocalInfo(strategy, LocalSummaryReason.SELECTED_LOCAL)
+            )
             return buildLocalSummary(feedSummaryArticles)
         }
 
@@ -98,6 +109,7 @@ class GetFeedSummaryUseCase @Inject constructor(
         var includedArticlesCount = 0
         var partiallyIncludedArticlesCount = 0
         var youtubeFullTextArticlesCount = 0
+        var youtubeSubtitleSummary = YoutubeSubtitleFetchSummary()
         val totalArticlesCount = feedSummaryArticles.size
         val cloudInput = buildString {
             append(PAYLOAD_HEADER)
@@ -117,7 +129,9 @@ class GetFeedSummaryUseCase @Inject constructor(
                     youtubeFullTextArticlesCount++
                 }
                 val contentToProcess = if (shouldFetchFullContent) {
-                    articleRepository.fetchFullContent(article).ifBlank { article.content }
+                    val fullContent = articleRepository.fetchFullContent(article)
+                    youtubeSubtitleSummary += YoutubeSubtitleFetchSummary.from(fullContent.youtubeSubtitleStatus)
+                    fullContent.text.ifBlank { article.content }
                 } else {
                     article.content
                 }
@@ -179,11 +193,36 @@ class GetFeedSummaryUseCase @Inject constructor(
         val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
         val prompt = AiPromptBuilder.buildFeedDigestPrompt(prefs.summaryLanguage, customPrompt)
         val cloudResult = runCatching {
-            val jsonResponse = aiRequestSender.sendSummaryRequest(prompt, cloudInput)
-            summaryResponseMapper.parseFeed(jsonResponse, cloudInput)
+            val response = aiRequestSender.sendSummaryRequest(prompt, cloudInput)
+            val parsed = summaryResponseMapper.parseFeed(response.content, cloudInput)
+            summaryExecutionInfoStore.update(
+                summaryExecutionInfoFormatter.buildCloudInfo(strategy, response, youtubeSubtitleSummary)
+            )
+            parsed
         }
         return if (strategy == AiStrategy.ADAPTIVE) {
-            cloudResult.getOrElse { buildLocalSummary(feedSummaryArticles) }
+            cloudResult.getOrElse { error ->
+                summaryExecutionInfoStore.update(
+                    when (error) {
+                        is NoActiveModelException -> summaryExecutionInfoFormatter.buildLocalInfo(
+                            strategy,
+                            LocalSummaryReason.NO_API_KEYS,
+                            youtubeSubtitleSummary
+                        )
+                        is AllAiModelsFailedException -> summaryExecutionInfoFormatter.buildLocalFallbackInfo(
+                            strategy,
+                            error.failures,
+                            youtubeSubtitleSummary
+                        )
+                        else -> summaryExecutionInfoFormatter.buildLocalFallbackInfo(
+                            strategy,
+                            emptyList(),
+                            youtubeSubtitleSummary
+                        )
+                    }
+                )
+                buildLocalSummary(feedSummaryArticles)
+            }
         } else {
             cloudResult.getOrThrow()
         }

@@ -9,10 +9,10 @@ import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceGroupOrigin
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
+import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
-import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
 import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
 import com.andrewwin.sumup.domain.usecase.sources.ThemeSuggestion
 import com.andrewwin.sumup.domain.ai.LocalModelManager
@@ -48,9 +48,9 @@ sealed interface SourcesUiState {
 @OptIn(FlowPreview::class)
 class SourcesViewModel @Inject constructor(
     private val repository: SourceRepository,
+    private val articleRepository: ArticleRepository,
     private val manageModelUseCase: LocalModelManager,
     private val publicSubscriptionsSyncManager: PublicSubscriptionsSyncManager,
-    private val refreshFeedUseCase: RefreshFeedUseCase,
     private val getSuggestedThemesUseCase: GetSuggestedThemesUseCase,
     userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
@@ -328,7 +328,7 @@ class SourcesViewModel @Inject constructor(
                 group = suggestion.group,
                 displayName = targetGroupName
             )
-            refreshFeedInBackground()
+            articleRepository.requestFeedRefresh()
         } else {
             repository.unsubscribeFromImportedGroup(suggestion.group)
         }
@@ -395,7 +395,7 @@ class SourcesViewModel @Inject constructor(
                 type = type,
                 detectFooterPattern = false
             )
-            refreshFeedInBackground()
+            articleRepository.requestFeedRefresh()
         }
     }
 
@@ -427,7 +427,7 @@ class SourcesViewModel @Inject constructor(
                 useHeadlessBrowser = useHeadlessBrowser,
                 detectFooterPattern = false
             )
-            refreshFeedInBackground()
+            articleRepository.requestFeedRefresh()
         }
     }
 
@@ -481,12 +481,6 @@ class SourcesViewModel @Inject constructor(
 
     fun setSortOrder(order: SourceSortOrder) {
         _sortOrder.value = order
-    }
-
-    private fun refreshFeedInBackground() {
-        viewModelScope.launch {
-            refreshFeedUseCase()
-        }
     }
 
     private fun matchesQuery(text: String, queryTokens: List<String>): Boolean {

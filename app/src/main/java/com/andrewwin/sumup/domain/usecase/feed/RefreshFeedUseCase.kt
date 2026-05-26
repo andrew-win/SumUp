@@ -9,6 +9,7 @@ import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
 import com.andrewwin.sumup.domain.source.SuggestedThemesRefreshPolicy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -18,13 +19,18 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 interface RefreshFeedUseCase {
-    suspend operator fun invoke(onStageChange: suspend (FeedRefreshStage) -> Unit = {}): Result<Unit>
+    suspend operator fun invoke(onStageChange: suspend (FeedRefreshProgress) -> Unit = {}): Result<Unit>
 }
 
 enum class FeedRefreshStage {
     PARSING_NEWS,
     DEDUPLICATING_NEWS
 }
+
+data class FeedRefreshProgress(
+    val stage: FeedRefreshStage,
+    val runId: Long
+)
 
 class RefreshFeedUseCaseImpl @Inject constructor(
     private val refreshArticlesUseCase: RefreshArticlesUseCase,
@@ -39,7 +45,7 @@ class RefreshFeedUseCaseImpl @Inject constructor(
     private var nextRunId: Long = 1
     private val backgroundScope = CoroutineScope(SupervisorJob() + dispatcherProvider.io)
 
-    override suspend fun invoke(onStageChange: suspend (FeedRefreshStage) -> Unit): Result<Unit> = withContext(dispatcherProvider.io) {
+    override suspend fun invoke(onStageChange: suspend (FeedRefreshProgress) -> Unit): Result<Unit> = withContext(dispatcherProvider.io) {
         var shouldRefreshSuggestedThemes = false
         val requestAt = System.currentTimeMillis()
         logRefreshDebug(
@@ -57,10 +63,11 @@ class RefreshFeedUseCaseImpl @Inject constructor(
             val runStartedAt = System.currentTimeMillis()
             logRefreshDebug("refresh_use_case_started runId=$runId ageMs=$ageMs")
             val refreshResult = runCatching {
-                onStageChange(FeedRefreshStage.PARSING_NEWS)
+                emitStage(runId, FeedRefreshStage.PARSING_NEWS, onStageChange)
                 refreshArticlesUseCase()
                 val prefs = userPreferencesRepository.preferences.first()
-                onStageChange(FeedRefreshStage.DEDUPLICATING_NEWS)
+                emitStage(runId, FeedRefreshStage.DEDUPLICATING_NEWS, onStageChange)
+                delay(DEDUPE_STAGE_UI_BOUNDARY_MS)
                 feedDeduplicationProcessor.rebuildSimilarities(prefs).getOrThrow()
             }
             
@@ -110,15 +117,24 @@ class RefreshFeedUseCaseImpl @Inject constructor(
         }
     }
 
+    private suspend fun emitStage(
+        runId: Long,
+        stage: FeedRefreshStage,
+        onStageChange: suspend (FeedRefreshProgress) -> Unit
+    ) {
+        logRefreshDebug("refresh_use_case_stage runId=$runId stage=$stage")
+        onStageChange(FeedRefreshProgress(stage = stage, runId = runId))
+    }
+
     companion object {
         private const val MIN_REFRESH_INTERVAL_MS = 5_000L
+        private const val DEDUPE_STAGE_UI_BOUNDARY_MS = 250L
         private const val REFRESH_TRIGGER_LOGS_ENABLED = true
         private const val REFRESH_TRIGGER_LOG_TAG = "RefreshTriggerDebug"
         private const val APP_PACKAGE_PREFIX = "com.andrewwin.sumup"
         private const val CALLER_STACK_FRAME_LIMIT = 8
     }
 }
-
 
 
 

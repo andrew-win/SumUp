@@ -47,7 +47,7 @@ class SimilarityScorer(
         }
 
         // 3. Generate based on strategy
-        val deduplicationEmbeddingTitle = article.title.removeEmojiForDeduplicationEmbeddingInput()
+        val deduplicationEmbeddingTitle = article.title
         val embedding = when (strategy) {
             DeduplicationStrategy.CLOUD -> {
                 val cloud = cloudEmbeddingProvider.generateEmbedding(deduplicationEmbeddingTitle)
@@ -211,7 +211,7 @@ class SimilarityScorer(
 ) : BatchResult {
         val cloudEmbeddings = cloudEmbeddingSemaphore.withPermit {
             cloudEmbeddingProvider.generateEmbeddings(
-                chunk.map { it.title.removeEmojiForDeduplicationEmbeddingInput() },
+                chunk.map { it.title },
                 runId
             ).map { embedding -> embedding?.let(EmbeddingUtils::normalize) }
         }
@@ -246,7 +246,7 @@ class SimilarityScorer(
         var totalEmbeddingMs = 0L
         chunk.forEach { article ->
             localEmbeddingSemaphore.withPermit {
-                val titleForEmbedding = article.title.removeEmojiForDeduplicationEmbeddingInput()
+                val titleForEmbedding = article.title
                 val embeddingStartMs = SystemClock.elapsedRealtime()
                 val embedding = EmbeddingUtils.normalize(localEmbeddingProvider.computeLocalEmbedding(titleForEmbedding))
                 totalEmbeddingMs += SystemClock.elapsedRealtime() - embeddingStartMs
@@ -290,12 +290,6 @@ class SimilarityScorer(
             DeduplicationStrategy.LOCAL -> FloatArray(EmbeddingUtils.LOCAL_EMBEDDING_DIM)
         }
 
-    private fun String.removeEmojiForDeduplicationEmbeddingInput(): String {
-        return replace(DEDUPE_EMOJI_REGEX, " ")
-            .replace(WHITESPACE_REGEX, " ")
-            .trim()
-    }
-
     private companion object {
         private const val LOCAL_EMBEDDING_PARALLELISM = 1
         private const val LOCAL_EMBEDDING_BATCH_SIZE = 32
@@ -303,9 +297,7 @@ class SimilarityScorer(
         private const val CLOUD_EMBEDDING_BATCH_SIZE = 32
         private const val CLOUD_EMBEDDING_BATCH_DELAY_MS = 1_000L
         private const val EMBEDDINGS_TEST_LOG_TAG = "EmbedingsTest"
-        private const val DEDUP_EMBEDDING_CACHE_VERSION = "emoji-title-v2"
-        private val DEDUPE_EMOJI_REGEX = Regex("[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u27BF\\uFE0E\\uFE0F\\u20E3]+")
-        private val WHITESPACE_REGEX = Regex("\\s+")
+        private const val DEDUP_EMBEDDING_CACHE_VERSION = "title-full-v4"
         private val embeddingRunId = AtomicLong(0)
     }
 

@@ -3,14 +3,20 @@ package com.andrewwin.sumup.domain.repository
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.data.local.entities.SavedArticle
+import com.andrewwin.sumup.domain.ai.YoutubeSubtitleFetchStatus
 import kotlinx.coroutines.flow.Flow
+
+data class FullArticleContent(
+    val text: String,
+    val youtubeSubtitleStatus: YoutubeSubtitleFetchStatus? = null
+)
 
 interface ArticleRepository {
     val enabledArticles: Flow<List<Article>>
     val allArticles: Flow<List<Article>>
     val favoriteArticles: Flow<List<Article>>
-    val dataInvalidationSignal: Flow<Long>
-    fun triggerDataInvalidation()
+    val feedRefreshRequests: Flow<Long>
+    fun requestFeedRefresh()
     suspend fun refreshArticles()
     suspend fun updateArticle(article: Article)
     suspend fun updateArticles(articles: List<Article>)
@@ -20,7 +26,7 @@ interface ArticleRepository {
     suspend fun getEnabledArticlesOnce(): List<Article>
     suspend fun getEnabledArticlesSince(timestamp: Long): List<Article>
     suspend fun getSourceById(id: Long): com.andrewwin.sumup.data.local.entities.Source?
-    suspend fun fetchFullContent(article: Article): String
+    suspend fun fetchFullContent(article: Article): FullArticleContent
     suspend fun getSimilaritiesForArticles(articleIds: List<Long>, strategyKey: String): List<ArticleSimilarity>
     suspend fun upsertSimilarities(items: List<ArticleSimilarity>)
     suspend fun clearAllArticles()

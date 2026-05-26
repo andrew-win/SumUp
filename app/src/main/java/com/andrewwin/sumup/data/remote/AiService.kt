@@ -4,6 +4,7 @@ import android.util.Log
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.AiModelType
 import com.andrewwin.sumup.data.local.entities.AiProvider
+import com.andrewwin.sumup.domain.support.AiServiceException
 import com.andrewwin.sumup.domain.support.AiProviderUnavailableException
 import com.andrewwin.sumup.domain.support.AiRateLimitException
 import kotlinx.coroutines.Dispatchers
@@ -316,7 +317,7 @@ class AiService(private val okHttpClient: OkHttpClient) {
                 throw when (response.code) {
                     429 -> AiRateLimitException(message)
                     in 500..599 -> AiProviderUnavailableException(message, response.code)
-                    else -> Exception(message)
+                    else -> AiServiceException(message, response.code)
                 }
             }
             val body = response.body?.string() ?: throw Exception("Порожня відповідь від сервера")

@@ -1,5 +1,7 @@
 package com.andrewwin.sumup.domain.support
 
+import com.andrewwin.sumup.domain.ai.AiModelFailure
+
 class NoActiveModelException : Exception()
 
 class UnsupportedStrategyException(message: String? = null) : Exception(message)
@@ -12,7 +14,10 @@ class AiProviderUnavailableException(message: String, code: Int) : AiServiceExce
 
 class LocalModelMissingException : Exception()
 
-class AllAiModelsFailedException(cause: Throwable? = null) : Exception(cause?.localizedMessage, cause)
+class AllAiModelsFailedException(
+    val failures: List<AiModelFailure> = emptyList(),
+    cause: Throwable? = null
+) : Exception(cause?.localizedMessage, cause)
 
 class InvalidAiResponseException : Exception()
 

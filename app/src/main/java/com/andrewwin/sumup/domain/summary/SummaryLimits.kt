@@ -10,14 +10,14 @@ object SummaryLimits {
         const val maxPoints = 5
         const val localExtractiveSentences = mainSentences + maxPoints
         const val uiMaxDetails = maxPoints
-        const val maxWordsPerPoint = 25
+        const val maxWordsPerPoint = 16
     }
 
     object Compare {
         const val mainSentences = 1
         const val maxBullets = 5
         const val uiMaxDetails = maxBullets
-        const val maxWordsPerPoint = 25
+        const val maxWordsPerPoint = 16
     }
 
     object LocalClusterSummary {
@@ -32,15 +32,15 @@ object SummaryLimits {
         const val maxThemes = 4
         const val minItemsPerTheme = 2
         const val maxItemsPerTheme = 5
-        const val maxWordsPerTitle = 25
+        const val maxWordsPerTitle = 16
         const val maxLocalArticles = 8
         const val emojiesCount = 3
     }
 
     object QA {
         const val maxDetailPoints = 5
-        const val maxWordsShortAnswer = 15
-        const val maxWordsPerDetailedBullet = 25
+        const val maxWordsShortAnswer = 16
+        const val maxWordsPerDetailedBullet = 16f
     }
 
     object Extractive {
@@ -58,7 +58,7 @@ object SummaryLimits {
         val firstCompressionPercent: Int
             get() = currentPrefs?.adaptiveExtractiveCompressionPercentFirst ?: 0
         val mediumCompressionPercent: Int
-            get() = currentPrefs?.adaptiveExtractiveCompressionPercentMedium ?: 22
+            get() = currentPrefs?.adaptiveExtractiveCompressionPercentMedium ?: 30
         val highCompressionPercent: Int
             get() = currentPrefs?.adaptiveExtractiveCompressionPercentHigh ?: 15
     }

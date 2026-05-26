@@ -8,6 +8,9 @@ import com.andrewwin.sumup.domain.ai.AiPromptBuilder
 import com.andrewwin.sumup.domain.ai.AdaptiveTextShrinker
 import com.andrewwin.sumup.domain.ai.AiRequestSender
 import com.andrewwin.sumup.domain.ai.ProportionalTextLimiter
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
+import com.andrewwin.sumup.domain.ai.YoutubeSubtitleFetchSummary
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.summary.SummaryResult
@@ -21,7 +24,9 @@ class AskQuestionAboutNewsUseCase @Inject constructor(
     private val shrinkTextUseCase: AdaptiveTextShrinker,
     private val limitTextsProportionallyUseCase: ProportionalTextLimiter,
     private val aiRequestSender: AiRequestSender,
-    private val summaryResponseMapper: SummaryResponseMapper
+    private val summaryResponseMapper: SummaryResponseMapper,
+    private val summaryExecutionInfoFormatter: SummaryExecutionInfoFormatter,
+    private val summaryExecutionInfoStore: SummaryExecutionInfoStore
 ) {
     suspend operator fun invoke(articles: List<Article>, question: String): Result<SummaryResult> = runCatching {
         val prefs = userPrefsRepo.preferences.first()
@@ -29,19 +34,24 @@ class AskQuestionAboutNewsUseCase @Inject constructor(
 
         val articlePayloads = articles.map { article ->
             val source = articleRepo.getSourceById(article.sourceId)
-            val fullContent = articleRepo.fetchFullContent(article).ifBlank { article.content }
+            val fullContent = articleRepo.fetchFullContent(article)
+            val contentToProcess = fullContent.text.ifBlank { article.content }
 
             val processedContent = if (prefs.aiStrategy == AiStrategy.ADAPTIVE) {
-                shrinkTextUseCase(fullContent, prefs)
+                shrinkTextUseCase(contentToProcess, prefs)
             } else {
-                fullContent
+                contentToProcess
             }
             QuestionArticlePayload(
                 article = article,
                 sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело",
                 sourceUrl = article.url.ifBlank { source?.url.orEmpty() },
-                content = processedContent
+                content = processedContent,
+                youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.youtubeSubtitleStatus)
             )
+        }
+        val youtubeSubtitleSummary = articlePayloads.fold(YoutubeSubtitleFetchSummary()) { total, payload ->
+            total + payload.youtubeSubtitleSummary
         }
         val contentLimit = if (articlePayloads.size > 1) {
             prefs.aiMaxCharsNewsCluster
@@ -67,8 +77,11 @@ class AskQuestionAboutNewsUseCase @Inject constructor(
 
         val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
         val prompt = AiPromptBuilder.buildQuestionPrompt(prefs.summaryLanguage, question, customPrompt)
-        val jsonResponse = aiRequestSender.sendSummaryRequest(prompt, cloudInput)
-        val parsed = summaryResponseMapper.parseQuestion(jsonResponse, cloudInput, question)
+        val response = aiRequestSender.sendSummaryRequest(prompt, cloudInput)
+        val parsed = summaryResponseMapper.parseQuestion(response.content, cloudInput, question)
+        summaryExecutionInfoStore.update(
+            summaryExecutionInfoFormatter.buildCloudInfo(prefs.aiStrategy, response, youtubeSubtitleSummary)
+        )
 
         if (parsed.details.isEmpty() && parsed.shortAnswer.isBlank()) {
             val fallback = if (prefs.summaryLanguage == SummaryLanguage.UK) {
@@ -86,6 +99,7 @@ class AskQuestionAboutNewsUseCase @Inject constructor(
         val article: Article,
         val sourceName: String,
         val sourceUrl: String,
-        val content: String
+        val content: String,
+        val youtubeSubtitleSummary: YoutubeSubtitleFetchSummary
     )
 }

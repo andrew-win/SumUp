@@ -19,6 +19,7 @@ import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.news.ArticleContentCleaner
 import com.andrewwin.sumup.domain.news.ArticleTitleFormatter
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.repository.FullArticleContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -51,11 +52,11 @@ class ArticleRepositoryImpl @Inject constructor(
     override val favoriteArticles: Flow<List<Article>> =
         savedArticleDao.getSavedArticles().map { list -> list.map(::mapSavedToUiArticle) }
 
-    private val _dataInvalidationSignal = MutableStateFlow(0L)
-    override val dataInvalidationSignal: Flow<Long> = _dataInvalidationSignal.asStateFlow()
+    private val _feedRefreshRequests = MutableStateFlow(0L)
+    override val feedRefreshRequests: Flow<Long> = _feedRefreshRequests.asStateFlow()
 
-    override fun triggerDataInvalidation() {
-        _dataInvalidationSignal.value = System.currentTimeMillis()
+    override fun requestFeedRefresh() {
+        _feedRefreshRequests.value = System.currentTimeMillis()
     }
 
     override suspend fun refreshArticles() = withContext(Dispatchers.IO) {
@@ -309,13 +310,16 @@ class ArticleRepositoryImpl @Inject constructor(
     override suspend fun getSourceById(id: Long): com.andrewwin.sumup.data.local.entities.Source? =
         sourceDao.getSourceById(id)
 
-    override suspend fun fetchFullContent(article: Article): String {
-        val source = sourceDao.getSourceById(article.sourceId) ?: return article.content
+    override suspend fun fetchFullContent(article: Article): FullArticleContent {
+        val source = sourceDao.getSourceById(article.sourceId) ?: return FullArticleContent(article.content)
         val fetchedRemote = remoteArticleDataSource.fetchFullContent(article.url, source.type)
-        val remoteContent = fetchedRemote ?: article.content
+        val remoteContent = fetchedRemote?.text ?: article.content
         val mainContent = cleanArticleTextUseCase.extractMainContent(article.url, remoteContent, source.type)
         val cleaned = cleanArticleTextUseCase.clean(mainContent, source.type, source.footerPattern)
-        return cleaned
+        return FullArticleContent(
+            text = cleaned,
+            youtubeSubtitleStatus = fetchedRemote?.youtubeSubtitleStatus
+        )
     }
 
     override suspend fun getSimilaritiesForArticles(

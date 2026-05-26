@@ -17,11 +17,14 @@ import androidx.work.Data
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.PreparedScheduledSummary
 import com.andrewwin.sumup.data.local.entities.Summary
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.usecase.ai.GenerateSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.ai.NoArticlesException
+import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.ui.MainActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
@@ -33,6 +36,8 @@ class SummaryWorkerHandler @Inject constructor(
     private val summaryScheduler: SummaryScheduler,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val generateSummaryUseCase: GenerateSummaryUseCase,
+    private val summaryExecutionInfoFormatter: SummaryExecutionInfoFormatter,
+    private val summaryExecutionInfoStore: SummaryExecutionInfoStore
 ) {
     suspend fun execute(inputData: Data, runAttemptCount: Int): ListenableWorker.Result {
         val kind = inputData.getString(WorkerContracts.KEY_SCHEDULED_SUMMARY_WORK_KIND)
@@ -59,16 +64,20 @@ class SummaryWorkerHandler @Inject constructor(
 
         Log.d(SCHEDULED_SUMMARY_LOG_TAG, "prepare_started scheduledAt=$scheduledAt")
         return try {
+            summaryExecutionInfoStore.clear()
             val summaryText = generateSummaryUseCase(refresh = true)
             if (summaryText.isBlank()) {
                 val message = context.getString(R.string.summary_worker_empty_response)
                 throw IllegalStateException(message)
             }
+            val executionInfo = summaryExecutionInfoStore.current()
             summaryRepository.upsertPreparedScheduledSummary(
                 PreparedScheduledSummary(
                     scheduledAt = scheduledAt,
                     content = summaryText,
-                    strategy = prefs.aiStrategy
+                    strategy = prefs.aiStrategy,
+                    executionLabel = executionInfo.label.takeIf { it.isNotBlank() },
+                    executionNote = executionInfo.note.takeIf { it.isNotBlank() }
                 )
             )
             Log.d(SCHEDULED_SUMMARY_LOG_TAG, "prepare_finished scheduledAt=$scheduledAt")
@@ -90,16 +99,30 @@ class SummaryWorkerHandler @Inject constructor(
             }
             ListenableWorker.Result.success()
         } catch (e: Exception) {
-            val prefix = context.getString(R.string.summary_worker_error_prefix)
             if (runAttemptCount < WorkerContracts.MAX_RETRY_ATTEMPTS) {
                 ListenableWorker.Result.retry()
             } else {
+                val executionInfo = if (e is AllAiModelsFailedException) {
+                    summaryExecutionInfoFormatter.buildCloudFailureInfo(
+                        strategy = prefs.aiStrategy,
+                        failures = e.failures
+                    )
+                } else {
+                    summaryExecutionInfoStore.current()
+                }
+                val content = if (e is AllAiModelsFailedException) {
+                    summaryExecutionInfoFormatter.buildCloudFailureText(e.failures)
+                } else {
+                    "${context.getString(R.string.summary_worker_error_prefix)}: ${e.localizedMessage.orEmpty()}"
+                }
                 summaryRepository.upsertPreparedScheduledSummary(
                     PreparedScheduledSummary(
                         scheduledAt = scheduledAt,
-                        content = "$prefix: ${e.localizedMessage.orEmpty()}",
+                        content = content,
                         strategy = prefs.aiStrategy,
-                        isError = true
+                        isError = true,
+                        executionLabel = executionInfo.label.takeIf { it.isNotBlank() },
+                        executionNote = executionInfo.note.takeIf { it.isNotBlank() }
                     )
                 )
                 if (System.currentTimeMillis() >= scheduledAt) {
@@ -130,7 +153,9 @@ class SummaryWorkerHandler @Inject constructor(
                 content = preparedSummary.content,
                 strategy = preparedSummary.strategy,
                 createdAt = scheduledAt,
-                isError = preparedSummary.isError
+                isError = preparedSummary.isError,
+                executionLabel = preparedSummary.executionLabel,
+                executionNote = preparedSummary.executionNote
             )
         )
         summaryRepository.deletePreparedScheduledSummary(scheduledAt)
@@ -193,4 +218,3 @@ class SummaryWorkerHandler @Inject constructor(
         private const val SCHEDULED_SUMMARY_LOG_TAG = "ScheduledSummary"
     }
 }
-

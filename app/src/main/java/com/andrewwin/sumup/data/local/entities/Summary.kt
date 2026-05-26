@@ -10,7 +10,9 @@ data class Summary(
     val strategy: AiStrategy = AiStrategy.ADAPTIVE,
     val createdAt: Long = System.currentTimeMillis(),
     val isError: Boolean = false,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val executionLabel: String? = null,
+    val executionNote: String? = null
 )
 
 

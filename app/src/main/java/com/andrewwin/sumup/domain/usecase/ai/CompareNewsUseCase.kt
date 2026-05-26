@@ -6,8 +6,12 @@ import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
 import com.andrewwin.sumup.domain.ai.AiPromptBuilder
 import com.andrewwin.sumup.domain.ai.AdaptiveTextShrinker
 import com.andrewwin.sumup.domain.ai.AiRequestSender
+import com.andrewwin.sumup.domain.ai.LocalSummaryReason
 import com.andrewwin.sumup.domain.ai.ProportionalTextLimiter
 import com.andrewwin.sumup.domain.ai.LocalEmbeddingProvider
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
+import com.andrewwin.sumup.domain.ai.YoutubeSubtitleFetchSummary
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.news.SimilarityScorer
@@ -16,8 +20,10 @@ import com.andrewwin.sumup.domain.summary.SummaryLimits
 import com.andrewwin.sumup.domain.summary.SummaryResult
 import com.andrewwin.sumup.domain.summary.SummarySourceRef
 import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
+import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.support.LocalModelMissingException
+import com.andrewwin.sumup.domain.support.NoActiveModelException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -33,7 +39,9 @@ class CompareNewsUseCase @Inject constructor(
     private val getExtractiveSummaryUseCase: ExtractiveSummaryService,
     private val localEmbeddingProvider: LocalEmbeddingProvider,
     private val similarityScorer: SimilarityScorer,
-    private val dispatcherProvider: DispatcherProvider
+    private val dispatcherProvider: DispatcherProvider,
+    private val summaryExecutionInfoFormatter: SummaryExecutionInfoFormatter,
+    private val summaryExecutionInfoStore: SummaryExecutionInfoStore
 ) {
     suspend operator fun invoke(articles: List<Article>): Result<SummaryResult.Compare> = withContext(dispatcherProvider.default) {
         if (articles.size < 2) {
@@ -45,7 +53,17 @@ class CompareNewsUseCase @Inject constructor(
 
         // 1. Local Strategy
         if (strategy == AiStrategy.LOCAL) {
-            return@withContext runCatching { performLocalComparison(articles, prefs) }
+            return@withContext runCatching {
+                val localComparison = performLocalComparison(articles, prefs)
+                summaryExecutionInfoStore.update(
+                    summaryExecutionInfoFormatter.buildLocalInfo(
+                        strategy,
+                        LocalSummaryReason.SELECTED_LOCAL,
+                        localComparison.youtubeSubtitleSummary
+                    )
+                )
+                localComparison.summary
+            }
         }
 
         val cloudArticles = articles.map { article ->
@@ -53,20 +71,31 @@ class CompareNewsUseCase @Inject constructor(
             val sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело"
             val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
             val fullContent = articleRepository.fetchFullContent(article)
-            val contentToProcess = fullContent.ifBlank { article.content }
+            val contentToProcess = fullContent.text.ifBlank { article.content }
 
             CloudCompareArticle(
                 id = article.id,
                 sourceName = sourceName,
                 sourceUrl = sourceUrl,
                 title = article.title,
-                content = contentToProcess
+                content = contentToProcess,
+                youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.youtubeSubtitleStatus)
             )
+        }
+        val youtubeSubtitleSummary = cloudArticles.fold(YoutubeSubtitleFetchSummary()) { total, article ->
+            total + article.youtubeSubtitleSummary
         }
         val totalContentLength = cloudArticles.sumOf { it.content.length }
 
         if (strategy == AiStrategy.ADAPTIVE && totalContentLength < prefs.adaptiveExtractiveOnlyBelowChars) {
-            return@withContext runCatching { performLocalComparison(articles, prefs) }
+            summaryExecutionInfoStore.update(
+                summaryExecutionInfoFormatter.buildLocalInfo(
+                    strategy,
+                    LocalSummaryReason.TEXT_TOO_SHORT,
+                    youtubeSubtitleSummary
+                )
+            )
+            return@withContext runCatching { performLocalComparison(articles, prefs).summary }
         }
 
         val processedTexts = cloudArticles.map { article ->
@@ -99,12 +128,37 @@ class CompareNewsUseCase @Inject constructor(
         val prompt = AiPromptBuilder.buildComparePrompt(prefs.summaryLanguage, customPrompt)
 
         val cloudResult = runCatching {
-            val jsonResponse = aiRequestSender.sendSummaryRequest(prompt, cloudInput)
-            summaryResponseMapper.parseCompare(jsonResponse, cloudInput)
+            val response = aiRequestSender.sendSummaryRequest(prompt, cloudInput)
+            val parsed = summaryResponseMapper.parseCompare(response.content, cloudInput)
+            summaryExecutionInfoStore.update(
+                summaryExecutionInfoFormatter.buildCloudInfo(strategy, response, youtubeSubtitleSummary)
+            )
+            parsed
         }
 
         return@withContext if (strategy == AiStrategy.ADAPTIVE) {
-            cloudResult.recoverCatching { performLocalComparison(articles, prefs) }
+            cloudResult.recoverCatching { error ->
+                summaryExecutionInfoStore.update(
+                    when (error) {
+                        is NoActiveModelException -> summaryExecutionInfoFormatter.buildLocalInfo(
+                            strategy,
+                            LocalSummaryReason.NO_API_KEYS,
+                            youtubeSubtitleSummary
+                        )
+                        is AllAiModelsFailedException -> summaryExecutionInfoFormatter.buildLocalFallbackInfo(
+                            strategy,
+                            error.failures,
+                            youtubeSubtitleSummary
+                        )
+                        else -> summaryExecutionInfoFormatter.buildLocalFallbackInfo(
+                            strategy,
+                            emptyList(),
+                            youtubeSubtitleSummary
+                        )
+                    }
+                )
+                performLocalComparison(articles, prefs).summary
+            }
         } else {
             cloudResult
         }
@@ -115,7 +169,13 @@ class CompareNewsUseCase @Inject constructor(
         val sourceName: String,
         val sourceUrl: String,
         val title: String,
-        val content: String
+        val content: String,
+        val youtubeSubtitleSummary: YoutubeSubtitleFetchSummary
+    )
+
+    private data class LocalComparisonResult(
+        val summary: SummaryResult.Compare,
+        val youtubeSubtitleSummary: YoutubeSubtitleFetchSummary
     )
 
     private data class LocalClusterSentenceCandidate(
@@ -124,15 +184,26 @@ class CompareNewsUseCase @Inject constructor(
         val articleId: Long
     )
 
-    private suspend fun performLocalComparison(articles: List<Article>, prefs: com.andrewwin.sumup.data.local.entities.UserPreferences): SummaryResult.Compare {
-        if (articles.isEmpty()) return SummaryResult.Compare(points = emptyList())
+    private suspend fun performLocalComparison(
+        articles: List<Article>,
+        prefs: com.andrewwin.sumup.data.local.entities.UserPreferences
+    ): LocalComparisonResult {
+        if (articles.isEmpty()) {
+            return LocalComparisonResult(
+                summary = SummaryResult.Compare(points = emptyList()),
+                youtubeSubtitleSummary = YoutubeSubtitleFetchSummary()
+            )
+        }
 
         if (!localEmbeddingProvider.initialize()) {
             throw LocalModelMissingException()
         }
 
+        var youtubeSubtitleSummary = YoutubeSubtitleFetchSummary()
         val candidatesByArticle = articles.associate { article ->
-            article.id to buildLocalClusterSentenceCandidates(article)
+            val candidates = buildLocalClusterSentenceCandidates(article)
+            youtubeSubtitleSummary += candidates.youtubeSubtitleSummary
+            article.id to candidates.items
         }
 
         val requiredSourceItems = buildRequiredLocalClusterSummaryItems(
@@ -161,21 +232,29 @@ class CompareNewsUseCase @Inject constructor(
             }
         }
 
-        return SummaryResult.Compare(
-            main = selectedItems.firstOrNull()?.text,
-            points = selectedItems.drop(SummaryLimits.Compare.mainSentences)
+        return LocalComparisonResult(
+            summary = SummaryResult.Compare(
+                main = selectedItems.firstOrNull()?.text,
+                points = selectedItems.drop(SummaryLimits.Compare.mainSentences)
+            ),
+            youtubeSubtitleSummary = youtubeSubtitleSummary
         )
     }
 
-    private suspend fun buildLocalClusterSentenceCandidates(article: Article): List<LocalClusterSentenceCandidate> {
+    private data class LocalClusterSentenceCandidates(
+        val items: List<LocalClusterSentenceCandidate>,
+        val youtubeSubtitleSummary: YoutubeSubtitleFetchSummary
+    )
+
+    private suspend fun buildLocalClusterSentenceCandidates(article: Article): LocalClusterSentenceCandidates {
         val source = articleRepository.getSourceById(article.sourceId)
         val sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело"
         val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
         val sourceMeta = SummarySourceRef(name = sourceName, url = sourceUrl)
 
         val fullContent = articleRepository.fetchFullContent(article)
-        return getExtractiveSummaryUseCase(
-            fullContent,
+        val items = getExtractiveSummaryUseCase(
+            fullContent.text,
             SummaryLimits.LocalClusterSummary.candidateSentencesPerSource
         )
             .map { it.trim() }
@@ -188,6 +267,10 @@ class CompareNewsUseCase @Inject constructor(
                     articleId = article.id
                 )
             }
+        return LocalClusterSentenceCandidates(
+            items = items,
+            youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.youtubeSubtitleStatus)
+        )
     }
 
     private suspend fun buildRequiredLocalClusterSummaryItems(

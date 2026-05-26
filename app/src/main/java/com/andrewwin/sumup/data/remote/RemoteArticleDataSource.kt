@@ -3,6 +3,7 @@ package com.andrewwin.sumup.data.remote
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.domain.ai.YoutubeSubtitleFetchStatus
 import io.github.thoroldvix.api.TranscriptApiFactory
 import io.github.thoroldvix.api.TranscriptContent
 import io.github.thoroldvix.api.YoutubeClient
@@ -323,7 +324,12 @@ class RemoteArticleDataSource @Inject constructor(
         return "https://www.youtube.com/feeds/videos.xml?channel_id=$channelId"
     }
 
-    suspend fun fetchFullContent(url: String, type: SourceType): String? =
+    data class RemoteFullContent(
+        val text: String?,
+        val youtubeSubtitleStatus: YoutubeSubtitleFetchStatus? = null
+    )
+
+    suspend fun fetchFullContent(url: String, type: SourceType): RemoteFullContent? =
         withContext(Dispatchers.IO) {
             if (type != SourceType.RSS && type != SourceType.YOUTUBE) return@withContext null
 
@@ -337,14 +343,28 @@ class RemoteArticleDataSource @Inject constructor(
                         else -> url.substringAfterLast("/")
                     }
                     val transcriptList = youtubeTranscriptApi.listTranscripts(videoId)
-                    val transcript = runCatching {
+                    val generatedTranscript = runCatching {
                         transcriptList.findGeneratedTranscript("uk", "ru", "en")
-                    }.getOrElse {
-                        transcriptList.findTranscript("uk", "ru", "en")
+                    }
+                    val transcript = generatedTranscript.getOrElse {
+                        runCatching { transcriptList.findTranscript("uk", "ru", "en") }
+                            .getOrElse {
+                                return@withContext RemoteFullContent(
+                                    text = null,
+                                    youtubeSubtitleStatus = YoutubeSubtitleFetchStatus.FAILED
+                                )
+                            }
                     }
                     val fetched = transcript.fetch()
                     val transcriptText = formatYoutubeTranscriptByTiming(fetched)
-                    return@withContext transcriptText
+                    return@withContext RemoteFullContent(
+                        text = transcriptText,
+                        youtubeSubtitleStatus = if (generatedTranscript.isSuccess) {
+                            YoutubeSubtitleFetchStatus.GENERATED
+                        } else {
+                            YoutubeSubtitleFetchStatus.MANUAL
+                        }
+                    )
                 }
 
                 if (!url.startsWith("https://", true) && !url.startsWith("http://", true)) {
@@ -360,8 +380,14 @@ class RemoteArticleDataSource @Inject constructor(
                 ).execute()
                 if (!response.isSuccessful) return@withContext null
                 val body = response.body?.string()
-                return@withContext body
+                return@withContext RemoteFullContent(text = body)
             } catch (e: Exception) {
+                if (type == SourceType.YOUTUBE) {
+                    return@withContext RemoteFullContent(
+                        text = null,
+                        youtubeSubtitleStatus = YoutubeSubtitleFetchStatus.FAILED
+                    )
+                }
                 null
             }
         }

@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.local.entities.AiStrategy
 import com.andrewwin.sumup.data.local.entities.Summary
+import com.andrewwin.sumup.ui.components.SummaryExecutionMetaBlock
 import com.andrewwin.sumup.ui.util.*
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -232,7 +233,7 @@ internal fun SummaryFooterRow(
         AiStrategy.LOCAL -> context.getString(R.string.ai_strategy_local)
         AiStrategy.ADAPTIVE -> context.getString(R.string.ai_strategy_adaptive)
     }
-    val metaText = if (isError) {
+    val fallbackMetaText = if (isError) {
         stringResource(R.string.summary_system_notice)
     } else {
         buildString {
@@ -243,81 +244,72 @@ internal fun SummaryFooterRow(
             }
         }
     }
+    val metaText = summary.executionLabel?.takeIf { it.isNotBlank() } ?: fallbackMetaText
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+    SummaryExecutionMetaBlock(
+        executionLabel = metaText,
+        executionNote = summary.executionNote,
+        isError = isError
     ) {
-        Text(
-            text = metaText,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-        Spacer(Modifier.width(6.dp))
-        IconButton(
-            onClick = {
-                copySummaryText(context, summary.content)
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.summary_copied),
-                    Toast.LENGTH_SHORT
-                ).show()
-            },
-            modifier = Modifier.size(24.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.ContentCopy,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        IconButton(
-            onClick = { shareSummaryText(context, summary.content) },
-            modifier = Modifier.size(24.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Share,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        if (onToggleFavorite != null) {
-            Spacer(Modifier.width(8.dp))
             IconButton(
-                onClick = onToggleFavorite,
+                onClick = {
+                    copySummaryText(context, summary.content)
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.summary_copied),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                },
                 modifier = Modifier.size(24.dp)
             ) {
                 Icon(
-                    imageVector = if (summary.isFavorite) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                    contentDescription = if (summary.isFavorite) "Remove from favorites" else "Add to favorites",
+                    imageVector = Icons.Outlined.ContentCopy,
+                    contentDescription = null,
                     modifier = Modifier.size(18.dp),
-                    tint = if (summary.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-        if (onDelete != null) {
             Spacer(Modifier.width(8.dp))
             IconButton(
-                onClick = onDelete,
+                onClick = { shareSummaryText(context, summary.content) },
                 modifier = Modifier.size(24.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Delete,
-                    contentDescription = "Delete summary",
+                    imageVector = Icons.Outlined.Share,
+                    contentDescription = null,
                     modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            if (onToggleFavorite != null) {
+                Spacer(Modifier.width(8.dp))
+                IconButton(
+                    onClick = onToggleFavorite,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = if (summary.isFavorite) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                        contentDescription = if (summary.isFavorite) "Remove from favorites" else "Add to favorites",
+                        modifier = Modifier.size(18.dp),
+                        tint = if (summary.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            if (onDelete != null) {
+                Spacer(Modifier.width(8.dp))
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Delete,
+                        contentDescription = "Delete summary",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
+                    )
+                }
+            }
         }
-    }
 }
 
 @Composable

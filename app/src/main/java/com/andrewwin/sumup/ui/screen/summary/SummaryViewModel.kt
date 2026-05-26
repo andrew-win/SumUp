@@ -15,6 +15,9 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
+import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
@@ -56,7 +59,9 @@ class SummaryViewModel @Inject constructor(
     private val feedArticlesBuilder: FeedArticlesBuilder,
     private val importanceScorer: ArticleImportanceScorer,
     private val sourceRepository: SourceRepository,
-    private val aiModelConfigRepository: AiModelConfigRepository
+    private val aiModelConfigRepository: AiModelConfigRepository,
+    private val summaryExecutionInfoFormatter: SummaryExecutionInfoFormatter,
+    private val summaryExecutionInfoStore: SummaryExecutionInfoStore
 ) : ViewModel() {
 
     val summaries: StateFlow<List<Summary>> = summaryRepository.allSummaries
@@ -182,14 +187,40 @@ class SummaryViewModel @Inject constructor(
         viewModelScope.launch {
             _isGenerating.value = true
             runCatching {
+                summaryExecutionInfoStore.clear()
                 val summaryText = generateSummaryUseCase(refresh = true)
-                summaryRepository.insertSummary(Summary(content = summaryText, strategy = userPreferences.value.aiStrategy))
+                val executionInfo = summaryExecutionInfoStore.current()
+                summaryRepository.insertSummary(
+                    Summary(
+                        content = summaryText,
+                        strategy = userPreferences.value.aiStrategy,
+                        executionLabel = executionInfo.label.takeIf { it.isNotBlank() },
+                        executionNote = executionInfo.note.takeIf { it.isNotBlank() }
+                    )
+                )
             }.onFailure { e ->
                 val message = when (e) {
                     is NoArticlesException -> return@onFailure
+                    is AllAiModelsFailedException -> summaryExecutionInfoFormatter.buildCloudFailureText(e.failures)
                     else -> e.localizedMessage.orEmpty()
                 }
-                summaryRepository.insertSummary(Summary(content = message, strategy = userPreferences.value.aiStrategy))
+                val executionInfo = if (e is AllAiModelsFailedException) {
+                    summaryExecutionInfoFormatter.buildCloudFailureInfo(
+                        strategy = userPreferences.value.aiStrategy,
+                        failures = e.failures
+                    )
+                } else {
+                    summaryExecutionInfoStore.current()
+                }
+                summaryRepository.insertSummary(
+                    Summary(
+                        content = message,
+                        strategy = userPreferences.value.aiStrategy,
+                        isError = true,
+                        executionLabel = executionInfo.label.takeIf { it.isNotBlank() },
+                        executionNote = executionInfo.note.takeIf { it.isNotBlank() }
+                    )
+                )
             }
             _isGenerating.value = false
         }

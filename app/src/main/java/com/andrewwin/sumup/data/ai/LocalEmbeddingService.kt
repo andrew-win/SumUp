@@ -223,16 +223,16 @@ class LocalEmbeddingService(
         private const val MODEL_ASSET_NAME = "multilingual-e5-small.onnx"
         private const val TOKENIZER_ASSET_NAME = "multilingual-e5-small_tokenizer.onnx"
         private const val QUERY_PREFIX = ""
-        private const val MAX_TOKEN_LENGTH = 45
+        private const val MAX_TOKEN_LENGTH = 40
         private const val PAD_TOKEN_ID = 1L
         private const val TOKENS_OUTPUT_NAME = "tokens"
         private const val INPUT_IDS_NAME = "input_ids"
         private const val ATTENTION_MASK_NAME = "attention_mask"
         private const val TOKEN_TYPE_IDS_NAME = "token_type_ids"
         private const val TOKENIZER_INTRA_OP_THREADS = 2
-        private const val TOKENIZER_INTER_OP_THREADS = 1
-        private const val MODEL_INTRA_OP_THREADS = 1
-        private const val MODEL_INTER_OP_THREADS = 1
+        private const val TOKENIZER_INTER_OP_THREADS = 2
+        private const val MODEL_INTRA_OP_THREADS = 2
+        private const val MODEL_INTER_OP_THREADS = 2
         private const val LOCAL_EMBEDDING_SPEED_LOG_TAG = "LocalEmbeddingSpeedTest"
     }
 }

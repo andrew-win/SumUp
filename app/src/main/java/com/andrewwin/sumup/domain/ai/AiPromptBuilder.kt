@@ -30,7 +30,10 @@ object AiPromptBuilder {
 
                 "CLEAN TEXT: title and text fields contain only human-readable content. No IDs. No references. No metadata. " +
                 "Bad: { \"text\": \"According to ID 725, the price rose...\" } " +
-                "Good: { \"text\": \"The price rose...\", \"source_ids\": [\"725\"] } "
+                "Good: { \"text\": \"The price rose...\", \"source_ids\": [\"725\"] } " +
+
+                "LENGTH RULE: Word limits - only TARGET numbers. Actual expected length is shown in SOTA examples below" +
+                "You shouldn't compromise the meaning just to fit within strict limits"
 
     private const val ANALYTIC_CHAIN_RULE =
         "ANALYTIC CHAIN: Output a chain of atomic claims. " +

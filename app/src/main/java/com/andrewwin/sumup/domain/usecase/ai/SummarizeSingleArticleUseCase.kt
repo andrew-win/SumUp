@@ -6,6 +6,10 @@ import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
 import com.andrewwin.sumup.domain.ai.AiPromptBuilder
 import com.andrewwin.sumup.domain.ai.AdaptiveTextShrinker
 import com.andrewwin.sumup.domain.ai.AiRequestSender
+import com.andrewwin.sumup.domain.ai.LocalSummaryReason
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
+import com.andrewwin.sumup.domain.ai.YoutubeSubtitleFetchSummary
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.summary.SummaryItem
@@ -13,6 +17,8 @@ import com.andrewwin.sumup.domain.summary.SummaryLimits
 import com.andrewwin.sumup.domain.summary.SummaryResult
 import com.andrewwin.sumup.domain.summary.SummarySourceRef
 import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
+import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
+import com.andrewwin.sumup.domain.support.NoActiveModelException
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
@@ -22,7 +28,9 @@ class SummarizeSingleArticleUseCase @Inject constructor(
     private val getExtractiveSummaryUseCase: ExtractiveSummaryService,
     private val shrinkTextForAdaptiveStrategyUseCase: AdaptiveTextShrinker,
     private val aiRequestSender: AiRequestSender,
-    private val summaryResponseMapper: SummaryResponseMapper
+    private val summaryResponseMapper: SummaryResponseMapper,
+    private val summaryExecutionInfoFormatter: SummaryExecutionInfoFormatter,
+    private val summaryExecutionInfoStore: SummaryExecutionInfoStore
 ) {
     suspend operator fun invoke(article: Article): Result<SummaryResult> = runCatching {
         val source = articleRepository.getSourceById(article.sourceId)
@@ -30,14 +38,16 @@ class SummarizeSingleArticleUseCase @Inject constructor(
         val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
         
         val fullContent = articleRepository.fetchFullContent(article)
-        val contentToProcess = fullContent.ifBlank { article.content }
+        val contentToProcess = fullContent.text.ifBlank { article.content }
+        val youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.youtubeSubtitleStatus)
 
         summarizeInternal(
             articleId = article.id,
             title = article.title,
             content = contentToProcess,
             sourceName = sourceName,
-            sourceUrl = sourceUrl
+            sourceUrl = sourceUrl,
+            youtubeSubtitleSummary = youtubeSubtitleSummary
         ).getOrThrow()
     }
 
@@ -47,7 +57,8 @@ class SummarizeSingleArticleUseCase @Inject constructor(
             title = title,
             content = content,
             sourceName = "Текст",
-            sourceUrl = ""
+            sourceUrl = "",
+            youtubeSubtitleSummary = YoutubeSubtitleFetchSummary()
         ).getOrThrow()
     }
 
@@ -56,7 +67,8 @@ class SummarizeSingleArticleUseCase @Inject constructor(
         title: String,
         content: String,
         sourceName: String,
-        sourceUrl: String
+        sourceUrl: String,
+        youtubeSubtitleSummary: YoutubeSubtitleFetchSummary
     ): Result<SummaryResult> = runCatching {
         val prefs = userPreferencesRepository.preferences.first()
         val strategy = prefs.aiStrategy
@@ -65,6 +77,14 @@ class SummarizeSingleArticleUseCase @Inject constructor(
         if (strategy == AiStrategy.LOCAL ||
             (strategy == AiStrategy.ADAPTIVE && content.length < prefs.adaptiveExtractiveOnlyBelowChars)
         ) {
+            val reason = if (strategy == AiStrategy.LOCAL) {
+                LocalSummaryReason.SELECTED_LOCAL
+            } else {
+                LocalSummaryReason.TEXT_TOO_SHORT
+            }
+            summaryExecutionInfoStore.update(
+                summaryExecutionInfoFormatter.buildLocalInfo(strategy, reason, youtubeSubtitleSummary)
+            )
             return@runCatching buildLocalSingleSummary(title, content, sourceRef)
         }
 
@@ -87,8 +107,11 @@ class SummarizeSingleArticleUseCase @Inject constructor(
         }
 
         val cloudResult = runCatching {
-            val jsonResponse = aiRequestSender.sendSummaryRequest(prompt, cloudInput)
-            val parsedResult = summaryResponseMapper.parseSingle(jsonResponse, cloudInput)
+            val response = aiRequestSender.sendSummaryRequest(prompt, cloudInput)
+            val parsedResult = summaryResponseMapper.parseSingle(response.content, cloudInput)
+            summaryExecutionInfoStore.update(
+                summaryExecutionInfoFormatter.buildCloudInfo(strategy, response, youtubeSubtitleSummary)
+            )
 
             if (parsedResult.sources.isEmpty()) {
                 parsedResult.copy(
@@ -101,7 +124,28 @@ class SummarizeSingleArticleUseCase @Inject constructor(
         }
 
         if (strategy == AiStrategy.ADAPTIVE) {
-            cloudResult.getOrElse { buildLocalSingleSummary(title, content, sourceRef) }
+            cloudResult.getOrElse { error ->
+                summaryExecutionInfoStore.update(
+                    when (error) {
+                        is NoActiveModelException -> summaryExecutionInfoFormatter.buildLocalInfo(
+                            strategy,
+                            LocalSummaryReason.NO_API_KEYS,
+                            youtubeSubtitleSummary
+                        )
+                        is AllAiModelsFailedException -> summaryExecutionInfoFormatter.buildLocalFallbackInfo(
+                            strategy,
+                            error.failures,
+                            youtubeSubtitleSummary
+                        )
+                        else -> summaryExecutionInfoFormatter.buildLocalFallbackInfo(
+                            strategy,
+                            emptyList(),
+                            youtubeSubtitleSummary
+                        )
+                    }
+                )
+                buildLocalSingleSummary(title, content, sourceRef)
+            }
         } else {
             cloudResult.getOrThrow()
         }

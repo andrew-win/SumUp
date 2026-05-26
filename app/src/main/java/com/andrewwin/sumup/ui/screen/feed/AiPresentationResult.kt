@@ -5,5 +5,6 @@ import com.andrewwin.sumup.domain.summary.SummaryResult
 data class AiPresentationResult(
     val result: SummaryResult,
     val rawText: String,
-    val executionLabel: String? = null
+    val executionLabel: String? = null,
+    val executionNote: String? = null
 )
