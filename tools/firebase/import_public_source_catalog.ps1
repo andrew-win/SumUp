@@ -1,3 +1,5 @@
+#pwsh -File C:\Users\AKubyshenko\AndroidStudioProjects\SumUp\tools\firebase\import_public_source_catalog.ps1
+
 param(
     [string]$ServiceAccountPath = $env:FIREBASE_SERVICE_ACCOUNT,
 

@@ -468,6 +468,15 @@ class SourcesViewModel @Inject constructor(
             repository.deleteSource(source)
         }
     }
+
+    fun deleteSources(sources: List<Source>) {
+        if (sources.isEmpty()) return
+        viewModelScope.launch {
+            sources.distinctBy(Source::id).forEach { source ->
+                repository.deleteSource(source)
+            }
+        }
+    }
     
     fun toggleGroup(group: SourceGroup, isEnabled: Boolean) {
         viewModelScope.launch {

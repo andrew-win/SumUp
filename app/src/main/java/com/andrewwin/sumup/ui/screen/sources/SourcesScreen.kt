@@ -45,6 +45,7 @@ import com.andrewwin.sumup.domain.source.SourceUrlValidator
 import com.andrewwin.sumup.ui.displayName
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
+import com.andrewwin.sumup.ui.components.AppFilledIconAction
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.components.AppHelpToggleAction
 import com.andrewwin.sumup.ui.components.AppProminentFab
@@ -76,13 +77,17 @@ fun SourcesScreen(
     val appLanguage by viewModel.appLanguage.collectAsState()
     val reservedGroupNames by viewModel.reservedGroupNames.collectAsState()
     val selectedGroupIds = remember { mutableStateListOf<Long>() }
-    val isSelectionMode = selectedGroupIds.isNotEmpty()
+    val selectedSourceIds = remember { mutableStateListOf<Long>() }
+    val isGroupSelectionMode = selectedGroupIds.isNotEmpty()
+    val isSourceSelectionMode = selectedSourceIds.isNotEmpty()
+    val isSelectionMode = isGroupSelectionMode || isSourceSelectionMode
     var showAddGroupDialog by remember { mutableStateOf(false) }
     var editGroup by remember { mutableStateOf<SourceGroup?>(null) }
     var editSource by remember { mutableStateOf<Source?>(null) }
     var deleteGroupConfirm by remember { mutableStateOf<SourceGroup?>(null) }
     var deleteSourceConfirm by remember { mutableStateOf<Source?>(null) }
     var showDeleteSelectedGroupsConfirm by remember { mutableStateOf(false) }
+    var showDeleteSelectedSourcesConfirm by remember { mutableStateOf(false) }
     var selectedGroupIdForSource by remember { mutableStateOf<Long?>(null) }
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
@@ -96,6 +101,7 @@ fun SourcesScreen(
     val groupCardHelpDescription = stringResource(R.string.sources_help_group_card)
     val suggestedThemesHelpDescription = stringResource(R.string.sources_help_recommended_themes)
     val currentGroups = (uiState as? SourcesUiState.Content)?.groups.orEmpty()
+    val selectAllDescription = stringResource(R.string.sources_selection_select_all)
 
     LaunchedEffect(isSelectionMode) {
         if (isSelectionMode && isHelpMode) {
@@ -116,7 +122,7 @@ fun SourcesScreen(
             AppTopBar(
                 title = {
                     if (isSelectionMode) {
-                        Text("Вибрано: ${selectedGroupIds.size}")
+                        Text(stringResource(R.string.summary_selected_count, selectedGroupIds.size + selectedSourceIds.size))
                     } else {
                         Text(stringResource(R.string.nav_sources))
                     }
@@ -124,12 +130,51 @@ fun SourcesScreen(
                 actions = {
                     if (isSelectionMode) {
                         AppSelectionActions(
-                            onClear = { selectedGroupIds.clear() },
-                            onDelete = {
-                                showDeleteSelectedGroupsConfirm = true
+                            onSelectAll = {
+                                if (isSourceSelectionMode) {
+                                    val visibleSourceIds = currentGroups
+                                        .flatMap { it.sources }
+                                        .map(Source::id)
+                                        .distinct()
+                                    val areAllSelected = visibleSourceIds.isNotEmpty() &&
+                                        visibleSourceIds.all(selectedSourceIds::contains)
+                                    if (areAllSelected) {
+                                        selectedSourceIds.removeAll { it in visibleSourceIds.toSet() }
+                                    } else {
+                                        visibleSourceIds.forEach { id ->
+                                            if (!selectedSourceIds.contains(id)) selectedSourceIds.add(id)
+                                        }
+                                    }
+                                } else {
+                                    val visibleGroupIds = currentGroups.map { it.group.id }
+                                    val areAllSelected = visibleGroupIds.isNotEmpty() &&
+                                        visibleGroupIds.all(selectedGroupIds::contains)
+                                    if (areAllSelected) {
+                                        selectedGroupIds.removeAll { it in visibleGroupIds.toSet() }
+                                    } else {
+                                        visibleGroupIds.forEach { id ->
+                                            if (!selectedGroupIds.contains(id)) selectedGroupIds.add(id)
+                                        }
+                                    }
+                                }
                             },
-                            clearDescription = "Exit selection mode",
-                            deleteDescription = "Delete selected groups"
+                            onClear = {
+                                selectedGroupIds.clear()
+                                selectedSourceIds.clear()
+                            },
+                            onDelete = {
+                                if (isSourceSelectionMode) {
+                                    showDeleteSelectedSourcesConfirm = true
+                                } else {
+                                    showDeleteSelectedGroupsConfirm = true
+                                }
+                            },
+                            clearDescription = stringResource(R.string.sources_selection_exit),
+                            deleteDescription = stringResource(
+                                if (isSourceSelectionMode) R.string.sources_selection_delete_sources
+                                else R.string.sources_selection_delete_groups
+                            ),
+                            selectAllDescription = selectAllDescription
                         )
                     } else {
                         AppHelpToggleAction(
@@ -315,14 +360,25 @@ fun SourcesScreen(
                                     GroupCard(
                                         groupWithSources = groupWithSources,
                                         isSelected = selectedGroupIds.contains(groupWithSources.group.id),
-                                        isSelectionMode = isSelectionMode,
+                                        isSelectionMode = isGroupSelectionMode,
                                         onLongSelectGroup = {
+                                            if (isSourceSelectionMode) return@GroupCard
                                             val id = groupWithSources.group.id
                                             if (!selectedGroupIds.contains(id)) selectedGroupIds.add(id)
                                         },
                                         onToggleSelectGroup = {
+                                            if (isSourceSelectionMode) return@GroupCard
                                             val id = groupWithSources.group.id
                                             if (selectedGroupIds.contains(id)) selectedGroupIds.remove(id) else selectedGroupIds.add(id)
+                                        },
+                                        selectedSourceIds = selectedSourceIds.toSet(),
+                                        isSourceSelectionMode = isSourceSelectionMode,
+                                        onLongSelectSource = { source ->
+                                            if (!selectedSourceIds.contains(source.id)) selectedSourceIds.add(source.id)
+                                        },
+                                        onToggleSelectSource = { source ->
+                                            val id = source.id
+                                            if (selectedSourceIds.contains(id)) selectedSourceIds.remove(id) else selectedSourceIds.add(id)
                                         },
                                         onAddSource = { selectedGroupIdForSource = groupWithSources.group.id },
                                         onToggleGroup = { viewModel.toggleGroup(groupWithSources.group, it) },
@@ -540,6 +596,22 @@ fun SourcesScreen(
                 onDismiss = { showDeleteSelectedGroupsConfirm = false }
             )
         }
+
+        if (showDeleteSelectedSourcesConfirm) {
+            SettingsConfirmDeleteDialog(
+                title = stringResource(R.string.delete),
+                text = stringResource(R.string.delete_selected_sources_confirm, selectedSourceIds.size),
+                onConfirm = {
+                    val selected = currentGroups
+                        .flatMap { it.sources }
+                        .filter { selectedSourceIds.contains(it.id) }
+                    viewModel.deleteSources(selected)
+                    selectedSourceIds.clear()
+                    showDeleteSelectedSourcesConfirm = false
+                },
+                onDismiss = { showDeleteSelectedSourcesConfirm = false }
+            )
+        }
     }
 }
 
@@ -551,6 +623,10 @@ fun GroupCard(
     isSelectionMode: Boolean,
     onLongSelectGroup: () -> Unit,
     onToggleSelectGroup: () -> Unit,
+    selectedSourceIds: Set<Long>,
+    isSourceSelectionMode: Boolean,
+    onLongSelectSource: (Source) -> Unit,
+    onToggleSelectSource: (Source) -> Unit,
     onAddSource: () -> Unit,
     onToggleGroup: (Boolean) -> Unit,
     onEditGroup: (SourceGroup) -> Unit,
@@ -560,6 +636,13 @@ fun GroupCard(
     onDeleteSource: (Source) -> Unit
 ) {
     var isExpanded by rememberSaveable(groupWithSources.group.id) { mutableStateOf(false) }
+    val groupSourceIds = remember(groupWithSources.sources) { groupWithSources.sources.map(Source::id) }
+    val hasSelectedSourceInGroup = remember(selectedSourceIds, groupSourceIds) {
+        groupSourceIds.any(selectedSourceIds::contains)
+    }
+    val areAllGroupSourcesSelected = remember(selectedSourceIds, groupSourceIds) {
+        groupSourceIds.isNotEmpty() && groupSourceIds.all(selectedSourceIds::contains)
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -617,6 +700,37 @@ fun GroupCard(
                 }
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isSourceSelectionMode && hasSelectedSourceInGroup) {
+                        FilledIconButton(
+                            onClick = {
+                                if (areAllGroupSourcesSelected) {
+                                    groupWithSources.sources.forEach(onToggleSelectSourceIfSelected@{ source ->
+                                        if (selectedSourceIds.contains(source.id)) {
+                                            onToggleSelectSource(source)
+                                        }
+                                    })
+                                } else {
+                                    groupWithSources.sources.forEach { source ->
+                                        if (!selectedSourceIds.contains(source.id)) {
+                                            onToggleSelectSource(source)
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.size(32.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SelectAll,
+                                contentDescription = stringResource(R.string.sources_selection_select_group_sources),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(4.dp))
+                    }
                     Box {
                         var showDropdown by remember { mutableStateOf(false) }
                         IconButton(
@@ -697,6 +811,10 @@ fun GroupCard(
                             SourceItem(
                                 source = source,
                                 isGroupEnabled = groupWithSources.group.isEnabled,
+                                isSelected = selectedSourceIds.contains(source.id),
+                                isSelectionMode = isSourceSelectionMode,
+                                onLongSelect = { onLongSelectSource(source) },
+                                onToggleSelection = { onToggleSelectSource(source) },
                                 onToggle = { onToggleSource(it) },
                                 onEdit = { onEditSource(it) },
                                 onDelete = { onDeleteSource(it) }
@@ -713,6 +831,10 @@ fun GroupCard(
 fun SourceItem(
     source: Source,
     isGroupEnabled: Boolean,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
+    onLongSelect: () -> Unit,
+    onToggleSelection: () -> Unit,
     onToggle: (Source) -> Unit,
     onEdit: (Source) -> Unit,
     onDelete: (Source) -> Unit
@@ -736,85 +858,121 @@ fun SourceItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = AppDimens.CardContentPadding, vertical = AppDimens.CompactItemSpacing)
+            .combinedClickable(
+                onClick = {
+                    if (isSelectionMode) onToggleSelection()
+                },
+                onLongClick = onLongSelect
+            )
+            .padding(horizontal = 4.dp, vertical = 2.dp)
             .alpha(if (isGroupEnabled) 1f else 0.5f),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            painter = painterResource(source.type.iconRes),
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.secondary
-        )
-        Spacer(Modifier.width(AppDimens.InlineItemSpacing))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = source.name, 
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = displayUrl,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
-            )
-        }
-        Switch(
-            checked = source.isEnabled,
-            onCheckedChange = { onToggle(source.copy(isEnabled = it)) },
-            enabled = isGroupEnabled,
-            modifier = Modifier.scale(0.7f)
-        )
-        Box {
-            var showDropdown by remember { mutableStateOf(false) }
-            IconButton(
-                onClick = { showDropdown = true },
-                enabled = isGroupEnabled,
-                modifier = Modifier.size(32.dp)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = if (isSelected) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+            } else {
+                MaterialTheme.colorScheme.surface.copy(alpha = 0f)
+            },
+            border = if (isSelected) {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+            } else {
+                null
+            }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = AppDimens.CardContentPadding, vertical = AppDimens.CompactItemSpacing),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.MoreVert,
+                    painter = painterResource(source.type.iconRes),
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.secondary
                 )
-            }
-            DropdownMenu(
-                expanded = showDropdown,
-                onDismissRequest = { showDropdown = false },
-                shape = MaterialTheme.shapes.large,
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-            ) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.edit_source)) },
-                    trailingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.Edit,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    onClick = {
-                        onEdit(source)
-                        showDropdown = false
+                Spacer(Modifier.width(AppDimens.InlineItemSpacing))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = source.name,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = displayUrl,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
+                if (isSelectionMode) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onToggleSelection() },
+                        enabled = isGroupEnabled
+                    )
+                } else {
+                    Switch(
+                        checked = source.isEnabled,
+                        onCheckedChange = { onToggle(source.copy(isEnabled = it)) },
+                        enabled = isGroupEnabled,
+                        modifier = Modifier.scale(0.7f)
+                    )
+                    Box {
+                        var showDropdown by remember { mutableStateOf(false) }
+                        IconButton(
+                            onClick = { showDropdown = true },
+                            enabled = isGroupEnabled,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showDropdown,
+                            onDismissRequest = { showDropdown = false },
+                            shape = MaterialTheme.shapes.large,
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.edit_source)) },
+                                trailingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Edit,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    onEdit(source)
+                                    showDropdown = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
+                                trailingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Delete,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                },
+                                onClick = {
+                                    onDelete(source)
+                                    showDropdown = false
+                                }
+                            )
+                        }
                     }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
-                    trailingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    },
-                    onClick = {
-                        onDelete(source)
-                        showDropdown = false
-                    }
-                )
+                }
             }
         }
     }

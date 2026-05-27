@@ -278,17 +278,20 @@ class SourceRepositoryImpl @Inject constructor(
                 source.type to source.url in sourcesToRemove
             }
         }
-
-        matchingGroups.forEach { groupWithSources ->
-            groupWithSources.sources
-                .filter { source -> source.type to source.url in sourcesToRemove }
-                .forEach { source -> sourceDao.deleteSource(source) }
-
-            val remainingSources = sourceDao.getSourcesByGroupIdOnce(groupWithSources.group.id)
-            if (remainingSources.isEmpty()) {
-                sourceDao.deleteGroupById(groupWithSources.group.id)
+        val sourceIdsToDelete = matchingGroups
+            .flatMap { groupWithSources ->
+                groupWithSources.sources
+                    .filter { source -> source.type to source.url in sourcesToRemove }
+                    .map(Source::id)
             }
-        }
+            .distinct()
+        val groupIdsToDeleteIfEmpty = matchingGroups
+            .map { it.group.id }
+            .distinct()
+        sourceDao.deleteSourcesAndEmptyGroups(
+            sourceIds = sourceIdsToDelete,
+            groupIds = groupIdsToDeleteIfEmpty
+        )
     }
 
     override suspend fun importGroupsWithSources(
@@ -349,9 +352,12 @@ class SourceRepositoryImpl @Inject constructor(
         val importedSourceKeys = importedGroup.sources
             .mapNotNull { it.normalizedSourceKey() }
             .toSet()
-        existingGroupWithSources.sources
+        val sourceIdsToDelete = existingGroupWithSources.sources
             .filter { it.type to it.url !in importedSourceKeys }
-            .forEach { sourceDao.deleteSource(it) }
+            .map(Source::id)
+        if (sourceIdsToDelete.isNotEmpty()) {
+            sourceDao.deleteSourcesByIds(sourceIdsToDelete)
+        }
 
         importedGroup.sources.forEach { importedSource ->
             upsertImportedSource(existingGroup.id, importedSource)

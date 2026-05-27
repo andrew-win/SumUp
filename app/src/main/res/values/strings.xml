@@ -45,6 +45,7 @@
     <string name="summary_selected_count">Вибрано: %1$d</string>
     <string name="summary_selection_clear">Вийти з режиму вибору</string>
     <string name="summary_selection_delete">Видалити вибрані зведення</string>
+    <string name="summary_selection_select_all">Виділити все</string>
     <string name="summary_empty">Запланованих зведень ще немає</string>
     <string name="summary_not_ready">Згенеровано пізніше</string>
     <string name="summary_next_at">Наступне о %s</string>
@@ -204,6 +205,12 @@
     <string name="delete_source_confirm">Видалити джерело \"%s\"?</string>
     <string name="delete_api_key_confirm">Видалити API-ключ \"%s\"?</string>
     <string name="delete_selected_groups_confirm">Видалити вибрані групи (%d) та всі їхні джерела?</string>
+    <string name="delete_selected_sources_confirm">Видалити вибрані джерела (%d)?</string>
+    <string name="sources_selection_exit">Вийти з режиму вибору</string>
+    <string name="sources_selection_delete_groups">Видалити вибрані групи</string>
+    <string name="sources_selection_delete_sources">Видалити вибрані джерела</string>
+    <string name="sources_selection_select_all">Виділити все</string>
+    <string name="sources_selection_select_group_sources">Виділити всі джерела групи</string>
     <string name="settings_export_import">Експорт/імпорт</string>
     <string name="settings_sync">Синхронізація</string>
     <string name="settings_sync_strategy_title">Стратегія синхронізації</string>

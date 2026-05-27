@@ -83,11 +83,38 @@ interface SourceDao {
     @Delete
     suspend fun deleteSource(source: Source)
 
+    @Query("DELETE FROM sources WHERE id IN (:sourceIds)")
+    suspend fun deleteSourcesByIds(sourceIds: List<Long>)
+
     @Query("DELETE FROM sources")
     suspend fun deleteAllSources()
 
     @Query("DELETE FROM source_groups WHERE isDeletable = 1")
     suspend fun deleteDeletableGroups()
+
+    @Query(
+        """
+        DELETE FROM source_groups
+        WHERE id IN (:groupIds)
+        AND NOT EXISTS (
+            SELECT 1 FROM sources
+            WHERE sources.groupId = source_groups.id
+        )
+        """
+    )
+    suspend fun deleteEmptyGroupsByIds(groupIds: List<Long>)
+
+    @Transaction
+    suspend fun deleteSourcesAndEmptyGroups(
+        sourceIds: List<Long>,
+        groupIds: List<Long>
+    ) {
+        if (sourceIds.isEmpty()) return
+        deleteSourcesByIds(sourceIds)
+        if (groupIds.isNotEmpty()) {
+            deleteEmptyGroupsByIds(groupIds)
+        }
+    }
 }
 
 

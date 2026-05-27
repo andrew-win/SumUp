@@ -46,6 +46,7 @@
     <string name="summary_selected_count">Selected: %1$d</string>
     <string name="summary_selection_clear">Exit selection mode</string>
     <string name="summary_selection_delete">Delete selected summaries</string>
+    <string name="summary_selection_select_all">Select all</string>
     <string name="summary_empty">No scheduled summaries yet</string>
     <string name="summary_not_ready">Will be later</string>
     <string name="summary_next_at">Next at %s</string>
@@ -459,4 +460,10 @@ scheduled</string>
     <string name="delete_source_confirm">Delete source \"%s\"?</string>
     <string name="delete_api_key_confirm">Delete API key \"%s\"?</string>
     <string name="delete_selected_groups_confirm">Delete selected groups (%d) and all their sources?</string>
+    <string name="delete_selected_sources_confirm">Delete selected sources (%d)?</string>
+    <string name="sources_selection_exit">Exit selection mode</string>
+    <string name="sources_selection_delete_groups">Delete selected groups</string>
+    <string name="sources_selection_delete_sources">Delete selected sources</string>
+    <string name="sources_selection_select_all">Select all</string>
+    <string name="sources_selection_select_group_sources">Select all group sources</string>
 </resources>

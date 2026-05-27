@@ -108,6 +108,7 @@ fun SummaryHistoryScreen(
     val closeHistoryDescription = stringResource(R.string.summary_history_close)
     val selectionClearDescription = stringResource(R.string.summary_selection_clear)
     val selectionDeleteDescription = stringResource(R.string.summary_selection_delete)
+    val selectionSelectAllDescription = stringResource(R.string.summary_selection_select_all)
 
     BackHandler(enabled = isHistorySearchFocused) {
         focusManager.clearFocus(force = true)
@@ -168,13 +169,26 @@ fun SummaryHistoryScreen(
                     actions = {
                         if (isSelectionMode) {
                             AppSelectionActions(
+                                onSelectAll = {
+                                    val visibleSummaryIds = historySummaries.map { it.id }
+                                    val areAllSelected = visibleSummaryIds.isNotEmpty() &&
+                                        visibleSummaryIds.all(selectedSummaryIds::contains)
+                                    if (areAllSelected) {
+                                        selectedSummaryIds.removeAll { it in visibleSummaryIds.toSet() }
+                                    } else {
+                                        visibleSummaryIds.forEach { id ->
+                                            if (!selectedSummaryIds.contains(id)) selectedSummaryIds.add(id)
+                                        }
+                                    }
+                                },
                                 onClear = { selectedSummaryIds.clear() },
                                 onDelete = {
                                     viewModel.deleteSummaries(selectedSummaryIds.toList())
                                     selectedSummaryIds.clear()
                                 },
                                 clearDescription = selectionClearDescription,
-                                deleteDescription = selectionDeleteDescription
+                                deleteDescription = selectionDeleteDescription,
+                                selectAllDescription = selectionSelectAllDescription
                             )
                         } else {
                             Row(
