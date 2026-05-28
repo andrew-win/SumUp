@@ -4,6 +4,7 @@ import android.content.Context
 import com.andrewwin.sumup.data.remote.PublicSourcesCatalogService
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.PublicSubscriptionsCatalog
+import com.andrewwin.sumup.domain.source.SourceType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
@@ -139,7 +140,7 @@ class PublicSubscriptionsSyncManager @Inject constructor(
                 val sourceName = sourceJson.optString("name").trim()
                 val sourceUrl = sourceJson.optString("url").trim()
                 val sourceType = runCatching {
-                    com.andrewwin.sumup.data.local.entities.SourceType.valueOf(
+                    SourceType.valueOf(
                         sourceJson.optString("type").trim().uppercase()
                     )
                 }.getOrNull() ?: continue

@@ -1,30 +1,50 @@
 package com.andrewwin.sumup.ui.screen.feed
 
 import android.app.Application
+import android.net.Uri
 import android.util.Log
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.dao.GroupWithSources
-import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.data.local.entities.UserPreferences
+import com.andrewwin.sumup.domain.export.FeedExportArticle
+import com.andrewwin.sumup.domain.feed.pipeline.FeedArticlesBuilder
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.feed.FeedArticlesBuilder
+import com.andrewwin.sumup.domain.settings.UserSettings
+import com.andrewwin.sumup.domain.source.SourceGroupWithSources
+import com.andrewwin.sumup.domain.usecase.export.ExportFeedUseCase
+import com.andrewwin.sumup.domain.usecase.feed.ArticleBookmarkToggleRequest
 import com.andrewwin.sumup.domain.usecase.feed.FeedRefreshStage
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
+import com.andrewwin.sumup.domain.usecase.feed.ToggleArticleBookmarkUseCase
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.scan
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.time.Duration.Companion.milliseconds
 import javax.inject.Inject
+import kotlin.time.Duration.Companion.milliseconds
 
 enum class DateFilter(@StringRes val labelRes: Int, val hours: Int?) {
     ALL(R.string.filter_date_all, null),
@@ -43,7 +63,8 @@ enum class SavedFilter(@StringRes val labelRes: Int, val savedOnly: Boolean) {
 enum class FeedLoadingStage(@StringRes val messageRes: Int) {
     LOADING_FROM_DATABASE(R.string.feed_loading_from_database),
     PARSING_NEWS(R.string.feed_loading_news),
-    DEDUPLICATING_NEWS(R.string.feed_deduplicating)
+    DEDUPLICATING_NEWS(R.string.feed_deduplicating),
+    BUILDING_UPDATED_FEED(R.string.feed_building_updated_feed)
 }
 
 @HiltViewModel
@@ -52,6 +73,8 @@ class FeedViewModel @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val refreshFeedUseCase: RefreshFeedUseCase,
     private val feedArticlesBuilder: FeedArticlesBuilder,
+    private val exportFeedUseCase: ExportFeedUseCase,
+    private val toggleArticleBookmarkUseCase: ToggleArticleBookmarkUseCase,
     private val sourceRepository: SourceRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val feedUiModelMapper: FeedUiModelMapper
@@ -75,12 +98,16 @@ class FeedViewModel @Inject constructor(
 
     private val _feedLoadingStage = MutableStateFlow<FeedLoadingStage?>(FeedLoadingStage.LOADING_FROM_DATABASE)
     private val frozenClustersWhileProcessing = MutableStateFlow<List<ArticleClusterUiModel>?>(null)
+    private val activeFeedBuildSignal = MutableStateFlow<Long?>(null)
+    private val activeFeedBuildStartedAt = MutableStateFlow<Long?>(null)
+    private val _isBuildingFeed = MutableStateFlow(false)
+    val isBuildingFeed: StateFlow<Boolean> = _isBuildingFeed.asStateFlow()
     private var lastRefreshFinishedAt = 0L
 
-    val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.preferences
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
+    val userPreferences: StateFlow<UserSettings> = userPreferencesRepository.preferences
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserSettings())
 
-    private val groupsWithSources: StateFlow<List<GroupWithSources>> = sourceRepository.groupsWithSources
+    private val groupsWithSources: StateFlow<List<SourceGroupWithSources>> = sourceRepository.groupsWithSources
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val groups = groupsWithSources
@@ -104,7 +131,8 @@ class FeedViewModel @Inject constructor(
                 old.clusters.map { it.duplicates.size } == new.clusters.map { it.duplicates.size } &&
                 old.clusters.map { it.representative.isFavorite } == new.clusters.map { it.representative.isFavorite } &&
                 old.clusters.map { cluster -> cluster.duplicates.map { duplicate -> duplicate.first.isFavorite } } ==
-                new.clusters.map { cluster -> cluster.duplicates.map { duplicate -> duplicate.first.isFavorite } }
+                new.clusters.map { cluster -> cluster.duplicates.map { duplicate -> duplicate.first.isFavorite } } &&
+                old.invalidationSignal == new.invalidationSignal
         }
         .map<FeedArticlesBuilder.FeedResult, FeedResultState> { FeedResultState.Loaded(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FeedResultState.Initial)
@@ -133,6 +161,7 @@ class FeedViewModel @Inject constructor(
                 clusters = emptyList(),
                 isInitial = true
             )
+        val mappingStartedAt = System.currentTimeMillis()
         val mappedClusters = feedUiModelMapper.map(
             clusters = feed.clusters,
             groupsWithSources = groupsList,
@@ -140,10 +169,17 @@ class FeedViewModel @Inject constructor(
             ellipsis = getApplication<Application>().getString(R.string.ellipsis)
         )
         val clusters = applyFavoriteOverrides(mappedClusters, overrides)
+        Log.d(
+            FEED_BUILD_PROFILE_LOG_TAG,
+            "ui_mapping durationMs=${System.currentTimeMillis() - mappingStartedAt} " +
+                "domainClusters=${feed.clusters.size} uiClusters=${clusters.size} " +
+                "favoriteSavedAt=${favoriteSavedAt.size} signal=${feed.invalidationSignal}"
+        )
 
         FeedUiState(
             clusters = clusters,
-            isInitial = false
+            isInitial = false,
+            invalidationSignal = feed.invalidationSignal
         )
     }
         .distinctUntilChanged()
@@ -168,8 +204,12 @@ class FeedViewModel @Inject constructor(
 
     val articleClusters: StateFlow<List<ArticleClusterUiModel>> = feedUiState
         .combine(frozenClustersWhileProcessing) { state, frozenClusters -> state to frozenClusters }
-        .scan(emptyList<ArticleClusterUiModel>()) { previous, (state, frozenClusters) ->
+        .combine(activeFeedBuildSignal) { (state, frozenClusters), buildSignal ->
+            Triple(state, frozenClusters, buildSignal)
+        }
+        .scan(emptyList<ArticleClusterUiModel>()) { previous, (state, frozenClusters, buildSignal) ->
             when {
+                buildSignal != null && state.invalidationSignal < buildSignal -> frozenClusters ?: previous
                 frozenClusters != null -> frozenClusters
                 state.clusters.isNotEmpty() -> state.clusters
                 else -> emptyList()
@@ -188,9 +228,33 @@ class FeedViewModel @Inject constructor(
         viewModelScope.launch {
             isFeedProcessing
                 .collect { isProcessing ->
-                    if (!isProcessing) {
+                    if (!isProcessing && activeFeedBuildSignal.value == null) {
                         frozenClustersWhileProcessing.value = null
                     }
+                }
+        }
+
+        viewModelScope.launch {
+            feedUiState
+                .combine(activeFeedBuildSignal) { state, buildSignal -> state to buildSignal }
+                .collect { (state, buildSignal) ->
+                    if (buildSignal == null || state.isInitial || state.invalidationSignal < buildSignal) {
+                        return@collect
+                    }
+                    Log.d(
+                        FEED_STATES_LOG_TAG,
+                        "post_refresh_build_ready signal=$buildSignal clusters=${state.clusters.size}"
+                    )
+                    val durationMs = activeFeedBuildStartedAt.value?.let { System.currentTimeMillis() - it } ?: -1L
+                    Log.d(
+                        FEED_BUILD_PROFILE_LOG_TAG,
+                        "ui_state_ready signal=$buildSignal durationMs=$durationMs clusters=${state.clusters.size}"
+                    )
+                    activeFeedBuildSignal.value = null
+                    activeFeedBuildStartedAt.value = null
+                    frozenClustersWhileProcessing.value = null
+                    _isBuildingFeed.value = false
+                    setFeedLoadingStage(null, "post_refresh_feed_state_ready signal=$buildSignal")
                 }
         }
 
@@ -241,11 +305,26 @@ class FeedViewModel @Inject constructor(
             }
             Log.d(FEED_STATES_LOG_TAG, "refresh_use_case_complete success=${result.isSuccess}")
             if (result.isSuccess) {
+                val refreshSignal = System.currentTimeMillis()
                 Log.d(FEED_STATES_LOG_TAG, "post_refresh_invalidation_triggered")
-                articleRepository.requestFeedRefresh()
+                Log.d(
+                    FEED_BUILD_PROFILE_LOG_TAG,
+                    "post_refresh_build_start signal=$refreshSignal frozenClusters=${frozenClusters.size}"
+                )
+                _isBuildingFeed.value = true
+                activeFeedBuildSignal.value = refreshSignal
+                activeFeedBuildStartedAt.value = refreshSignal
+                articleRepository.requestFeedRefresh(refreshSignal)
+                setFeedLoadingStage(
+                    stage = FeedLoadingStage.BUILDING_UPDATED_FEED,
+                    reason = "awaiting_post_refresh_feed_state signal=$refreshSignal"
+                )
             }
         } finally {
-            setFeedLoadingStage(null, "refresh_finally")
+            if (activeFeedBuildSignal.value == null) {
+                _isBuildingFeed.value = false
+                setFeedLoadingStage(null, "refresh_finally")
+            }
             _isRefreshing.value = false
             lastRefreshFinishedAt = System.currentTimeMillis()
             Log.d(FEED_STATES_LOG_TAG, "refresh_finish lastRefreshFinishedAt=$lastRefreshFinishedAt")
@@ -287,26 +366,18 @@ class FeedViewModel @Inject constructor(
         }
         viewModelScope.launch {
             runCatching {
-                val updated = articleRepository.setFavoriteByIds(clusterIds, newFavorite)
-                if (newFavorite) {
-                    val clusterKey = if (clusterIds.size > 1) {
-                        "cluster:${cluster.representative.article.id}"
-                    } else {
-                        ""
-                    }
-                    val scoreByArticleId = buildMap {
-                        put(cluster.representative.article.id, 0f)
-                        cluster.duplicates.forEach { (duplicate, score) ->
-                            put(duplicate.article.id, score)
-                        }
-                    }
-                    articleRepository.saveFavoriteClusterMapping(clusterIds, clusterKey)
-                    articleRepository.saveFavoriteClusterScores(scoreByArticleId)
-                    articleRepository.saveFavoriteSavedAt(clusterIds)
-                } else {
-                    articleRepository.clearFavoriteClusterMapping(clusterIds)
-                    articleRepository.clearFavoriteSavedAt(clusterIds)
-                }
+                toggleArticleBookmarkUseCase(
+                    ArticleBookmarkToggleRequest(
+                        articles = clusterArticles,
+                        scoreByArticleId = buildMap {
+                            put(cluster.representative.article.id, 0f)
+                            cluster.duplicates.forEach { (duplicate, score) ->
+                                put(duplicate.article.id, score)
+                            }
+                        },
+                        clusterRepresentativeId = cluster.representative.article.id
+                    )
+                )
             }.onFailure {
                 favoriteOverrides.value = previousOverrides
             }
@@ -338,7 +409,8 @@ class FeedViewModel @Inject constructor(
 
     private data class FeedUiState(
         val clusters: List<ArticleClusterUiModel>,
-        val isInitial: Boolean
+        val isInitial: Boolean,
+        val invalidationSignal: Long = 0L
     )
 
     private sealed interface FeedResultState {
@@ -351,6 +423,27 @@ class FeedViewModel @Inject constructor(
             FeedRefreshStage.PARSING_NEWS -> FeedLoadingStage.PARSING_NEWS
             FeedRefreshStage.DEDUPLICATING_NEWS -> FeedLoadingStage.DEDUPLICATING_NEWS
         }
+    }
+
+    suspend fun exportFeed(
+        articles: List<ArticleUiModel>,
+        uri: Uri,
+        includeMedia: Boolean
+    ): Result<Unit> {
+        return exportFeedUseCase(
+            articles = articles.map { article ->
+                FeedExportArticle(
+                    title = article.displayTitle,
+                    content = article.displayContent,
+                    sourceName = article.sourceName,
+                    publishedAt = article.article.publishedAt,
+                    articleUrl = article.article.url,
+                    mediaUrl = article.article.mediaUrl
+                )
+            },
+            uri = uri,
+            includeMedia = includeMedia
+        )
     }
 
     private fun StateFlow<FeedLoadingStage?>.withStableVisibleStageDuration(): Flow<FeedLoadingStage?> {
@@ -388,10 +481,9 @@ class FeedViewModel @Inject constructor(
         private const val LOADING_STAGE_FINISH_SETTLE_MS = 250L
         private const val AUTO_REFRESH_AFTER_INVALIDATION_SUPPRESSION_MS = 6_000L
         private const val FEED_STATES_LOG_TAG = "FeedStatesDebug"
+        private const val FEED_BUILD_PROFILE_LOG_TAG = "FeedBuildProfile"
     }
 }
-
-
 
 
 

@@ -1,21 +1,24 @@
 package com.andrewwin.sumup.data.repository
 
 import android.net.Uri
-import com.andrewwin.sumup.data.local.dao.GroupWithSources
+import com.andrewwin.sumup.data.mappers.toDomainModel
+import com.andrewwin.sumup.data.mappers.toRoomEntity
 import com.andrewwin.sumup.data.local.dao.SourceDao
-import com.andrewwin.sumup.data.local.entities.Source
-import com.andrewwin.sumup.data.local.entities.SourceGroup
-import com.andrewwin.sumup.data.local.entities.SourceGroupOrigin
-import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
-import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
-import com.andrewwin.sumup.domain.source.SourceUrlValidator
 import com.andrewwin.sumup.domain.news.ArticleContentCleaner
 import com.andrewwin.sumup.domain.repository.ImportedSource
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
+import com.andrewwin.sumup.domain.source.Source
+import com.andrewwin.sumup.domain.source.SourceGroup
+import com.andrewwin.sumup.domain.source.SourceGroupOrigin
+import com.andrewwin.sumup.domain.source.SourceGroupWithSources
+import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
+import com.andrewwin.sumup.domain.source.SourceUrlValidator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class SourceRepositoryImpl @Inject constructor(
@@ -24,28 +27,29 @@ class SourceRepositoryImpl @Inject constructor(
     private val cleanArticleTextUseCase: ArticleContentCleaner
 ) : SourceRepository {
 
-    override val groupsWithSources: Flow<List<GroupWithSources>> = sourceDao.getGroupsWithSources()
+    override val groupsWithSources: Flow<List<SourceGroupWithSources>> =
+        sourceDao.getGroupsWithSources().map { groups -> groups.map { it.toDomainModel() } }
 
     override suspend fun getSourcesByGroupId(groupId: Long): List<Source> =
-        sourceDao.getSourcesByGroupId(groupId).first()
+        sourceDao.getSourcesByGroupId(groupId).first().map { it.toDomainModel() }
 
     override suspend fun getSourcesByIds(sourceIds: List<Long>): List<Source> =
-        sourceDao.getSourcesByIds(sourceIds)
+        sourceDao.getSourcesByIds(sourceIds).map { it.toDomainModel() }
 
     override suspend fun addGroup(name: String) {
         val normalizedName = name.trim()
         if (normalizedName.isBlank()) return
         if (sourceDao.groupExistsByName(normalizedName)) return
-        sourceDao.insertGroup(SourceGroup(name = normalizedName))
+        sourceDao.insertGroup(SourceGroup(name = normalizedName).toRoomEntity())
     }
 
     override suspend fun updateGroup(group: SourceGroup) {
-        sourceDao.updateGroup(group)
+        sourceDao.updateGroup(group.toRoomEntity())
     }
 
     override suspend fun toggleGroup(group: SourceGroup, isEnabled: Boolean) {
         val updatedGroup = group.copy(isEnabled = isEnabled)
-        sourceDao.updateGroup(updatedGroup)
+        sourceDao.updateGroup(updatedGroup.toRoomEntity())
         val sources = sourceDao.getSourcesByGroupId(group.id).first()
         sources.forEach { source ->
             sourceDao.updateSource(source.copy(isEnabled = isEnabled))
@@ -54,7 +58,7 @@ class SourceRepositoryImpl @Inject constructor(
 
     override suspend fun deleteGroup(group: SourceGroup) {
         if (group.isDeletable) {
-            sourceDao.deleteGroup(group)
+            sourceDao.deleteGroup(group.toRoomEntity())
         }
     }
 
@@ -70,13 +74,13 @@ class SourceRepositoryImpl @Inject constructor(
         useHeadlessBrowser: Boolean,
         detectFooterPattern: Boolean
     ) {
-        val targetGroup = sourceDao.findGroupById(groupId) ?: return
+        val targetGroup = sourceDao.findGroupById(groupId)?.toDomainModel() ?: return
         if (targetGroup.origin == SourceGroupOrigin.PUBLIC_SUBSCRIPTION) return
 
         val normalizedName = name.trim()
         val normalizedUrl = normalizeUrl(url, type)
         if (normalizedUrl.isBlank()) return
-        if (sourceDao.sourceExistsByTypeAndUrl(type, normalizedUrl)) return
+        if (sourceDao.sourceExistsByTypeAndUrl(type.toRoomEntity(), normalizedUrl)) return
 
         val existingNames = sourceDao.getGroupsWithSourcesOnce()
             .flatMap { it.sources }
@@ -105,7 +109,7 @@ class SourceRepositoryImpl @Inject constructor(
             dateSelector = normalizedDateSelector,
             useHeadlessBrowser = useHeadlessBrowser
         )
-        val insertedId = sourceDao.insertSource(sourceToInsert)
+        val insertedId = sourceDao.insertSource(sourceToInsert.toRoomEntity())
         if (insertedId <= 0L) return
 
         if (!detectFooterPattern) return
@@ -124,7 +128,7 @@ class SourceRepositoryImpl @Inject constructor(
                     descriptionSelector = normalizedDescriptionSelector,
                     dateSelector = normalizedDateSelector,
                     useHeadlessBrowser = useHeadlessBrowser
-                )
+                ).toRoomEntity()
             ).take(10)
             if (sampleArticles.size >= 2) {
                 cleanArticleTextUseCase.detectFooterPattern(sampleArticles.map { it.content })
@@ -138,7 +142,7 @@ class SourceRepositoryImpl @Inject constructor(
                 id = insertedId,
                 footerPattern = footerPattern?.takeIf { it.isNotBlank() },
                 footerPatternCheckedAt = footerPatternCheckedAt
-            )
+            ).toRoomEntity()
         )
     }
 
@@ -162,7 +166,7 @@ class SourceRepositoryImpl @Inject constructor(
                 postLinkSelector = normalizeSelector(source.postLinkSelector),
                 descriptionSelector = normalizeSelector(source.descriptionSelector),
                 dateSelector = normalizeSelector(source.dateSelector)
-            )
+            ).toRoomEntity()
         )
     }
 
@@ -174,11 +178,11 @@ class SourceRepositoryImpl @Inject constructor(
     }
 
     override suspend fun deleteSource(source: Source) {
-        sourceDao.deleteSource(source)
+        sourceDao.deleteSource(source.toRoomEntity())
     }
 
-    override suspend fun getGroupsWithSourcesSnapshot(): List<GroupWithSources> =
-        sourceDao.getGroupsWithSourcesOnce()
+    override suspend fun getGroupsWithSourcesSnapshot(): List<SourceGroupWithSources> =
+        sourceDao.getGroupsWithSourcesOnce().map { it.toDomainModel() }
 
     override suspend fun subscribeToImportedGroup(
         group: ImportedSourceGroup,
@@ -187,16 +191,16 @@ class SourceRepositoryImpl @Inject constructor(
         val normalizedGroupName = displayName.trim()
         if (normalizedGroupName.isBlank()) return
 
-        val groupsSnapshot = sourceDao.getGroupsWithSourcesOnce()
+        val groupsSnapshot = sourceDao.getGroupsWithSourcesOnce().map { it.toDomainModel() }
         val existingGroupWithSources = if (group.sources.isEmpty()) {
             null
         } else {
             groupsSnapshot.firstOrNull { it.hasAllImportedSources(group) }
         }
         val targetGroupId = existingGroupWithSources?.group?.id ?: run {
-            val existingGroup = sourceDao.findGroupByName(normalizedGroupName)
+            val existingGroup = sourceDao.findGroupByName(normalizedGroupName)?.toDomainModel()
             if (existingGroup != null) {
-                sourceDao.updateGroup(existingGroup.asPublicSubscription(group))
+                sourceDao.updateGroup(existingGroup.asPublicSubscription(group).toRoomEntity())
                 existingGroup.id
             } else sourceDao.insertGroup(
                 SourceGroup(
@@ -205,14 +209,14 @@ class SourceRepositoryImpl @Inject constructor(
                     isDeletable = group.isDeletable,
                     origin = SourceGroupOrigin.PUBLIC_SUBSCRIPTION,
                     subscriptionId = group.id
-                )
+                ).toRoomEntity()
             ).takeIf { it > 0L } ?: sourceDao.findGroupByName(normalizedGroupName)?.id ?: return
         }
         existingGroupWithSources?.group?.let { existingGroup ->
             if (existingGroup.origin != SourceGroupOrigin.PUBLIC_SUBSCRIPTION ||
                 existingGroup.subscriptionId != group.id
             ) {
-                sourceDao.updateGroup(existingGroup.asPublicSubscription(group))
+                sourceDao.updateGroup(existingGroup.asPublicSubscription(group).toRoomEntity())
             }
         }
 
@@ -223,7 +227,7 @@ class SourceRepositoryImpl @Inject constructor(
 
     override suspend fun markImportedGroupsAsSubscriptions(groups: List<ImportedSourceGroup>) {
         if (groups.isEmpty()) return
-        val groupsSnapshot = sourceDao.getGroupsWithSourcesOnce()
+        val groupsSnapshot = sourceDao.getGroupsWithSourcesOnce().map { it.toDomainModel() }
         groups.forEach { importedGroup ->
             val matchingGroup = groupsSnapshot.firstOrNull { groupWithSources ->
                 groupWithSources.hasAllImportedSources(importedGroup)
@@ -231,7 +235,7 @@ class SourceRepositoryImpl @Inject constructor(
             if (matchingGroup.origin != SourceGroupOrigin.PUBLIC_SUBSCRIPTION ||
                 matchingGroup.subscriptionId != importedGroup.id
             ) {
-                sourceDao.updateGroup(matchingGroup.asPublicSubscription(importedGroup))
+                sourceDao.updateGroup(matchingGroup.asPublicSubscription(importedGroup).toRoomEntity())
             }
         }
     }
@@ -241,7 +245,7 @@ class SourceRepositoryImpl @Inject constructor(
         val importedGroupsById = groups.associateBy { it.id.trim().lowercase() }
         if (importedGroupsById.isEmpty()) return
 
-        val groupsSnapshot = sourceDao.getGroupsWithSourcesOnce()
+        val groupsSnapshot = sourceDao.getGroupsWithSourcesOnce().map { it.toDomainModel() }
         val syncedGroupIds = mutableSetOf<Long>()
 
         groupsSnapshot.forEach { groupWithSources ->
@@ -272,7 +276,7 @@ class SourceRepositoryImpl @Inject constructor(
             .toSet()
         if (sourcesToRemove.isEmpty()) return
 
-        val groupsSnapshot = sourceDao.getGroupsWithSourcesOnce()
+        val groupsSnapshot = sourceDao.getGroupsWithSourcesOnce().map { it.toDomainModel() }
         val matchingGroups = groupsSnapshot.filter { groupWithSources ->
             groupWithSources.sources.any { source ->
                 source.type to source.url in sourcesToRemove
@@ -307,7 +311,7 @@ class SourceRepositoryImpl @Inject constructor(
             val normalizedGroupName = group.name.trim()
             if (normalizedGroupName.isBlank()) continue
 
-            val existingGroup = sourceDao.findGroupByName(normalizedGroupName)
+            val existingGroup = sourceDao.findGroupByName(normalizedGroupName)?.toDomainModel()
             val targetGroupId = if (existingGroup != null) {
                 sourceDao.updateGroup(
                     existingGroup.copy(
@@ -315,7 +319,7 @@ class SourceRepositoryImpl @Inject constructor(
                         isDeletable = existingGroup.isDeletable,
                         origin = group.origin ?: existingGroup.origin,
                         subscriptionId = group.subscriptionId ?: existingGroup.subscriptionId
-                    )
+                    ).toRoomEntity()
                 )
                 existingGroup.id
             } else {
@@ -326,7 +330,7 @@ class SourceRepositoryImpl @Inject constructor(
                         isDeletable = group.isDeletable,
                         origin = group.origin ?: SourceGroupOrigin.USER,
                         subscriptionId = group.subscriptionId
-                    )
+                    ).toRoomEntity()
                 )
                 if (insertedId > 0L) insertedId else sourceDao.findGroupByName(normalizedGroupName)?.id ?: continue
             }
@@ -338,7 +342,7 @@ class SourceRepositoryImpl @Inject constructor(
     }
 
     private suspend fun replaceExistingGroupWithImportedSubscription(
-        existingGroupWithSources: GroupWithSources,
+        existingGroupWithSources: SourceGroupWithSources,
         importedGroup: ImportedSourceGroup
     ) {
         val existingGroup = existingGroupWithSources.group
@@ -346,7 +350,7 @@ class SourceRepositoryImpl @Inject constructor(
             existingGroup.subscriptionId != importedGroup.id ||
             existingGroup.isDeletable != importedGroup.isDeletable
         ) {
-            sourceDao.updateGroup(existingGroup.asPublicSubscription(importedGroup))
+            sourceDao.updateGroup(existingGroup.asPublicSubscription(importedGroup).toRoomEntity())
         }
 
         val importedSourceKeys = importedGroup.sources
@@ -374,7 +378,7 @@ class SourceRepositoryImpl @Inject constructor(
         val normalizedDescriptionSelector = normalizeSelector(imported.descriptionSelector)
         val normalizedDateSelector = normalizeSelector(imported.dateSelector)
 
-        val existing = sourceDao.findSourceByTypeAndUrl(imported.type, normalizedUrl)
+        val existing = sourceDao.findSourceByTypeAndUrl(imported.type.toRoomEntity(), normalizedUrl)
         val updated = Source(
             id = existing?.id ?: 0L,
             groupId = groupId,
@@ -395,9 +399,9 @@ class SourceRepositoryImpl @Inject constructor(
         )
 
         if (existing == null) {
-            sourceDao.insertSource(updated)
+            sourceDao.insertSource(updated.toRoomEntity())
         } else {
-            sourceDao.updateSource(updated)
+            sourceDao.updateSource(updated.toRoomEntity())
         }
     }
 
@@ -445,7 +449,7 @@ class SourceRepositoryImpl @Inject constructor(
             subscriptionId = group.id
         )
 
-    private fun GroupWithSources.hasAllImportedSources(group: ImportedSourceGroup): Boolean {
+    private fun SourceGroupWithSources.hasAllImportedSources(group: ImportedSourceGroup): Boolean {
         if (group.sources.isEmpty()) return false
         return group.sources.all { importedSource ->
             val normalizedImportedUrl = normalizeUrl(importedSource.url, importedSource.type)
@@ -456,7 +460,7 @@ class SourceRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun GroupWithSources.isLegacyMatchForImportedGroup(group: ImportedSourceGroup): Boolean {
+    private fun SourceGroupWithSources.isLegacyMatchForImportedGroup(group: ImportedSourceGroup): Boolean {
         val normalizedGroupName = this.group.name.normalizedGroupName()
         val publicGroupNames = group.publicGroupNames()
         if (normalizedGroupName !in publicGroupNames) return false
@@ -534,9 +538,3 @@ class SourceRepositoryImpl @Inject constructor(
     }
 
 }
-
-
-
-
-
-

@@ -1,11 +1,16 @@
 package com.andrewwin.sumup.ui.screen.settings
 
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
-import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Language
@@ -15,11 +20,11 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -27,9 +32,10 @@ import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.ui.components.AppCardSurface
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
-import com.andrewwin.sumup.ui.theme.AppCardShape
-import com.andrewwin.sumup.ui.theme.appCardBorder
-import com.andrewwin.sumup.ui.theme.*
+import com.andrewwin.sumup.ui.theme.IconBgBlueDark
+import com.andrewwin.sumup.ui.theme.IconBgBlueLight
+import com.andrewwin.sumup.ui.theme.IconBlueDark
+import com.andrewwin.sumup.ui.theme.IconBlueLight
 
 internal sealed class SettingsGroupIcon {
     data class Vector(val imageVector: ImageVector) : SettingsGroupIcon()

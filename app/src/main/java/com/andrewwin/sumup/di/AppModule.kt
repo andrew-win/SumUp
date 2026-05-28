@@ -2,70 +2,77 @@ package com.andrewwin.sumup.di
 
 import android.content.Context
 import androidx.work.WorkManager
+import com.andrewwin.sumup.data.ai.AiSummaryResponseMapper
+import com.andrewwin.sumup.data.ai.CloudAiRequestSender
+import com.andrewwin.sumup.data.ai.CloudEmbeddingGenerator
+import com.andrewwin.sumup.data.ai.LocalEmbeddingService
+import com.andrewwin.sumup.data.export.AndroidPdfExportService
 import com.andrewwin.sumup.data.local.AppDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
+import com.andrewwin.sumup.data.local.dao.FeedClusterSnapshotDao
 import com.andrewwin.sumup.data.local.dao.PreparedScheduledSummaryDao
 import com.andrewwin.sumup.data.local.dao.SavedArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
+import com.andrewwin.sumup.data.local.dao.SourceHttpCacheDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.scheduler.ScheduledSummaryTimeCalculator
 import com.andrewwin.sumup.data.local.scheduler.SummarySchedulerImpl
+import com.andrewwin.sumup.data.news.ArticleTextCleaner
 import com.andrewwin.sumup.data.provider.AiPromptProviderImpl
 import com.andrewwin.sumup.data.provider.AppDispatcherProvider
 import com.andrewwin.sumup.data.remote.AiService
-import com.andrewwin.sumup.data.ai.AiSummaryResponseMapper
-import com.andrewwin.sumup.data.ai.CloudAiRequestSender
-import com.andrewwin.sumup.data.ai.CloudEmbeddingGenerator
-import com.andrewwin.sumup.data.news.ArticleTextCleaner
-import com.andrewwin.sumup.data.ai.LocalEmbeddingService
+import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
 import com.andrewwin.sumup.data.remote.RssParser
 import com.andrewwin.sumup.data.remote.TelegramParser
 import com.andrewwin.sumup.data.remote.YouTubeParser
-import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
 import com.andrewwin.sumup.data.repository.ArticleRepositoryImpl
+import com.andrewwin.sumup.data.repository.FeedClusterSnapshotStore
 import com.andrewwin.sumup.data.repository.ModelRepositoryImpl
+import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
 import com.andrewwin.sumup.data.repository.SourceRepositoryImpl
 import com.andrewwin.sumup.data.repository.SuggestedThemesStateRepositoryImpl
 import com.andrewwin.sumup.data.repository.SummaryRepositoryImpl
 import com.andrewwin.sumup.data.repository.UserPreferencesRepositoryImpl
-import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
-import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
 import com.andrewwin.sumup.domain.ai.AiRequestSender
 import com.andrewwin.sumup.domain.ai.CloudEmbeddingProvider
-import com.andrewwin.sumup.domain.news.ArticleContentCleaner
-import com.andrewwin.sumup.domain.news.ArticleTitleFormatter
 import com.andrewwin.sumup.domain.ai.LocalEmbeddingProvider
+import com.andrewwin.sumup.domain.ai.LocalModelManager
+import com.andrewwin.sumup.domain.ai.LocalModelManagerImpl
+import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
+import com.andrewwin.sumup.domain.export.PdfExportService
+import com.andrewwin.sumup.domain.feed.UpdateArticlesFromSources
+import com.andrewwin.sumup.domain.feed.UpdateArticlesFromSourcesImpl
+import com.andrewwin.sumup.domain.feed.dedup.FeedDeduplicationProcessor
+import com.andrewwin.sumup.domain.news.ArticleContentCleaner
 import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.news.ArticleTitleFormatter
 import com.andrewwin.sumup.domain.news.DedupRuntimeCoordinator
 import com.andrewwin.sumup.domain.news.SimilarityScorer
-import com.andrewwin.sumup.domain.support.AiPromptProvider
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import com.andrewwin.sumup.domain.repository.FeedClusterSnapshotRepository
 import com.andrewwin.sumup.domain.repository.ModelRepository
 import com.andrewwin.sumup.domain.repository.PublicSubscriptionsCatalog
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
+import com.andrewwin.sumup.domain.repository.UserDataSyncRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.summary.ExtractiveSummaryTextFormatter
 import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
-import com.andrewwin.sumup.domain.usecase.ai.GenerateSummaryUseCase
-import com.andrewwin.sumup.domain.usecase.ai.GenerateSummaryUseCaseImpl
-import com.andrewwin.sumup.domain.usecase.ai.RefreshArticlesUseCase
-import com.andrewwin.sumup.domain.usecase.ai.RefreshArticlesUseCaseImpl
+import com.andrewwin.sumup.domain.summary.ExtractiveSummaryTextFormatter
 import com.andrewwin.sumup.domain.summary.SummaryResultFormatter
-import com.andrewwin.sumup.domain.usecase.ai.GetScheduledSummaryUseCase
+import com.andrewwin.sumup.domain.summary.scheduled.DefaultScheduledSummaryTextGenerator
+import com.andrewwin.sumup.domain.summary.scheduled.ScheduledSummaryResultProvider
+import com.andrewwin.sumup.domain.summary.scheduled.ScheduledSummaryTextGenerator
+import com.andrewwin.sumup.domain.support.AiPromptProvider
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCaseImpl
-import com.andrewwin.sumup.domain.usecase.feed.FeedDeduplicationProcessor
-import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
-import com.andrewwin.sumup.domain.ai.LocalModelManager
-import com.andrewwin.sumup.domain.ai.LocalModelManagerImpl
+import com.andrewwin.sumup.domain.usecase.sources.GetRecommendationsUseCase
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Module
 import dagger.Provides
@@ -93,6 +100,9 @@ object AppModule {
     fun provideArticleSimilarityDao(db: AppDatabase): ArticleSimilarityDao = db.articleSimilarityDao()
 
     @Provides
+    fun provideFeedClusterSnapshotDao(db: AppDatabase): FeedClusterSnapshotDao = db.feedClusterSnapshotDao()
+
+    @Provides
     fun providePreparedScheduledSummaryDao(db: AppDatabase): PreparedScheduledSummaryDao =
         db.preparedScheduledSummaryDao()
 
@@ -104,6 +114,9 @@ object AppModule {
 
     @Provides
     fun provideAiModelDao(db: AppDatabase): AiModelDao = db.aiModelDao()
+
+    @Provides
+    fun provideSourceHttpCacheDao(db: AppDatabase): SourceHttpCacheDao = db.sourceHttpCacheDao()
 
     @Provides
     fun provideSummaryDao(db: AppDatabase): SummaryDao = db.summaryDao()
@@ -166,7 +179,10 @@ object AppModule {
     fun provideAiService(@Named(AI_OK_HTTP_CLIENT) okHttpClient: OkHttpClient): AiService = AiService(okHttpClient)
 
     @Provides
-    fun provideRssParser(@Named(NEWS_OK_HTTP_CLIENT) okHttpClient: OkHttpClient): RssParser = RssParser(okHttpClient)
+    fun provideRssParser(
+        @Named(NEWS_OK_HTTP_CLIENT) okHttpClient: OkHttpClient,
+        sourceHttpCacheDao: SourceHttpCacheDao
+    ): RssParser = RssParser(okHttpClient, sourceHttpCacheDao)
 
     @Provides
     fun provideTelegramParser(): TelegramParser = TelegramParser()
@@ -195,21 +211,25 @@ object AppModule {
     fun provideArticleRepository(
         articleDao: ArticleDao,
         articleSimilarityDao: ArticleSimilarityDao,
+        feedClusterSnapshotDao: FeedClusterSnapshotDao,
         savedArticleDao: SavedArticleDao,
         sourceDao: SourceDao,
         userPreferencesDao: UserPreferencesDao,
         remoteArticleDataSource: RemoteArticleDataSource,
         cleanArticleTextUseCase: ArticleContentCleaner,
-        articleTitleFormatter: ArticleTitleFormatter
+        articleTitleFormatter: ArticleTitleFormatter,
+        articleImportanceScorer: ArticleImportanceScorer
     ): ArticleRepository = ArticleRepositoryImpl(
         articleDao,
         articleSimilarityDao,
+        feedClusterSnapshotDao,
         savedArticleDao,
         sourceDao,
         userPreferencesDao,
         remoteArticleDataSource,
         cleanArticleTextUseCase,
-        articleTitleFormatter
+        articleTitleFormatter,
+        articleImportanceScorer
     )
 
     @Provides
@@ -263,6 +283,18 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideFeedClusterSnapshotRepository(
+        impl: FeedClusterSnapshotStore
+    ): FeedClusterSnapshotRepository = impl
+
+    @Provides
+    @Singleton
+    fun provideUserDataSyncRepository(
+        impl: com.andrewwin.sumup.data.sync.SettingsSyncService
+    ): UserDataSyncRepository = impl
+
+    @Provides
+    @Singleton
     fun provideLocalModelManager(modelRepository: ModelRepository): LocalModelManager =
         LocalModelManagerImpl(modelRepository)
 
@@ -294,6 +326,10 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun providePdfExportService(impl: AndroidPdfExportService): PdfExportService = impl
+
+    @Provides
+    @Singleton
     fun provideSummaryResponseMapper(impl: AiSummaryResponseMapper): SummaryResponseMapper = impl
 
     @Provides
@@ -316,22 +352,22 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideRefreshArticlesUseCase(articleRepository: ArticleRepository): RefreshArticlesUseCase =
-        RefreshArticlesUseCaseImpl(articleRepository)
+    fun provideUpdateArticlesFromSources(articleRepository: ArticleRepository): UpdateArticlesFromSources =
+        UpdateArticlesFromSourcesImpl(articleRepository)
 
     @Provides
     @Singleton
     fun provideRefreshFeedUseCase(
-        refreshArticlesUseCase: RefreshArticlesUseCase,
+        updateArticlesFromSources: UpdateArticlesFromSources,
         feedDeduplicationProcessor: FeedDeduplicationProcessor,
-        getSuggestedThemesUseCase: GetSuggestedThemesUseCase,
+        getRecommendationsUseCase: GetRecommendationsUseCase,
         suggestedThemesStateRepository: SuggestedThemesStateRepository,
         userPreferencesRepository: UserPreferencesRepository,
         dispatcherProvider: com.andrewwin.sumup.domain.support.DispatcherProvider
     ): RefreshFeedUseCase = RefreshFeedUseCaseImpl(
-        refreshArticlesUseCase = refreshArticlesUseCase,
+        updateArticlesFromSources = updateArticlesFromSources,
         feedDeduplicationProcessor = feedDeduplicationProcessor,
-        getSuggestedThemesUseCase = getSuggestedThemesUseCase,
+        getRecommendationsUseCase = getRecommendationsUseCase,
         suggestedThemesStateRepository = suggestedThemesStateRepository,
         userPreferencesRepository = userPreferencesRepository,
         dispatcherProvider = dispatcherProvider
@@ -365,11 +401,11 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideGenerateSummaryUseCase(
-        getScheduledSummaryUseCase: GetScheduledSummaryUseCase,
+    fun provideScheduledSummaryTextGenerator(
+        scheduledSummaryResultProvider: ScheduledSummaryResultProvider,
         formatSummaryResultUseCase: SummaryResultFormatter
-    ): GenerateSummaryUseCase = GenerateSummaryUseCaseImpl(
-        getScheduledSummaryUseCase,
+    ): ScheduledSummaryTextGenerator = DefaultScheduledSummaryTextGenerator(
+        scheduledSummaryResultProvider,
         formatSummaryResultUseCase
     )
 

@@ -1,8 +1,8 @@
 package com.andrewwin.sumup.data.remote
 
-import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.domain.repository.ImportedSource
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
+import com.andrewwin.sumup.domain.source.SourceType
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject

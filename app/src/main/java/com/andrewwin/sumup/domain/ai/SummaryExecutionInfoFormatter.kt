@@ -2,7 +2,7 @@ package com.andrewwin.sumup.domain.ai
 
 import android.content.Context
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.entities.AiStrategy
+import com.andrewwin.sumup.domain.settings.AiStrategy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 

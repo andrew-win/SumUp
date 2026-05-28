@@ -11,8 +11,6 @@ class DedupRuntimeCoordinator @Inject constructor() {
 
     fun currentEmbeddingsGeneration(): Long = embeddingsGeneration.get()
 
-    fun currentDedupCacheGeneration(): Long = dedupCacheGeneration.get()
-
     fun invalidateAfterEmbeddingsClear() {
         embeddingsGeneration.incrementAndGet()
         dedupCacheGeneration.incrementAndGet()

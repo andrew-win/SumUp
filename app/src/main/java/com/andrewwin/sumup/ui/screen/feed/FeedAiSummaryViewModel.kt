@@ -5,25 +5,26 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.entities.AiModelType
-import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.data.local.entities.UserPreferences
+import com.andrewwin.sumup.domain.ai.AiModelType
+import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
+import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
-import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
+import com.andrewwin.sumup.domain.settings.AiStrategy
+import com.andrewwin.sumup.domain.settings.UserSettings
+import com.andrewwin.sumup.domain.summary.SummaryResult
+import com.andrewwin.sumup.domain.summary.SummaryResultFormatter
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.support.InvalidAiResponseException
 import com.andrewwin.sumup.domain.support.LocalModelMissingException
 import com.andrewwin.sumup.domain.support.NoActiveModelException
 import com.andrewwin.sumup.domain.support.UnsupportedStrategyException
-import com.andrewwin.sumup.domain.usecase.ai.AskQuestionAboutNewsUseCase
-import com.andrewwin.sumup.domain.usecase.ai.CompareNewsUseCase
-import com.andrewwin.sumup.domain.usecase.ai.GetFeedSummaryUseCase
-import com.andrewwin.sumup.domain.usecase.ai.SummarizeSingleArticleUseCase
-import com.andrewwin.sumup.domain.summary.SummaryResult
-import com.andrewwin.sumup.domain.summary.SummaryResultFormatter
+import com.andrewwin.sumup.domain.usecase.summary.AskQuestionUseCase
+import com.andrewwin.sumup.domain.usecase.summary.SummarizeFeedUseCase
+import com.andrewwin.sumup.domain.usecase.summary.SummarizeSeveralArticlesUseCase
+import com.andrewwin.sumup.domain.usecase.summary.SummarizeSingleArticleUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -43,9 +44,9 @@ class FeedAiSummaryViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val articleRepository: ArticleRepository,
     private val summarizeSingleArticleUseCase: SummarizeSingleArticleUseCase,
-    private val getFeedSummaryUseCase: GetFeedSummaryUseCase,
-    private val compareNewsUseCase: CompareNewsUseCase,
-    private val askQuestionAboutNewsUseCase: AskQuestionAboutNewsUseCase,
+    private val summarizeFeedUseCase: SummarizeFeedUseCase,
+    private val summarizeSeveralArticlesUseCase: SummarizeSeveralArticlesUseCase,
+    private val askQuestionUseCase: AskQuestionUseCase,
     private val formatSummaryResultUseCase: SummaryResultFormatter,
     private val aiModelConfigRepository: AiModelConfigRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
@@ -73,8 +74,8 @@ class FeedAiSummaryViewModel @Inject constructor(
     private val _summaryTitle = MutableStateFlow<String?>(null)
     val summaryTitle: StateFlow<String?> = _summaryTitle.asStateFlow()
 
-    val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.preferences
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
+    val userPreferences: StateFlow<UserSettings> = userPreferencesRepository.preferences
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserSettings())
 
     val activeSummaryModelName: StateFlow<String?> = aiModelConfigRepository.getConfigsByType(AiModelType.SUMMARY)
         .map { configs ->
@@ -111,7 +112,7 @@ class FeedAiSummaryViewModel @Inject constructor(
             if (articles.isEmpty()) {
                 Result.success(SummaryResult.Error(localizeError(IllegalStateException("No articles"))))
             } else {
-                askQuestionAboutNewsUseCase(articles, question)
+                askQuestionUseCase(articles, question)
             }
         }
     }
@@ -150,7 +151,7 @@ class FeedAiSummaryViewModel @Inject constructor(
         if (articleIds.isEmpty()) return
         launchAi {
             val articles = resolveArticles()
-            compareNewsUseCase(articles).onSuccess { result ->
+            summarizeSeveralArticlesUseCase(articles).onSuccess { result ->
                 if (forceRefresh || feedAiSessionCache.getClusterSummary(articleIds) == null) {
                     feedAiSessionCache.putClusterSummary(
                         articleIds,
@@ -165,7 +166,7 @@ class FeedAiSummaryViewModel @Inject constructor(
         if (articleIds.isEmpty()) return
         launchAi {
             val articles = resolveArticles()
-            getFeedSummaryUseCase.summarizeArticles(articles).onSuccess { result ->
+            summarizeFeedUseCase.summarizeArticles(articles).onSuccess { result ->
                 if (forceRefresh || feedAiSessionCache.getFeedSummary(articleIds) == null) {
                     feedAiSessionCache.putFeedSummary(
                         articleIds,
@@ -230,12 +231,12 @@ class FeedAiSummaryViewModel @Inject constructor(
             ?.takeIf { it.isNotBlank() }
 
         return when (strategy) {
-            com.andrewwin.sumup.data.local.entities.AiStrategy.LOCAL ->
+            AiStrategy.LOCAL ->
                 context.getString(R.string.ai_execution_local)
-            com.andrewwin.sumup.data.local.entities.AiStrategy.CLOUD ->
+            AiStrategy.CLOUD ->
                 usedModelName?.let { context.getString(R.string.ai_execution_cloud_model, it) }
                     ?: context.getString(R.string.ai_strategy_cloud)
-            com.andrewwin.sumup.data.local.entities.AiStrategy.ADAPTIVE ->
+            AiStrategy.ADAPTIVE ->
                 usedModelName?.let { context.getString(R.string.ai_execution_adaptive_cloud_model, it) }
                     ?: context.getString(R.string.ai_execution_adaptive_local)
         }

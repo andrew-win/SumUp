@@ -1,9 +1,9 @@
 package com.andrewwin.sumup.domain.summary
 
-import com.andrewwin.sumup.data.local.entities.UserPreferences
+import com.andrewwin.sumup.domain.settings.UserSettings
 
 object SummaryLimits {
-    var currentPrefs: UserPreferences? = null
+    var currentPrefs: UserSettings? = null
 
     object Single {
         const val mainSentences = 1

@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.news
 
-import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.domain.article.Article
 
 data class ArticleCluster(
     val representative: Article,

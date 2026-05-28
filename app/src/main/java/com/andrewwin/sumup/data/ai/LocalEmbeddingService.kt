@@ -14,6 +14,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.nio.LongBuffer
+import java.util.concurrent.atomic.AtomicReference
 
 class LocalEmbeddingService(
     private val context: Context
@@ -22,45 +23,66 @@ class LocalEmbeddingService(
     private var tokenizerSession: OrtSession? = null
     private var modelSession: OrtSession? = null
     private val initMutex = Mutex()
+    private val initState = AtomicReference(InitState.IDLE)
 
     override val embeddingCacheType: String = EMBEDDING_CACHE_TYPE
 
-    override suspend fun initialize(): Boolean = initMutex.withLock {
-        if (tokenizerSession != null && modelSession != null) return@withLock true
+    override suspend fun initialize(): Boolean {
+        if (initMutex.isLocked && initState.get() == InitState.RUNNING) {
+            Log.d(LOCAL_EMBEDDING_INIT_LOG_TAG, "local_embedding_init_wait_for_running_session")
+        }
+        return initMutex.withLock {
+            if (tokenizerSession != null && modelSession != null) {
+                initState.set(InitState.COMPLETE)
+                Log.d(LOCAL_EMBEDDING_INIT_LOG_TAG, "local_embedding_init_skip_already_initialized")
+                return@withLock true
+            }
 
-        withContext(Dispatchers.IO) {
-            val startMs = SystemClock.elapsedRealtime()
-            val initialized = runCatching {
-                val tokenizerOptions = OrtSession.SessionOptions().apply {
-                    setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
-                    setIntraOpNumThreads(TOKENIZER_INTRA_OP_THREADS)
-                    setInterOpNumThreads(TOKENIZER_INTER_OP_THREADS)
-                    setMemoryPatternOptimization(true)
-                    registerCustomOpLibrary(OrtxPackage.getLibraryPath())
+            val previousState = initState.getAndSet(InitState.RUNNING)
+            if (previousState == InitState.RUNNING) {
+                Log.d(LOCAL_EMBEDDING_INIT_LOG_TAG, "local_embedding_init_join_existing")
+            } else {
+                Log.d(LOCAL_EMBEDDING_INIT_LOG_TAG, "local_embedding_init_start previousState=$previousState")
+            }
+
+            withContext(Dispatchers.IO) {
+                val startMs = SystemClock.elapsedRealtime()
+                val initialized = runCatching {
+                    val tokenizerOptions = OrtSession.SessionOptions().apply {
+                        setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
+                        setIntraOpNumThreads(TOKENIZER_INTRA_OP_THREADS)
+                        setInterOpNumThreads(TOKENIZER_INTER_OP_THREADS)
+                        setMemoryPatternOptimization(true)
+                        registerCustomOpLibrary(OrtxPackage.getLibraryPath())
+                    }
+
+                    val modelOptions = OrtSession.SessionOptions().apply {
+                        setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
+                        setIntraOpNumThreads(MODEL_INTRA_OP_THREADS)
+                        setInterOpNumThreads(MODEL_INTER_OP_THREADS)
+                        setMemoryPatternOptimization(true)
+                    }
+
+                    val tokenizerBytes =
+                        context.assets.open(TOKENIZER_ASSET_NAME).use { it.readBytes() }
+                    val modelBytes = context.assets.open(MODEL_ASSET_NAME).use { it.readBytes() }
+
+                    tokenizerSession = ortEnv.createSession(tokenizerBytes, tokenizerOptions)
+                    modelSession = ortEnv.createSession(modelBytes, modelOptions)
+                    true
+                }.onFailure { e ->
+                    initState.set(InitState.IDLE)
+                    Log.e("LocalEmbeddingService", "Failed to initialize ONNX session", e)
+                }.getOrDefault(false)
+                if (initialized) {
+                    initState.set(InitState.COMPLETE)
                 }
-
-                val modelOptions = OrtSession.SessionOptions().apply {
-                    setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
-                    setIntraOpNumThreads(MODEL_INTRA_OP_THREADS)
-                    setInterOpNumThreads(MODEL_INTER_OP_THREADS)
-                    setMemoryPatternOptimization(true)
-                }
-
-                val tokenizerBytes =
-                    context.assets.open(TOKENIZER_ASSET_NAME).use { it.readBytes() }
-                val modelBytes = context.assets.open(MODEL_ASSET_NAME).use { it.readBytes() }
-
-                tokenizerSession = ortEnv.createSession(tokenizerBytes, tokenizerOptions)
-                modelSession = ortEnv.createSession(modelBytes, modelOptions)
-                true
-            }.onFailure { e ->
-                Log.e("LocalEmbeddingService", "Failed to initialize ONNX session", e)
-            }.getOrDefault(false)
-            Log.d(
-                LOCAL_EMBEDDING_SPEED_LOG_TAG,
-                "local_embedding_init_ms=${SystemClock.elapsedRealtime() - startMs} success=$initialized"
-            )
-            initialized
+                Log.d(
+                    LOCAL_EMBEDDING_SPEED_LOG_TAG,
+                    "local_embedding_init_ms=${SystemClock.elapsedRealtime() - startMs} success=$initialized"
+                )
+                initialized
+            }
         }
     }
 
@@ -233,6 +255,13 @@ class LocalEmbeddingService(
         private const val TOKENIZER_INTER_OP_THREADS = 2
         private const val MODEL_INTRA_OP_THREADS = 2
         private const val MODEL_INTER_OP_THREADS = 2
+        private const val LOCAL_EMBEDDING_INIT_LOG_TAG = "LocalEmbeddingInit"
         private const val LOCAL_EMBEDDING_SPEED_LOG_TAG = "LocalEmbeddingSpeedTest"
+    }
+
+    private enum class InitState {
+        IDLE,
+        RUNNING,
+        COMPLETE
     }
 }

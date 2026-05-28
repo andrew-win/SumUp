@@ -1,18 +1,18 @@
 package com.andrewwin.sumup.domain.feed
 
-import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.domain.feed.clustering.ArticlePairKey
+import com.andrewwin.sumup.domain.feed.clustering.FeedClusterCalculator
 import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.news.SimilarityScorer
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.ai.RefreshArticlesUseCase
-import com.andrewwin.sumup.domain.usecase.feed.ArticlePairKey
-import com.andrewwin.sumup.domain.usecase.feed.FeedClusterCalculator
+import com.andrewwin.sumup.domain.settings.DeduplicationStrategy
+import com.andrewwin.sumup.domain.source.SourceType
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 class ScheduledSummaryArticleCollector @Inject constructor(
-    private val refreshArticlesUseCase: RefreshArticlesUseCase,
+    private val updateArticlesFromSources: UpdateArticlesFromSources,
     private val articleRepository: ArticleRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val importanceScorer: ArticleImportanceScorer,
@@ -20,7 +20,7 @@ class ScheduledSummaryArticleCollector @Inject constructor(
 ) {
     suspend operator fun invoke(refresh: Boolean): List<FeedSummaryArticle> {
         if (refresh) {
-            refreshArticlesUseCase()
+        updateArticlesFromSources()
         }
 
         val prefs = userPreferencesRepository.preferences.first()
@@ -56,11 +56,11 @@ class ScheduledSummaryArticleCollector @Inject constructor(
         val currentArticleIds = filteredArticles.mapTo(mutableSetOf()) { it.id }
         val strategyKey = similarityScorer.similarityCacheKeyForStrategy(prefs.deduplicationStrategy)
         val threshold = when (prefs.deduplicationStrategy) {
-            com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.LOCAL -> prefs.localDeduplicationThreshold
-            com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.CLOUD -> prefs.cloudDeduplicationThreshold
+            DeduplicationStrategy.LOCAL -> prefs.localDeduplicationThreshold
+            DeduplicationStrategy.CLOUD -> prefs.cloudDeduplicationThreshold
         }
         val pairScores = articleRepository
-            .getSimilaritiesForArticles(filteredArticles.map { it.id }, strategyKey)
+            .getSimilaritiesInsideArticleSet(filteredArticles.map { it.id }, strategyKey)
             .asSequence()
             .filter { it.leftArticleId in currentArticleIds && it.rightArticleId in currentArticleIds }
             .filter { it.score >= threshold }

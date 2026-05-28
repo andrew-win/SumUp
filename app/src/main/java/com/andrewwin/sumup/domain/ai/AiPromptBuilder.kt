@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.ai
 
-import com.andrewwin.sumup.data.local.entities.SummaryLanguage
+import com.andrewwin.sumup.domain.settings.SummaryLanguage
 import com.andrewwin.sumup.domain.summary.SummaryLimits
 
 object AiPromptBuilder {

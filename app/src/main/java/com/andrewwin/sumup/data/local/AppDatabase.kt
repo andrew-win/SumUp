@@ -9,21 +9,25 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
+import com.andrewwin.sumup.data.local.dao.FeedClusterSnapshotDao
 import com.andrewwin.sumup.data.local.dao.PreparedScheduledSummaryDao
 import com.andrewwin.sumup.data.local.dao.SavedArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
+import com.andrewwin.sumup.data.local.dao.SourceHttpCacheDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
+import com.andrewwin.sumup.data.local.entities.FeedClusterSnapshotEntity
 import com.andrewwin.sumup.data.local.entities.PreparedScheduledSummary
+import com.andrewwin.sumup.data.local.entities.SavedArticle
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceGroupOrigin
+import com.andrewwin.sumup.data.local.entities.SourceHttpCache
 import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.data.local.entities.SavedArticle
 
 @Database(
     entities = [
@@ -31,22 +35,26 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
         Source::class, 
         Article::class, 
         ArticleSimilarity::class,
+        FeedClusterSnapshotEntity::class,
         PreparedScheduledSummary::class,
         SavedArticle::class,
         AiModelConfig::class, 
+        SourceHttpCache::class,
         Summary::class,
         UserPreferences::class
     ],
-    version = 68,
+    version = 70,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sourceDao(): SourceDao
     abstract fun articleDao(): ArticleDao
     abstract fun articleSimilarityDao(): ArticleSimilarityDao
+    abstract fun feedClusterSnapshotDao(): FeedClusterSnapshotDao
     abstract fun preparedScheduledSummaryDao(): PreparedScheduledSummaryDao
     abstract fun savedArticleDao(): SavedArticleDao
     abstract fun aiModelDao(): AiModelDao
+    abstract fun sourceHttpCacheDao(): SourceHttpCacheDao
     abstract fun summaryDao(): SummaryDao
     abstract fun userPreferencesDao(): UserPreferencesDao
 
@@ -99,7 +107,9 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_64_65,
                         MIGRATION_65_66,
                         MIGRATION_66_67,
-                        MIGRATION_67_68
+                        MIGRATION_67_68,
+                        MIGRATION_68_69,
+                        MIGRATION_69_70
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -112,7 +122,7 @@ abstract class AppDatabase : RoomDatabase() {
                             )
                             db.execSQL(
                                 "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, scheduledSummaryTimes, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsSingleArticle, aiMaxCharsNewsCluster, aiMaxCharsSingleFeedArticle, aiMaxCharsFeedCluster, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
-                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, '08:00', 0, 1, 'LOCAL', 0.87, 0.87, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 7, 0, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}, 'SYSTEM', 'UK', 'UK')"
+                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, '08:00', 0, 1, 'LOCAL', 0.87, 0.87, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 10, 0, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}, 'SYSTEM', 'UK', 'UK')"
                             )
                         }
                     })
@@ -950,6 +960,51 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE summaries ADD COLUMN executionNote TEXT DEFAULT NULL")
                 db.execSQL("ALTER TABLE prepared_scheduled_summaries ADD COLUMN executionLabel TEXT DEFAULT NULL")
                 db.execSQL("ALTER TABLE prepared_scheduled_summaries ADD COLUMN executionNote TEXT DEFAULT NULL")
+            }
+        }
+
+        private val MIGRATION_68_69 = object : Migration(68, 69) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    UPDATE user_preferences
+                    SET showInfographicNewsCount = 10
+                    WHERE showInfographicNewsCount = 7
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_69_70 = object : Migration(69, 70) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS feed_cluster_snapshots (
+                        cacheKey TEXT NOT NULL PRIMARY KEY,
+                        articlesSignature TEXT NOT NULL,
+                        clusteringSettingsSignature TEXT NOT NULL,
+                        payloadJson TEXT NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS source_http_cache (
+                        url TEXT NOT NULL PRIMARY KEY,
+                        etag TEXT,
+                        lastModified TEXT,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "ALTER TABLE article_similarities ADD COLUMN leftContentSignature TEXT NOT NULL DEFAULT ''"
+                )
+                db.execSQL(
+                    "ALTER TABLE article_similarities ADD COLUMN rightContentSignature TEXT NOT NULL DEFAULT ''"
+                )
+                db.execSQL("DELETE FROM article_similarities")
             }
         }
     }

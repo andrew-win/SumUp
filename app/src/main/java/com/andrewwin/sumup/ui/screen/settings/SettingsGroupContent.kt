@@ -24,12 +24,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.entities.AiModelConfig
-import com.andrewwin.sumup.data.local.entities.AiStrategy
-import com.andrewwin.sumup.data.local.entities.AppLanguage
-import com.andrewwin.sumup.data.local.entities.AppThemeMode
-import com.andrewwin.sumup.data.local.entities.SummaryLanguage
-import com.andrewwin.sumup.data.local.entities.UserPreferences
+import com.andrewwin.sumup.domain.ai.AiModelConfig
+import com.andrewwin.sumup.domain.settings.AiStrategy
+import com.andrewwin.sumup.domain.settings.AppLanguage
+import com.andrewwin.sumup.domain.settings.AppThemeMode
+import com.andrewwin.sumup.domain.settings.DeduplicationStrategy
+import com.andrewwin.sumup.domain.settings.SummaryLanguage
+import com.andrewwin.sumup.domain.settings.UserSettings
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -107,7 +108,7 @@ private fun SettingsHomeSection(
 @Composable
 internal fun SettingsGeneralGroupContent(
     isHelpMode: Boolean,
-    userPreferences: UserPreferences,
+    userPreferences: UserSettings,
     onHelpRequest: (String) -> Unit,
     onAppLanguageChange: (AppLanguage) -> Unit,
     onSummaryLanguageChange: (SummaryLanguage) -> Unit,
@@ -335,7 +336,7 @@ private fun AiConfigList(
 @Composable
 internal fun SettingsAiProcessingGroupContent(
     isHelpMode: Boolean,
-    userPreferences: UserPreferences,
+    userPreferences: UserSettings,
     summaryPrompt: String,
     aiMaxCharsSingleArticle: Float,
     aiMaxCharsNewsCluster: Float,
@@ -561,7 +562,7 @@ internal fun SettingsAiProcessingGroupContent(
 @Composable
 internal fun SettingsFeedGroupContent(
     isHelpMode: Boolean,
-    userPreferences: UserPreferences,
+    userPreferences: UserSettings,
     localDeduplicationThreshold: Float,
     cloudDeduplicationThreshold: Float,
     minMentions: Float,
@@ -571,7 +572,7 @@ internal fun SettingsFeedGroupContent(
     onImportanceFilterEnabledChange: (Boolean) -> Unit,
     onDeduplicationEnabledChange: (Boolean) -> Unit,
     onHideSingleNewsEnabledChange: (Boolean) -> Unit,
-    onDeduplicationStrategyChange: (com.andrewwin.sumup.data.local.entities.DeduplicationStrategy) -> Unit,
+    onDeduplicationStrategyChange: (DeduplicationStrategy) -> Unit,
     onLocalDeduplicationThresholdChange: (Float) -> Unit,
     onLocalDeduplicationThresholdCommitted: () -> Unit,
     onCloudDeduplicationThresholdChange: (Float) -> Unit,
@@ -627,8 +628,8 @@ internal fun SettingsFeedGroupContent(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     val strategies = listOf(
-                        com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.LOCAL to R.string.ai_strategy_local,
-                        com.andrewwin.sumup.data.local.entities.DeduplicationStrategy.CLOUD to R.string.ai_strategy_cloud
+                        DeduplicationStrategy.LOCAL to R.string.ai_strategy_local,
+                        DeduplicationStrategy.CLOUD to R.string.ai_strategy_cloud
                     )
                     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                         strategies.forEachIndexed { index, (strategy, labelRes) ->

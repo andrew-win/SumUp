@@ -2,14 +2,14 @@ package com.andrewwin.sumup.domain.news
 
 import android.os.SystemClock
 import android.util.Log
-import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
+import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.domain.settings.DeduplicationStrategy
 import com.andrewwin.sumup.domain.ai.CloudEmbeddingProvider
 import com.andrewwin.sumup.domain.ai.LocalEmbeddingProvider
 import com.andrewwin.sumup.domain.repository.ArticleRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock

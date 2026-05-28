@@ -1,12 +1,14 @@
 package com.andrewwin.sumup.data.repository
 
+import com.andrewwin.sumup.data.mappers.toDomainModel
+import com.andrewwin.sumup.data.mappers.toRoomEntity
 import com.andrewwin.sumup.data.local.dao.AiModelDao
-import com.andrewwin.sumup.data.local.entities.AiModelConfig
-import com.andrewwin.sumup.data.local.entities.AiModelType
-import com.andrewwin.sumup.data.local.entities.normalizedStableKey
-import com.andrewwin.sumup.data.local.entities.AiProvider
 import com.andrewwin.sumup.data.remote.AiService
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
+import com.andrewwin.sumup.domain.ai.AiModelConfig
+import com.andrewwin.sumup.domain.ai.AiModelType
+import com.andrewwin.sumup.domain.ai.AiProvider
+import com.andrewwin.sumup.domain.ai.normalizedStableKey
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,10 +34,10 @@ class AiModelConfigRepositoryImpl @Inject constructor(
     }
 
     override fun getConfigsByType(type: AiModelType): Flow<List<AiModelConfig>> =
-        aiModelDao.getConfigsByType(type).map { configs -> configs.map(::decryptConfig) }
+        aiModelDao.getConfigsByType(type.toRoomEntity()).map { configs -> configs.map(::decryptConfig) }
 
     override suspend fun getEnabledConfigsByType(type: AiModelType): List<AiModelConfig> =
-        aiModelDao.getEnabledConfigsByType(type).map(::decryptConfig)
+        aiModelDao.getEnabledConfigsByType(type.toRoomEntity()).map(::decryptConfig)
 
     override suspend fun fetchAvailableModels(provider: AiProvider, apiKey: String, type: AiModelType): List<String> =
         aiService.fetchModels(provider, apiKey, type)
@@ -117,7 +119,7 @@ class AiModelConfigRepositoryImpl @Inject constructor(
         configWriteMutex.withLock {
             aiModelDao.getAllConfigs().first().forEach { config ->
                 if (!secretEncryptionManager.isLocallyEncrypted(config.apiKey) && config.apiKey.isNotBlank()) {
-                    aiModelDao.updateConfig(encryptConfig(config))
+                    aiModelDao.updateConfig(encryptConfig(config.toDomainModel()))
                 }
             }
             deduplicateStoredConfigsLocked()
@@ -196,9 +198,9 @@ class AiModelConfigRepositoryImpl @Inject constructor(
 
     private fun normalizeConfigName(name: String): String = name.trim().lowercase()
 
-    private fun encryptConfig(config: AiModelConfig): AiModelConfig =
-        config.copy(apiKey = secretEncryptionManager.encryptLocal(config.apiKey))
+    private fun encryptConfig(config: AiModelConfig) =
+        config.copy(apiKey = secretEncryptionManager.encryptLocal(config.apiKey)).toRoomEntity()
 
-    private fun decryptConfig(config: AiModelConfig): AiModelConfig =
-        config.copy(apiKey = secretEncryptionManager.decryptLocal(config.apiKey))
+    private fun decryptConfig(config: com.andrewwin.sumup.data.local.entities.AiModelConfig): AiModelConfig =
+        config.toDomainModel().copy(apiKey = secretEncryptionManager.decryptLocal(config.apiKey))
 }

@@ -1,5 +1,8 @@
 package com.andrewwin.sumup.ui
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -7,9 +10,8 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.runtime.Stable
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -23,8 +25,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
+import com.andrewwin.sumup.ui.components.AppMotion
+import com.andrewwin.sumup.ui.screen.feed.FeedAiSummaryMode
+import com.andrewwin.sumup.ui.screen.feed.FeedAiSummaryScreen
 import com.andrewwin.sumup.ui.screen.feed.FeedScreen
 import com.andrewwin.sumup.ui.screen.settings.SettingsGroup
 import com.andrewwin.sumup.ui.screen.settings.SettingsScreen
@@ -32,9 +35,6 @@ import com.andrewwin.sumup.ui.screen.sources.SourcesScreen
 import com.andrewwin.sumup.ui.screen.summary.SummaryHistoryScreen
 import com.andrewwin.sumup.ui.screen.summary.SummaryScreen
 import com.andrewwin.sumup.ui.screen.webview.WebViewScreen
-import com.andrewwin.sumup.ui.components.AppMotion
-import com.andrewwin.sumup.ui.screen.feed.FeedAiSummaryMode
-import com.andrewwin.sumup.ui.screen.feed.FeedAiSummaryScreen
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 

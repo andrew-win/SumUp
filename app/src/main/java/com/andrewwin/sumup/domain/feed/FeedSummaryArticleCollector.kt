@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.domain.feed
 
+import com.andrewwin.sumup.domain.feed.pipeline.FeedArticlesBuilder
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.feed.FeedArticlesBuilder
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import javax.inject.Inject

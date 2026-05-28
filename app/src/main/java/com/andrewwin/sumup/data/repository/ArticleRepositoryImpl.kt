@@ -2,12 +2,18 @@ package com.andrewwin.sumup.data.repository
 
 import android.database.sqlite.SQLiteConstraintException
 import android.net.Uri
+import android.util.Log
+import com.andrewwin.sumup.data.mappers.toDomainModel
+import com.andrewwin.sumup.data.mappers.toDomainRecord
+import com.andrewwin.sumup.data.mappers.toDomainSnapshot
+import com.andrewwin.sumup.data.mappers.toRoomEntity
 import com.andrewwin.sumup.data.local.dao.ArticleDao
+import com.andrewwin.sumup.data.local.dao.ArticleEmbedding
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
+import com.andrewwin.sumup.data.local.dao.FeedClusterSnapshotDao
 import com.andrewwin.sumup.data.local.dao.SavedArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
-import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.data.local.entities.SavedArticle
 import com.andrewwin.sumup.data.local.entities.Source
@@ -16,8 +22,14 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.remote.ArticleStableKeyFactory
 import com.andrewwin.sumup.data.remote.NewsParsingLogger
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
+import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.domain.article.ArticleEmbeddingRecord
+import com.andrewwin.sumup.domain.article.ArticleSimilarityRecord
+import com.andrewwin.sumup.domain.article.SavedArticleSnapshot
 import com.andrewwin.sumup.domain.news.ArticleContentCleaner
+import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.news.ArticleTitleFormatter
+import com.andrewwin.sumup.domain.repository.ArticleRefreshResult
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.FullArticleContent
 import kotlinx.coroutines.Dispatchers
@@ -37,62 +49,66 @@ import javax.inject.Inject
 class ArticleRepositoryImpl @Inject constructor(
     private val articleDao: ArticleDao,
     private val articleSimilarityDao: ArticleSimilarityDao,
+    private val feedClusterSnapshotDao: FeedClusterSnapshotDao,
     private val savedArticleDao: SavedArticleDao,
     private val sourceDao: SourceDao,
     private val userPreferencesDao: UserPreferencesDao,
     private val remoteArticleDataSource: RemoteArticleDataSource,
     private val cleanArticleTextUseCase: ArticleContentCleaner,
-    private val articleTitleFormatter: ArticleTitleFormatter
+    private val articleTitleFormatter: ArticleTitleFormatter,
+    private val articleImportanceScorer: ArticleImportanceScorer
 ) : ArticleRepository {
 
     override val enabledArticles: Flow<List<Article>> =
-        articleDao.getEnabledArticles()
+        articleDao.getEnabledArticles().map { articles -> articles.map { it.toDomainModel() } }
     override val allArticles: Flow<List<Article>> =
-        articleDao.getAllArticles()
+        articleDao.getAllArticles().map { articles -> articles.map { it.toDomainModel() } }
     override val favoriteArticles: Flow<List<Article>> =
         savedArticleDao.getSavedArticles().map { list -> list.map(::mapSavedToUiArticle) }
 
     private val _feedRefreshRequests = MutableStateFlow(0L)
     override val feedRefreshRequests: Flow<Long> = _feedRefreshRequests.asStateFlow()
 
-    override fun requestFeedRefresh() {
-        _feedRefreshRequests.value = System.currentTimeMillis()
+    override fun requestFeedRefresh(timestamp: Long) {
+        _feedRefreshRequests.value = timestamp
     }
 
-    override suspend fun refreshArticles() = withContext(Dispatchers.IO) {
-        val refreshStartedAt = NewsParsingLogger.now()
+    override suspend fun refreshArticles(): ArticleRefreshResult = withContext(Dispatchers.IO) {
         val groups = sourceDao.getGroupsWithSources().first()
         val cleanupHours = userPreferencesDao.getUserPreferences().first()?.articleAutoCleanupHours
             ?: UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS
         val cutoffTimestamp = System.currentTimeMillis() - (cleanupHours.toLong() * 60 * 60 * 1000L)
-        val fetchedArticlesToSave = mutableListOf<Article>()
+        val fetchedArticlesToSave = mutableListOf<com.andrewwin.sumup.data.local.entities.Article>()
+        val existingArticlesToRefreshMetrics = mutableListOf<com.andrewwin.sumup.data.local.entities.Article>()
+        val changedStableArticleKeys = linkedSetOf<String>()
         val sourceFooterUpdates = mutableListOf<Source>()
         val enabledSources = groups
             .filter { it.group.isEnabled }
             .flatMap { groupWithSources -> groupWithSources.sources.filter { it.isEnabled } }
-        NewsParsingLogger.debug {
-            "refresh_start groups=${groups.size} enabledGroups=${groups.count { it.group.isEnabled }} " +
-                "enabledSources=${enabledSources.size} parallelism=$NEWS_REFRESH_PARALLELISM " +
-                "cleanupHours=$cleanupHours cutoff=$cutoffTimestamp"
-        }
 
         val fetchStartedAt = NewsParsingLogger.now()
         val fetchedArticlesBySource = fetchEnabledSources(enabledSources, cutoffTimestamp)
+        val sourceTypeById = enabledSources.associateBy({ it.id }, { it.type })
+        val allFreshFetchedArticles = fetchedArticlesBySource
+            .flatMap { (_, fetchedArticles) -> fetchedArticles }
+            .filter { it.publishedAt >= cutoffTimestamp }
+        val averageViews = articleImportanceScorer.averageViews(
+            allFreshFetchedArticles.map { it.toDomainModel() }
+        )
         val fetchElapsedMs = NewsParsingLogger.elapsedMs(fetchStartedAt)
-        NewsParsingLogger.debug {
-            "refresh_fetch_complete durationMs=$fetchElapsedMs sources=${fetchedArticlesBySource.size} " +
-                "articles=${fetchedArticlesBySource.sumOf { it.second.size }} " +
-                "emptySources=${fetchedArticlesBySource.count { it.second.isEmpty() }}"
-        }
+        logParseSummaries(enabledSources, fetchElapsedMs)
 
         val cleaningStartedAt = NewsParsingLogger.now()
+        val cleaningDurationByType = mutableMapOf<SourceType, Long>()
         var oldFetchedArticlesSkipped = 0
         var existingFetchedArticlesSkipped = 0
         for ((source, fetchedArticles) in fetchedArticlesBySource) {
             val freshArticles = fetchedArticles.filter { it.publishedAt >= cutoffTimestamp }
             oldFetchedArticlesSkipped += fetchedArticles.size - freshArticles.size
-            val articlesToClean = filterArticlesForCleaning(source, freshArticles)
-            existingFetchedArticlesSkipped += freshArticles.size - articlesToClean.size
+            val processingPlan = filterArticlesForProcessing(source, freshArticles)
+            val articlesToClean = processingPlan.newArticles
+            existingArticlesToRefreshMetrics.addAll(processingPlan.existingArticlesForMetricsRefresh)
+            existingFetchedArticlesSkipped += processingPlan.skippedExistingArticlesCount
             if (articlesToClean.isNotEmpty()) {
                 val sourceCleaningStartedAt = NewsParsingLogger.now()
                 val footerDetection = detectFooterPatternIfNeeded(source, articlesToClean)
@@ -108,40 +124,25 @@ class ArticleRepositoryImpl @Inject constructor(
                 }
 
                 val currentFooter = newFooterPattern ?: source.footerPattern
-                val cleanedArticles = mutableListOf<Article>()
-                for (article in articlesToClean) {
-                    val cleanedContent = cleanArticleTextUseCase.clean(article.content, source.type, currentFooter)
-                    val articleWithCleanContent = article.copy(content = cleanedContent)
-                    cleanedArticles.add(articleTitleFormatter.format(articleWithCleanContent, source.type))
-                }
+                val cleanedArticles = cleanArticlesInParallel(
+                    articles = articlesToClean,
+                    sourceType = source.type,
+                    footerPattern = currentFooter,
+                    averageViews = averageViews
+                )
 
                 fetchedArticlesToSave.addAll(cleanedArticles)
-                NewsParsingLogger.debug {
-                    "source_clean_complete sourceId=${source.id} type=${source.type} " +
-                        "inputArticles=${fetchedArticles.size} freshArticles=${freshArticles.size} " +
-                        "skippedOldArticles=${fetchedArticles.size - freshArticles.size} " +
-                        "skippedExistingArticles=${freshArticles.size - articlesToClean.size} " +
-                        "outputArticles=${cleanedArticles.size} " +
-                        "footerDetectionRan=${footerDetection.didRun} " +
-                        "footerDetectionReason=${footerDetection.reason} " +
-                        "footerUpdated=${newFooterPattern != null && newFooterPattern != source.footerPattern} " +
-                        "durationMs=${NewsParsingLogger.elapsedMs(sourceCleaningStartedAt)}"
-                }
-            } else if (fetchedArticles.isNotEmpty()) {
-                NewsParsingLogger.debug {
-                    "source_clean_skipped sourceId=${source.id} type=${source.type} " +
-                        "inputArticles=${fetchedArticles.size} freshArticles=${freshArticles.size} " +
-                        "skippedOldArticles=${fetchedArticles.size - freshArticles.size} " +
-                        "skippedExistingArticles=${freshArticles.size - articlesToClean.size}"
-                }
+                changedStableArticleKeys.addAll(
+                    cleanedArticles.mapNotNull { article ->
+                        article.stableArticleKey.takeIf { it.isNotBlank() }
+                    }
+                )
+                val sourceCleaningElapsedMs = NewsParsingLogger.elapsedMs(sourceCleaningStartedAt)
+                cleaningDurationByType[source.type] =
+                    cleaningDurationByType.getOrDefault(source.type, 0L) + sourceCleaningElapsedMs
             }
         }
-        NewsParsingLogger.debug {
-            "refresh_clean_complete durationMs=${NewsParsingLogger.elapsedMs(cleaningStartedAt)} " +
-                "articlesToSave=${fetchedArticlesToSave.size} footerUpdates=${sourceFooterUpdates.size} " +
-                "skippedOldArticles=$oldFetchedArticlesSkipped " +
-                "skippedExistingArticles=$existingFetchedArticlesSkipped"
-        }
+        logCleaningSummaries(cleaningDurationByType)
 
         val databaseStartedAt = NewsParsingLogger.now()
         for (sourceUpdate in sourceFooterUpdates) {
@@ -151,9 +152,26 @@ class ArticleRepositoryImpl @Inject constructor(
         if (fetchedArticlesToSave.isNotEmpty()) {
             articleDao.insertAndUpdateFetchedArticles(fetchedArticlesToSave)
         }
-        NewsParsingLogger.debug {
-            "refresh_database_complete durationMs=${NewsParsingLogger.elapsedMs(databaseStartedAt)} " +
-                "upsertCandidates=${fetchedArticlesToSave.size} footerUpdates=${sourceFooterUpdates.size}"
+        if (existingArticlesToRefreshMetrics.isNotEmpty()) {
+            existingArticlesToRefreshMetrics.forEach { article ->
+                val sourceType = sourceTypeById[article.sourceId] ?: SourceType.RSS
+                articleDao.updateArticleLiveMetricsByStableArticleKey(
+                    stableArticleKey = article.stableArticleKey,
+                    viewCount = article.viewCount,
+                    importanceScore = articleImportanceScorer.score(
+                        article = article.toDomainModel(),
+                        averageViews = averageViews,
+                        sourceType = sourceType.toDomainModel()
+                    ),
+                    mediaUrl = article.mediaUrl,
+                    videoId = article.videoId
+                )
+            }
+        }
+        val changedArticleIds = if (changedStableArticleKeys.isEmpty()) {
+            emptyList()
+        } else {
+            articleDao.getArticleIdsByStableArticleKeys(changedStableArticleKeys.toList())
         }
 
         val cleanupStartedAt = NewsParsingLogger.now()
@@ -162,38 +180,53 @@ class ArticleRepositoryImpl @Inject constructor(
         if (newerCount > 0) {
             deletedOldArticles = articleDao.deleteOldArticles(cutoffTimestamp)
         }
-        NewsParsingLogger.debug {
-            "refresh_cleanup_complete durationMs=${NewsParsingLogger.elapsedMs(cleanupStartedAt)} " +
-                "newerCount=$newerCount deletedOldArticles=$deletedOldArticles"
+        if (deletedOldArticles > 0) {
+            feedClusterSnapshotDao.deleteAll()
         }
-        NewsParsingLogger.debug {
-            "refresh_complete totalDurationMs=${NewsParsingLogger.elapsedMs(refreshStartedAt)} " +
-                "sources=${enabledSources.size} fetchedArticles=${fetchedArticlesBySource.sumOf { it.second.size }} " +
-                "skippedOldArticles=$oldFetchedArticlesSkipped " +
-                "skippedExistingArticles=$existingFetchedArticlesSkipped " +
-                "savedCandidates=${fetchedArticlesToSave.size}"
-        }
-        Unit
+        ArticleRefreshResult(
+            changedArticleIds = changedArticleIds,
+            deletedOldArticlesCount = deletedOldArticles
+        )
     }
 
-    private suspend fun filterArticlesForCleaning(
+    private suspend fun filterArticlesForProcessing(
         source: Source,
-        freshArticles: List<Article>
-    ): List<Article> {
-        if (freshArticles.isEmpty() || source.type != SourceType.RSS) return freshArticles
+        freshArticles: List<com.andrewwin.sumup.data.local.entities.Article>
+    ): ArticleProcessingPlan {
+        if (freshArticles.isEmpty()) return ArticleProcessingPlan()
         val stableArticleKeys = freshArticles
             .map { it.stableArticleKey }
             .filter { it.isNotBlank() }
             .distinct()
-        if (stableArticleKeys.isEmpty()) return freshArticles
+        if (stableArticleKeys.isEmpty()) {
+            return ArticleProcessingPlan(
+                newArticles = freshArticles,
+                skippedExistingArticlesCount = 0
+            )
+        }
         val existingKeys = articleDao.getExistingStableArticleKeys(stableArticleKeys).toHashSet()
-        if (existingKeys.isEmpty()) return freshArticles
-        return freshArticles.filterNot { it.stableArticleKey in existingKeys }
+        if (existingKeys.isEmpty()) {
+            return ArticleProcessingPlan(
+                newArticles = freshArticles,
+                skippedExistingArticlesCount = 0
+            )
+        }
+        val newArticles = freshArticles.filterNot { it.stableArticleKey in existingKeys }
+        val existingArticlesForMetricsRefresh = if (source.type == SourceType.TELEGRAM || source.type == SourceType.YOUTUBE) {
+            freshArticles.filter { it.stableArticleKey in existingKeys }
+        } else {
+            emptyList()
+        }
+        return ArticleProcessingPlan(
+            newArticles = newArticles,
+            existingArticlesForMetricsRefresh = existingArticlesForMetricsRefresh,
+            skippedExistingArticlesCount = freshArticles.size - newArticles.size
+        )
     }
 
     private suspend fun detectFooterPatternIfNeeded(
         source: Source,
-        articlesToClean: List<Article>
+        articlesToClean: List<com.andrewwin.sumup.data.local.entities.Article>
     ): FooterDetectionResult {
         val now = System.currentTimeMillis()
         val reason = footerDetectionReason(source, now)
@@ -227,14 +260,19 @@ class ArticleRepositoryImpl @Inject constructor(
     private suspend fun fetchEnabledSources(
         sources: List<Source>,
         cutoffTimestamp: Long
-    ): List<Pair<Source, List<Article>>> = coroutineScope {
+    ): List<Pair<Source, List<com.andrewwin.sumup.data.local.entities.Article>>> = coroutineScope {
         val semaphore = Semaphore(NEWS_REFRESH_PARALLELISM)
         sources.map { source ->
-            async {
+            async(Dispatchers.IO) {
                 semaphore.withPermit {
+                    val latestKnownArticleUrl = when (source.type) {
+                        SourceType.TELEGRAM, SourceType.YOUTUBE -> articleDao.getLatestArticleUrlBySourceId(source.id)
+                        else -> null
+                    }
                     val articles = remoteArticleDataSource.fetchArticles(
                         source = source,
-                        oldestAllowedPublishedAt = cutoffTimestamp
+                        oldestAllowedPublishedAt = cutoffTimestamp,
+                        latestKnownArticleUrl = latestKnownArticleUrl
                     )
                     source to articles
                 }
@@ -242,11 +280,83 @@ class ArticleRepositoryImpl @Inject constructor(
         }.awaitAll()
     }
 
-    override suspend fun updateArticle(article: Article) = articleDao.updateArticle(article)
+    private suspend fun cleanArticlesInParallel(
+        articles: List<com.andrewwin.sumup.data.local.entities.Article>,
+        sourceType: SourceType,
+        footerPattern: String?,
+        averageViews: Long
+    ): List<com.andrewwin.sumup.data.local.entities.Article> = coroutineScope {
+        val semaphore = Semaphore(ARTICLE_CLEANING_PARALLELISM)
+        articles.map { article ->
+            async(Dispatchers.Default) {
+                semaphore.withPermit {
+                    val cleanedContent = cleanArticleTextUseCase.clean(
+                        article.content,
+                        sourceType.toDomainModel(),
+                        footerPattern
+                    )
+                    val articleWithCleanContent = article.toDomainModel().copy(content = cleanedContent)
+                    val formattedArticle = articleTitleFormatter.format(
+                        articleWithCleanContent,
+                        sourceType.toDomainModel()
+                    )
+                    formattedArticle.copy(
+                        importanceScore = articleImportanceScorer.score(
+                            article = formattedArticle,
+                            averageViews = averageViews,
+                            sourceType = sourceType.toDomainModel()
+                        )
+                    ).toRoomEntity()
+                }
+            }
+        }.awaitAll()
+    }
+
+    private fun logParseSummaries(enabledSources: List<Source>, totalDurationMs: Long) {
+        val channelCountByType = enabledSources.groupingBy { it.type }.eachCount()
+        NewsParsingLogger.parseSummary(
+            sourceType = SourceType.TELEGRAM,
+            channelCount = channelCountByType[SourceType.TELEGRAM] ?: 0,
+            durationMs = totalDurationMs
+        )
+        NewsParsingLogger.parseSummary(
+            sourceType = SourceType.RSS,
+            channelCount = channelCountByType[SourceType.RSS] ?: 0,
+            durationMs = totalDurationMs
+        )
+        NewsParsingLogger.parseSummary(
+            sourceType = SourceType.YOUTUBE,
+            channelCount = channelCountByType[SourceType.YOUTUBE] ?: 0,
+            durationMs = totalDurationMs
+        )
+    }
+
+    private fun logCleaningSummaries(cleaningDurationByType: Map<SourceType, Long>) {
+        NewsParsingLogger.cleaningSummary(
+            sourceType = SourceType.TELEGRAM,
+            durationMs = cleaningDurationByType[SourceType.TELEGRAM] ?: 0L
+        )
+        NewsParsingLogger.cleaningSummary(
+            sourceType = SourceType.RSS,
+            durationMs = cleaningDurationByType[SourceType.RSS] ?: 0L
+        )
+        NewsParsingLogger.cleaningSummary(
+            sourceType = SourceType.YOUTUBE,
+            durationMs = cleaningDurationByType[SourceType.YOUTUBE] ?: 0L
+        )
+    }
+
+    private data class ArticleProcessingPlan(
+        val newArticles: List<com.andrewwin.sumup.data.local.entities.Article> = emptyList(),
+        val existingArticlesForMetricsRefresh: List<com.andrewwin.sumup.data.local.entities.Article> = emptyList(),
+        val skippedExistingArticlesCount: Int = 0
+    )
+
+    override suspend fun updateArticle(article: Article) = articleDao.updateArticle(article.toRoomEntity())
 
     override suspend fun updateArticles(articles: List<Article>) {
         if (articles.isEmpty()) return
-        articleDao.updateArticles(articles)
+        articleDao.updateArticles(articles.map(Article::toRoomEntity))
     }
 
     override suspend fun setFavoriteByIds(ids: List<Long>, isFavorite: Boolean): Int {
@@ -297,25 +407,27 @@ class ArticleRepositoryImpl @Inject constructor(
         return articleDao.getEmbeddingsByIds(ids).associate { it.id to it.embedding }
     }
 
-    override suspend fun getArticleEmbeddingsByIds(ids: List<Long>): List<com.andrewwin.sumup.data.local.dao.ArticleEmbedding> {
+    override suspend fun getArticleEmbeddingsByIds(ids: List<Long>): List<ArticleEmbeddingRecord> {
         if (ids.isEmpty()) return emptyList()
-        return articleDao.getEmbeddingsByIds(ids)
+        return articleDao.getEmbeddingsByIds(ids).map(ArticleEmbedding::toDomainRecord)
     }
 
-    override suspend fun getEnabledArticlesOnce(): List<Article> = articleDao.getEnabledArticlesOnce()
+    override suspend fun getEnabledArticlesOnce(): List<Article> =
+        articleDao.getEnabledArticlesOnce().map { it.toDomainModel() }
 
     override suspend fun getEnabledArticlesSince(timestamp: Long): List<Article> =
-        articleDao.getEnabledArticlesSince(timestamp)
+        articleDao.getEnabledArticlesSince(timestamp).map { it.toDomainModel() }
 
-    override suspend fun getSourceById(id: Long): com.andrewwin.sumup.data.local.entities.Source? =
-        sourceDao.getSourceById(id)
+    override suspend fun getSourceById(id: Long): com.andrewwin.sumup.domain.source.Source? =
+        sourceDao.getSourceById(id)?.toDomainModel()
 
     override suspend fun fetchFullContent(article: Article): FullArticleContent {
         val source = sourceDao.getSourceById(article.sourceId) ?: return FullArticleContent(article.content)
         val fetchedRemote = remoteArticleDataSource.fetchFullContent(article.url, source.type)
         val remoteContent = fetchedRemote?.text ?: article.content
-        val mainContent = cleanArticleTextUseCase.extractMainContent(article.url, remoteContent, source.type)
-        val cleaned = cleanArticleTextUseCase.clean(mainContent, source.type, source.footerPattern)
+        val sourceType = source.type.toDomainModel()
+        val mainContent = cleanArticleTextUseCase.extractMainContent(article.url, remoteContent, sourceType)
+        val cleaned = cleanArticleTextUseCase.clean(mainContent, sourceType, source.footerPattern)
         return FullArticleContent(
             text = cleaned,
             youtubeSubtitleStatus = fetchedRemote?.youtubeSubtitleStatus
@@ -325,12 +437,60 @@ class ArticleRepositoryImpl @Inject constructor(
     override suspend fun getSimilaritiesForArticles(
         articleIds: List<Long>,
         strategyKey: String
-    ): List<ArticleSimilarity> {
+    ): List<ArticleSimilarityRecord> {
         if (articleIds.isEmpty() || strategyKey.isBlank()) return emptyList()
-        return articleSimilarityDao.getSimilaritiesForArticles(articleIds, strategyKey)
+        return articleSimilarityDao.getSimilaritiesForArticles(articleIds, strategyKey).map(ArticleSimilarity::toDomainRecord)
     }
 
-    override suspend fun upsertSimilarities(items: List<ArticleSimilarity>) {
+    override suspend fun getSimilaritiesInsideArticleSet(
+        articleIds: List<Long>,
+        strategyKey: String
+    ): List<ArticleSimilarityRecord> {
+        if (articleIds.isEmpty() || strategyKey.isBlank()) return emptyList()
+        val startedAt = System.currentTimeMillis()
+        return articleSimilarityDao.getSimilaritiesInsideArticleSet(articleIds, strategyKey).map(ArticleSimilarity::toDomainRecord).also { similarities ->
+            Log.d(
+                FEED_BUILD_PROFILE_LOG_TAG,
+                "similarities_inside_query durationMs=${System.currentTimeMillis() - startedAt} " +
+                    "articleIds=${articleIds.size} similarities=${similarities.size} strategyKey=$strategyKey"
+            )
+        }
+    }
+
+    override suspend fun getSimilaritiesInsideArticleSetAboveThreshold(
+        articleIds: List<Long>,
+        strategyKey: String,
+        threshold: Float
+    ): List<ArticleSimilarityRecord> {
+        if (articleIds.isEmpty() || strategyKey.isBlank()) return emptyList()
+        val startedAt = System.currentTimeMillis()
+        return articleSimilarityDao
+            .getSimilaritiesInsideArticleSetAboveThreshold(articleIds, strategyKey, threshold)
+            .map(ArticleSimilarity::toDomainRecord)
+            .also { similarities ->
+                Log.d(
+                    FEED_BUILD_PROFILE_LOG_TAG,
+                    "similarities_inside_threshold_query durationMs=${System.currentTimeMillis() - startedAt} " +
+                        "articleIds=${articleIds.size} similarities=${similarities.size} " +
+                        "strategyKey=$strategyKey threshold=$threshold"
+                )
+            }
+    }
+
+    override suspend fun getSimilaritiesTouchingChangedArticles(
+        changedArticleIds: List<Long>,
+        activeArticleIds: List<Long>,
+        strategyKey: String
+    ): List<ArticleSimilarityRecord> {
+        if (changedArticleIds.isEmpty() || activeArticleIds.isEmpty() || strategyKey.isBlank()) return emptyList()
+        return articleSimilarityDao.getSimilaritiesTouchingChangedArticles(
+            changedArticleIds = changedArticleIds,
+            activeArticleIds = activeArticleIds,
+            strategyKey = strategyKey
+        ).map(ArticleSimilarity::toDomainRecord)
+    }
+
+    override suspend fun upsertSimilarities(items: List<ArticleSimilarityRecord>) {
         if (items.isEmpty()) return
 
         val relatedIds = items.asSequence()
@@ -347,23 +507,26 @@ class ArticleRepositoryImpl @Inject constructor(
         if (validItems.isEmpty()) return
 
         try {
-            articleSimilarityDao.upsertSimilarities(validItems)
+            articleSimilarityDao.upsertSimilarities(validItems.map(ArticleSimilarityRecord::toRoomEntity))
         } catch (_: SQLiteConstraintException) {
             // Race condition guard: one of related articles could be deleted between validation and insert.
         }
     }
 
     override suspend fun clearAllArticles() {
+        feedClusterSnapshotDao.deleteAll()
         articleSimilarityDao.deleteAll()
         articleDao.deleteAllArticles()
     }
 
     override suspend fun clearEmbeddings() {
+        feedClusterSnapshotDao.deleteAll()
         articleSimilarityDao.deleteAll()
         articleDao.clearEmbeddings()
     }
 
     override suspend fun clearSimilarities() {
+        feedClusterSnapshotDao.deleteAll()
         articleSimilarityDao.deleteAll()
     }
 
@@ -372,6 +535,7 @@ class ArticleRepositoryImpl @Inject constructor(
         val cutoffTimestamp = System.currentTimeMillis() - (safeDays.toLong() * 24 * 60 * 60 * 1000L)
         val newerCount = articleDao.countArticlesNewerThan(cutoffTimestamp)
         if (newerCount > 0) {
+            feedClusterSnapshotDao.deleteAll()
             articleDao.deleteOldArticles(cutoffTimestamp)
         }
     }
@@ -387,15 +551,15 @@ class ArticleRepositoryImpl @Inject constructor(
         upsertSavedByUrls(urls)
     }
 
-    override suspend fun getSavedArticlesSnapshot(): List<SavedArticle> =
-        savedArticleDao.getSavedArticlesOnce()
+    override suspend fun getSavedArticlesSnapshot(): List<SavedArticleSnapshot> =
+        savedArticleDao.getSavedArticlesOnce().map(SavedArticle::toDomainSnapshot)
 
-    override suspend fun replaceSavedArticlesSnapshot(items: List<SavedArticle>) {
+    override suspend fun replaceSavedArticlesSnapshot(items: List<SavedArticleSnapshot>) {
         savedArticleDao.deleteAll()
         if (items.isNotEmpty()) {
             savedArticleDao.upsert(
                 items.map { item ->
-                    item.copy(
+                    item.toRoomEntity().copy(
                         id = 0,
                         url = item.url.trim()
                     )
@@ -404,11 +568,11 @@ class ArticleRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun mergeSavedArticlesSnapshot(items: List<SavedArticle>) {
+    override suspend fun mergeSavedArticlesSnapshot(items: List<SavedArticleSnapshot>) {
         if (items.isEmpty()) return
         savedArticleDao.upsert(
             items.map { item ->
-                item.copy(
+                item.toRoomEntity().copy(
                     id = 0,
                     url = item.url.trim()
                 )
@@ -457,12 +621,19 @@ class ArticleRepositoryImpl @Inject constructor(
 
     override suspend fun getFavoriteSavedAt(articleIds: List<Long>): Map<Long, Long> {
         if (articleIds.isEmpty()) return emptyMap()
+        val startedAt = System.currentTimeMillis()
         val savedById = savedArticleDao.getSavedArticlesOnce().associateBy { savedArticleUiId(it.id) }
         return buildMap {
             articleIds.distinct().forEach { uiId ->
                 val savedAt = savedById[uiId]?.savedAt ?: 0L
                 if (savedAt > 0L) put(uiId, savedAt)
             }
+        }.also { result ->
+            Log.d(
+                FEED_BUILD_PROFILE_LOG_TAG,
+                "favorite_saved_at durationMs=${System.currentTimeMillis() - startedAt} " +
+                    "articleIds=${articleIds.size} savedRows=${savedById.size} result=${result.size}"
+            )
         }
     }
 
@@ -502,7 +673,7 @@ class ArticleRepositoryImpl @Inject constructor(
     override suspend fun getFavoriteSimilarities(
         articleIds: List<Long>,
         strategyKey: String
-    ): List<ArticleSimilarity> {
+    ): List<ArticleSimilarityRecord> {
         if (articleIds.isEmpty() || strategyKey.isBlank()) return emptyList()
 
         val requestedUiIds = articleIds.distinct()
@@ -556,11 +727,13 @@ class ArticleRepositoryImpl @Inject constructor(
         }
 
         return mergedScores.map { (pair, score) ->
-            ArticleSimilarity(
+            ArticleSimilarityRecord(
                 leftArticleId = pair.first,
                 rightArticleId = pair.second,
                 strategyKey = strategyKey,
-                score = score
+                score = score,
+                leftContentSignature = "",
+                rightContentSignature = ""
             )
         }
     }
@@ -704,7 +877,9 @@ class ArticleRepositoryImpl @Inject constructor(
     )
 
     private companion object {
-        private const val NEWS_REFRESH_PARALLELISM = 4
+        private const val FEED_BUILD_PROFILE_LOG_TAG = "FeedBuildProfile"
+        private val NEWS_REFRESH_PARALLELISM = Runtime.getRuntime().availableProcessors()
+        private val ARTICLE_CLEANING_PARALLELISM = Runtime.getRuntime().availableProcessors()
         private const val FOOTER_PATTERN_SAMPLE_ARTICLES = 10
         private const val FOOTER_PATTERN_REFRESH_INTERVAL_HOURS = 48L
         private const val FOOTER_PATTERN_REFRESH_INTERVAL_MS =

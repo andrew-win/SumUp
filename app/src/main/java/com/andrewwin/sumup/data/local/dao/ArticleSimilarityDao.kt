@@ -20,6 +20,51 @@ interface ArticleSimilarityDao {
         strategyKey: String
     ): List<ArticleSimilarity>
 
+    @Query(
+        """
+        SELECT * FROM article_similarities
+        WHERE strategyKey = :strategyKey
+            AND leftArticleId IN (:articleIds)
+            AND rightArticleId IN (:articleIds)
+        """
+    )
+    suspend fun getSimilaritiesInsideArticleSet(
+        articleIds: List<Long>,
+        strategyKey: String
+    ): List<ArticleSimilarity>
+
+    @Query(
+        """
+        SELECT * FROM article_similarities
+        WHERE strategyKey = :strategyKey
+            AND score >= :threshold
+            AND leftArticleId IN (:articleIds)
+            AND rightArticleId IN (:articleIds)
+        """
+    )
+    suspend fun getSimilaritiesInsideArticleSetAboveThreshold(
+        articleIds: List<Long>,
+        strategyKey: String,
+        threshold: Float
+    ): List<ArticleSimilarity>
+
+    @Query(
+        """
+        SELECT * FROM article_similarities
+        WHERE strategyKey = :strategyKey
+            AND (
+                (leftArticleId IN (:changedArticleIds) AND rightArticleId IN (:activeArticleIds))
+                OR
+                (leftArticleId IN (:activeArticleIds) AND rightArticleId IN (:changedArticleIds))
+            )
+        """
+    )
+    suspend fun getSimilaritiesTouchingChangedArticles(
+        changedArticleIds: List<Long>,
+        activeArticleIds: List<Long>,
+        strategyKey: String
+    ): List<ArticleSimilarity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSimilarities(items: List<ArticleSimilarity>)
 

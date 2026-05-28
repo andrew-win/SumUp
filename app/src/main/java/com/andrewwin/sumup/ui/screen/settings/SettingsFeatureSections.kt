@@ -25,14 +25,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.entities.UserPreferences
+import com.andrewwin.sumup.domain.settings.UserSettings
 import java.util.Locale
 
 @Composable
 fun ScheduledSummarySettingsSection(
     showTitle: Boolean = true,
     isHelpMode: Boolean = false,
-    userPreferences: UserPreferences,
+    userPreferences: UserSettings,
     showInfographicNewsCount: Float,
     onShowInfographicNewsCountChange: (Float) -> Unit,
     onShowInfographicNewsCountCommitted: () -> Unit,
@@ -105,8 +105,8 @@ fun ScheduledSummarySettingsSection(
                 value = showInfographicNewsCount,
                 onValueChange = onShowInfographicNewsCountChange,
                 onValueChangeFinished = onShowInfographicNewsCountCommitted,
-                valueRange = 1f..10f,
-                steps = 8
+                valueRange = 1f..20f,
+                steps = 18
             )
         }
     }
@@ -197,10 +197,10 @@ fun MemorySettingsSection(
                 value = articleAutoCleanupHours.toFloat(),
                 onValueChange = { onArticleAutoCleanupHoursChange(it.toInt()) },
                 onValueChangeFinished = {},
-                valueRange = UserPreferences.MIN_ARTICLE_AUTO_CLEANUP_HOURS.toFloat()..
-                    UserPreferences.MAX_ARTICLE_AUTO_CLEANUP_HOURS.toFloat(),
-                steps = UserPreferences.MAX_ARTICLE_AUTO_CLEANUP_HOURS -
-                    UserPreferences.MIN_ARTICLE_AUTO_CLEANUP_HOURS - 1
+                valueRange = UserSettings.MIN_ARTICLE_AUTO_CLEANUP_HOURS.toFloat()..
+                    UserSettings.MAX_ARTICLE_AUTO_CLEANUP_HOURS.toFloat(),
+                steps = UserSettings.MAX_ARTICLE_AUTO_CLEANUP_HOURS -
+                    UserSettings.MIN_ARTICLE_AUTO_CLEANUP_HOURS - 1
             )
 
             Button(

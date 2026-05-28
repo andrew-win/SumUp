@@ -1,12 +1,12 @@
 package com.andrewwin.sumup.data.remote
 
 import android.util.Log
-import com.andrewwin.sumup.data.local.entities.AiModelConfig
-import com.andrewwin.sumup.data.local.entities.AiModelType
-import com.andrewwin.sumup.data.local.entities.AiProvider
-import com.andrewwin.sumup.domain.support.AiServiceException
+import com.andrewwin.sumup.domain.ai.AiModelConfig
+import com.andrewwin.sumup.domain.ai.AiModelType
+import com.andrewwin.sumup.domain.ai.AiProvider
 import com.andrewwin.sumup.domain.support.AiProviderUnavailableException
 import com.andrewwin.sumup.domain.support.AiRateLimitException
+import com.andrewwin.sumup.domain.support.AiServiceException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType

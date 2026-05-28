@@ -1,9 +1,20 @@
 package com.andrewwin.sumup.domain.news
 
-import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.domain.source.SourceType
 
 class ArticleImportanceScorer {
+
+    fun averageViews(articles: List<Article>): Long {
+        return articles
+            .asSequence()
+            .map { it.viewCount }
+            .filter { it > 0L }
+            .average()
+            .takeIf { !it.isNaN() }
+            ?.toLong()
+            ?: 0L
+    }
 
     fun score(
         article: Article,

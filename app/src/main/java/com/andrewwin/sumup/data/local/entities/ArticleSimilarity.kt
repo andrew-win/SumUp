@@ -32,6 +32,8 @@ data class ArticleSimilarity(
     val rightArticleId: Long,
     val strategyKey: String,
     val score: Float,
+    val leftContentSignature: String,
+    val rightContentSignature: String,
     val updatedAt: Long = System.currentTimeMillis()
 )
 

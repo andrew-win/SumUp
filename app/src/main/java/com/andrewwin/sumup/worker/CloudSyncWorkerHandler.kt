@@ -5,28 +5,30 @@ import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.work.ListenableWorker
+import com.andrewwin.sumup.data.mappers.toDomainModel
+import com.andrewwin.sumup.data.mappers.toRoomEntity
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
-import com.andrewwin.sumup.data.local.entities.AiModelConfig
-import com.andrewwin.sumup.data.local.entities.normalizedStableKey
+import com.andrewwin.sumup.data.sync.BackupSelection
+import com.andrewwin.sumup.data.sync.SuggestedThemesBackupState
+import com.andrewwin.sumup.data.sync.SyncConflictStrategy
+import com.andrewwin.sumup.data.sync.SyncOverwritePriority
+import com.andrewwin.sumup.data.sync.fromBackupJson
+import com.andrewwin.sumup.data.sync.putSuggestedThemesBackupState
+import com.andrewwin.sumup.data.sync.readSuggestedThemesBackupState
+import com.andrewwin.sumup.data.sync.toBackupJson
+import com.andrewwin.sumup.data.sync.toImportedGroupsFromBackup
+import com.andrewwin.sumup.data.sync.toSavedArticlesFromBackup
+import com.andrewwin.sumup.data.sync.toSuggestedThemesBackupState
+import com.andrewwin.sumup.data.sync.toUserPreferencesFromBackup
+import com.andrewwin.sumup.data.sync.writeSuggestedThemesBackupState
+import com.andrewwin.sumup.domain.ai.AiModelConfig
+import com.andrewwin.sumup.domain.ai.normalizedStableKey
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.settings.ScheduleSummaryUseCase
-import com.andrewwin.sumup.ui.screen.settings.BackupSelection
-import com.andrewwin.sumup.ui.screen.settings.SyncConflictStrategy
-import com.andrewwin.sumup.ui.screen.settings.SyncOverwritePriority
-import com.andrewwin.sumup.ui.screen.settings.SuggestedThemesBackupState
-import com.andrewwin.sumup.ui.screen.settings.fromBackupJson
-import com.andrewwin.sumup.ui.screen.settings.putSuggestedThemesBackupState
-import com.andrewwin.sumup.ui.screen.settings.readSuggestedThemesBackupState
-import com.andrewwin.sumup.ui.screen.settings.toSuggestedThemesBackupState
-import com.andrewwin.sumup.ui.screen.settings.toAiConfigsFromBackup
-import com.andrewwin.sumup.ui.screen.settings.toBackupJson
-import com.andrewwin.sumup.ui.screen.settings.toImportedGroupsFromBackup
-import com.andrewwin.sumup.ui.screen.settings.toSavedArticlesFromBackup
-import com.andrewwin.sumup.ui.screen.settings.toUserPreferencesFromBackup
-import com.andrewwin.sumup.ui.screen.settings.writeSuggestedThemesBackupState
+import com.andrewwin.sumup.domain.settings.AppLanguage
+import com.andrewwin.sumup.domain.usecase.summary.CreateScheduleSummaryUseCase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -42,7 +44,7 @@ class CloudSyncWorkerHandler @Inject constructor(
     private val aiModelConfigRepository: AiModelConfigRepository,
     private val articleRepository: ArticleRepository,
     private val sourceRepository: SourceRepository,
-    private val scheduleSummaryUseCase: ScheduleSummaryUseCase,
+    private val createScheduleSummaryUseCase: CreateScheduleSummaryUseCase,
     private val secretEncryptionManager: SecretEncryptionManager
 ) {
     suspend fun execute(): ListenableWorker.Result {
@@ -194,7 +196,7 @@ class CloudSyncWorkerHandler @Inject constructor(
                 put("settingsNoApi", selection.includeSettingsNoApi)
                 put("apiKeys", selection.includeApiKeys)
             })
-            if (prefs != null) put("userPreferences", prefs.toBackupJson())
+            if (prefs != null) put("userPreferences", prefs.toRoomEntity().toBackupJson())
             if (selection.includeApiKeys) {
                 put("apiKeysSalt", syncEncryptionSession?.saltBase64)
                 put("aiConfigs", JSONArray().apply {
@@ -285,15 +287,16 @@ class CloudSyncWorkerHandler @Inject constructor(
         )
 
         if (selection.includeSettingsNoApi && importedPrefs != null) {
-            userPreferencesRepository.updatePreferences(importedPrefs.copy(id = 0))
-            val languageTag = when (importedPrefs.appLanguage) {
-                com.andrewwin.sumup.data.local.entities.AppLanguage.UK -> "uk"
-                com.andrewwin.sumup.data.local.entities.AppLanguage.EN -> "en"
+            val importedSettings = importedPrefs.copy(id = 0).toDomainModel()
+            userPreferencesRepository.updatePreferences(importedSettings)
+            val languageTag = when (importedSettings.appLanguage) {
+                AppLanguage.UK -> "uk"
+                AppLanguage.EN -> "en"
             }
             AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
-            scheduleSummaryUseCase(
-                importedPrefs.isScheduledSummaryEnabled,
-                importedPrefs.scheduledSummaryTimeList
+            createScheduleSummaryUseCase(
+                importedSettings.isScheduledSummaryEnabled,
+                importedSettings.scheduledSummaryTimeList
             )
         }
 

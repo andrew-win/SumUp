@@ -3,55 +3,117 @@ package com.andrewwin.sumup.ui.screen.sources
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddCircleOutline
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.SortByAlpha
+import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LeadingIconTab
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.dao.GroupWithSources
-import com.andrewwin.sumup.data.local.entities.AppLanguage
-import com.andrewwin.sumup.data.local.entities.Source
-import com.andrewwin.sumup.data.local.entities.SourceGroup
-import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.domain.settings.AppLanguage
+import com.andrewwin.sumup.domain.source.Source
+import com.andrewwin.sumup.domain.source.SourceGroup
+import com.andrewwin.sumup.domain.source.SourceGroupWithSources
+import com.andrewwin.sumup.domain.source.SourceType
 import com.andrewwin.sumup.domain.source.SourceUrlValidator
-import com.andrewwin.sumup.ui.displayName
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
-import com.andrewwin.sumup.ui.components.AppFilledIconAction
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.components.AppHelpToggleAction
 import com.andrewwin.sumup.ui.components.AppProminentFab
 import com.andrewwin.sumup.ui.components.AppSearchField
 import com.andrewwin.sumup.ui.components.AppSelectionActions
 import com.andrewwin.sumup.ui.components.AppTopBar
+import com.andrewwin.sumup.ui.displayName
 import com.andrewwin.sumup.ui.screen.settings.SettingsConfirmDeleteDialog
 import com.andrewwin.sumup.ui.theme.AppCardShape
 import com.andrewwin.sumup.ui.theme.AppDimens
@@ -63,6 +125,13 @@ private val SourceType.iconRes: Int
         SourceType.TELEGRAM -> R.drawable.ic_telegram_source
         SourceType.RSS -> R.drawable.ic_rss_source
         SourceType.YOUTUBE -> R.drawable.ic_youtube_source
+    }
+
+private val SourceType.labelRes: Int
+    get() = when (this) {
+        SourceType.TELEGRAM -> R.string.source_type_telegram
+        SourceType.RSS -> R.string.source_type_rss
+        SourceType.YOUTUBE -> R.string.source_type_youtube
     }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -618,7 +687,7 @@ fun SourcesScreen(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GroupCard(
-    groupWithSources: GroupWithSources,
+    groupWithSources: SourceGroupWithSources,
     isSelected: Boolean,
     isSelectionMode: Boolean,
     onLongSelectGroup: () -> Unit,

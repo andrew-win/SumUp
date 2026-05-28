@@ -6,8 +6,9 @@ import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.entities.Summary
-import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
+import com.andrewwin.sumup.domain.export.FeedExportArticle
+import com.andrewwin.sumup.domain.export.SummaryExportItem
+import com.andrewwin.sumup.domain.export.SummaryExportStrategy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.URL
@@ -18,7 +19,7 @@ import java.util.Locale
 object PdfExporter {
     suspend fun exportFeedToPdf(
         context: Context,
-        articles: List<ArticleUiModel>,
+        articles: List<FeedExportArticle>,
         uri: Uri,
         includeMedia: Boolean
     ): Result<Unit> = withContext(Dispatchers.IO) {
@@ -92,18 +93,18 @@ object PdfExporter {
             articles.forEach { article ->
                 val header = context.getString(
                     R.string.feed_pdf_item_header,
-                    article.displayTitle
+                    article.title
                 )
                 drawWrapped(header, titlePaint)
                 val source = article.sourceName.orEmpty()
-                val time = dateFormat.format(Date(article.article.publishedAt))
+                val time = dateFormat.format(Date(article.publishedAt))
                 val meta = context.getString(R.string.feed_pdf_item_meta, source, time)
                 drawWrapped(meta, subtitlePaint)
-                if (includeMedia && !article.article.mediaUrl.isNullOrBlank()) {
-                    drawImage(article.article.mediaUrl!!)
+                if (includeMedia && !article.mediaUrl.isNullOrBlank()) {
+                    drawImage(article.mediaUrl)
                 }
-                if (article.displayContent.isNotBlank()) {
-                    drawWrapped(article.displayContent, textPaint)
+                if (article.content.isNotBlank()) {
+                    drawWrapped(article.content, textPaint)
                 }
                 y += lineHeight
                 if (y > pageHeight - margin) newPage()
@@ -119,7 +120,7 @@ object PdfExporter {
 
     suspend fun exportSummariesToPdf(
         context: Context,
-        summaries: List<Summary>,
+        summaries: List<SummaryExportItem>,
         uri: Uri
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
@@ -186,9 +187,9 @@ object PdfExporter {
                     R.string.summary_pdf_item_meta,
                     summaryDate,
                     when (summary.strategy) {
-                        com.andrewwin.sumup.data.local.entities.AiStrategy.CLOUD -> context.getString(R.string.ai_strategy_cloud)
-                        com.andrewwin.sumup.data.local.entities.AiStrategy.LOCAL -> context.getString(R.string.ai_strategy_local)
-                        com.andrewwin.sumup.data.local.entities.AiStrategy.ADAPTIVE -> context.getString(R.string.ai_strategy_adaptive)
+                        SummaryExportStrategy.CLOUD -> context.getString(R.string.ai_strategy_cloud)
+                        SummaryExportStrategy.LOCAL -> context.getString(R.string.ai_strategy_local)
+                        SummaryExportStrategy.ADAPTIVE -> context.getString(R.string.ai_strategy_adaptive)
                     }
                 )
                 drawWrapped(header, titlePaint)

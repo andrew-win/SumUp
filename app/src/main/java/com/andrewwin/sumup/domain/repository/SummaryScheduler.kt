@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.repository
 
-import com.andrewwin.sumup.data.local.entities.ScheduledSummaryTime
+import com.andrewwin.sumup.domain.settings.ScheduledSummaryTime
 
 interface SummaryScheduler {
     fun schedule(times: List<ScheduledSummaryTime>)

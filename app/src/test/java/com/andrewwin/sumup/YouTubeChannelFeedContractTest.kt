@@ -32,6 +32,7 @@ class YouTubeChannelFeedContractTest {
     fun remoteDataSource_buildsYoutubeFeedUrlFromChannelId() {
         val dataSource = RemoteArticleDataSource(
             okHttpClient = OkHttpClient(),
+            displayNameOkHttpClient = OkHttpClient(),
             rssParser = RssParser(OkHttpClient()),
             telegramParser = TelegramParser(),
             youtubeParser = YouTubeParser()

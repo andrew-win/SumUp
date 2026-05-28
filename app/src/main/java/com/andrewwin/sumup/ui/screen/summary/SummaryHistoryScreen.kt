@@ -11,14 +11,13 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -49,11 +48,10 @@ import com.andrewwin.sumup.ui.components.AppFilledIconAction
 import com.andrewwin.sumup.ui.components.AppHelpToggleAction
 import com.andrewwin.sumup.ui.components.AppSelectionActions
 import com.andrewwin.sumup.ui.components.AppTopBar
-import com.andrewwin.sumup.ui.util.PdfExporter
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -138,11 +136,7 @@ fun SummaryHistoryScreen(
     ) { uri ->
         if (uri == null || historySummaries.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
-            val result = PdfExporter.exportSummariesToPdf(
-                context = context,
-                summaries = historySummaries,
-                uri = uri
-            )
+            val result = viewModel.exportSummaries(historySummaries, uri)
             if (result.isFailure) {
                 Toast.makeText(context, context.getString(R.string.export_pdf_error), Toast.LENGTH_SHORT).show()
             }

@@ -1,6 +1,12 @@
 package com.andrewwin.sumup.data.local.dao
 
-import androidx.room.*
+import androidx.room.Dao
+import androidx.room.Delete
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Transaction
+import androidx.room.Update
 import com.andrewwin.sumup.data.local.entities.Article
 import kotlinx.coroutines.flow.Flow
 
@@ -157,6 +163,24 @@ interface ArticleDao {
         videoId: String?
     )
 
+    @Query(
+        """
+        UPDATE articles
+        SET viewCount = :viewCount,
+            importanceScore = :importanceScore,
+            mediaUrl = :mediaUrl,
+            videoId = :videoId
+        WHERE stableArticleKey = :stableArticleKey
+        """
+    )
+    suspend fun updateArticleLiveMetricsByStableArticleKey(
+        stableArticleKey: String,
+        viewCount: Long,
+        importanceScore: Float,
+        mediaUrl: String?,
+        videoId: String?
+    )
+
     @Update
     suspend fun updateArticle(article: Article)
 
@@ -201,6 +225,19 @@ interface ArticleDao {
 
     @Query("SELECT stableArticleKey FROM articles WHERE stableArticleKey IN (:stableArticleKeys)")
     suspend fun getExistingStableArticleKeys(stableArticleKeys: List<String>): List<String>
+
+    @Query("SELECT id FROM articles WHERE stableArticleKey IN (:stableArticleKeys)")
+    suspend fun getArticleIdsByStableArticleKeys(stableArticleKeys: List<String>): List<Long>
+
+    @Query(
+        """
+        SELECT url FROM articles
+        WHERE sourceId = :sourceId
+        ORDER BY publishedAt DESC, id DESC
+        LIMIT 1
+        """
+    )
+    suspend fun getLatestArticleUrlBySourceId(sourceId: Long): String?
 
     @Delete
     suspend fun deleteArticle(article: Article)

@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.WorkManager
 import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
+import com.andrewwin.sumup.domain.ai.LocalEmbeddingWarmupCoordinator
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.google.firebase.FirebaseApp
 import dagger.hilt.android.HiltAndroidApp
@@ -26,6 +27,9 @@ class SumUpApp : Application(), Configuration.Provider {
     @Inject
     lateinit var sourceRepository: SourceRepository
 
+    @Inject
+    lateinit var localEmbeddingWarmupCoordinator: LocalEmbeddingWarmupCoordinator
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
@@ -37,6 +41,11 @@ class SumUpApp : Application(), Configuration.Provider {
                 if (publicSubscriptionsSyncManager.sync(force = true)) {
                     sourceRepository.syncSubscribedImportedGroups(publicSubscriptionsSyncManager.getCachedGroups())
                 }
+            }
+        }
+        applicationScope.launch {
+            runCatching {
+                localEmbeddingWarmupCoordinator.warmUpAfterAppStart()
             }
         }
         try {

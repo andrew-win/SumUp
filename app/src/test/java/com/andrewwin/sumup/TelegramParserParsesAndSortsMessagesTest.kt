@@ -1,6 +1,7 @@
 package com.andrewwin.sumup
 
 import com.andrewwin.sumup.data.remote.TelegramParser
+import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -32,4 +33,36 @@ class TelegramParserParsesAndSortsMessagesTest {
         assertTrue(articles[0].publishedAt >= articles[1].publishedAt)
     }
 
+    @Test
+    fun telegramParser_scanPageKeepsMetadataButSkipsKnownArticles() {
+        val html = """
+            <div class="tgme_widget_message" data-post="channel/1">
+              <a class="tgme_widget_message_date" href="https://t.me/channel/1">
+                <time datetime="2026-03-31T10:00:00+00:00"></time>
+              </a>
+              <div class="tgme_widget_message_text">Known news line</div>
+            </div>
+            <div class="tgme_widget_message" data-post="channel/2">
+              <a class="tgme_widget_message_date" href="https://t.me/channel/2">
+                <time datetime="2026-04-01T12:00:00+00:00"></time>
+              </a>
+              <div class="tgme_widget_message_text">Fresh news line</div>
+            </div>
+        """.trimIndent()
+
+        val result = TelegramParser().scanPage(
+            document = Jsoup.parse(html),
+            sourceId = 10L,
+            oldestAllowedPublishedAt = null,
+            latestKnownMessageId = 1L
+        )
+
+        assertEquals(2, result.metadata.messageCount)
+        assertEquals(1L, result.metadata.oldestMessageId)
+        assertEquals(2L, result.metadata.newestMessageId)
+        assertTrue(result.metadata.hasMessageNewerThanKnown)
+        assertEquals("1", result.nextPageCursor)
+        assertEquals(1, result.articles.size)
+        assertEquals("Fresh news line", result.articles.first().title)
+    }
 }

@@ -1,14 +1,15 @@
 package com.andrewwin.sumup.domain.repository
 
-import com.andrewwin.sumup.data.local.dao.GroupWithSources
-import com.andrewwin.sumup.data.local.entities.AppLanguage
-import com.andrewwin.sumup.data.local.entities.Source
-import com.andrewwin.sumup.data.local.entities.SourceGroup
-import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.domain.settings.AppLanguage
+import com.andrewwin.sumup.domain.source.Source
+import com.andrewwin.sumup.domain.source.SourceGroup
+import com.andrewwin.sumup.domain.source.SourceGroupOrigin
+import com.andrewwin.sumup.domain.source.SourceGroupWithSources
+import com.andrewwin.sumup.domain.source.SourceType
 import kotlinx.coroutines.flow.Flow
 
 interface SourceRepository {
-    val groupsWithSources: Flow<List<GroupWithSources>>
+    val groupsWithSources: Flow<List<SourceGroupWithSources>>
     suspend fun getSourcesByGroupId(groupId: Long): List<Source>
     suspend fun getSourcesByIds(sourceIds: List<Long>): List<Source>
     suspend fun addGroup(name: String)
@@ -30,7 +31,7 @@ interface SourceRepository {
     suspend fun fetchGeneratedSourceName(url: String, type: SourceType): String
     suspend fun updateSource(source: Source)
     suspend fun deleteSource(source: Source)
-    suspend fun getGroupsWithSourcesSnapshot(): List<GroupWithSources>
+    suspend fun getGroupsWithSourcesSnapshot(): List<SourceGroupWithSources>
     suspend fun subscribeToImportedGroup(
         group: ImportedSourceGroup,
         displayName: String
@@ -51,7 +52,7 @@ data class ImportedSourceGroup(
     val nameEn: String,
     val isEnabled: Boolean,
     val isDeletable: Boolean,
-    val origin: String? = null,
+    val origin: SourceGroupOrigin? = null,
     val subscriptionId: String? = null,
     val sources: List<ImportedSource>,
     val recommendationAnchors: List<String> = emptyList(),

@@ -2,25 +2,41 @@ package com.andrewwin.sumup.ui.screen.sources
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.andrewwin.sumup.data.local.dao.GroupWithSources
-import com.andrewwin.sumup.data.local.entities.AppLanguage
-import com.andrewwin.sumup.data.local.entities.Source
-import com.andrewwin.sumup.data.local.entities.SourceGroup
-import com.andrewwin.sumup.data.local.entities.SourceGroupOrigin
-import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
+import com.andrewwin.sumup.domain.ai.LocalModelManager
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
-import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.settings.AppLanguage
+import com.andrewwin.sumup.domain.source.Source
+import com.andrewwin.sumup.domain.source.SourceGroup
+import com.andrewwin.sumup.domain.source.SourceGroupOrigin
+import com.andrewwin.sumup.domain.source.SourceGroupWithSources
+import com.andrewwin.sumup.domain.source.SourceType
 import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
-import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
+import com.andrewwin.sumup.domain.usecase.sources.AddSourceRequest
+import com.andrewwin.sumup.domain.usecase.sources.AddSourceUseCase
+import com.andrewwin.sumup.domain.usecase.sources.AddSubscriptionUseCase
+import com.andrewwin.sumup.domain.usecase.sources.GetRecommendationsUseCase
+import com.andrewwin.sumup.domain.usecase.sources.RemoveSubscriptionUseCase
 import com.andrewwin.sumup.domain.usecase.sources.ThemeSuggestion
-import com.andrewwin.sumup.domain.ai.LocalModelManager
-import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -40,7 +56,7 @@ enum class SourceSortOrder {
 sealed interface SourcesUiState {
     data object Loading : SourcesUiState
     data class Content(
-        val groups: List<GroupWithSources>
+        val groups: List<SourceGroupWithSources>
     ) : SourcesUiState
 }
 
@@ -48,10 +64,12 @@ sealed interface SourcesUiState {
 @OptIn(FlowPreview::class)
 class SourcesViewModel @Inject constructor(
     private val repository: SourceRepository,
-    private val articleRepository: ArticleRepository,
     private val manageModelUseCase: LocalModelManager,
     private val publicSubscriptionsSyncManager: PublicSubscriptionsSyncManager,
-    private val getSuggestedThemesUseCase: GetSuggestedThemesUseCase,
+    private val addSourceUseCase: AddSourceUseCase,
+    private val addSubscriptionUseCase: AddSubscriptionUseCase,
+    private val removeSubscriptionUseCase: RemoveSubscriptionUseCase,
+    private val getRecommendationsUseCase: GetRecommendationsUseCase,
     userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
@@ -117,7 +135,7 @@ class SourcesViewModel @Inject constructor(
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = true
+            initialValue = false
         )
     val appLanguage: StateFlow<AppLanguage> = userPreferencesRepository.preferences
         .map { it.appLanguage }
@@ -148,7 +166,7 @@ class SourcesViewModel @Inject constructor(
         suggestedThemesJob?.cancel()
         suggestedThemesJob = viewModelScope.launch {
             _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
-            val suggestions = getSuggestedThemesUseCase(forceRefresh = false).first()
+            val suggestions = getRecommendationsUseCase(forceRefresh = false).first()
             updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
             refreshReservedGroupNames()
         }
@@ -165,7 +183,7 @@ class SourcesViewModel @Inject constructor(
                 }
                 _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
                 if (!isRecommendationsEnabled.value) {
-                    val suggestions = getSuggestedThemesUseCase(forceRefresh = false).first()
+                    val suggestions = getRecommendationsUseCase(forceRefresh = false).first()
                     updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
                     refreshReservedGroupNames()
                     return@launch
@@ -173,14 +191,14 @@ class SourcesViewModel @Inject constructor(
                 if (forceRefresh) {
                     _isRefreshingThemeRecommendations.value = true
                     try {
-                        getSuggestedThemesUseCase(forceRefresh = true).collect { suggestions ->
+                        getRecommendationsUseCase(forceRefresh = true).collect { suggestions ->
                             updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
                         }
                     } finally {
                         _isRefreshingThemeRecommendations.value = false
                     }
                 } else {
-                    val suggestions = getSuggestedThemesUseCase(forceRefresh = false).first()
+                    val suggestions = getRecommendationsUseCase(forceRefresh = false).first()
                     updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
                 }
                 refreshReservedGroupNames()
@@ -322,15 +340,9 @@ class SourcesViewModel @Inject constructor(
         isSubscribed: Boolean
     ) {
         if (isSubscribed) {
-            val currentLanguage = appLanguage.value
-            val targetGroupName = suggestion.group.displayName(currentLanguage)
-            repository.subscribeToImportedGroup(
-                group = suggestion.group,
-                displayName = targetGroupName
-            )
-            articleRepository.requestFeedRefresh()
+            addSubscriptionUseCase(suggestion.group, appLanguage.value)
         } else {
-            repository.unsubscribeFromImportedGroup(suggestion.group)
+            removeSubscriptionUseCase(suggestion.group)
         }
     }
 
@@ -388,14 +400,14 @@ class SourcesViewModel @Inject constructor(
                 _messages.tryEmit(com.andrewwin.sumup.R.string.validation_source_in_active_subscriptions)
                 return@launch
             }
-            repository.addSource(
-                groupId = groupId,
-                name = name,
-                url = url,
-                type = type,
-                detectFooterPattern = false
+            addSourceUseCase(
+                AddSourceRequest(
+                    groupId = groupId,
+                    name = name,
+                    url = url,
+                    type = type
+                )
             )
-            articleRepository.requestFeedRefresh()
         }
     }
 
@@ -415,19 +427,19 @@ class SourcesViewModel @Inject constructor(
                 _messages.tryEmit(com.andrewwin.sumup.R.string.validation_source_in_active_subscriptions)
                 return@launch
             }
-            repository.addSource(
-                groupId = groupId,
-                name = name,
-                url = url,
-                type = type,
-                titleSelector = titleSelector,
-                postLinkSelector = postLinkSelector,
-                descriptionSelector = descriptionSelector,
-                dateSelector = dateSelector,
-                useHeadlessBrowser = useHeadlessBrowser,
-                detectFooterPattern = false
+            addSourceUseCase(
+                AddSourceRequest(
+                    groupId = groupId,
+                    name = name,
+                    url = url,
+                    type = type,
+                    titleSelector = titleSelector,
+                    postLinkSelector = postLinkSelector,
+                    descriptionSelector = descriptionSelector,
+                    dateSelector = dateSelector,
+                    useHeadlessBrowser = useHeadlessBrowser
+                )
             )
-            articleRepository.requestFeedRefresh()
         }
     }
 

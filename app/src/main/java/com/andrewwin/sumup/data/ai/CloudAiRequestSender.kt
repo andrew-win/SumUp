@@ -2,16 +2,16 @@ package com.andrewwin.sumup.data.ai
 
 import android.content.Context
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.entities.AiModelConfig
-import com.andrewwin.sumup.data.local.entities.AiModelType
+import com.andrewwin.sumup.domain.ai.AiModelConfig
+import com.andrewwin.sumup.domain.ai.AiModelType
 import com.andrewwin.sumup.data.remote.AiService
 import com.andrewwin.sumup.domain.ai.AiModelFailure
-import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.ai.AiRequestSender
 import com.andrewwin.sumup.domain.ai.CloudAiResponse
-import com.andrewwin.sumup.domain.support.NoActiveModelException
-import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
+import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.support.AiServiceException
+import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
+import com.andrewwin.sumup.domain.support.NoActiveModelException
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 

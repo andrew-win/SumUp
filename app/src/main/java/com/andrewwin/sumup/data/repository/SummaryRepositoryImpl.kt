@@ -1,11 +1,14 @@
 package com.andrewwin.sumup.data.repository
 
+import com.andrewwin.sumup.data.mappers.toDomainModel
+import com.andrewwin.sumup.data.mappers.toRoomEntity
 import com.andrewwin.sumup.data.local.dao.PreparedScheduledSummaryDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
-import com.andrewwin.sumup.data.local.entities.PreparedScheduledSummary
-import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.domain.repository.SummaryRepository
+import com.andrewwin.sumup.domain.summary.ScheduledSummaryDraft
+import com.andrewwin.sumup.domain.summary.SummaryRecord
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class SummaryRepositoryImpl @Inject constructor(
@@ -13,17 +16,19 @@ class SummaryRepositoryImpl @Inject constructor(
     private val preparedScheduledSummaryDao: PreparedScheduledSummaryDao
 ) : SummaryRepository {
 
-    override val allSummaries: Flow<List<Summary>> = summaryDao.getAllSummaries()
-
-    override suspend fun insertSummary(summary: Summary) {
-        summaryDao.insertSummary(summary)
+    override val allSummaries: Flow<List<SummaryRecord>> = summaryDao.getAllSummaries().map { items ->
+        items.map { it.toDomainModel() }
     }
 
-    override suspend fun getPreparedScheduledSummary(scheduledAt: Long): PreparedScheduledSummary? =
-        preparedScheduledSummaryDao.getPreparedSummary(scheduledAt)
+    override suspend fun insertSummary(summary: SummaryRecord) {
+        summaryDao.insertSummary(summary.toRoomEntity())
+    }
 
-    override suspend fun upsertPreparedScheduledSummary(summary: PreparedScheduledSummary) {
-        preparedScheduledSummaryDao.upsertPreparedSummary(summary)
+    override suspend fun getPreparedScheduledSummary(scheduledAt: Long): ScheduledSummaryDraft? =
+        preparedScheduledSummaryDao.getPreparedSummary(scheduledAt)?.toDomainModel()
+
+    override suspend fun upsertPreparedScheduledSummary(summary: ScheduledSummaryDraft) {
+        preparedScheduledSummaryDao.upsertPreparedSummary(summary.toRoomEntity())
     }
 
     override suspend fun deletePreparedScheduledSummary(scheduledAt: Long) {

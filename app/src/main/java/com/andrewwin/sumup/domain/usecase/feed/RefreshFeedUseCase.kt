@@ -1,17 +1,18 @@
 package com.andrewwin.sumup.domain.usecase.feed
 
 import android.util.Log
-import com.andrewwin.sumup.domain.support.DispatcherProvider
+import com.andrewwin.sumup.domain.feed.UpdateArticlesFromSources
+import com.andrewwin.sumup.domain.feed.dedup.FeedDeduplicationProcessor
 import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.ai.RefreshArticlesUseCase
-import com.andrewwin.sumup.domain.usecase.sources.GetSuggestedThemesUseCase
 import com.andrewwin.sumup.domain.source.SuggestedThemesRefreshPolicy
+import com.andrewwin.sumup.domain.support.DispatcherProvider
+import com.andrewwin.sumup.domain.usecase.sources.GetRecommendationsUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -33,9 +34,9 @@ data class FeedRefreshProgress(
 )
 
 class RefreshFeedUseCaseImpl @Inject constructor(
-    private val refreshArticlesUseCase: RefreshArticlesUseCase,
+    private val updateArticlesFromSources: UpdateArticlesFromSources,
     private val feedDeduplicationProcessor: FeedDeduplicationProcessor,
-    private val getSuggestedThemesUseCase: GetSuggestedThemesUseCase,
+    private val getRecommendationsUseCase: GetRecommendationsUseCase,
     private val suggestedThemesStateRepository: SuggestedThemesStateRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val dispatcherProvider: DispatcherProvider
@@ -64,11 +65,16 @@ class RefreshFeedUseCaseImpl @Inject constructor(
             logRefreshDebug("refresh_use_case_started runId=$runId ageMs=$ageMs")
             val refreshResult = runCatching {
                 emitStage(runId, FeedRefreshStage.PARSING_NEWS, onStageChange)
-                refreshArticlesUseCase()
+                val articleRefreshResult = updateArticlesFromSources()
                 val prefs = userPreferencesRepository.preferences.first()
-                emitStage(runId, FeedRefreshStage.DEDUPLICATING_NEWS, onStageChange)
-                delay(DEDUPE_STAGE_UI_BOUNDARY_MS)
-                feedDeduplicationProcessor.rebuildSimilarities(prefs).getOrThrow()
+                if (prefs.isDeduplicationEnabled && articleRefreshResult.changedArticleIds.isNotEmpty()) {
+                    emitStage(runId, FeedRefreshStage.DEDUPLICATING_NEWS, onStageChange)
+                    delay(DEDUPE_STAGE_UI_BOUNDARY_MS)
+                    feedDeduplicationProcessor.rebuildSimilarities(
+                        prefs = prefs,
+                        changedArticleIds = articleRefreshResult.changedArticleIds
+                    ).getOrThrow()
+                }
             }
             
             if (refreshResult.isSuccess) {
@@ -89,7 +95,7 @@ class RefreshFeedUseCaseImpl @Inject constructor(
         val shouldRecalculateRecommendations = userPreferencesRepository.preferences.first().isRecommendationsEnabled
         if (result.isSuccess && shouldRefreshSuggestedThemes && shouldRecalculateRecommendations) {
             backgroundScope.launch {
-                runCatching { getSuggestedThemesUseCase(forceRefresh = false).collect() }
+                runCatching { getRecommendationsUseCase(forceRefresh = false).collect() }
             }
         }
 
@@ -129,17 +135,11 @@ class RefreshFeedUseCaseImpl @Inject constructor(
     companion object {
         private const val MIN_REFRESH_INTERVAL_MS = 5_000L
         private const val DEDUPE_STAGE_UI_BOUNDARY_MS = 250L
-        private const val REFRESH_TRIGGER_LOGS_ENABLED = true
+        private const val REFRESH_TRIGGER_LOGS_ENABLED = false
         private const val REFRESH_TRIGGER_LOG_TAG = "RefreshTriggerDebug"
         private const val APP_PACKAGE_PREFIX = "com.andrewwin.sumup"
         private const val CALLER_STACK_FRAME_LIMIT = 8
     }
 }
-
-
-
-
-
-
 
 

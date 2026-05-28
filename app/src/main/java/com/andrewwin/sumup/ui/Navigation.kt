@@ -6,11 +6,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Feed
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Source
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.ui.screen.feed.FeedAiSummaryMode

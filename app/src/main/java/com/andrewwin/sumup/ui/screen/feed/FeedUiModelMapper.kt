@@ -1,11 +1,11 @@
 package com.andrewwin.sumup.ui.screen.feed
 
-import com.andrewwin.sumup.data.local.dao.GroupWithSources
-import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.data.local.entities.Source
-import com.andrewwin.sumup.data.local.entities.SourceGroup
-import com.andrewwin.sumup.data.local.entities.SourceType
+import com.andrewwin.sumup.domain.article.Article
 import com.andrewwin.sumup.domain.news.ArticleCluster
+import com.andrewwin.sumup.domain.source.Source
+import com.andrewwin.sumup.domain.source.SourceGroup
+import com.andrewwin.sumup.domain.source.SourceGroupWithSources
+import com.andrewwin.sumup.domain.source.SourceType
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import javax.inject.Inject
@@ -13,7 +13,7 @@ import javax.inject.Inject
 class FeedUiModelMapper @Inject constructor() {
     fun map(
         clusters: List<ArticleCluster>,
-        groupsWithSources: List<GroupWithSources>,
+        groupsWithSources: List<SourceGroupWithSources>,
         favoriteSavedAt: Map<Long, Long>,
         ellipsis: String
     ): List<ArticleClusterUiModel> {

@@ -12,18 +12,19 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import androidx.work.ListenableWorker
 import androidx.work.Data
+import androidx.work.ListenableWorker
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.entities.PreparedScheduledSummary
-import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.usecase.ai.GenerateSummaryUseCase
-import com.andrewwin.sumup.domain.usecase.ai.NoArticlesException
+import com.andrewwin.sumup.domain.settings.UserSettings
+import com.andrewwin.sumup.domain.summary.ScheduledSummaryDraft
+import com.andrewwin.sumup.domain.summary.SummaryRecord
+import com.andrewwin.sumup.domain.summary.scheduled.NoArticlesException
+import com.andrewwin.sumup.domain.summary.scheduled.ScheduledSummaryTextGenerator
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.ui.MainActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -35,7 +36,7 @@ class SummaryWorkerHandler @Inject constructor(
     private val summaryRepository: SummaryRepository,
     private val summaryScheduler: SummaryScheduler,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val generateSummaryUseCase: GenerateSummaryUseCase,
+    private val scheduledSummaryTextGenerator: ScheduledSummaryTextGenerator,
     private val summaryExecutionInfoFormatter: SummaryExecutionInfoFormatter,
     private val summaryExecutionInfoStore: SummaryExecutionInfoStore
 ) {
@@ -65,14 +66,14 @@ class SummaryWorkerHandler @Inject constructor(
         Log.d(SCHEDULED_SUMMARY_LOG_TAG, "prepare_started scheduledAt=$scheduledAt")
         return try {
             summaryExecutionInfoStore.clear()
-            val summaryText = generateSummaryUseCase(refresh = true)
+            val summaryText = scheduledSummaryTextGenerator(refresh = true)
             if (summaryText.isBlank()) {
                 val message = context.getString(R.string.summary_worker_empty_response)
                 throw IllegalStateException(message)
             }
             val executionInfo = summaryExecutionInfoStore.current()
             summaryRepository.upsertPreparedScheduledSummary(
-                PreparedScheduledSummary(
+                ScheduledSummaryDraft(
                     scheduledAt = scheduledAt,
                     content = summaryText,
                     strategy = prefs.aiStrategy,
@@ -88,7 +89,7 @@ class SummaryWorkerHandler @Inject constructor(
         } catch (e: NoArticlesException) {
             val message = context.getString(R.string.summary_worker_no_articles_today)
             summaryRepository.upsertPreparedScheduledSummary(
-                PreparedScheduledSummary(
+                ScheduledSummaryDraft(
                     scheduledAt = scheduledAt,
                     content = message,
                     strategy = prefs.aiStrategy
@@ -116,7 +117,7 @@ class SummaryWorkerHandler @Inject constructor(
                     "${context.getString(R.string.summary_worker_error_prefix)}: ${e.localizedMessage.orEmpty()}"
                 }
                 summaryRepository.upsertPreparedScheduledSummary(
-                    PreparedScheduledSummary(
+                    ScheduledSummaryDraft(
                         scheduledAt = scheduledAt,
                         content = content,
                         strategy = prefs.aiStrategy,
@@ -149,7 +150,7 @@ class SummaryWorkerHandler @Inject constructor(
         }
 
         summaryRepository.insertSummary(
-            Summary(
+            SummaryRecord(
                 content = preparedSummary.content,
                 strategy = preparedSummary.strategy,
                 createdAt = scheduledAt,
@@ -169,7 +170,7 @@ class SummaryWorkerHandler @Inject constructor(
         return ListenableWorker.Result.success()
     }
 
-    private fun maybeShowScheduledSummaryNotification(prefs: com.andrewwin.sumup.data.local.entities.UserPreferences) {
+    private fun maybeShowScheduledSummaryNotification(prefs: UserSettings) {
         if (!prefs.isScheduledSummaryPushEnabled) return
         if (
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&

@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.ui.screen.summary
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.Constraints
@@ -9,29 +10,37 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
-import com.andrewwin.sumup.data.local.entities.Summary
-import com.andrewwin.sumup.data.local.entities.AiModelType
-import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.ai.AiModelType
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
-import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
+import com.andrewwin.sumup.domain.export.SummaryExportItem
+import com.andrewwin.sumup.domain.export.SummaryExportStrategy
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.repository.SourceRepository
-import com.andrewwin.sumup.domain.usecase.ai.GenerateSummaryUseCase
-import com.andrewwin.sumup.domain.usecase.ai.NoArticlesException
-import com.andrewwin.sumup.domain.usecase.ai.RefreshArticlesUseCase
-import com.andrewwin.sumup.domain.usecase.feed.FeedArticlesBuilder
-import com.andrewwin.sumup.worker.SummaryWorker
+import com.andrewwin.sumup.domain.settings.AiStrategy
+import com.andrewwin.sumup.domain.settings.UserSettings
+import com.andrewwin.sumup.domain.summary.SummaryRecord
+import com.andrewwin.sumup.domain.summary.scheduled.NoArticlesException
+import com.andrewwin.sumup.domain.summary.scheduled.ScheduledSummaryTextGenerator
+import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
+import com.andrewwin.sumup.domain.usecase.export.ExportSummariesUseCase
+import com.andrewwin.sumup.domain.usecase.summary.CreateNewsStatisticsUseCase
+import com.andrewwin.sumup.domain.usecase.summary.NewsStatisticsMetric
+import com.andrewwin.sumup.domain.usecase.summary.NewsStatisticsType
 import com.andrewwin.sumup.worker.ScheduledSummaryWorkKind
+import com.andrewwin.sumup.worker.SummaryWorker
 import com.andrewwin.sumup.worker.WorkerContracts
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -54,21 +63,19 @@ class SummaryViewModel @Inject constructor(
     private val summaryRepository: SummaryRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val workManager: WorkManager,
-    private val refreshArticlesUseCase: RefreshArticlesUseCase,
-    private val generateSummaryUseCase: GenerateSummaryUseCase,
-    private val feedArticlesBuilder: FeedArticlesBuilder,
-    private val importanceScorer: ArticleImportanceScorer,
-    private val sourceRepository: SourceRepository,
+    private val scheduledSummaryTextGenerator: ScheduledSummaryTextGenerator,
+    private val createNewsStatisticsUseCase: CreateNewsStatisticsUseCase,
+    private val exportSummariesUseCase: ExportSummariesUseCase,
     private val aiModelConfigRepository: AiModelConfigRepository,
     private val summaryExecutionInfoFormatter: SummaryExecutionInfoFormatter,
     private val summaryExecutionInfoStore: SummaryExecutionInfoStore
 ) : ViewModel() {
 
-    val summaries: StateFlow<List<Summary>> = summaryRepository.allSummaries
+    val summaries: StateFlow<List<SummaryRecord>> = summaryRepository.allSummaries
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.preferences
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
+    val userPreferences: StateFlow<UserSettings> = userPreferencesRepository.preferences
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserSettings())
 
     val workInfo: StateFlow<List<WorkInfo>> =
         workManager.getWorkInfosByTagFlow(WorkerContracts.SCHEDULED_SUMMARY_WORK_TAG)
@@ -94,90 +101,21 @@ class SummaryViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    val chartData: StateFlow<List<SummaryChartItem>> = combine(
-        feedArticlesBuilder(
-            searchQueryFlow = flowOf(""),
-            selectedGroupIdFlow = flowOf(null),
-            dateFilterHoursFlow = flowOf(24), // Last 24h for chart
-            savedOnlyFlow = flowOf(false),
-            userPreferencesFlow = userPreferences
-        ),
-        _chartType,
-        userPreferences,
-        sourceRepository.groupsWithSources
-    ) { feedResult, type, prefs, groups ->
-        val sourceById = groups.flatMap { it.sources }.associateBy { it.id }
-        val sourceTypeMap = sourceById.mapValues { it.value.type }
-        val clusters = feedResult.clusters
-        val limit = prefs.showInfographicNewsCount.coerceAtLeast(1)
-        
-        when (type) {
-            SummaryChartType.VIEWS -> {
-                clusters.map { cluster ->
-                    val clusterArticles = listOf(cluster.representative) + cluster.duplicates.map { it.first }
-                    val hasKnownViews = clusterArticles.any {
-                        (sourceTypeMap[it.sourceId] ?: SourceType.RSS) != SourceType.RSS && it.viewCount > 0
-                    }
-                    val totalViews = clusterArticles.sumOf { article ->
-                        val sourceType = sourceTypeMap[article.sourceId] ?: SourceType.RSS
-                        if (sourceType == SourceType.RSS) 0L else article.viewCount.coerceAtLeast(0L)
-                    }
-                    val source = sourceById[cluster.representative.sourceId]
-                    SummaryChartItem(
-                        headline = cluster.representative.title,
-                        value = totalViews.toFloat(),
-                        displayValue = if (hasKnownViews) {
-                            context.getString(R.string.summary_stat_views_count, formatViews(totalViews))
-                        } else {
-                            context.getString(R.string.summary_stat_not_available)
-                        },
-                        sourceName = source?.name,
-                        sourceUrl = cluster.representative.url.takeIf { it.isNotBlank() } ?: source?.url,
-                        isValueUnavailable = !hasKnownViews
-                    )
-                }.sortedByDescending { it.value }.take(limit)
-            }
-            SummaryChartType.MENTIONS -> {
-                clusters.map { cluster ->
-                    val count = cluster.duplicates.size + 1
-                    val source = sourceById[cluster.representative.sourceId]
-                    SummaryChartItem(
-                        headline = cluster.representative.title,
-                        value = count.toFloat(),
-                        displayValue = context.getString(R.string.summary_stat_mentions_count, count),
-                        sourceName = source?.name,
-                        sourceUrl = cluster.representative.url.takeIf { it.isNotBlank() } ?: source?.url
-                    )
-                }.sortedByDescending { it.value }.take(limit)
-            }
-            SummaryChartType.FACTUALITY -> {
-                val articles = clusters.map { it.representative }
-                val averageViews = articles
-                    .asSequence()
-                    .map { it.viewCount }
-                    .filter { it > 0L }
-                    .average()
-                    .toLong()
-                clusters.map { cluster ->
-                    val article = cluster.representative
-                    val score = importanceScorer.score(
-                        article = article,
-                        averageViews = averageViews,
-                        sourceType = sourceTypeMap[article.sourceId] ?: SourceType.RSS
-                    )
-                    val source = sourceById[article.sourceId]
-                    SummaryChartItem(
-                        headline = article.title,
-                        value = score,
-                        displayValue = if (score in 0f..1f) "%.0f%%".format(score * 100f) else "%.2f".format(score),
-                        sourceName = source?.name,
-                        sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url
-                    )
-                }.sortedByDescending { it.value }.take(limit)
-            }
+    val chartData: StateFlow<List<SummaryChartItem>> = createNewsStatisticsUseCase(
+        chartTypeFlow = _chartType.map { it.toNewsStatisticsType() },
+        userPreferencesFlow = userPreferences
+    ).map { items ->
+        items.map { item ->
+            SummaryChartItem(
+                headline = item.headline,
+                value = item.value,
+                displayValue = item.metric.toDisplayValue(context, ::formatViews),
+                sourceName = item.sourceName,
+                sourceUrl = item.sourceUrl,
+                isValueUnavailable = item.metric is NewsStatisticsMetric.Views && !item.metric.hasKnownViews
+            )
         }
-    }.flowOn(kotlinx.coroutines.Dispatchers.Default)
-    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun setChartType(type: SummaryChartType) {
         _chartType.value = type
@@ -188,10 +126,10 @@ class SummaryViewModel @Inject constructor(
             _isGenerating.value = true
             runCatching {
                 summaryExecutionInfoStore.clear()
-                val summaryText = generateSummaryUseCase(refresh = true)
+                val summaryText = scheduledSummaryTextGenerator(refresh = true)
                 val executionInfo = summaryExecutionInfoStore.current()
                 summaryRepository.insertSummary(
-                    Summary(
+                    SummaryRecord(
                         content = summaryText,
                         strategy = userPreferences.value.aiStrategy,
                         executionLabel = executionInfo.label.takeIf { it.isNotBlank() },
@@ -213,7 +151,7 @@ class SummaryViewModel @Inject constructor(
                     summaryExecutionInfoStore.current()
                 }
                 summaryRepository.insertSummary(
-                    Summary(
+                    SummaryRecord(
                         content = message,
                         strategy = userPreferences.value.aiStrategy,
                         isError = true,
@@ -263,15 +201,60 @@ class SummaryViewModel @Inject constructor(
         }
     }
 
-    fun toggleFavorite(summary: Summary) {
+    suspend fun exportSummaries(summaries: List<SummaryRecord>, uri: Uri): Result<Unit> {
+        return exportSummariesUseCase(
+            summaries = summaries.map { summary ->
+                SummaryExportItem(
+                    content = summary.content,
+                    createdAt = summary.createdAt,
+                    strategy = when (summary.strategy) {
+                        AiStrategy.CLOUD -> SummaryExportStrategy.CLOUD
+                        AiStrategy.LOCAL -> SummaryExportStrategy.LOCAL
+                        AiStrategy.ADAPTIVE -> SummaryExportStrategy.ADAPTIVE
+                    }
+                )
+            },
+            uri = uri
+        )
+    }
+
+    fun toggleFavorite(summary: SummaryRecord) {
         viewModelScope.launch {
             summaryRepository.setFavorite(summary.id, !summary.isFavorite)
         }
     }
 
+    private fun SummaryChartType.toNewsStatisticsType(): NewsStatisticsType {
+        return when (this) {
+            SummaryChartType.VIEWS -> NewsStatisticsType.VIEWS
+            SummaryChartType.MENTIONS -> NewsStatisticsType.MENTIONS
+            SummaryChartType.FACTUALITY -> NewsStatisticsType.FACTUALITY
+        }
+    }
+
+    private fun NewsStatisticsMetric.toDisplayValue(
+        context: Context,
+        viewFormatter: (Long) -> String
+    ): String {
+        return when (this) {
+            is NewsStatisticsMetric.Views -> {
+                if (hasKnownViews) {
+                    context.getString(R.string.summary_stat_views_count, viewFormatter(totalViews))
+                } else {
+                    context.getString(R.string.summary_stat_not_available)
+                }
+            }
+
+            is NewsStatisticsMetric.Mentions -> {
+                context.getString(R.string.summary_stat_mentions_count, count)
+            }
+
+            is NewsStatisticsMetric.Factuality -> {
+                String.format(java.util.Locale.getDefault(), "%.2f", score)
+            }
+        }
+    }
 }
-
-
 
 
 

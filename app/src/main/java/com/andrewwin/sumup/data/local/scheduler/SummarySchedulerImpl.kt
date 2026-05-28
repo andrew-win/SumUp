@@ -7,8 +7,8 @@ import android.content.Intent
 import android.os.Build
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
-import com.andrewwin.sumup.data.local.entities.ScheduledSummaryTime
-import com.andrewwin.sumup.data.local.entities.normalizedScheduledSummaryTimes
+import com.andrewwin.sumup.domain.settings.ScheduledSummaryTime
+import com.andrewwin.sumup.domain.settings.normalizedScheduledSummaryTimes
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.receiver.ScheduledSummaryAlarmReceiver
 import com.andrewwin.sumup.worker.ScheduledSummaryWorkKind

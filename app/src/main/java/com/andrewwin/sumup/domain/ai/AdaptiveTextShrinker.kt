@@ -1,8 +1,8 @@
 package com.andrewwin.sumup.domain.ai
 
-import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.domain.summary.SummaryLimits
+import com.andrewwin.sumup.domain.settings.UserSettings
 import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
+import com.andrewwin.sumup.domain.summary.SummaryLimits
 import javax.inject.Inject
 
 class AdaptiveTextShrinker @Inject constructor(
@@ -16,7 +16,7 @@ class AdaptiveTextShrinker @Inject constructor(
         ).joinToString(" ")
     }
 
-    operator fun invoke(text: String, prefs: UserPreferences): String {
+    operator fun invoke(text: String, prefs: UserSettings): String {
         return shrinkByAdaptiveRange(
             text = text,
             prefs = prefs,
@@ -24,7 +24,7 @@ class AdaptiveTextShrinker @Inject constructor(
         )
     }
 
-    fun shrinkByAdaptiveRange(text: String, prefs: UserPreferences, rangeLength: Int): String {
+    fun shrinkByAdaptiveRange(text: String, prefs: UserSettings, rangeLength: Int): String {
         if (text.isBlank()) return ""
 
         return when {
@@ -40,7 +40,7 @@ class AdaptiveTextShrinker @Inject constructor(
         }
     }
 
-    private fun shrinkFirstRange(text: String, prefs: UserPreferences): String {
+    private fun shrinkFirstRange(text: String, prefs: UserSettings): String {
         val compressionPercent = prefs.adaptiveExtractiveCompressionPercentFirst
         return if (compressionPercent <= 0) {
             getExtractiveSummaryUseCase(

@@ -8,13 +8,31 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 class YouTubeParser {
-    fun parse(inputStream: InputStream, sourceId: Long): List<Article> {
+    fun parse(
+        inputStream: InputStream,
+        sourceId: Long,
+        oldestAllowedPublishedAt: Long? = null
+    ): List<Article> {
         inputStream.use {
             val parser = Xml.newPullParser()
             parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
             parser.setInput(it, null)
             parser.nextTag()
-            return readFeed(parser, sourceId)
+            return readFeed(parser, sourceId, oldestAllowedPublishedAt)
+        }
+    }
+
+    fun parseFeedMetadata(
+        inputStream: InputStream,
+        oldestAllowedPublishedAt: Long?,
+        latestKnownVideoId: String?
+    ): YouTubeFeedMetadata {
+        inputStream.use {
+            val parser = Xml.newPullParser()
+            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+            parser.setInput(it, null)
+            parser.nextTag()
+            return readFeedMetadata(parser, oldestAllowedPublishedAt, latestKnownVideoId)
         }
     }
 
@@ -28,21 +46,69 @@ class YouTubeParser {
         }
     }
 
-    private fun readFeed(parser: XmlPullParser, sourceId: Long): List<Article> {
+    private fun readFeed(
+        parser: XmlPullParser,
+        sourceId: Long,
+        oldestAllowedPublishedAt: Long?
+    ): List<Article> {
         val articles = mutableListOf<Article>()
         parser.require(XmlPullParser.START_TAG, null, "feed")
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
             if (parser.name == "entry") {
-                val article = readEntry(parser, sourceId)
-                if (!isShortsArticle(article)) {
-                    articles.add(article)
-                }
+                readEntry(parser, sourceId, oldestAllowedPublishedAt)?.let(articles::add)
             } else {
                 skip(parser)
             }
         }
         return articles
+    }
+
+    private fun readFeedMetadata(
+        parser: XmlPullParser,
+        oldestAllowedPublishedAt: Long?,
+        latestKnownVideoId: String?
+    ): YouTubeFeedMetadata {
+        var entryCount = 0
+        var oldestPublishedAt: Long? = null
+        var newestPublishedAt: Long? = null
+        var newestVideoId: String? = null
+        var hasRelevantEntry = oldestAllowedPublishedAt == null
+        var hasNewerThanKnownEntry = latestKnownVideoId.isNullOrBlank()
+
+        parser.require(XmlPullParser.START_TAG, null, "feed")
+        while (parser.next() != XmlPullParser.END_TAG) {
+            if (parser.eventType != XmlPullParser.START_TAG) continue
+            if (parser.name == "entry") {
+                entryCount++
+                val metadata = readEntryMetadata(parser)
+                val publishedAt = metadata.publishedAt
+                if (publishedAt != null) {
+                    oldestPublishedAt = minOf(oldestPublishedAt ?: publishedAt, publishedAt)
+                    newestPublishedAt = maxOf(newestPublishedAt ?: publishedAt, publishedAt)
+                    if (oldestAllowedPublishedAt != null && publishedAt >= oldestAllowedPublishedAt) {
+                        hasRelevantEntry = true
+                    }
+                }
+                if (newestVideoId.isNullOrBlank() && !metadata.videoId.isNullOrBlank()) {
+                    newestVideoId = metadata.videoId
+                }
+                if (!latestKnownVideoId.isNullOrBlank() && !metadata.videoId.isNullOrBlank() && metadata.videoId != latestKnownVideoId) {
+                    hasNewerThanKnownEntry = true
+                }
+            } else {
+                skip(parser)
+            }
+        }
+
+        return YouTubeFeedMetadata(
+            entryCount = entryCount,
+            oldestPublishedAt = oldestPublishedAt,
+            newestPublishedAt = newestPublishedAt,
+            newestVideoId = newestVideoId,
+            hasRelevantEntry = hasRelevantEntry,
+            hasNewerThanKnownEntry = hasNewerThanKnownEntry
+        )
     }
 
     private fun readFeedDisplayName(parser: XmlPullParser): String? {
@@ -52,9 +118,7 @@ class YouTubeParser {
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
             when (parser.name.localTagName()) {
-                "entry" -> {
-                    skip(parser)
-                }
+                "entry" -> skip(parser)
                 "title" -> {
                     if (title.isNullOrBlank()) {
                         title = readText(parser).trim().ifBlank { null }
@@ -62,16 +126,18 @@ class YouTubeParser {
                         skip(parser)
                     }
                 }
-                "author" -> {
-                    authorName = readAuthorName(parser) ?: authorName
-                }
+                "author" -> authorName = readAuthorName(parser) ?: authorName
                 else -> skip(parser)
             }
         }
         return title?.takeIf { it.isNotBlank() } ?: authorName?.takeIf { it.isNotBlank() }
     }
 
-    private fun readEntry(parser: XmlPullParser, sourceId: Long): Article {
+    private fun readEntry(
+        parser: XmlPullParser,
+        sourceId: Long,
+        oldestAllowedPublishedAt: Long?
+    ): Article? {
         var title = ""
         var link = ""
         var description = ""
@@ -79,6 +145,7 @@ class YouTubeParser {
         var viewCount = 0L
         var videoId = ""
         var thumbnailUrl: String? = null
+        var skipHeavyContent = false
 
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
@@ -95,12 +162,19 @@ class YouTubeParser {
                         videoId = extractVideoIdFromText(value.removePrefix("yt:video:")).orEmpty()
                     }
                 }
-                "published" -> published = parseDate(readText(parser))
+                "published" -> {
+                    published = parseDate(readText(parser))
+                    if (oldestAllowedPublishedAt != null && published in 1 until oldestAllowedPublishedAt) {
+                        skipHeavyContent = true
+                    }
+                }
                 "media:group" -> {
-                    val result = readMediaGroup(parser)
-                    description = result.description
-                    viewCount = result.viewCount
-                    thumbnailUrl = result.thumbnailUrl ?: thumbnailUrl
+                    val result = readMediaGroup(parser, skipHeavyContent)
+                    if (!skipHeavyContent) {
+                        description = result.description
+                        viewCount = result.viewCount
+                        thumbnailUrl = result.thumbnailUrl ?: thumbnailUrl
+                    }
                     if (videoId.isBlank() && !result.videoId.isNullOrBlank()) {
                         videoId = result.videoId
                     }
@@ -108,12 +182,19 @@ class YouTubeParser {
                 else -> skip(parser)
             }
         }
+
+        if (published == 0L || (oldestAllowedPublishedAt != null && published < oldestAllowedPublishedAt)) {
+            return null
+        }
         if (videoId.isBlank()) {
             videoId = extractVideoIdFromUrl(link).orEmpty()
         }
         videoId = extractVideoIdFromText(videoId).orEmpty()
+        if (videoId.isBlank()) return null
+        if (link.isBlank()) return null
+        if (title.isBlank()) return null
 
-        return Article(
+        val article = Article(
             stableArticleKey = ArticleStableKeyFactory.buildYouTubeKey(
                 sourceId = sourceId,
                 videoId = videoId,
@@ -123,14 +204,62 @@ class YouTubeParser {
             title = title,
             content = description,
             mediaUrl = thumbnailUrl,
-            videoId = videoId.ifBlank { null },
+            videoId = videoId,
             url = link,
-            publishedAt = if (published == 0L) System.currentTimeMillis() else published,
+            publishedAt = published,
             viewCount = viewCount
+        )
+        return article.takeUnless(::isShortsArticle)
+    }
+
+    private fun readEntryMetadata(parser: XmlPullParser): EntryMetadata {
+        var videoId: String? = null
+        var publishedAt: Long? = null
+        var link: String? = null
+
+        while (parser.next() != XmlPullParser.END_TAG) {
+            if (parser.eventType != XmlPullParser.START_TAG) continue
+            when (parser.name) {
+                "yt:videoId", "videoId" -> videoId = extractVideoIdFromText(readText(parser))
+                "id" -> {
+                    val value = readText(parser).trim()
+                    if (videoId.isNullOrBlank() && value.startsWith("yt:video:")) {
+                        videoId = extractVideoIdFromText(value.removePrefix("yt:video:"))
+                    }
+                }
+                "published" -> {
+                    val parsed = parseDate(readText(parser))
+                    publishedAt = parsed.takeIf { it > 0L }
+                }
+                "link" -> {
+                    link = parser.getAttributeValue(null, "href")
+                    skip(parser)
+                }
+                "media:group" -> {
+                    val mediaGroupData = readMediaGroupMetadata(parser)
+                    if (videoId.isNullOrBlank()) {
+                        videoId = mediaGroupData.videoId
+                    }
+                }
+                else -> skip(parser)
+            }
+        }
+
+        if (videoId.isNullOrBlank()) {
+            videoId = extractVideoIdFromUrl(link)
+        }
+
+        return EntryMetadata(
+            videoId = videoId,
+            publishedAt = publishedAt
         )
     }
 
-    private fun readMediaGroup(parser: XmlPullParser): MediaGroupData {
+    private fun readMediaGroup(skipHeavyContent: Boolean): MediaGroupData {
+        error("Unused overload")
+    }
+
+    private fun readMediaGroup(parser: XmlPullParser, skipHeavyContent: Boolean): MediaGroupData {
         var description = ""
         var viewCount = 0L
         var thumbnailUrl: String? = null
@@ -138,7 +267,13 @@ class YouTubeParser {
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
             when (parser.name.localTagName()) {
-                "description" -> description = readText(parser)
+                "description" -> {
+                    if (skipHeavyContent) {
+                        skip(parser)
+                    } else {
+                        description = readText(parser)
+                    }
+                }
                 "content" -> {
                     val url = parser.getAttributeValue(null, "url")
                     if (!url.isNullOrBlank() && videoId.isNullOrBlank()) {
@@ -149,7 +284,9 @@ class YouTubeParser {
                 "thumbnail" -> {
                     val url = parser.getAttributeValue(null, "url")
                     if (!url.isNullOrBlank()) {
-                        thumbnailUrl = url
+                        if (!skipHeavyContent) {
+                            thumbnailUrl = url
+                        }
                         if (videoId.isNullOrBlank()) {
                             videoId = extractVideoIdFromUrl(url)
                         }
@@ -157,11 +294,18 @@ class YouTubeParser {
                     skip(parser)
                 }
                 "statistics" -> {
-                    viewCount = parser.getAttributeValue(null, "views")?.toLongOrNull() ?: 0L
+                    if (!skipHeavyContent) {
+                        viewCount = parser.getAttributeValue(null, "views")?.toLongOrNull() ?: 0L
+                    }
                     skip(parser)
                 }
                 "community" -> {
-                    viewCount = readMediaCommunity(parser, viewCount)
+                    viewCount = if (skipHeavyContent) {
+                        skip(parser)
+                        viewCount
+                    } else {
+                        readMediaCommunity(parser, viewCount)
+                    }
                 }
                 else -> skip(parser)
             }
@@ -172,6 +316,24 @@ class YouTubeParser {
             thumbnailUrl = thumbnailUrl,
             videoId = videoId
         )
+    }
+
+    private fun readMediaGroupMetadata(parser: XmlPullParser): MediaGroupMetadata {
+        var videoId: String? = null
+        while (parser.next() != XmlPullParser.END_TAG) {
+            if (parser.eventType != XmlPullParser.START_TAG) continue
+            when (parser.name.localTagName()) {
+                "content", "thumbnail" -> {
+                    val url = parser.getAttributeValue(null, "url")
+                    if (!url.isNullOrBlank() && videoId.isNullOrBlank()) {
+                        videoId = extractVideoIdFromUrl(url)
+                    }
+                    skip(parser)
+                }
+                else -> skip(parser)
+            }
+        }
+        return MediaGroupMetadata(videoId = videoId)
     }
 
     private fun readText(parser: XmlPullParser): String {
@@ -195,17 +357,10 @@ class YouTubeParser {
         return name
     }
 
-    private val formattersThreadLocal = ThreadLocal.withInitial {
-        listOf(
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US),
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US)
-        )
-    }
-
     private fun parseDate(dateString: String): Long {
         val formatters = formattersThreadLocal.get().orEmpty()
-        for (f in formatters) {
-            val date = runCatching { f.parse(dateString) }.getOrNull()
+        for (formatter in formatters) {
+            val date = runCatching { formatter.parse(dateString) }.getOrNull()
             if (date != null) return date.time
         }
         return 0L
@@ -240,8 +395,7 @@ class YouTubeParser {
 
     private fun extractVideoIdFromText(text: String?): String? {
         if (text.isNullOrBlank()) return null
-        val match = VIDEO_ID_REGEX.find(text)
-        return match?.value
+        return VIDEO_ID_REGEX.find(text)?.value
     }
 
     private fun readMediaCommunity(parser: XmlPullParser, currentViewCount: Long): Long {
@@ -274,12 +428,37 @@ class YouTubeParser {
         return false
     }
 
+    data class YouTubeFeedMetadata(
+        val entryCount: Int,
+        val oldestPublishedAt: Long? = null,
+        val newestPublishedAt: Long? = null,
+        val newestVideoId: String? = null,
+        val hasRelevantEntry: Boolean = false,
+        val hasNewerThanKnownEntry: Boolean = false
+    )
+
+    private data class EntryMetadata(
+        val videoId: String?,
+        val publishedAt: Long?
+    )
+
+    private data class MediaGroupMetadata(
+        val videoId: String?
+    )
+
     private data class MediaGroupData(
         val description: String,
         val viewCount: Long,
         val thumbnailUrl: String?,
         val videoId: String?
     )
+
+    private val formattersThreadLocal = ThreadLocal.withInitial {
+        listOf(
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US),
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US)
+        )
+    }
 
     private companion object {
         private val VIDEO_QUERY_REGEX = Regex("[?&]v=([^?&#]+)")
@@ -291,9 +470,3 @@ class YouTubeParser {
         private val VIDEO_ID_REGEX = Regex("[A-Za-z0-9_-]{11}")
     }
 }
-
-
-
-
-
-

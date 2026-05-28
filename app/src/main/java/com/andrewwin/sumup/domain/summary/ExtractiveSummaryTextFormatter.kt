@@ -1,7 +1,5 @@
 package com.andrewwin.sumup.domain.summary
 
-import com.andrewwin.sumup.domain.summary.SummaryLimits
-import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import kotlinx.coroutines.withContext
 import javax.inject.Inject

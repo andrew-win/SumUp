@@ -1,7 +1,5 @@
 package com.andrewwin.sumup.domain.summary
 
-import com.andrewwin.sumup.domain.summary.SummaryItem
-import com.andrewwin.sumup.domain.summary.SummaryResult
 import com.andrewwin.sumup.domain.support.SummarySourceMeta
 import javax.inject.Inject
 

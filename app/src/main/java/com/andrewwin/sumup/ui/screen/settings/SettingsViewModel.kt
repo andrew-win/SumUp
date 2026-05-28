@@ -1,51 +1,44 @@
 package com.andrewwin.sumup.ui.screen.settings
 
 import android.app.Application
-import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.net.Uri
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.Constraints
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.FirebaseFirestoreException
-import kotlinx.coroutines.tasks.await
-import com.andrewwin.sumup.domain.usecase.settings.ScheduleSummaryUseCase
-import com.andrewwin.sumup.data.local.entities.AiModelConfig
-import com.andrewwin.sumup.data.local.entities.AiModelType
-import com.andrewwin.sumup.data.local.entities.AiProvider
-import com.andrewwin.sumup.data.local.entities.AiStrategy
-import com.andrewwin.sumup.data.local.entities.AppLanguage
-import com.andrewwin.sumup.data.local.entities.AppThemeMode
-import com.andrewwin.sumup.data.local.entities.DeduplicationStrategy
-import com.andrewwin.sumup.data.local.entities.ScheduledSummaryTime
-import com.andrewwin.sumup.data.local.entities.SummaryLanguage
-import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.data.local.entities.normalizedStableKey
-import com.andrewwin.sumup.data.local.entities.normalizedScheduledSummaryTimes
-import com.andrewwin.sumup.data.security.SecretEncryptionManager
+import com.andrewwin.sumup.R
+import com.andrewwin.sumup.data.auth.FirebaseSettingsAuthService
+import com.andrewwin.sumup.data.sync.SettingsSyncPreferencesStore
+import com.andrewwin.sumup.data.sync.SettingsSyncService
+import com.andrewwin.sumup.domain.ai.AiModelConfig
+import com.andrewwin.sumup.domain.ai.AiModelType
+import com.andrewwin.sumup.domain.ai.AiProvider
+import com.andrewwin.sumup.domain.ai.normalizedStableKey
+import com.andrewwin.sumup.domain.ai.LocalModelManager
+import com.andrewwin.sumup.domain.news.DedupRuntimeCoordinator
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.repository.ImportedSource
-import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
-import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.news.DedupRuntimeCoordinator
-import com.andrewwin.sumup.domain.support.DispatcherProvider
-import com.andrewwin.sumup.domain.ai.LocalModelManager
-import com.andrewwin.sumup.domain.usecase.settings.UpdateCustomSummaryPromptEnabledUseCase
-import com.andrewwin.sumup.domain.usecase.settings.UpdateSummaryPromptUseCase
+import com.andrewwin.sumup.domain.settings.AiStrategy
+import com.andrewwin.sumup.domain.settings.AppLanguage
+import com.andrewwin.sumup.domain.settings.AppThemeMode
+import com.andrewwin.sumup.domain.settings.DeduplicationStrategy
+import com.andrewwin.sumup.domain.settings.ScheduledSummaryTime
+import com.andrewwin.sumup.domain.settings.SummaryLanguage
+import com.andrewwin.sumup.domain.settings.UserSettings
+import com.andrewwin.sumup.domain.settings.normalizedScheduledSummaryTimes
+import com.andrewwin.sumup.domain.settings.actions.UpdateCustomSummaryPromptEnabledAction
+import com.andrewwin.sumup.domain.settings.actions.UpdateSummaryPromptAction
+import com.andrewwin.sumup.domain.sync.BackupSelection
+import com.andrewwin.sumup.domain.sync.SyncConflictStrategy
+import com.andrewwin.sumup.domain.sync.SyncOverwritePriority
+import com.andrewwin.sumup.domain.sync.UserDataSyncState
+import com.andrewwin.sumup.domain.usecase.summary.CreateScheduleSummaryUseCase
+import com.andrewwin.sumup.domain.usecase.sync.ExportBackupUseCase
+import com.andrewwin.sumup.domain.usecase.sync.ImportBackupUseCase
+import com.andrewwin.sumup.domain.usecase.sync.SyncUserDataUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -54,13 +47,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
-import com.andrewwin.sumup.worker.CloudSyncWorker
-import com.andrewwin.sumup.worker.WorkerContracts
 
 sealed interface ModelDownloadState {
     data object Idle : ModelDownloadState
@@ -77,24 +64,6 @@ sealed interface TransferState {
     data class Error(val message: String) : TransferState
 }
 
-data class BackupSelection(
-    val includeSources: Boolean = true,
-    val includeSubscriptions: Boolean = true,
-    val includeSavedArticles: Boolean = true,
-    val includeSettingsNoApi: Boolean = true,
-    val includeApiKeys: Boolean = false
-)
-
-enum class SyncConflictStrategy {
-    OVERWRITE,
-    MERGE
-}
-
-enum class SyncOverwritePriority {
-    LOCAL,
-    CLOUD
-}
-
 data class AuthUiState(
     val isSignedIn: Boolean = false,
     val displayName: String = "",
@@ -107,33 +76,27 @@ class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val aiModelConfigRepository: AiModelConfigRepository,
     private val articleRepository: ArticleRepository,
-    private val sourceRepository: SourceRepository,
     private val summaryRepository: SummaryRepository,
-    private val dispatcherProvider: DispatcherProvider,
     private val manageModelUseCase: LocalModelManager,
-    private val scheduleSummaryUseCase: ScheduleSummaryUseCase,
-    private val updateSummaryPromptUseCase: UpdateSummaryPromptUseCase,
-    private val updateCustomSummaryPromptEnabledUseCase: UpdateCustomSummaryPromptEnabledUseCase,
+    private val createScheduleSummaryUseCase: CreateScheduleSummaryUseCase,
+    private val updateSummaryPromptAction: UpdateSummaryPromptAction,
+    private val updateCustomSummaryPromptEnabledAction: UpdateCustomSummaryPromptEnabledAction,
     private val dedupRuntimeCoordinator: DedupRuntimeCoordinator,
-    private val secretEncryptionManager: SecretEncryptionManager
+    private val authService: FirebaseSettingsAuthService,
+    private val syncPreferencesStore: SettingsSyncPreferencesStore,
+    private val syncService: SettingsSyncService,
+    private val syncUserDataUseCase: SyncUserDataUseCase,
+    private val exportBackupUseCase: ExportBackupUseCase,
+    private val importBackupUseCase: ImportBackupUseCase
 ) : AndroidViewModel(application) {
-    private val firebaseAuth by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { FirebaseAuth.getInstance() }
-    private val firestore by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { FirebaseFirestore.getInstance() }
-    private val subscriptionsPrefs by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        getApplication<Application>().getSharedPreferences(SUBSCRIPTIONS_PREFS, 0)
-    }
-    private val syncPrefs by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        getApplication<Application>().getSharedPreferences(SYNC_PREFS, 0)
-    }
-
     val summaryConfigs: StateFlow<List<AiModelConfig>> = aiModelConfigRepository.getConfigsByType(AiModelType.SUMMARY)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val embeddingConfigs: StateFlow<List<AiModelConfig>> = aiModelConfigRepository.getConfigsByType(AiModelType.EMBEDDING)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val userPreferences: StateFlow<UserPreferences> = userPreferencesRepository.preferences
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserPreferences())
+    val userPreferences: StateFlow<UserSettings> = userPreferencesRepository.preferences
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserSettings())
 
     private val _downloadState = MutableStateFlow<ModelDownloadState>(ModelDownloadState.Idle)
     val downloadState: StateFlow<ModelDownloadState> = _downloadState.asStateFlow()
@@ -150,7 +113,7 @@ class SettingsViewModel @Inject constructor(
     val authUiState: StateFlow<AuthUiState> = _authUiState.asStateFlow()
     private val _isCloudSyncEnabled = MutableStateFlow(false)
     val isCloudSyncEnabled: StateFlow<Boolean> = _isCloudSyncEnabled.asStateFlow()
-    private val _syncIntervalHours = MutableStateFlow(DEFAULT_SYNC_INTERVAL_HOURS)
+    private val _syncIntervalHours = MutableStateFlow(UserDataSyncState.DEFAULT_SYNC_INTERVAL_HOURS)
     val syncIntervalHours: StateFlow<Int> = _syncIntervalHours.asStateFlow()
     private val _syncSelection = MutableStateFlow(BackupSelection())
     val syncSelection: StateFlow<BackupSelection> = _syncSelection.asStateFlow()
@@ -174,47 +137,31 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             aiModelConfigRepository.migrateLegacyApiKeys()
         }
-        _isCloudSyncEnabled.value = syncPrefs.getBoolean(KEY_SYNC_ENABLED, false)
-        _syncIntervalHours.value = syncPrefs.getInt(KEY_SYNC_INTERVAL_HOURS, DEFAULT_SYNC_INTERVAL_HOURS)
-        _syncStrategy.value = parseSyncConflictStrategy(
-            syncPrefs.getString(KEY_SYNC_STRATEGY, SyncConflictStrategy.MERGE.name)
-        )
-        _syncOverwritePriority.value = parseSyncOverwritePriority(
-            syncPrefs.getString(KEY_SYNC_OVERWRITE_PRIORITY, SyncOverwritePriority.LOCAL.name)
-        )
-        _importStrategy.value = parseSyncConflictStrategy(
-            syncPrefs.getString(KEY_IMPORT_STRATEGY, SyncConflictStrategy.MERGE.name)
-        )
-        _lastSyncAt.value = syncPrefs.getLong(KEY_LAST_SYNC_AT, 0L)
-        _syncSelection.value = readSelectionFromPrefs(KEY_PREFIX_SYNC)
-        _exportSelection.value = readSelectionFromPrefs(KEY_PREFIX_EXPORT)
-        _importSelection.value = readSelectionFromPrefs(KEY_PREFIX_IMPORT)
-        refreshSyncPassphraseState()
-        if (!_hasSyncPassphrase.value) {
-            _syncSelection.value = _syncSelection.value.copy(includeApiKeys = false)
-            _exportSelection.value = _exportSelection.value.copy(includeApiKeys = false)
-            _importSelection.value = _importSelection.value.copy(includeApiKeys = false)
-            persistSelection(KEY_PREFIX_SYNC, _syncSelection.value)
-            persistSelection(KEY_PREFIX_EXPORT, _exportSelection.value)
-            persistSelection(KEY_PREFIX_IMPORT, _importSelection.value)
-        }
+        reloadSyncState()
         refreshAuthState()
-        if (_isCloudSyncEnabled.value) {
-            scheduleCloudSyncWorker(_syncIntervalHours.value)
-        }
     }
 
     private fun refreshAuthState() {
-        val user = firebaseAuth.currentUser
-        _authUiState.value = if (user != null) {
-            AuthUiState(
-                isSignedIn = true,
-                displayName = user.displayName.orEmpty(),
-                email = user.email.orEmpty()
-            )
-        } else {
-            AuthUiState()
-        }
+        val session = authService.currentSession()
+        _authUiState.value = AuthUiState(
+            isSignedIn = session.isSignedIn,
+            displayName = session.displayName,
+            email = session.email
+        )
+    }
+
+    private fun reloadSyncState() {
+        val state = syncPreferencesStore.loadState()
+        _isCloudSyncEnabled.value = state.isCloudSyncEnabled
+        _syncIntervalHours.value = state.syncIntervalHours
+        _syncSelection.value = state.syncSelection
+        _exportSelection.value = state.exportSelection
+        _importSelection.value = state.importSelection
+        _syncStrategy.value = state.syncStrategy
+        _syncOverwritePriority.value = state.syncOverwritePriority
+        _importStrategy.value = state.importStrategy
+        _lastSyncAt.value = state.lastSyncAt
+        _hasSyncPassphrase.value = state.hasSyncPassphrase
     }
 
     private fun checkModelExists() {
@@ -269,7 +216,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private fun updateThreshold(transform: (UserPreferences) -> UserPreferences) {
+    private fun updateThreshold(transform: (UserSettings) -> UserSettings) {
         viewModelScope.launch {
             updatePreferences(transform)
         }
@@ -359,7 +306,7 @@ class SettingsViewModel @Inject constructor(
 
     fun updateScheduledSummary(enabled: Boolean, times: List<ScheduledSummaryTime>) {
         viewModelScope.launch {
-            scheduleSummaryUseCase(enabled, times)
+            createScheduleSummaryUseCase(enabled, times)
         }
     }
 
@@ -368,7 +315,7 @@ class SettingsViewModel @Inject constructor(
             val prefs = userPreferences.first()
             val times = (prefs.scheduledSummaryTimeList + ScheduledSummaryTime(hour, minute))
                 .normalizedScheduledSummaryTimes()
-            scheduleSummaryUseCase(true, times)
+            createScheduleSummaryUseCase(true, times)
         }
     }
 
@@ -378,7 +325,7 @@ class SettingsViewModel @Inject constructor(
             val times = prefs.scheduledSummaryTimeList.toMutableList()
             if (index !in times.indices) return@launch
             times[index] = ScheduledSummaryTime(hour, minute)
-            scheduleSummaryUseCase(true, times.normalizedScheduledSummaryTimes())
+            createScheduleSummaryUseCase(true, times.normalizedScheduledSummaryTimes())
         }
     }
 
@@ -388,7 +335,7 @@ class SettingsViewModel @Inject constructor(
             val times = prefs.scheduledSummaryTimeList.toMutableList()
             if (index !in times.indices || times.size <= 1) return@launch
             times.removeAt(index)
-            scheduleSummaryUseCase(prefs.isScheduledSummaryEnabled, times.normalizedScheduledSummaryTimes())
+            createScheduleSummaryUseCase(prefs.isScheduledSummaryEnabled, times.normalizedScheduledSummaryTimes())
         }
     }
 
@@ -421,11 +368,11 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun updateSummaryPrompt(prompt: String) {
-        viewModelScope.launch { updateSummaryPromptUseCase(prompt) }
+        viewModelScope.launch { updateSummaryPromptAction(prompt) }
     }
 
     fun updateCustomSummaryPromptEnabled(enabled: Boolean) {
-        viewModelScope.launch { updateCustomSummaryPromptEnabledUseCase(enabled) }
+        viewModelScope.launch { updateCustomSummaryPromptEnabledAction(enabled) }
     }
 
     fun updateFeedMediaEnabled(enabled: Boolean) {
@@ -525,8 +472,8 @@ class SettingsViewModel @Inject constructor(
             updatePreferences {
                 it.copy(
                     articleAutoCleanupHours = hours.coerceIn(
-                        UserPreferences.MIN_ARTICLE_AUTO_CLEANUP_HOURS,
-                        UserPreferences.MAX_ARTICLE_AUTO_CLEANUP_HOURS
+                        UserSettings.MIN_ARTICLE_AUTO_CLEANUP_HOURS,
+                        UserSettings.MAX_ARTICLE_AUTO_CLEANUP_HOURS
                     )
                 )
             }
@@ -539,14 +486,14 @@ class SettingsViewModel @Inject constructor(
 
     fun resetSettingsToDefaults() {
         viewModelScope.launch {
-            val defaults = UserPreferences()
+            val defaults = UserSettings()
             userPreferencesRepository.updatePreferences(defaults)
             val languageTag = when (defaults.appLanguage) {
                 AppLanguage.UK -> "uk"
                 AppLanguage.EN -> "en"
             }
             AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
-            scheduleSummaryUseCase(
+            createScheduleSummaryUseCase(
                 defaults.isScheduledSummaryEnabled,
                 defaults.scheduledSummaryTimeList
             )
@@ -557,16 +504,16 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _transferState.value = TransferState.Working
             runCatching {
-                if (register) {
-                    firebaseAuth.createUserWithEmailAndPassword(email.trim(), password).await()
-                } else {
-                    firebaseAuth.signInWithEmailAndPassword(email.trim(), password).await()
-                }
+                authService.signInWithEmail(email, password, register)
                 refreshAuthState()
             }.onSuccess {
-                _transferState.value = TransferState.Success("Вхід успішний")
+                _transferState.value = TransferState.Success(
+                    getApplication<Application>().getString(R.string.settings_sign_in_success)
+                )
             }.onFailure { e ->
-                _transferState.value = TransferState.Error(e.localizedMessage ?: "Помилка входу")
+                _transferState.value = TransferState.Error(
+                    e.localizedMessage ?: getApplication<Application>().getString(R.string.settings_sign_in_error)
+                )
             }
         }
     }
@@ -575,180 +522,105 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _transferState.value = TransferState.Working
             runCatching {
-                val credential = GoogleAuthProvider.getCredential(idToken, null)
-                firebaseAuth.signInWithCredential(credential).await()
+                authService.signInWithGoogleIdToken(idToken)
                 refreshAuthState()
             }.onSuccess {
-                _transferState.value = TransferState.Success("Google-вхід успішний")
+                _transferState.value = TransferState.Success(
+                    getApplication<Application>().getString(R.string.settings_google_sign_in_success)
+                )
             }.onFailure { e ->
-                _transferState.value = TransferState.Error(e.localizedMessage ?: "Помилка Google-входу")
+                _transferState.value = TransferState.Error(
+                    e.localizedMessage ?: getApplication<Application>().getString(R.string.settings_google_sign_in_error)
+                )
             }
         }
     }
 
     fun signOut() {
-        firebaseAuth.signOut()
+        authService.signOut()
         refreshAuthState()
     }
 
     fun setCloudSyncEnabled(enabled: Boolean, selection: BackupSelection) {
-        _isCloudSyncEnabled.value = enabled
         val effectiveSelection = sanitizeBackupSelection(selection)
-        persistSelection(KEY_PREFIX_SYNC, effectiveSelection)
-        syncPrefs.edit()
-            .putBoolean(KEY_SYNC_ENABLED, enabled)
-            .apply()
+        syncPreferencesStore.persistSyncSelection(effectiveSelection)
+        syncPreferencesStore.updateCloudSyncEnabled(enabled)
+        _isCloudSyncEnabled.value = enabled
+        _syncSelection.value = effectiveSelection
         if (enabled) {
-            scheduleCloudSyncWorker(_syncIntervalHours.value)
+            syncPreferencesStore.scheduleCloudSyncWorker(_syncIntervalHours.value)
             syncNow(effectiveSelection)
-        } else {
-            WorkManager.getInstance(getApplication()).cancelUniqueWork(CLOUD_SYNC_WORK_NAME)
         }
     }
 
     fun updateSyncSelection(selection: BackupSelection) {
-        persistSelection(KEY_PREFIX_SYNC, sanitizeBackupSelection(selection))
+        _syncSelection.value = sanitizeBackupSelection(selection)
+        syncPreferencesStore.persistSyncSelection(_syncSelection.value)
     }
 
     fun updateExportSelection(selection: BackupSelection) {
-        persistSelection(KEY_PREFIX_EXPORT, sanitizeBackupSelection(selection))
+        _exportSelection.value = sanitizeBackupSelection(selection)
+        syncPreferencesStore.persistExportSelection(_exportSelection.value)
     }
 
     fun updateImportSelection(selection: BackupSelection) {
-        persistSelection(KEY_PREFIX_IMPORT, sanitizeBackupSelection(selection))
+        _importSelection.value = sanitizeBackupSelection(selection)
+        syncPreferencesStore.persistImportSelection(_importSelection.value)
     }
 
     fun saveSyncPassphrase(passphrase: String) {
-        val normalized = passphrase.trim()
-        if (normalized.length < MIN_SYNC_PASSPHRASE_LENGTH) {
-            _transferState.value = TransferState.Error("Пароль синхронізації має містити щонайменше $MIN_SYNC_PASSPHRASE_LENGTH символів")
-            return
+        runCatching {
+            syncService.saveSyncPassphrase(passphrase)
+        }.onSuccess { message ->
+            reloadSyncState()
+            _transferState.value = TransferState.Success(message)
+        }.onFailure { error ->
+            _transferState.value = TransferState.Error(error.message.orEmpty())
         }
-        secretEncryptionManager.setSyncPassphrase(normalized)
-        refreshSyncPassphraseState()
-        _transferState.value = TransferState.Success("Пароль синхронізації API-ключів збережено")
     }
 
     fun clearSyncPassphrase() {
-        secretEncryptionManager.clearSyncPassphrase()
-        refreshSyncPassphraseState()
-        persistSelection(KEY_PREFIX_SYNC, _syncSelection.value.copy(includeApiKeys = false))
-        persistSelection(KEY_PREFIX_EXPORT, _exportSelection.value.copy(includeApiKeys = false))
-        persistSelection(KEY_PREFIX_IMPORT, _importSelection.value.copy(includeApiKeys = false))
-        _transferState.value = TransferState.Success("Синхронізацію API-ключів вимкнено, пароль очищено")
+        _transferState.value = TransferState.Success(syncService.clearSyncPassphrase())
+        reloadSyncState()
     }
 
     fun isSyncPassphraseMatchingCurrent(passphrase: String): Boolean {
-        val normalized = passphrase.trim()
-        val currentPassphrase = secretEncryptionManager.getSyncPassphraseOrNull()?.trim().orEmpty()
-        return normalized.isNotBlank() && normalized == currentPassphrase
+        return syncService.isSyncPassphraseMatchingCurrent(passphrase)
     }
 
     fun updateSyncIntervalHours(hours: Int) {
         _syncIntervalHours.value = hours
-        syncPrefs.edit().putInt(KEY_SYNC_INTERVAL_HOURS, hours).apply()
+        syncPreferencesStore.updateSyncIntervalHours(hours)
         if (_isCloudSyncEnabled.value) {
-            scheduleCloudSyncWorker(hours)
+            syncPreferencesStore.scheduleCloudSyncWorker(hours)
         }
     }
 
     fun updateSyncStrategy(strategy: SyncConflictStrategy) {
         _syncStrategy.value = strategy
-        syncPrefs.edit().putString(KEY_SYNC_STRATEGY, strategy.name).apply()
+        syncPreferencesStore.updateSyncStrategy(strategy)
     }
 
     fun updateSyncOverwritePriority(priority: SyncOverwritePriority) {
         _syncOverwritePriority.value = priority
-        syncPrefs.edit().putString(KEY_SYNC_OVERWRITE_PRIORITY, priority.name).apply()
+        syncPreferencesStore.updateSyncOverwritePriority(priority)
     }
 
     fun updateImportStrategy(strategy: SyncConflictStrategy) {
         _importStrategy.value = strategy
-        syncPrefs.edit().putString(KEY_IMPORT_STRATEGY, strategy.name).apply()
+        syncPreferencesStore.updateImportStrategy(strategy)
     }
 
     fun syncNow(selection: BackupSelection) {
         viewModelScope.launch {
-            logBackupDebug(
-                "syncNow:start selection=$selection enabled=${_isCloudSyncEnabled.value} " +
-                    "strategy=${_syncStrategy.value} overwrite=${_syncOverwritePriority.value}"
-            )
-            val uid = firebaseAuth.currentUser?.uid
-            if (uid.isNullOrBlank()) {
-                logBackupDebug("syncNow:missing uid")
-                _transferState.value = TransferState.Error("Спочатку увійдіть у акаунт")
-                return@launch
-            }
-            if (!_isCloudSyncEnabled.value) {
-                logBackupDebug("syncNow:skip disabled")
-                return@launch
-            }
-
             _transferState.value = TransferState.Working
             runCatching {
-                withContext(dispatcherProvider.io) {
-                    val docRef = firestore.collection(CLOUD_COLLECTION).document(uid)
-                    logBackupDebug("syncNow:remote fetch start")
-                    val remote = docRef.get().await()
-                    val remoteBackupRaw = remote.getString("backup")
-                    logBackupDebug(
-                        "syncNow:remote fetch complete exists=${remote.exists()} " +
-                            "updatedAt=${remote.getLong("updatedAt") ?: 0L} " +
-                            "backupLength=${remoteBackupRaw?.length ?: -1}"
-                    )
-                    val remoteBackupJson = remoteBackupRaw
-                        ?.takeIf { it.isNotBlank() }
-                        ?.let(::JSONObject)
-                    val remoteUpdatedAt = remote.getLong("updatedAt") ?: 0L
-                    val lastSyncAt = syncPrefs.getLong(KEY_LAST_SYNC_AT, 0L)
-                    val mergeMode = _syncStrategy.value == SyncConflictStrategy.MERGE
-                    val shouldApplyRemote = shouldApplyRemoteBeforePush(
-                        remoteExists = remote.exists(),
-                        remoteUpdatedAt = remoteUpdatedAt,
-                        lastSyncAt = lastSyncAt,
-                        strategy = _syncStrategy.value,
-                        overwritePriority = _syncOverwritePriority.value
-                    )
-                    logBackupDebug("syncNow:shouldApplyRemote=$shouldApplyRemote mergeMode=$mergeMode")
-                    if (shouldApplyRemote && remoteBackupJson != null) {
-                        logBackupDebug("syncNow:apply remote start")
-                        applyBackupJson(remoteBackupJson, merge = mergeMode, selection = selection)
-                        logBackupDebug("syncNow:apply remote complete")
-                    }
-                    logBackupDebug("syncNow:build local backup start")
-                    val localBackup = buildBackupJson(selection, remoteBackupJson)
-                    val localBackupJson = localBackup.toString()
-                    logBackupDebug("syncNow:build local backup complete length=${localBackupJson.length}")
-                    require(localBackupJson.isNotBlank()) { "Не вдалося сформувати JSON для синхронізації" }
-                    val now = System.currentTimeMillis()
-                    logBackupDebug("syncNow:upload start")
-                    docRef.set(
-                        mapOf(
-                            "backup" to localBackupJson,
-                            "updatedAt" to now
-                        )
-                    ).await()
-                    logBackupDebug("syncNow:upload complete")
-                    syncPrefs.edit().putLong(KEY_LAST_SYNC_AT, now).apply()
-                    _lastSyncAt.value = now
-                }
+                syncUserDataUseCase(selection, currentSyncState())
             }.onSuccess {
-                logBackupDebug("syncNow:success")
-                _transferState.value = TransferState.Success("Синхронізацію завершено")
+                reloadSyncState()
+                _transferState.value = TransferState.Success(it)
             }.onFailure { e ->
-                logBackupError("syncNow:failure", e)
-                val message = when ((e as? FirebaseFirestoreException)?.code) {
-                    FirebaseFirestoreException.Code.UNAVAILABLE ->
-                        if (hasInternetConnection()) {
-                            "Є мережа, але Firebase тимчасово недоступний (UNAVAILABLE). Перевірте дату/час, VPN/Proxy та доступ до Google Firebase."
-                        } else {
-                            "Немає інтернету. Синхронізація буде доступна після відновлення мережі."
-                        }
-                    FirebaseFirestoreException.Code.PERMISSION_DENIED ->
-                        "Немає доступу до хмарної синхронізації. Перевірте вхід у акаунт."
-                    else -> e.localizedMessage ?: "Помилка синхронізації"
-                }
-                _transferState.value = TransferState.Error(message)
+                _transferState.value = TransferState.Error(syncService.syncErrorMessage(e))
             }
         }
     }
@@ -757,74 +629,17 @@ class SettingsViewModel @Inject constructor(
         _transferState.value = TransferState.Idle
     }
 
-    private fun scheduleCloudSyncWorker(intervalHours: Int) {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-        val request = PeriodicWorkRequestBuilder<CloudSyncWorker>(intervalHours.toLong(), TimeUnit.HOURS)
-            .setConstraints(constraints)
-            .build()
-        WorkManager.getInstance(getApplication()).enqueueUniquePeriodicWork(
-            CLOUD_SYNC_WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            request
-        )
-    }
-
-    private fun persistSelection(prefix: String, selection: BackupSelection) {
-        when (prefix) {
-            KEY_PREFIX_SYNC -> _syncSelection.value = selection
-            KEY_PREFIX_EXPORT -> _exportSelection.value = selection
-            KEY_PREFIX_IMPORT -> _importSelection.value = selection
-        }
-        syncPrefs.edit()
-            .putBoolean(prefKey(prefix, KEY_INCLUDE_SOURCES_SUFFIX), selection.includeSources)
-            .putBoolean(prefKey(prefix, KEY_INCLUDE_SUBSCRIPTIONS_SUFFIX), selection.includeSubscriptions)
-            .putBoolean(prefKey(prefix, KEY_INCLUDE_SAVED_ARTICLES_SUFFIX), selection.includeSavedArticles)
-            .putBoolean(prefKey(prefix, KEY_INCLUDE_SETTINGS_NO_API_SUFFIX), selection.includeSettingsNoApi)
-            .putBoolean(prefKey(prefix, KEY_INCLUDE_API_KEYS_SUFFIX), selection.includeApiKeys)
-            .apply()
-    }
-
-    private fun readSelectionFromPrefs(prefix: String): BackupSelection = BackupSelection(
-        includeSources = syncPrefs.getBoolean(prefKey(prefix, KEY_INCLUDE_SOURCES_SUFFIX), true),
-        includeSubscriptions = syncPrefs.getBoolean(prefKey(prefix, KEY_INCLUDE_SUBSCRIPTIONS_SUFFIX), true),
-        includeSavedArticles = syncPrefs.getBoolean(prefKey(prefix, KEY_INCLUDE_SAVED_ARTICLES_SUFFIX), true),
-        includeSettingsNoApi = syncPrefs.getBoolean(prefKey(prefix, KEY_INCLUDE_SETTINGS_NO_API_SUFFIX), true),
-        includeApiKeys = syncPrefs.getBoolean(prefKey(prefix, KEY_INCLUDE_API_KEYS_SUFFIX), false)
-    )
-
-    private fun prefKey(prefix: String, suffix: String): String = "${prefix}_$suffix"
-
     fun exportSettingsAndSources(uri: Uri, selection: BackupSelection) {
         viewModelScope.launch {
             _transferState.value = TransferState.Working
-            logBackupDebug("export:start uri=$uri selection=$selection")
             runCatching {
-                withContext(dispatcherProvider.io) {
-                    logBackupDebug("export:build backup start")
-                    val root = buildBackupJson(selection)
-                    val backupJson = root.toString()
-                    logBackupDebug("export:build backup complete length=${backupJson.length}")
-                    require(backupJson.isNotBlank()) { "Не вдалося сформувати JSON для експорту" }
-
-                    val resolver = getApplication<Application>().contentResolver
-                    logBackupDebug("export:open output stream")
-                    resolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
-                        logBackupDebug("export:write start")
-                        writer.write(backupJson)
-                        writer.flush()
-                        logBackupDebug("export:write complete")
-                    } ?: error("Failed to open output stream")
-                }
+                exportBackupUseCase(uri, currentSyncState().copy(exportSelection = selection))
             }.onSuccess {
-                logBackupDebug("export:success")
-                _transferState.value = TransferState.Success("Експорт завершено")
+                _transferState.value = TransferState.Success(it)
             }.onFailure { e ->
-                logBackupError("export:failure", e)
                 val message = e.localizedMessage?.takeIf { it.isNotBlank() }
                     ?: e.message?.takeIf { it.isNotBlank() }
-                    ?: "Не вдалося експортувати"
+                    ?: getApplication<Application>().getString(R.string.settings_export_error)
                 _transferState.value = TransferState.Error(message)
             }
         }
@@ -833,301 +648,26 @@ class SettingsViewModel @Inject constructor(
     fun importSettingsAndSources(uri: Uri, merge: Boolean, selection: BackupSelection) {
         viewModelScope.launch {
             _transferState.value = TransferState.Working
-            logBackupDebug("import:start uri=$uri merge=$merge selection=$selection")
             runCatching {
-                withContext(dispatcherProvider.io) {
-                    val resolver = getApplication<Application>().contentResolver
-                    logBackupDebug("import:open input stream")
-                    val content = resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-                        ?: error("Failed to read import file")
-                    logBackupDebug("import:read complete length=${content.length}")
-                    require(content.isNotBlank()) { "Файл імпорту порожній" }
-                    logBackupDebug("import:apply start")
-                    applyBackupJson(JSONObject(content), merge, selection)
-                    logBackupDebug("import:apply complete")
-                }
+                importBackupUseCase(uri, merge, currentSyncState().copy(importSelection = selection))
             }.onSuccess {
-                logBackupDebug("import:success")
-                _transferState.value = TransferState.Success("Імпорт завершено")
+                reloadSyncState()
+                _transferState.value = TransferState.Success(it)
             }.onFailure { e ->
-                logBackupError("import:failure", e)
                 val message = e.localizedMessage?.takeIf { it.isNotBlank() }
                     ?: e.message?.takeIf { it.isNotBlank() }
-                    ?: "Не вдалося імпортувати"
+                    ?: getApplication<Application>().getString(R.string.settings_import_error)
                 _transferState.value = TransferState.Error(message)
             }
         }
     }
 
-    private suspend fun buildBackupJson(selection: BackupSelection, remoteBackupRoot: JSONObject? = null): JSONObject {
-        logBackupDebug("buildBackupJson:start selection=$selection hasRemoteRoot=${remoteBackupRoot != null}")
-        val prefs = if (selection.includeSettingsNoApi) {
-            logBackupDebug("buildBackupJson:userPreferences:start")
-            userPreferencesRepository.preferences.first()
-        } else {
-            null
-        }
-        logBackupDebug("buildBackupJson:userPreferences:done hasPrefs=${prefs != null}")
-        val aiConfigs = if (selection.includeApiKeys) {
-            logBackupDebug("buildBackupJson:aiConfigs:start")
-            aiModelConfigRepository.allConfigs.first()
-        } else {
-            emptyList()
-        }
-        logBackupDebug("buildBackupJson:aiConfigs:done count=${aiConfigs.size}")
-        val syncPassphrase = if (selection.includeApiKeys) {
-            requireSyncPassphrase()
-        } else {
-            null
-        }
-        val syncEncryptionSession = syncPassphrase?.let(secretEncryptionManager::createSyncEncryptionSession)
-        val groups = if (selection.includeSources) {
-            logBackupDebug("buildBackupJson:groups:start")
-            sourceRepository.getGroupsWithSourcesSnapshot()
-        } else {
-            emptyList()
-        }
-        logBackupDebug("buildBackupJson:groups:done count=${groups.size}")
-        val suggestedThemesBackupState = if (selection.includeSubscriptions) {
-            logBackupDebug("buildBackupJson:subscriptions:start")
-            subscriptionsPrefs.readSuggestedThemesBackupState()
-        } else {
-            null
-        }
-        logBackupDebug(
-            "buildBackupJson:subscriptions:done hasState=${suggestedThemesBackupState != null} " +
-                "savedThemeIds=${suggestedThemesBackupState?.savedThemeIds?.size ?: 0} " +
-                "legacyTitles=${suggestedThemesBackupState?.savedThemeTitlesLegacy?.size ?: 0}"
-        )
-        val savedArticlesSnapshot = if (selection.includeSavedArticles) {
-            logBackupDebug("buildBackupJson:savedArticles:start")
-            articleRepository.getSavedArticlesSnapshot()
-        } else {
-            emptyList()
-        }
-        logBackupDebug("buildBackupJson:savedArticles:done count=${savedArticlesSnapshot.size}")
-
-        return JSONObject().apply {
-            put("schemaVersion", 1)
-            put("exportedAt", System.currentTimeMillis())
-            put("syncStrategy", _syncStrategy.value.name)
-            put("syncOverwritePriority", _syncOverwritePriority.value.name)
-            put("importStrategy", _importStrategy.value.name)
-            put("selection", JSONObject().apply {
-                put("sources", selection.includeSources)
-                put("subscriptions", selection.includeSubscriptions)
-                put("savedArticles", selection.includeSavedArticles)
-                put("settingsNoApi", selection.includeSettingsNoApi)
-                put("apiKeys", selection.includeApiKeys)
-            })
-            if (prefs != null) put("userPreferences", prefs.toBackupJson())
-            if (selection.includeApiKeys) {
-                put("apiKeysSalt", syncEncryptionSession?.saltBase64)
-                put("aiConfigs", JSONArray().apply {
-                    aiConfigs.forEach { put(it.toBackupJson(syncEncryptionSession!!)) }
-                })
-            }
-            if (selection.includeSources) {
-                put("groups", JSONArray().apply {
-                    groups.forEach { groupWithSources ->
-                        put(JSONObject().apply {
-                            put("name", groupWithSources.group.name)
-                            put("isEnabled", groupWithSources.group.isEnabled)
-                            put("isDeletable", groupWithSources.group.isDeletable)
-                            put("origin", groupWithSources.group.origin)
-                            put("subscriptionId", groupWithSources.group.subscriptionId)
-                            put("sources", JSONArray().apply {
-                                groupWithSources.sources.forEach { source -> put(source.toBackupJson()) }
-                            })
-                        })
-                    }
-                })
-            }
-            if (selection.includeSubscriptions) {
-                put("subscriptions", JSONObject().apply {
-                    putSuggestedThemesBackupState(
-                        suggestedThemesBackupState ?: SuggestedThemesBackupState(
-                            savedThemeIds = emptySet(),
-                            savedThemeTitlesLegacy = emptySet(),
-                            sourcesHash = null,
-                            lastRecommendationAt = 0L,
-                            lastFeedRefreshAt = 0L
-                        )
-                    )
-                })
-            }
-            if (selection.includeSavedArticles) {
-                put("savedArticles", JSONArray().apply {
-                    savedArticlesSnapshot.forEach { put(it.toBackupJson()) }
-                })
-            }
-        }.also { root ->
-            logBackupDebug("buildBackupJson:complete keys=${root.length()}")
-        }
-    }
-
-    private suspend fun applyBackupJson(root: JSONObject, merge: Boolean, selection: BackupSelection) {
-        logBackupDebug(
-            "applyBackupJson:start merge=$merge selection=$selection keys=${root.length()} " +
-                "hasUserPreferences=${root.has("userPreferences")} hasAiConfigs=${root.has("aiConfigs")} " +
-                "hasGroups=${root.has("groups")} hasSubscriptions=${root.has("subscriptions")} " +
-                "hasSavedArticles=${root.has("savedArticles")}"
-        )
-        val importedSyncStrategy = parseSyncConflictStrategy(root.optString("syncStrategy", _syncStrategy.value.name))
-        val importedOverwritePriority = parseSyncOverwritePriority(
-            root.optString("syncOverwritePriority", _syncOverwritePriority.value.name)
-        )
-        val importedImportStrategy = parseSyncConflictStrategy(
-            root.optString("importStrategy", _importStrategy.value.name)
-        )
-        logBackupDebug(
-            "applyBackupJson:defer sync settings strategy=${importedSyncStrategy.name} " +
-                "overwrite=${importedOverwritePriority.name} import=${importedImportStrategy.name}"
-        )
-
-        logBackupDebug("applyBackupJson:userPreferences:start")
-        val importedPrefs = root.optJSONObject("userPreferences")?.toUserPreferencesFromBackup()
-        logBackupDebug("applyBackupJson:userPreferences:done hasPrefs=${importedPrefs != null}")
-        val importedConfigs = if (selection.includeApiKeys) {
-            logBackupDebug("applyBackupJson:aiConfigs:start")
-            root.optJSONArray("aiConfigs").toAiConfigsFromBackup(
-                secretEncryptionManager = secretEncryptionManager,
-                syncPassphrase = requireSyncPassphrase(),
-                syncSaltBase64 = root.optString("apiKeysSalt").takeIf { it.isNotBlank() }
-            )
-        } else {
-            emptyList()
-        }
-        logBackupDebug("applyBackupJson:aiConfigs:done count=${importedConfigs.size}")
-        logBackupDebug("applyBackupJson:groups:start")
-        val importedGroups = root.optJSONArray("groups").toImportedGroupsFromBackup()
-        logBackupDebug("applyBackupJson:groups:done count=${importedGroups.size}")
-        logBackupDebug("applyBackupJson:subscriptions:start")
-        val importedSubscriptions = root.optJSONObject("subscriptions")
-        logBackupDebug("applyBackupJson:subscriptions:done hasSubscriptions=${importedSubscriptions != null}")
-        val hasSavedArticlesField = root.has("savedArticles")
-        val rawSavedArticles = root.optJSONArray("savedArticles")
-        logBackupDebug("applyBackupJson:savedArticles:start hasField=$hasSavedArticlesField")
-        val importedSavedArticles = rawSavedArticles.toSavedArticlesFromBackup()
-        val importedSavedArticleUrls = rawSavedArticles
-            ?.let { arr ->
-                buildList {
-                    for (index in 0 until arr.length()) {
-                        if (arr.optJSONObject(index) != null) continue
-                        arr.optString(index).trim().takeIf { it.isNotBlank() }?.let(::add)
-                    }
-                }
-            }.orEmpty()
-        logBackupDebug(
-            "applyBackupJson:savedArticles:done snapshotCount=${importedSavedArticles.size} " +
-                "urlCount=${importedSavedArticleUrls.size}"
-        )
-
-        if (selection.includeSettingsNoApi && importedPrefs != null) {
-            logBackupDebug("applyBackupJson:userPreferences:apply")
-            userPreferencesRepository.updatePreferences(importedPrefs.copy(id = 0))
-            val languageTag = when (importedPrefs.appLanguage) {
-                AppLanguage.UK -> "uk"
-                AppLanguage.EN -> "en"
-            }
-            AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
-            scheduleSummaryUseCase(
-                importedPrefs.isScheduledSummaryEnabled,
-                importedPrefs.scheduledSummaryTimeList
-            )
-        }
-
-        if (selection.includeApiKeys && importedConfigs.isNotEmpty()) {
-            logBackupDebug("applyBackupJson:aiConfigs:apply start")
-            val existingConfigs = aiModelConfigRepository.allConfigs.first()
-            val existingByStableKey = existingConfigs.associateBy(::stableAiConfigKey).toMutableMap()
-
-            if (!merge) {
-                existingConfigs.forEach { aiModelConfigRepository.deleteConfig(it) }
-                importedConfigs.forEach { imported ->
-                    aiModelConfigRepository.addConfig(imported)
-                }
-                logBackupDebug("applyBackupJson:aiConfigs:apply complete inserted=${importedConfigs.size} updated=0")
-            } else {
-                var insertedCount = 0
-                var updatedCount = 0
-                importedConfigs.forEach { imported ->
-                    val stableKey = stableAiConfigKey(imported)
-                    val existing = existingByStableKey[stableKey]
-                    if (existing == null) {
-                        aiModelConfigRepository.addConfig(imported)
-                        existingByStableKey[stableKey] = imported
-                        insertedCount++
-                    } else {
-                        aiModelConfigRepository.updateConfig(
-                            imported.copy(
-                                id = existing.id,
-                                sortOrder = existing.sortOrder
-                            )
-                        )
-                        updatedCount++
-                    }
-                }
-                logBackupDebug("applyBackupJson:aiConfigs:apply complete inserted=$insertedCount updated=$updatedCount")
-            }
-        }
-        if (selection.includeSources) {
-            logBackupDebug("applyBackupJson:groups:apply start")
-            sourceRepository.importGroupsWithSources(importedGroups, merge)
-            logBackupDebug("applyBackupJson:groups:apply complete")
-        }
-
-        if (selection.includeSubscriptions) {
-            if (importedSubscriptions != null) {
-                logBackupDebug("applyBackupJson:subscriptions:apply start")
-                val subscriptionState = importedSubscriptions.toSuggestedThemesBackupState()
-                subscriptionsPrefs.edit()
-                    .writeSuggestedThemesBackupState(subscriptionState, clearWhenEmpty = true)
-                    .apply()
-                logBackupDebug(
-                    "applyBackupJson:subscriptions:apply complete savedThemeIds=${subscriptionState.savedThemeIds.size} " +
-                        "legacyTitles=${subscriptionState.savedThemeTitlesLegacy.size}"
-                )
-            } else if (!merge) {
-                subscriptionsPrefs.edit()
-                    .remove(WorkerContracts.KEY_SAVED_THEME_IDS)
-                    .remove(KEY_SAVED_THEMES)
-                    .remove(WorkerContracts.KEY_SOURCES_HASH)
-                    .remove(KEY_LAST_RECOMMENDATION_AT)
-                    .remove(WorkerContracts.KEY_LAST_FEED_REFRESH_AT)
-                    .apply()
-                logBackupDebug("applyBackupJson:subscriptions:cleared")
-            }
-        }
-
-        if (selection.includeSavedArticles && hasSavedArticlesField) {
-            logBackupDebug("applyBackupJson:savedArticles:apply start")
-            if (importedSavedArticles.isNotEmpty()) {
-                if (merge) {
-                    articleRepository.mergeSavedArticlesSnapshot(importedSavedArticles)
-                } else {
-                    articleRepository.replaceSavedArticlesSnapshot(importedSavedArticles)
-                }
-            } else if (merge) {
-                articleRepository.mergeFavoriteArticlesByUrls(importedSavedArticleUrls)
-            } else {
-                articleRepository.replaceFavoriteArticlesByUrls(importedSavedArticleUrls)
-            }
-            logBackupDebug("applyBackupJson:savedArticles:apply complete")
-        }
-        updateSyncStrategy(importedSyncStrategy)
-        updateSyncOverwritePriority(importedOverwritePriority)
-        updateImportStrategy(importedImportStrategy)
-        logBackupDebug("applyBackupJson:sync settings applied at end")
-        logBackupDebug("applyBackupJson:complete")
-    }
-
-    private suspend fun updatePreferences(transform: (UserPreferences) -> UserPreferences) {
+    private suspend fun updatePreferences(transform: (UserSettings) -> UserSettings) {
         val current = userPreferencesRepository.preferences.first()
         userPreferencesRepository.updatePreferences(transform(current))
     }
 
-    private fun updateFeedPreferences(transform: (UserPreferences) -> UserPreferences) {
+    private fun updateFeedPreferences(transform: (UserSettings) -> UserSettings) {
         viewModelScope.launch {
             val current = userPreferencesRepository.preferences.first()
             userPreferencesRepository.updatePreferences(transform(current))
@@ -1136,99 +676,33 @@ class SettingsViewModel @Inject constructor(
 
     private fun sanitizeBackupSelection(selection: BackupSelection): BackupSelection {
         return if (selection.includeApiKeys && !_hasSyncPassphrase.value) {
-            _transferState.value = TransferState.Error("Спочатку задайте пароль синхронізації для API-ключів")
+            _transferState.value = TransferState.Error(
+                getApplication<Application>().getString(R.string.settings_sync_passphrase_required)
+            )
             selection.copy(includeApiKeys = false)
         } else {
             selection
         }
     }
 
-    private fun refreshSyncPassphraseState() {
-        _hasSyncPassphrase.value = secretEncryptionManager.hasSyncPassphrase()
-    }
+    private fun currentSyncState() = UserDataSyncState(
+        isCloudSyncEnabled = _isCloudSyncEnabled.value,
+        syncIntervalHours = _syncIntervalHours.value,
+        syncSelection = _syncSelection.value,
+        exportSelection = _exportSelection.value,
+        importSelection = _importSelection.value,
+        syncStrategy = _syncStrategy.value,
+        syncOverwritePriority = _syncOverwritePriority.value,
+        importStrategy = _importStrategy.value,
+        lastSyncAt = _lastSyncAt.value,
+        hasSyncPassphrase = _hasSyncPassphrase.value
+    )
 
-    private fun requireSyncPassphrase(): String =
-        secretEncryptionManager.getSyncPassphraseOrNull()
-            ?: error("Спочатку задайте пароль синхронізації для API-ключів")
-
-    private fun hasInternetConnection(): Boolean {
-        val connectivityManager = getApplication<Application>()
-            .getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = connectivityManager.activeNetwork ?: return false
-        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-    }
-
-    companion object {
-        private const val BACKUP_LOG_TAG = "SettingsBackup"
-        private const val CLOUD_COLLECTION = "user_sync_backups"
-        private const val CLOUD_SYNC_WORK_NAME = "cloud_sync_periodic"
-        private const val SYNC_PREFS = "sync_prefs"
-        private const val KEY_SYNC_ENABLED = "sync_enabled"
-        private const val KEY_SYNC_INTERVAL_HOURS = "sync_interval_hours"
-        private const val KEY_SYNC_STRATEGY = "sync_strategy"
-        private const val KEY_SYNC_OVERWRITE_PRIORITY = "sync_overwrite_priority"
-        private const val KEY_IMPORT_STRATEGY = "import_strategy"
-        private const val KEY_PREFIX_SYNC = "sync"
-        private const val KEY_PREFIX_EXPORT = "export"
-        private const val KEY_PREFIX_IMPORT = "import"
-        private const val KEY_INCLUDE_SOURCES_SUFFIX = "include_sources"
-        private const val KEY_INCLUDE_SUBSCRIPTIONS_SUFFIX = "include_subscriptions"
-        private const val KEY_INCLUDE_SAVED_ARTICLES_SUFFIX = "include_saved_articles"
-        private const val KEY_INCLUDE_SETTINGS_NO_API_SUFFIX = "include_settings_no_api"
-        private const val KEY_INCLUDE_API_KEYS_SUFFIX = "include_api_keys"
-        private const val KEY_LAST_SYNC_AT = "last_sync_at"
-        private const val SUBSCRIPTIONS_PREFS = "suggested_themes_prefs"
-        private const val KEY_SAVED_THEMES = "savedThemes"
-        private const val KEY_LAST_RECOMMENDATION_AT = "lastRecommendationAt"
-        private const val DEFAULT_SYNC_INTERVAL_HOURS = 24
-        private const val MIN_SYNC_PASSPHRASE_LENGTH = 8
-    }
-
-    private fun parseSyncConflictStrategy(rawValue: String?): SyncConflictStrategy {
-        return runCatching { SyncConflictStrategy.valueOf(rawValue.orEmpty()) }
-            .getOrDefault(SyncConflictStrategy.MERGE)
-    }
-
-    private fun parseSyncOverwritePriority(rawValue: String?): SyncOverwritePriority {
-        return runCatching { SyncOverwritePriority.valueOf(rawValue.orEmpty()) }
-            .getOrDefault(SyncOverwritePriority.LOCAL)
-    }
-
-    private fun shouldApplyRemoteBeforePush(
-        remoteExists: Boolean,
-        remoteUpdatedAt: Long,
-        lastSyncAt: Long,
-        strategy: SyncConflictStrategy,
-        overwritePriority: SyncOverwritePriority
-    ): Boolean {
-        if (!remoteExists) return false
-        if (strategy == SyncConflictStrategy.MERGE) {
-            return remoteUpdatedAt > lastSyncAt
-        }
-        return when (overwritePriority) {
-            SyncOverwritePriority.CLOUD -> true
-            SyncOverwritePriority.LOCAL -> false
-        }
-    }
-
-    private fun logBackupDebug(message: String) {
-        Log.d(BACKUP_LOG_TAG, message)
-    }
-
-    private fun logBackupError(message: String, throwable: Throwable) {
-        Log.e(BACKUP_LOG_TAG, message, throwable)
-    }
-
-    private fun stableAiConfigKey(config: AiModelConfig): String {
-        return config.copy(apiKey = normalizeApiKey(config.apiKey)).normalizedStableKey()
+    private fun normalizeAiConfigName(name: String): String {
+        return name.trim().lowercase()
     }
 
     private fun normalizeApiKey(apiKey: String): String {
         return apiKey.trim()
-    }
-
-    private fun normalizeAiConfigName(name: String): String {
-        return name.trim().lowercase()
     }
 }

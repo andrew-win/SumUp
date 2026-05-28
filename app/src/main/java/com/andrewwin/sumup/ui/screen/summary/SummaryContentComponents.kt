@@ -14,7 +14,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -52,10 +51,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.entities.AiStrategy
-import com.andrewwin.sumup.data.local.entities.Summary
+import com.andrewwin.sumup.domain.settings.AiStrategy
+import com.andrewwin.sumup.domain.summary.SummaryRecord as Summary
 import com.andrewwin.sumup.ui.components.SummaryExecutionMetaBlock
-import com.andrewwin.sumup.ui.util.*
+import com.andrewwin.sumup.ui.util.StandardSummaryView
+import com.andrewwin.sumup.ui.util.SummaryBlockUi
+import com.andrewwin.sumup.ui.util.cleanSummaryTextForSharing
+import com.andrewwin.sumup.ui.util.parseSummaryBlocks
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

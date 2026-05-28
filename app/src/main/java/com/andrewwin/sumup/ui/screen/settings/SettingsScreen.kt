@@ -1,8 +1,8 @@
 package com.andrewwin.sumup.ui.screen.settings
 
 import android.Manifest
-import android.content.res.Resources
 import android.content.pm.PackageManager
+import android.content.res.Resources
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -15,13 +15,13 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -40,17 +40,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.local.entities.AiModelConfig
-import com.andrewwin.sumup.data.local.entities.AiModelType
-import com.andrewwin.sumup.data.local.entities.AiProvider
+import com.andrewwin.sumup.domain.ai.AiModelConfig
+import com.andrewwin.sumup.domain.ai.AiModelType
+import com.andrewwin.sumup.domain.ai.AiProvider
+import com.andrewwin.sumup.domain.sync.BackupSelection
+import com.andrewwin.sumup.domain.sync.SyncConflictStrategy
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
 import com.andrewwin.sumup.ui.components.AppHelpToggleAction
 import com.andrewwin.sumup.ui.components.AppSearchField
@@ -70,6 +72,16 @@ val AiProvider.iconRes: Int
         AiProvider.COHERE -> R.drawable.ic_cohere_ai_provider
         AiProvider.CHATGPT -> R.drawable.ic_chatgpt_ai_provider
         AiProvider.CLAUDE -> R.drawable.ic_claude_ai_provider
+    }
+
+val AiProvider.labelRes: Int
+    get() = when (this) {
+        AiProvider.GEMINI -> R.string.provider_gemini
+        AiProvider.GROQ -> R.string.provider_groq
+        AiProvider.OPENROUTER -> R.string.provider_openrouter
+        AiProvider.COHERE -> R.string.provider_cohere
+        AiProvider.CHATGPT -> R.string.provider_chatgpt
+        AiProvider.CLAUDE -> R.string.provider_claude
     }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
