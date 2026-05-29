@@ -2,7 +2,7 @@ package com.andrewwin.sumup.di
 
 import android.content.Context
 import androidx.work.WorkManager
-import com.andrewwin.sumup.data.ai.AiSummaryResponseMapper
+import com.andrewwin.sumup.data.mappers.AiSummaryResponseMapper
 import com.andrewwin.sumup.data.ai.CloudAiRequestSender
 import com.andrewwin.sumup.data.ai.CloudEmbeddingGenerator
 import com.andrewwin.sumup.data.ai.LocalEmbeddingService
@@ -15,16 +15,22 @@ import com.andrewwin.sumup.data.local.dao.FeedClusterSnapshotDao
 import com.andrewwin.sumup.data.local.dao.PreparedScheduledSummaryDao
 import com.andrewwin.sumup.data.local.dao.SavedArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
-import com.andrewwin.sumup.data.local.dao.SourceHttpCacheDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.scheduler.ScheduledSummaryTimeCalculator
 import com.andrewwin.sumup.data.local.scheduler.SummarySchedulerImpl
 import com.andrewwin.sumup.data.news.ArticleTextCleaner
-import com.andrewwin.sumup.data.provider.AiPromptProviderImpl
 import com.andrewwin.sumup.data.provider.AppDispatcherProvider
 import com.andrewwin.sumup.data.remote.AiService
+import com.andrewwin.sumup.data.remote.ai.*
+import com.andrewwin.sumup.domain.entities.ai.AiProvider
+import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
+import com.andrewwin.sumup.data.remote.RemoteSourceDataSource
+import com.andrewwin.sumup.data.remote.rss.RssRemoteDataSource
+import com.andrewwin.sumup.data.remote.telegram.TelegramRemoteDataSource
+import com.andrewwin.sumup.data.remote.youtube.YouTubeRemoteDataSource
+import com.andrewwin.sumup.data.remote.RemoteFullContent
 import com.andrewwin.sumup.data.remote.RssParser
 import com.andrewwin.sumup.data.remote.TelegramParser
 import com.andrewwin.sumup.data.remote.YouTubeParser
@@ -69,7 +75,6 @@ import com.andrewwin.sumup.domain.summary.SummaryResultFormatter
 import com.andrewwin.sumup.domain.summary.scheduled.DefaultScheduledSummaryTextGenerator
 import com.andrewwin.sumup.domain.summary.scheduled.ScheduledSummaryResultProvider
 import com.andrewwin.sumup.domain.summary.scheduled.ScheduledSummaryTextGenerator
-import com.andrewwin.sumup.domain.support.AiPromptProvider
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
 import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCaseImpl
 import com.andrewwin.sumup.domain.usecase.sources.GetRecommendationsUseCase
@@ -114,9 +119,6 @@ object AppModule {
 
     @Provides
     fun provideAiModelDao(db: AppDatabase): AiModelDao = db.aiModelDao()
-
-    @Provides
-    fun provideSourceHttpCacheDao(db: AppDatabase): SourceHttpCacheDao = db.sourceHttpCacheDao()
 
     @Provides
     fun provideSummaryDao(db: AppDatabase): SummaryDao = db.summaryDao()
@@ -164,25 +166,22 @@ object AppModule {
 
     @Provides
     @Singleton
-    @Named(MODEL_DOWNLOAD_OK_HTTP_CLIENT)
-    fun provideModelDownloadOkHttpClient(
-        @Named(AI_OK_HTTP_CLIENT) okHttpClient: OkHttpClient
-    ): OkHttpClient = okHttpClient.newBuilder()
-        .connectTimeout(MODEL_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .readTimeout(MODEL_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .writeTimeout(MODEL_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .callTimeout(0, TimeUnit.SECONDS)
-        .build()
-
-    @Provides
-    @Singleton
-    fun provideAiService(@Named(AI_OK_HTTP_CLIENT) okHttpClient: OkHttpClient): AiService = AiService(okHttpClient)
+    fun provideAiService(@Named(AI_OK_HTTP_CLIENT) okHttpClient: OkHttpClient): AiService {
+        val handlers = mapOf(
+            AiProvider.GEMINI to GeminiHandler(okHttpClient),
+            AiProvider.CHATGPT to ChatGPTHandler(okHttpClient),
+            AiProvider.GROQ to GroqHandler(okHttpClient),
+            AiProvider.OPENROUTER to OpenRouterHandler(okHttpClient),
+            AiProvider.CLAUDE to ClaudeHandler(okHttpClient),
+            AiProvider.COHERE to CohereHandler(okHttpClient)
+        )
+        return AiService(handlers)
+    }
 
     @Provides
     fun provideRssParser(
-        @Named(NEWS_OK_HTTP_CLIENT) okHttpClient: OkHttpClient,
-        sourceHttpCacheDao: SourceHttpCacheDao
-    ): RssParser = RssParser(okHttpClient, sourceHttpCacheDao)
+        @Named(NEWS_OK_HTTP_CLIENT) okHttpClient: OkHttpClient
+    ): RssParser = RssParser(okHttpClient)
 
     @Provides
     fun provideTelegramParser(): TelegramParser = TelegramParser()
@@ -198,13 +197,14 @@ object AppModule {
         rssParser: RssParser,
         telegramParser: TelegramParser,
         youtubeParser: YouTubeParser
-    ): RemoteArticleDataSource = RemoteArticleDataSource(
-        okHttpClient,
-        displayNameOkHttpClient,
-        rssParser,
-        telegramParser,
-        youtubeParser
-    )
+    ): RemoteArticleDataSource {
+        val handlers = mapOf(
+            SourceType.RSS to RssRemoteDataSource(okHttpClient, displayNameOkHttpClient, rssParser),
+            SourceType.TELEGRAM to TelegramRemoteDataSource(okHttpClient, displayNameOkHttpClient, telegramParser),
+            SourceType.YOUTUBE to YouTubeRemoteDataSource(okHttpClient, displayNameOkHttpClient, youtubeParser)
+        )
+        return RemoteArticleDataSource(handlers)
+    }
 
     @Provides
     @Singleton
@@ -259,9 +259,8 @@ object AppModule {
     @Provides
     @Singleton
     fun provideModelRepository(
-        @ApplicationContext context: Context,
-        @Named(MODEL_DOWNLOAD_OK_HTTP_CLIENT) okHttpClient: OkHttpClient
-    ): ModelRepository = ModelRepositoryImpl(context, okHttpClient)
+        @ApplicationContext context: Context
+    ): ModelRepository = ModelRepositoryImpl(context)
 
     @Provides
     @Singleton
@@ -391,12 +390,6 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideAiPromptProvider(
-        @ApplicationContext context: Context
-    ): AiPromptProvider = AiPromptProviderImpl(context)
-
-    @Provides
-    @Singleton
     fun provideSummaryResultFormatter(): SummaryResultFormatter = SummaryResultFormatter()
 
     @Provides
@@ -426,18 +419,12 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideEmbeddingService(): com.andrewwin.sumup.domain.repository.EmbeddingService =
-        com.andrewwin.sumup.data.repository.EmbeddingServiceImpl()
-
-    @Provides
-    @Singleton
     fun provideDispatcherProvider(): com.andrewwin.sumup.domain.support.DispatcherProvider =
         AppDispatcherProvider()
 
     private const val AI_OK_HTTP_CLIENT = "aiOkHttpClient"
     private const val NEWS_OK_HTTP_CLIENT = "newsOkHttpClient"
     private const val DISPLAY_NAME_OK_HTTP_CLIENT = "displayNameOkHttpClient"
-    private const val MODEL_DOWNLOAD_OK_HTTP_CLIENT = "modelDownloadOkHttpClient"
     private const val AI_CONNECT_TIMEOUT_SECONDS = 20L
     private const val AI_READ_TIMEOUT_SECONDS = 60L
     private const val AI_WRITE_TIMEOUT_SECONDS = 60L
@@ -447,7 +434,4 @@ object AppModule {
     private const val NEWS_WRITE_TIMEOUT_SECONDS = 5L
     private const val NEWS_CALL_TIMEOUT_SECONDS = 12L
     private const val DISPLAY_NAME_TIMEOUT_SECONDS = 7L
-    private const val MODEL_CONNECT_TIMEOUT_SECONDS = 20L
-    private const val MODEL_READ_TIMEOUT_SECONDS = 60L
-    private const val MODEL_WRITE_TIMEOUT_SECONDS = 60L
 }

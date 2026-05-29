@@ -2,8 +2,8 @@ package com.andrewwin.sumup.domain.news
 
 import android.os.SystemClock
 import android.util.Log
-import com.andrewwin.sumup.domain.article.Article
-import com.andrewwin.sumup.domain.settings.DeduplicationStrategy
+import com.andrewwin.sumup.domain.entities.article.Article
+import com.andrewwin.sumup.domain.entities.settings.DeduplicationStrategy
 import com.andrewwin.sumup.domain.ai.CloudEmbeddingProvider
 import com.andrewwin.sumup.domain.ai.LocalEmbeddingProvider
 import com.andrewwin.sumup.domain.repository.ArticleRepository

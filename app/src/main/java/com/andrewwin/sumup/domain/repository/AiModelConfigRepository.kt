@@ -1,8 +1,8 @@
 package com.andrewwin.sumup.domain.repository
 
-import com.andrewwin.sumup.domain.ai.AiModelConfig
-import com.andrewwin.sumup.domain.ai.AiModelType
-import com.andrewwin.sumup.domain.ai.AiProvider
+import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
+import com.andrewwin.sumup.domain.entities.ai.AiModelType
+import com.andrewwin.sumup.domain.entities.ai.AiProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 

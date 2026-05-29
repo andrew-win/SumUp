@@ -9,11 +9,11 @@ import com.andrewwin.sumup.domain.news.ArticleContentCleaner
 import com.andrewwin.sumup.domain.repository.ImportedSource
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
-import com.andrewwin.sumup.domain.source.Source
-import com.andrewwin.sumup.domain.source.SourceGroup
-import com.andrewwin.sumup.domain.source.SourceGroupOrigin
-import com.andrewwin.sumup.domain.source.SourceGroupWithSources
-import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.entities.source.Source
+import com.andrewwin.sumup.domain.entities.source.SourceGroup
+import com.andrewwin.sumup.domain.entities.source.SourceGroupOrigin
+import com.andrewwin.sumup.domain.entities.source.SourceGroupWithSources
+import com.andrewwin.sumup.domain.entities.source.SourceType
 import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
 import com.andrewwin.sumup.domain.source.SourceUrlValidator
 import kotlinx.coroutines.flow.Flow

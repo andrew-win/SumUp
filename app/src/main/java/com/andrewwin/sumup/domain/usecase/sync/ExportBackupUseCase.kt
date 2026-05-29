@@ -2,7 +2,7 @@ package com.andrewwin.sumup.domain.usecase.sync
 
 import android.net.Uri
 import com.andrewwin.sumup.domain.repository.UserDataSyncRepository
-import com.andrewwin.sumup.domain.sync.UserDataSyncState
+import com.andrewwin.sumup.domain.entities.sync.UserDataSyncState
 import javax.inject.Inject
 
 class ExportBackupUseCase @Inject constructor(

@@ -13,19 +13,17 @@ import com.andrewwin.sumup.data.local.dao.FeedClusterSnapshotDao
 import com.andrewwin.sumup.data.local.dao.PreparedScheduledSummaryDao
 import com.andrewwin.sumup.data.local.dao.SavedArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
-import com.andrewwin.sumup.data.local.dao.SourceHttpCacheDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
-import com.andrewwin.sumup.data.local.entities.FeedClusterSnapshotEntity
+import com.andrewwin.sumup.data.local.entities.FeedClusterSnapshot
 import com.andrewwin.sumup.data.local.entities.PreparedScheduledSummary
 import com.andrewwin.sumup.data.local.entities.SavedArticle
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceGroupOrigin
-import com.andrewwin.sumup.data.local.entities.SourceHttpCache
 import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 
@@ -35,15 +33,14 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
         Source::class, 
         Article::class, 
         ArticleSimilarity::class,
-        FeedClusterSnapshotEntity::class,
+        FeedClusterSnapshot::class,
         PreparedScheduledSummary::class,
         SavedArticle::class,
         AiModelConfig::class, 
-        SourceHttpCache::class,
         Summary::class,
         UserPreferences::class
     ],
-    version = 70,
+    version = 71,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -54,7 +51,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun preparedScheduledSummaryDao(): PreparedScheduledSummaryDao
     abstract fun savedArticleDao(): SavedArticleDao
     abstract fun aiModelDao(): AiModelDao
-    abstract fun sourceHttpCacheDao(): SourceHttpCacheDao
     abstract fun summaryDao(): SummaryDao
     abstract fun userPreferencesDao(): UserPreferencesDao
 
@@ -109,7 +105,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_66_67,
                         MIGRATION_67_68,
                         MIGRATION_68_69,
-                        MIGRATION_69_70
+                        MIGRATION_69_70,
+                        MIGRATION_70_71
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -1005,6 +1002,12 @@ abstract class AppDatabase : RoomDatabase() {
                     "ALTER TABLE article_similarities ADD COLUMN rightContentSignature TEXT NOT NULL DEFAULT ''"
                 )
                 db.execSQL("DELETE FROM article_similarities")
+            }
+        }
+
+        private val MIGRATION_70_71 = object : Migration(70, 71) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS source_http_cache")
             }
         }
     }

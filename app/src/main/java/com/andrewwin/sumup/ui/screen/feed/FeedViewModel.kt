@@ -12,8 +12,8 @@ import com.andrewwin.sumup.domain.feed.pipeline.FeedArticlesBuilder
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.UserSettings
-import com.andrewwin.sumup.domain.source.SourceGroupWithSources
+import com.andrewwin.sumup.domain.entities.settings.UserSettings
+import com.andrewwin.sumup.domain.entities.source.SourceGroupWithSources
 import com.andrewwin.sumup.domain.usecase.export.ExportFeedUseCase
 import com.andrewwin.sumup.domain.usecase.feed.ArticleBookmarkToggleRequest
 import com.andrewwin.sumup.domain.usecase.feed.FeedRefreshStage
@@ -46,26 +46,9 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
 
-enum class DateFilter(@StringRes val labelRes: Int, val hours: Int?) {
-    ALL(R.string.filter_date_all, null),
-    HOUR_1(R.string.filter_date_1h, 1),
-    HOUR_3(R.string.filter_date_3h, 3),
-    HOUR_6(R.string.filter_date_6h, 6),
-    HOUR_12(R.string.filter_date_12h, 12),
-    HOUR_24(R.string.filter_date_24h, 24)
-}
-
-enum class SavedFilter(@StringRes val labelRes: Int, val savedOnly: Boolean) {
-    ALL(R.string.filter_saved_all, false),
-    SAVED(R.string.filter_saved_only, true)
-}
-
-enum class FeedLoadingStage(@StringRes val messageRes: Int) {
-    LOADING_FROM_DATABASE(R.string.feed_loading_from_database),
-    PARSING_NEWS(R.string.feed_loading_news),
-    DEDUPLICATING_NEWS(R.string.feed_deduplicating),
-    BUILDING_UPDATED_FEED(R.string.feed_building_updated_feed)
-}
+import com.andrewwin.sumup.ui.screen.feed.model.DateFilter
+import com.andrewwin.sumup.ui.screen.feed.model.FeedLoadingStage
+import com.andrewwin.sumup.ui.screen.feed.model.SavedFilter
 
 @HiltViewModel
 class FeedViewModel @Inject constructor(

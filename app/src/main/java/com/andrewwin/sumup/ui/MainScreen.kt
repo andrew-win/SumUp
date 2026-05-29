@@ -26,11 +26,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.andrewwin.sumup.ui.components.AppMotion
-import com.andrewwin.sumup.ui.screen.feed.FeedAiSummaryMode
+import com.andrewwin.sumup.ui.model.NavigationIcon
+import com.andrewwin.sumup.ui.model.Screen
+import com.andrewwin.sumup.ui.screen.feed.model.FeedAiSummaryMode
+import com.andrewwin.sumup.ui.screen.feed.model.FeedAiSummaryMode as FeedAiSummaryModeModel
 import com.andrewwin.sumup.ui.screen.feed.FeedAiSummaryScreen
 import com.andrewwin.sumup.ui.screen.feed.FeedScreen
-import com.andrewwin.sumup.ui.screen.settings.SettingsGroup
 import com.andrewwin.sumup.ui.screen.settings.SettingsScreen
+import com.andrewwin.sumup.ui.screen.settings.model.SettingsGroup
 import com.andrewwin.sumup.ui.screen.sources.SourcesScreen
 import com.andrewwin.sumup.ui.screen.summary.SummaryHistoryScreen
 import com.andrewwin.sumup.ui.screen.summary.SummaryScreen

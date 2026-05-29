@@ -2,7 +2,7 @@ package com.andrewwin.sumup.domain.usecase.sources
 
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
-import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.entities.source.SourceType
 import javax.inject.Inject
 
 data class AddSourceRequest(

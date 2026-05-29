@@ -1,5 +1,9 @@
 package com.andrewwin.sumup.ui.screen.settings
 
+import com.andrewwin.sumup.ui.screen.settings.model.AuthUiState
+
+import com.andrewwin.sumup.ui.screen.settings.model.TransferState
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -43,9 +47,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.sync.BackupSelection
-import com.andrewwin.sumup.domain.sync.SyncConflictStrategy
-import com.andrewwin.sumup.domain.sync.SyncOverwritePriority
+import com.andrewwin.sumup.domain.entities.sync.BackupSelection
+import com.andrewwin.sumup.domain.entities.sync.SyncConflictStrategy
+import com.andrewwin.sumup.domain.entities.sync.SyncOverwritePriority
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.theme.appCardBorder
 import java.text.DateFormat

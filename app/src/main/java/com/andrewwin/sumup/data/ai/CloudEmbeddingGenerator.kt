@@ -1,8 +1,8 @@
 package com.andrewwin.sumup.data.ai
 
 import android.util.Log
-import com.andrewwin.sumup.domain.ai.AiModelConfig
-import com.andrewwin.sumup.domain.ai.AiModelType
+import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
+import com.andrewwin.sumup.domain.entities.ai.AiModelType
 import com.andrewwin.sumup.data.remote.AiService
 import com.andrewwin.sumup.domain.ai.CloudEmbeddingProvider
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository

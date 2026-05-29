@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.news
 
-import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.entities.source.SourceType
 
 interface ArticleContentCleaner {
     suspend fun detectFooterPattern(texts: List<String>): String?

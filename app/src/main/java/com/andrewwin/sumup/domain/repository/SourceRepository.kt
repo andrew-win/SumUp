@@ -1,11 +1,11 @@
 package com.andrewwin.sumup.domain.repository
 
-import com.andrewwin.sumup.domain.settings.AppLanguage
-import com.andrewwin.sumup.domain.source.Source
-import com.andrewwin.sumup.domain.source.SourceGroup
-import com.andrewwin.sumup.domain.source.SourceGroupOrigin
-import com.andrewwin.sumup.domain.source.SourceGroupWithSources
-import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.entities.settings.AppLanguage
+import com.andrewwin.sumup.domain.entities.source.Source
+import com.andrewwin.sumup.domain.entities.source.SourceGroup
+import com.andrewwin.sumup.domain.entities.source.SourceGroupOrigin
+import com.andrewwin.sumup.domain.entities.source.SourceGroupWithSources
+import com.andrewwin.sumup.domain.entities.source.SourceType
 import kotlinx.coroutines.flow.Flow
 
 interface SourceRepository {

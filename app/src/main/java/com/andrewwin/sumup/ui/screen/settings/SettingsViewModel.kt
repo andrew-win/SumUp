@@ -11,34 +11,36 @@ import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.auth.FirebaseSettingsAuthService
 import com.andrewwin.sumup.data.sync.SettingsSyncPreferencesStore
 import com.andrewwin.sumup.data.sync.SettingsSyncService
-import com.andrewwin.sumup.domain.ai.AiModelConfig
-import com.andrewwin.sumup.domain.ai.AiModelType
-import com.andrewwin.sumup.domain.ai.AiProvider
-import com.andrewwin.sumup.domain.ai.normalizedStableKey
+import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
+import com.andrewwin.sumup.domain.entities.ai.AiModelType
+import com.andrewwin.sumup.domain.entities.ai.AiProvider
+import com.andrewwin.sumup.domain.entities.ai.normalizedStableKey
 import com.andrewwin.sumup.domain.ai.LocalModelManager
 import com.andrewwin.sumup.domain.news.DedupRuntimeCoordinator
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.AiStrategy
-import com.andrewwin.sumup.domain.settings.AppLanguage
-import com.andrewwin.sumup.domain.settings.AppThemeMode
-import com.andrewwin.sumup.domain.settings.DeduplicationStrategy
-import com.andrewwin.sumup.domain.settings.ScheduledSummaryTime
-import com.andrewwin.sumup.domain.settings.SummaryLanguage
-import com.andrewwin.sumup.domain.settings.UserSettings
-import com.andrewwin.sumup.domain.settings.normalizedScheduledSummaryTimes
+import com.andrewwin.sumup.domain.entities.settings.AiStrategy
+import com.andrewwin.sumup.domain.entities.settings.AppLanguage
+import com.andrewwin.sumup.domain.entities.settings.AppThemeMode
+import com.andrewwin.sumup.domain.entities.settings.DeduplicationStrategy
+import com.andrewwin.sumup.domain.entities.settings.ScheduledSummaryTime
+import com.andrewwin.sumup.domain.entities.settings.SummaryLanguage
+import com.andrewwin.sumup.domain.entities.settings.UserSettings
+import com.andrewwin.sumup.domain.entities.settings.normalizedScheduledSummaryTimes
 import com.andrewwin.sumup.domain.settings.actions.UpdateCustomSummaryPromptEnabledAction
 import com.andrewwin.sumup.domain.settings.actions.UpdateSummaryPromptAction
-import com.andrewwin.sumup.domain.sync.BackupSelection
-import com.andrewwin.sumup.domain.sync.SyncConflictStrategy
-import com.andrewwin.sumup.domain.sync.SyncOverwritePriority
-import com.andrewwin.sumup.domain.sync.UserDataSyncState
+import com.andrewwin.sumup.domain.entities.sync.BackupSelection
+import com.andrewwin.sumup.domain.entities.sync.SyncConflictStrategy
+import com.andrewwin.sumup.domain.entities.sync.SyncOverwritePriority
+import com.andrewwin.sumup.domain.entities.sync.UserDataSyncState
 import com.andrewwin.sumup.domain.usecase.summary.CreateScheduleSummaryUseCase
 import com.andrewwin.sumup.domain.usecase.sync.ExportBackupUseCase
 import com.andrewwin.sumup.domain.usecase.sync.ImportBackupUseCase
 import com.andrewwin.sumup.domain.usecase.sync.SyncUserDataUseCase
+import com.andrewwin.sumup.ui.screen.settings.model.AuthUiState
+import com.andrewwin.sumup.ui.screen.settings.model.TransferState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -49,27 +51,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-sealed interface ModelDownloadState {
-    data object Idle : ModelDownloadState
-    data class Downloading(val progress: Int) : ModelDownloadState
-    data object Loading : ModelDownloadState
-    data class Error(val message: String) : ModelDownloadState
-    data object Ready : ModelDownloadState
-}
-
-sealed interface TransferState {
-    data object Idle : TransferState
-    data object Working : TransferState
-    data class Success(val message: String) : TransferState
-    data class Error(val message: String) : TransferState
-}
-
-data class AuthUiState(
-    val isSignedIn: Boolean = false,
-    val displayName: String = "",
-    val email: String = ""
-)
-
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     application: Application,
@@ -77,7 +58,6 @@ class SettingsViewModel @Inject constructor(
     private val aiModelConfigRepository: AiModelConfigRepository,
     private val articleRepository: ArticleRepository,
     private val summaryRepository: SummaryRepository,
-    private val manageModelUseCase: LocalModelManager,
     private val createScheduleSummaryUseCase: CreateScheduleSummaryUseCase,
     private val updateSummaryPromptAction: UpdateSummaryPromptAction,
     private val updateCustomSummaryPromptEnabledAction: UpdateCustomSummaryPromptEnabledAction,
@@ -97,9 +77,6 @@ class SettingsViewModel @Inject constructor(
 
     val userPreferences: StateFlow<UserSettings> = userPreferencesRepository.preferences
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserSettings())
-
-    private val _downloadState = MutableStateFlow<ModelDownloadState>(ModelDownloadState.Idle)
-    val downloadState: StateFlow<ModelDownloadState> = _downloadState.asStateFlow()
 
     private val _availableModels = MutableStateFlow<List<String>>(emptyList())
     val availableModels: StateFlow<List<String>> = _availableModels.asStateFlow()
@@ -133,9 +110,12 @@ class SettingsViewModel @Inject constructor(
     val hasSyncPassphrase: StateFlow<Boolean> = _hasSyncPassphrase.asStateFlow()
 
     init {
-        checkModelExists()
         viewModelScope.launch {
-            aiModelConfigRepository.migrateLegacyApiKeys()
+            runCatching {
+                aiModelConfigRepository.migrateLegacyApiKeys()
+            }.onFailure { error ->
+                Log.e("SettingsViewModel", "Failed to migrate legacy AI configs", error)
+            }
         }
         reloadSyncState()
         refreshAuthState()
@@ -162,36 +142,6 @@ class SettingsViewModel @Inject constructor(
         _importStrategy.value = state.importStrategy
         _lastSyncAt.value = state.lastSyncAt
         _hasSyncPassphrase.value = state.hasSyncPassphrase
-    }
-
-    private fun checkModelExists() {
-        if (manageModelUseCase.isModelExists()) {
-            _downloadState.value = ModelDownloadState.Ready
-        }
-    }
-
-    fun downloadModel() {
-        viewModelScope.launch {
-            _downloadState.value = ModelDownloadState.Downloading(0)
-            runCatching {
-                manageModelUseCase.downloadModel().collect { progress ->
-                    _downloadState.value = ModelDownloadState.Downloading(progress)
-                }
-                _downloadState.value = ModelDownloadState.Ready
-                updatePreferences { it.copy(modelPath = manageModelUseCase.getModelPath()) }
-            }.onFailure { e ->
-                manageModelUseCase.deleteModel()
-                _downloadState.value = ModelDownloadState.Error(e.localizedMessage.orEmpty())
-            }
-        }
-    }
-
-    fun deleteModel() {
-        viewModelScope.launch {
-            manageModelUseCase.deleteModel()
-            _downloadState.value = ModelDownloadState.Idle
-            updatePreferences { it.copy(modelPath = null, isDeduplicationEnabled = false) }
-        }
     }
 
     fun updateAiStrategy(strategy: AiStrategy) {

@@ -2,9 +2,9 @@ package com.andrewwin.sumup.domain.usecase.summary
 
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.ScheduledSummaryTime
-import com.andrewwin.sumup.domain.settings.normalizedScheduledSummaryTimes
-import com.andrewwin.sumup.domain.settings.toScheduledSummaryTimesStorageValue
+import com.andrewwin.sumup.domain.entities.settings.ScheduledSummaryTime
+import com.andrewwin.sumup.domain.entities.settings.normalizedScheduledSummaryTimes
+import com.andrewwin.sumup.domain.entities.settings.toScheduledSummaryTimesStorageValue
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 

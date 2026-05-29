@@ -1,13 +1,13 @@
 package com.andrewwin.sumup.domain.feed.dedup
 
-import com.andrewwin.sumup.domain.article.Article
-import com.andrewwin.sumup.domain.article.ArticleSimilarityRecord
+import com.andrewwin.sumup.domain.entities.article.Article
+import com.andrewwin.sumup.domain.entities.article.ArticleSimilarityRecord
 import com.andrewwin.sumup.domain.feed.clustering.ArticlePairKey
 import com.andrewwin.sumup.domain.news.ArticleDedupContentSignatureFactory
 import com.andrewwin.sumup.domain.news.SimilarityScorer
 import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.settings.DeduplicationStrategy
-import com.andrewwin.sumup.domain.settings.UserSettings
+import com.andrewwin.sumup.domain.entities.settings.DeduplicationStrategy
+import com.andrewwin.sumup.domain.entities.settings.UserSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext

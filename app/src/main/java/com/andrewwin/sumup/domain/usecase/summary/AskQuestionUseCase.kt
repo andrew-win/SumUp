@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.usecase.summary
 
-import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.domain.entities.article.Article
 import com.andrewwin.sumup.domain.ai.AdaptiveTextShrinker
 import com.andrewwin.sumup.domain.ai.AiPromptBuilder
 import com.andrewwin.sumup.domain.ai.AiRequestSender
@@ -8,12 +8,12 @@ import com.andrewwin.sumup.domain.ai.ProportionalTextLimiter
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
 import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
-import com.andrewwin.sumup.domain.ai.YoutubeSubtitleFetchSummary
+import com.andrewwin.sumup.domain.entities.ai.YoutubeSubtitleFetchSummary
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.AiStrategy
-import com.andrewwin.sumup.domain.settings.SummaryLanguage
-import com.andrewwin.sumup.domain.summary.SummaryResult
+import com.andrewwin.sumup.domain.entities.settings.AiStrategy
+import com.andrewwin.sumup.domain.entities.settings.SummaryLanguage
+import com.andrewwin.sumup.domain.entities.summary.SummaryResult
 import com.andrewwin.sumup.domain.support.UnsupportedStrategyException
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -47,7 +47,7 @@ class AskQuestionUseCase @Inject constructor(
                 sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело",
                 sourceUrl = article.url.ifBlank { source?.url.orEmpty() },
                 content = processedContent,
-                youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.youtubeSubtitleStatus)
+                youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.status)
             )
         }
         val youtubeSubtitleSummary = articlePayloads.fold(YoutubeSubtitleFetchSummary()) { total, payload ->

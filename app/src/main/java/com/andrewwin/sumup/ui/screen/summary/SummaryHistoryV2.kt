@@ -44,7 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.summary.SummaryRecord as Summary
+import com.andrewwin.sumup.domain.entities.summary.SummaryRecord as Summary
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppCardSurface
 import com.andrewwin.sumup.ui.components.AppExportPdfButton
@@ -52,7 +52,7 @@ import com.andrewwin.sumup.ui.components.AppFilterMenuChip
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.components.AppSearchField
 import com.andrewwin.sumup.ui.util.StandardSummaryView
-import com.andrewwin.sumup.ui.util.SummaryBlockUi
+import com.andrewwin.sumup.ui.util.model.SummaryBlockUi
 import com.andrewwin.sumup.ui.util.parseSummaryBlocks
 import java.text.SimpleDateFormat
 import java.util.Date

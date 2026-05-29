@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.repository
 
-import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.domain.entities.article.Article
 import com.andrewwin.sumup.domain.news.ArticleCluster
 
 interface FeedClusterSnapshotRepository {

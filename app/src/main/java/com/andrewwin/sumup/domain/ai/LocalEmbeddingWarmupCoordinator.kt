@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.ai
 
-import com.andrewwin.sumup.domain.settings.DeduplicationStrategy
+import com.andrewwin.sumup.domain.entities.settings.DeduplicationStrategy
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first

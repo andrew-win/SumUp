@@ -1,5 +1,10 @@
 package com.andrewwin.sumup.ui.screen.sources
 
+import com.andrewwin.sumup.ui.screen.sources.model.FirebaseThemeSuggestion
+import com.andrewwin.sumup.ui.screen.sources.model.SourceSortOrder
+import com.andrewwin.sumup.ui.screen.sources.model.SourcesUiState
+
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
@@ -7,12 +12,12 @@ import com.andrewwin.sumup.domain.ai.LocalModelManager
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.AppLanguage
-import com.andrewwin.sumup.domain.source.Source
-import com.andrewwin.sumup.domain.source.SourceGroup
-import com.andrewwin.sumup.domain.source.SourceGroupOrigin
-import com.andrewwin.sumup.domain.source.SourceGroupWithSources
-import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.entities.settings.AppLanguage
+import com.andrewwin.sumup.domain.entities.source.Source
+import com.andrewwin.sumup.domain.entities.source.SourceGroup
+import com.andrewwin.sumup.domain.entities.source.SourceGroupOrigin
+import com.andrewwin.sumup.domain.entities.source.SourceGroupWithSources
+import com.andrewwin.sumup.domain.entities.source.SourceType
 import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
 import com.andrewwin.sumup.domain.usecase.sources.AddSourceRequest
 import com.andrewwin.sumup.domain.usecase.sources.AddSourceUseCase
@@ -41,24 +46,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
-
-data class FirebaseThemeSuggestion(
-    val group: ImportedSourceGroup,
-    val isSubscribed: Boolean,
-    val isRecommended: Boolean
-)
-
-enum class SourceSortOrder {
-    BY_NAME,
-    BY_DATE
-}
-
-sealed interface SourcesUiState {
-    data object Loading : SourcesUiState
-    data class Content(
-        val groups: List<SourceGroupWithSources>
-    ) : SourcesUiState
-}
 
 @HiltViewModel
 @OptIn(FlowPreview::class)
@@ -150,11 +137,20 @@ class SourcesViewModel @Inject constructor(
     init {
         checkModelStatus()
         viewModelScope.launch {
-            _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
-            loadSuggestedThemes()
+            runCatching {
+                _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
+                loadSuggestedThemes()
+            }.onFailure { error ->
+                Log.e("SourcesViewModel", "Failed to initialize suggested themes", error)
+                _subscriptionsSyncFailed.value = true
+            }
         }
         viewModelScope.launch {
-            isRecommendationsEnabled.drop(1).collect { loadSuggestedThemes() }
+            runCatching {
+                isRecommendationsEnabled.drop(1).collect { loadSuggestedThemes() }
+            }.onFailure { error ->
+                Log.e("SourcesViewModel", "Failed to observe recommendations setting", error)
+            }
         }
     }
 
@@ -165,10 +161,15 @@ class SourcesViewModel @Inject constructor(
     fun loadSuggestedThemes() {
         suggestedThemesJob?.cancel()
         suggestedThemesJob = viewModelScope.launch {
-            _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
-            val suggestions = getRecommendationsUseCase(forceRefresh = false).first()
-            updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
-            refreshReservedGroupNames()
+            runCatching {
+                _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
+                val suggestions = getRecommendationsUseCase(forceRefresh = false).first()
+                updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
+                refreshReservedGroupNames()
+            }.onFailure { error ->
+                Log.e("SourcesViewModel", "Failed to load suggested themes", error)
+                _subscriptionsSyncFailed.value = true
+            }
         }
     }
 
@@ -176,32 +177,37 @@ class SourcesViewModel @Inject constructor(
         suggestedThemesJob?.cancel()
         suggestedThemesJob = viewModelScope.launch {
             try {
-                if (forceRefresh) {
-                    publicSubscriptionsSyncManager.sync(force = true)
-                } else {
-                    publicSubscriptionsSyncManager.syncIfDue()
-                }
-                _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
-                if (!isRecommendationsEnabled.value) {
-                    val suggestions = getRecommendationsUseCase(forceRefresh = false).first()
-                    updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
-                    refreshReservedGroupNames()
-                    return@launch
-                }
-                if (forceRefresh) {
-                    _isRefreshingThemeRecommendations.value = true
-                    try {
-                        getRecommendationsUseCase(forceRefresh = true).collect { suggestions ->
-                            updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
-                        }
-                    } finally {
-                        _isRefreshingThemeRecommendations.value = false
+                runCatching {
+                    if (forceRefresh) {
+                        publicSubscriptionsSyncManager.sync(force = true)
+                    } else {
+                        publicSubscriptionsSyncManager.syncIfDue()
                     }
-                } else {
-                    val suggestions = getRecommendationsUseCase(forceRefresh = false).first()
-                    updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
+                    _subscriptionsSyncFailed.value = publicSubscriptionsSyncManager.hasSyncFailure()
+                    if (!isRecommendationsEnabled.value) {
+                        val suggestions = getRecommendationsUseCase(forceRefresh = false).first()
+                        updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
+                        refreshReservedGroupNames()
+                        return@runCatching
+                    }
+                    if (forceRefresh) {
+                        _isRefreshingThemeRecommendations.value = true
+                        try {
+                            getRecommendationsUseCase(forceRefresh = true).collect { suggestions ->
+                                updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
+                            }
+                        } finally {
+                            _isRefreshingThemeRecommendations.value = false
+                        }
+                    } else {
+                        val suggestions = getRecommendationsUseCase(forceRefresh = false).first()
+                        updateSuggestedThemes(suggestions.toFirebaseThemeSuggestions())
+                    }
+                    refreshReservedGroupNames()
+                }.onFailure { error ->
+                    Log.e("SourcesViewModel", "Failed to refresh suggested themes", error)
+                    _subscriptionsSyncFailed.value = true
                 }
-                refreshReservedGroupNames()
             } finally {
                 if (!forceRefresh) {
                     _isRefreshingThemeRecommendations.value = false

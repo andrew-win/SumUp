@@ -6,8 +6,8 @@ import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.news.SimilarityScorer
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.DeduplicationStrategy
-import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.entities.settings.DeduplicationStrategy
+import com.andrewwin.sumup.domain.entities.source.SourceType
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 

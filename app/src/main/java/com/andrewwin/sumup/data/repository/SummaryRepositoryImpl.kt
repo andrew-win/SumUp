@@ -5,8 +5,8 @@ import com.andrewwin.sumup.data.mappers.toRoomEntity
 import com.andrewwin.sumup.data.local.dao.PreparedScheduledSummaryDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.domain.repository.SummaryRepository
-import com.andrewwin.sumup.domain.summary.ScheduledSummaryDraft
-import com.andrewwin.sumup.domain.summary.SummaryRecord
+import com.andrewwin.sumup.domain.entities.summary.ScheduledSummaryDraft
+import com.andrewwin.sumup.domain.entities.summary.SummaryRecord
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject

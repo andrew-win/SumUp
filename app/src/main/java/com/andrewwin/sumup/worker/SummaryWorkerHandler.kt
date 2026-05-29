@@ -20,9 +20,9 @@ import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.SummaryScheduler
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.UserSettings
-import com.andrewwin.sumup.domain.summary.ScheduledSummaryDraft
-import com.andrewwin.sumup.domain.summary.SummaryRecord
+import com.andrewwin.sumup.domain.entities.settings.UserSettings
+import com.andrewwin.sumup.domain.entities.summary.ScheduledSummaryDraft
+import com.andrewwin.sumup.domain.entities.summary.SummaryRecord
 import com.andrewwin.sumup.domain.summary.scheduled.NoArticlesException
 import com.andrewwin.sumup.domain.summary.scheduled.ScheduledSummaryTextGenerator
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException

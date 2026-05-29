@@ -61,9 +61,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.ai.AiModelConfig
-import com.andrewwin.sumup.domain.ai.AiModelType
-import com.andrewwin.sumup.domain.ai.AiProvider
+import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
+import com.andrewwin.sumup.domain.entities.ai.AiModelType
+import com.andrewwin.sumup.domain.entities.ai.AiProvider
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 
 @Composable
@@ -555,6 +555,7 @@ fun SettingsAiConfigDialog(
     var apiKey by remember(config?.id) { mutableStateOf(config?.apiKey ?: "") }
     var provider by remember(config?.id) { mutableStateOf(config?.provider ?: AiProvider.GEMINI) }
     var modelName by remember(config?.id) { mutableStateOf(config?.modelName ?: "") }
+    var isApiKeyVisible by remember { mutableStateOf(false) }
     val providerLabel = stringResource(provider.labelRes)
 
     val availableModels by viewModel.availableModels.collectAsState()
@@ -668,6 +669,13 @@ fun SettingsAiConfigDialog(
                         label = { Text(stringResource(R.string.dialog_api_key)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
+                        visualTransformation = if (isApiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            val icon = if (isApiKeyVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility
+                            IconButton(onClick = { isApiKeyVisible = !isApiKeyVisible }) {
+                                Icon(imageVector = icon, contentDescription = null)
+                            }
+                        },
                         shape = MaterialTheme.shapes.large,
                         isError = apiKeyErrorText != null,
                         supportingText = {

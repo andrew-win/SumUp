@@ -2,33 +2,9 @@ package com.andrewwin.sumup.ui.util
 
 import com.andrewwin.sumup.domain.support.SummarySourceMeta
 
-data class SummarySourceLinkUi(
-    val name: String,
-    val url: String
-)
-
-sealed interface SummaryBlockUi {
-    data class Section(
-        val body: String,
-        val sources: List<SummarySourceLinkUi>
-    ) : SummaryBlockUi
-
-    data class Theme(
-        val heading: String,
-        val summary: String?,
-        val items: List<ThemeItem>
-    ) : SummaryBlockUi
-
-    data class PlainList(
-        val items: List<ThemeItem>
-    ) : SummaryBlockUi
-}
-
-data class ThemeItem(
-    val marker: String,
-    val text: String,
-    val sources: List<SummarySourceLinkUi>
-)
+import com.andrewwin.sumup.ui.util.model.SummaryBlockUi
+import com.andrewwin.sumup.ui.util.model.SummarySourceLinkUi
+import com.andrewwin.sumup.ui.util.model.ThemeItem
 
 private const val ThemeItemMarker = "—"
 private val SourceMetaInlineRegex = Regex("${Regex.escape(SummarySourceMeta.PREFIX)}[^\\n]*")

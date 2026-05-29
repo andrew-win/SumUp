@@ -1,20 +1,22 @@
 package com.andrewwin.sumup.ui.screen.feed
 
+import com.andrewwin.sumup.ui.screen.feed.model.FeedAiSummaryMode
+
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.ai.AiModelType
-import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.domain.entities.ai.AiModelType
+import com.andrewwin.sumup.domain.entities.article.Article
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.AiStrategy
-import com.andrewwin.sumup.domain.settings.UserSettings
-import com.andrewwin.sumup.domain.summary.SummaryResult
+import com.andrewwin.sumup.domain.entities.settings.AiStrategy
+import com.andrewwin.sumup.domain.entities.settings.UserSettings
+import com.andrewwin.sumup.domain.entities.summary.SummaryResult
 import com.andrewwin.sumup.domain.summary.SummaryResultFormatter
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.support.InvalidAiResponseException

@@ -2,8 +2,8 @@ package com.andrewwin.sumup.data.repository
 
 import android.util.Log
 import com.andrewwin.sumup.data.local.dao.FeedClusterSnapshotDao
-import com.andrewwin.sumup.data.local.entities.FeedClusterSnapshotEntity
-import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.data.local.entities.FeedClusterSnapshot
+import com.andrewwin.sumup.domain.entities.article.Article
 import com.andrewwin.sumup.domain.news.ArticleCluster
 import com.andrewwin.sumup.domain.repository.FeedClusterSnapshotRepository
 import org.json.JSONArray
@@ -78,7 +78,7 @@ class FeedClusterSnapshotStore @Inject constructor(
         val signatureDurationMs = System.currentTimeMillis() - signatureStartedAt
         val dbStartedAt = System.currentTimeMillis()
         feedClusterSnapshotDao.upsertSnapshot(
-            FeedClusterSnapshotEntity(
+            FeedClusterSnapshot(
                 cacheKey = FEED_CACHE_KEY,
                 articlesSignature = articlesSignature,
                 clusteringSettingsSignature = clusteringSettingsSignature,

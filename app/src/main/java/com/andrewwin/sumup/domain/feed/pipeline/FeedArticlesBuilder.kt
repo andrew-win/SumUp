@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.domain.feed.pipeline
 
 import android.util.Log
-import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.domain.entities.article.Article
 import com.andrewwin.sumup.domain.feed.FeedSearchMatcher
 import com.andrewwin.sumup.domain.feed.clustering.ArticlePairKey
 import com.andrewwin.sumup.domain.feed.clustering.FeedClusterCalculator
@@ -11,9 +11,9 @@ import com.andrewwin.sumup.domain.news.SimilarityScorer
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.FeedClusterSnapshotRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
-import com.andrewwin.sumup.domain.settings.DeduplicationStrategy
-import com.andrewwin.sumup.domain.settings.UserSettings
-import com.andrewwin.sumup.domain.source.SourceGroupWithSources
+import com.andrewwin.sumup.domain.entities.settings.DeduplicationStrategy
+import com.andrewwin.sumup.domain.entities.settings.UserSettings
+import com.andrewwin.sumup.domain.entities.source.SourceGroupWithSources
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview

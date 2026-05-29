@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.news
 
 import com.andrewwin.sumup.domain.news.ArticleContentCleaner
-import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.entities.source.SourceType
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import kotlinx.coroutines.withContext
 import net.dankito.readability4j.Readability4J
@@ -12,19 +12,12 @@ import javax.inject.Inject
 class ArticleTextCleaner @Inject constructor(
     private val dispatcherProvider: DispatcherProvider
 ) : ArticleContentCleaner {
-    suspend operator fun invoke(texts: List<String>): String? = detectFooterPattern(texts)
-
-    suspend operator fun invoke(
-        text: String,
-        type: SourceType,
-        footerPattern: String? = null
-    ): String = clean(text, type, footerPattern)
 
     override suspend fun detectFooterPattern(texts: List<String>): String? = withContext(dispatcherProvider.default) {
         if (texts.size < MIN_POSTS_FOR_ANALYSIS) return@withContext null
-        val prepared = texts.map(::cleanBase).filter { it.isNotBlank() }
+        val prepared = texts.map { cleanGaps(cleanHtml(it)) }.filter { it.isNotBlank() }
         if (prepared.size < MIN_POSTS_FOR_ANALYSIS) return@withContext null
-        findCommonFooterPattern(prepared)
+        findCommonFooter(prepared)
     }
 
     override suspend fun extractMainContent(url: String, rawContent: String, type: SourceType): String = withContext(dispatcherProvider.default) {
@@ -43,26 +36,14 @@ class ArticleTextCleaner @Inject constructor(
     ): String = withContext(dispatcherProvider.default) {
         if (text.isBlank()) return@withContext ""
 
-        var cleaned = cleanBase(text)
-        cleaned = removeFooter(cleaned, footerPattern)
-        val phonesResult = removePhoneNumbers(cleaned)
-        cleaned = phonesResult.cleaned
-        val isSpam = phonesResult.flagged
-        if (isSpam) {
-            cleaned = "$SPAM_MARKER\n$cleaned"
-        }
+        val htmlCleaned = cleanHtml(text)
+        val gapsCleaned = cleanGaps(htmlCleaned)
+        val withoutFooter = removeFooter(gapsCleaned, footerPattern)
 
-        cleaned = when (type) {
-            SourceType.TELEGRAM, SourceType.YOUTUBE -> cleanSocialSpecifics(cleaned)
-            SourceType.RSS -> cleanRssSpecifics(cleaned)
-        }
-
-        cleaned = removeGenericFooterLines(cleaned)
-
-        cleaned.trim()
+        withoutFooter.trim()
     }
 
-    private fun cleanBase(text: String): String {
+    private fun cleanHtml(text: String): String {
         if (text.isBlank()) return ""
         val unescaped = Parser.unescapeEntities(text, false)
             .replace("\n", " $NEWLINE_PLACEHOLDER ")
@@ -73,22 +54,24 @@ class ArticleTextCleaner @Inject constructor(
             .prepend(" $NEWLINE_PLACEHOLDER ")
             .append(" $NEWLINE_PLACEHOLDER ")
 
-        return doc.text()
-            .replace(NEWLINE_PLACEHOLDER, "\n")
-            .lines()
+        return doc.text().replace(NEWLINE_PLACEHOLDER, "\n")
+    }
+
+    private fun cleanGaps(text: String): String {
+        return text.lines()
             .map { it.replace(WHITESPACE_REGEX, " ").trim() }
             .joinToString("\n")
             .replace(MULTIPLE_NEWLINES_REGEX, "\n\n")
             .trim()
     }
 
-    private fun findCommonFooterPattern(texts: List<String>): String? {
+    private fun findCommonFooter(texts: List<String>): String? {
         val normalizedPosts = texts.map { text ->
             text.lines()
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
                 .takeLast(MAX_LINES_TO_SCAN)
-                .map { normalizeFooterLine(it) }
+                .map { normalizeFooter(it) }
                 .filter { it.isNotBlank() }
         }
         if (normalizedPosts.all { it.isEmpty() }) return null
@@ -119,13 +102,13 @@ class ArticleTextCleaner @Inject constructor(
     private fun removeFooter(text: String, footerPattern: String?): String {
         if (text.isBlank() || footerPattern.isNullOrBlank()) return text
         val footerLines = footerPattern.lines()
-            .map { normalizeFooterLine(it) }
+            .map { normalizeFooter(it) }
             .filter { it.isNotBlank() }
         if (footerLines.isEmpty()) return text
 
         val originalLines = text.lines()
         val contentWithIndexes = originalLines
-            .mapIndexed { index, line -> index to normalizeFooterLine(line) }
+            .mapIndexed { index, line -> index to normalizeFooter(line) }
             .filter { it.second.isNotBlank() }
         if (contentWithIndexes.size < footerLines.size) return text
 
@@ -139,64 +122,7 @@ class ArticleTextCleaner @Inject constructor(
         return originalLines.subList(0, firstFooterIndex).joinToString("\n").trim()
     }
 
-    private fun cleanSocialSpecifics(text: String): String {
-        val lines = text.lines()
-        var cutIndex = lines.size
-        for (i in lines.lastIndex downTo 0) {
-            val line = lines[i].trim()
-            val lower = line.lowercase()
-            val isSocialLine = lower.contains("instagram:") ||
-                lower.contains("facebook:") ||
-                lower.contains("twitter:") ||
-                lower.contains("t.me/") ||
-                lower.contains("підписатися") ||
-                lower.contains("приєднатися") ||
-                URL_REGEX.containsMatchIn(lower)
-            if (!isSocialLine && line.isNotBlank()) break
-            cutIndex = i
-        }
-        return lines.subList(0, cutIndex).joinToString("\n").trim()
-    }
-
-    private fun cleanRssSpecifics(text: String): String {
-        return text.replace(Regex("Читати далі.*", RegexOption.IGNORE_CASE), "").trim()
-    }
-
-    private fun removeGenericFooterLines(text: String): String {
-        if (text.isBlank()) return text
-        val lines = text.lines()
-        var cutIndex = lines.size
-        for (i in lines.lastIndex downTo 0) {
-            val line = lines[i].trim()
-            if (line.isBlank()) {
-                cutIndex = i
-                continue
-            }
-            val lower = line.lowercase()
-            val isFooterLike = GENERIC_FOOTER_PATTERNS.any { it.containsMatchIn(lower) }
-            if (!isFooterLike) break
-            cutIndex = i
-        }
-        return lines.subList(0, cutIndex).joinToString("\n").trim()
-    }
-
-    private fun removePhoneNumbers(text: String): CleanResult {
-        val phoneRegex = Regex("\\+?\\d[\\d\\s().-]{7,}\\d")
-        val found = phoneRegex.containsMatchIn(text)
-        val cleaned = normalizeText(text.replace(phoneRegex, " "))
-        return CleanResult(cleaned, found)
-    }
-
-    private fun normalizeText(text: String): String {
-        return text.lines()
-            .joinToString("\n") { it.replace(WHITESPACE_REGEX, " ").trim() }
-            .replace(MULTIPLE_NEWLINES_REGEX, "\n\n")
-            .trim()
-    }
-
-    private data class CleanResult(val cleaned: String, val flagged: Boolean)
-
-    private fun normalizeFooterLine(line: String): String {
+    private fun normalizeFooter(line: String): String {
         if (line.isBlank()) return ""
         val lowercase = line.lowercase()
         val masked = URL_REGEX.replace(lowercase, "url")
@@ -211,30 +137,9 @@ class ArticleTextCleaner @Inject constructor(
         private val MULTIPLE_NEWLINES_REGEX = Regex("\n{3,}")
         private const val MIN_POSTS_FOR_ANALYSIS = 2
         private const val MIN_FOOTER_OCCURRENCE_RATIO = 0.3
-        private const val MAX_LINES_TO_SCAN = 14
+        private const val MAX_LINES_TO_SCAN = 3
         private const val MIN_PATTERN_LENGTH = 3
         private val URL_REGEX = Regex("https?://\\S+|t\\.me/\\S+")
         private val NUMBER_REGEX = Regex("\\d+")
-        private const val SPAM_MARKER = "[ad]"
-        private val GENERIC_FOOTER_PATTERNS = listOf(
-            Regex("підписатися\\s+на"),
-            Regex("подписат(ь|и)ся\\s+на"),
-            Regex("subscribe"),
-            Regex("надіслати\\s+новину"),
-            Regex("send\\s+news"),
-            Regex("t\\.me/"),
-            Regex("telegram"),
-            Regex("times\\s+of\\s+ukraine"),
-            Regex("^https?://\\S+$")
-        )
     }
 }
-
-
-
-
-
-
-
-
-

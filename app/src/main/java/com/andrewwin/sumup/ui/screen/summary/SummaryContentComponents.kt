@@ -51,11 +51,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.settings.AiStrategy
-import com.andrewwin.sumup.domain.summary.SummaryRecord as Summary
+import com.andrewwin.sumup.domain.entities.settings.AiStrategy
+import com.andrewwin.sumup.domain.entities.summary.SummaryRecord as Summary
 import com.andrewwin.sumup.ui.components.SummaryExecutionMetaBlock
 import com.andrewwin.sumup.ui.util.StandardSummaryView
-import com.andrewwin.sumup.ui.util.SummaryBlockUi
+import com.andrewwin.sumup.ui.util.model.SummaryBlockUi
 import com.andrewwin.sumup.ui.util.cleanSummaryTextForSharing
 import com.andrewwin.sumup.ui.util.parseSummaryBlocks
 import java.text.SimpleDateFormat

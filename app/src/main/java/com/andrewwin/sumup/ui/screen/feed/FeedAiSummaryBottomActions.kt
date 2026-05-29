@@ -24,7 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.settings.AiStrategy
+import com.andrewwin.sumup.domain.entities.settings.AiStrategy
 
 @Composable
 internal fun FeedAiSummaryBottomActions(

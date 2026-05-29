@@ -1,5 +1,9 @@
 package com.andrewwin.sumup.ui.screen.summary
 
+import com.andrewwin.sumup.ui.screen.summary.model.SummaryChartItem
+
+import com.andrewwin.sumup.ui.screen.summary.model.SummaryChartType
+
 import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
@@ -11,7 +15,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.ai.AiModelType
+import com.andrewwin.sumup.domain.entities.ai.AiModelType
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
 import com.andrewwin.sumup.domain.export.SummaryExportItem
@@ -19,9 +23,9 @@ import com.andrewwin.sumup.domain.export.SummaryExportStrategy
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.SummaryRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.AiStrategy
-import com.andrewwin.sumup.domain.settings.UserSettings
-import com.andrewwin.sumup.domain.summary.SummaryRecord
+import com.andrewwin.sumup.domain.entities.settings.AiStrategy
+import com.andrewwin.sumup.domain.entities.settings.UserSettings
+import com.andrewwin.sumup.domain.entities.summary.SummaryRecord
 import com.andrewwin.sumup.domain.summary.scheduled.NoArticlesException
 import com.andrewwin.sumup.domain.summary.scheduled.ScheduledSummaryTextGenerator
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
@@ -43,19 +47,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
-enum class SummaryChartType {
-    VIEWS, MENTIONS, FACTUALITY
-}
-
-data class SummaryChartItem(
-    val headline: String,
-    val value: Float,
-    val displayValue: String,
-    val sourceName: String? = null,
-    val sourceUrl: String? = null,
-    val isValueUnavailable: Boolean = false
-)
 
 @HiltViewModel
 class SummaryViewModel @Inject constructor(

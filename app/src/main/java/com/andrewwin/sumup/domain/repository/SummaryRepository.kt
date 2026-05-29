@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.domain.repository
 
-import com.andrewwin.sumup.domain.summary.ScheduledSummaryDraft
-import com.andrewwin.sumup.domain.summary.SummaryRecord
+import com.andrewwin.sumup.domain.entities.summary.ScheduledSummaryDraft
+import com.andrewwin.sumup.domain.entities.summary.SummaryRecord
 import kotlinx.coroutines.flow.Flow
 
 interface SummaryRepository {

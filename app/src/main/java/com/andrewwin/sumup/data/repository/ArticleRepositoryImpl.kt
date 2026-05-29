@@ -22,10 +22,10 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.remote.ArticleStableKeyFactory
 import com.andrewwin.sumup.data.remote.NewsParsingLogger
 import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
-import com.andrewwin.sumup.domain.article.Article
-import com.andrewwin.sumup.domain.article.ArticleEmbeddingRecord
-import com.andrewwin.sumup.domain.article.ArticleSimilarityRecord
-import com.andrewwin.sumup.domain.article.SavedArticleSnapshot
+import com.andrewwin.sumup.domain.entities.article.Article
+import com.andrewwin.sumup.domain.entities.article.ArticleEmbeddingRecord
+import com.andrewwin.sumup.domain.entities.article.ArticleSimilarityRecord
+import com.andrewwin.sumup.domain.entities.article.SavedArticleSnapshot
 import com.andrewwin.sumup.domain.news.ArticleContentCleaner
 import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.news.ArticleTitleFormatter
@@ -418,11 +418,14 @@ class ArticleRepositoryImpl @Inject constructor(
     override suspend fun getEnabledArticlesSince(timestamp: Long): List<Article> =
         articleDao.getEnabledArticlesSince(timestamp).map { it.toDomainModel() }
 
-    override suspend fun getSourceById(id: Long): com.andrewwin.sumup.domain.source.Source? =
+    override suspend fun getSourceById(id: Long): com.andrewwin.sumup.domain.entities.source.Source? =
         sourceDao.getSourceById(id)?.toDomainModel()
 
     override suspend fun fetchFullContent(article: Article): FullArticleContent {
-        val source = sourceDao.getSourceById(article.sourceId) ?: return FullArticleContent(article.content)
+        val source = sourceDao.getSourceById(article.sourceId) ?: return FullArticleContent(
+            text = article.content,
+            status = com.andrewwin.sumup.domain.entities.ai.RemoteContentFetchStatus.FETCH_FAILED
+        )
         val fetchedRemote = remoteArticleDataSource.fetchFullContent(article.url, source.type)
         val remoteContent = fetchedRemote?.text ?: article.content
         val sourceType = source.type.toDomainModel()
@@ -430,7 +433,7 @@ class ArticleRepositoryImpl @Inject constructor(
         val cleaned = cleanArticleTextUseCase.clean(mainContent, sourceType, source.footerPattern)
         return FullArticleContent(
             text = cleaned,
-            youtubeSubtitleStatus = fetchedRemote?.youtubeSubtitleStatus
+            status = fetchedRemote?.status ?: com.andrewwin.sumup.domain.entities.ai.RemoteContentFetchStatus.FETCH_FAILED
         )
     }
 

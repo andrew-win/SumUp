@@ -1,11 +1,11 @@
 package com.andrewwin.sumup.ui.screen.feed
 
-import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.domain.entities.article.Article
 import com.andrewwin.sumup.domain.news.ArticleCluster
-import com.andrewwin.sumup.domain.source.Source
-import com.andrewwin.sumup.domain.source.SourceGroup
-import com.andrewwin.sumup.domain.source.SourceGroupWithSources
-import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.entities.source.Source
+import com.andrewwin.sumup.domain.entities.source.SourceGroup
+import com.andrewwin.sumup.domain.entities.source.SourceGroupWithSources
+import com.andrewwin.sumup.domain.entities.source.SourceType
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import javax.inject.Inject

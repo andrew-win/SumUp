@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.usecase.feed
 
-import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.domain.entities.article.Article
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import javax.inject.Inject
 

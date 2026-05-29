@@ -1,6 +1,5 @@
 package com.andrewwin.sumup
 
-import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.TelegramParser
 import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
 import kotlinx.coroutines.runBlocking
@@ -26,9 +25,9 @@ class IntegrationTelegramCleanSummarizeTest {
         """.trimIndent()
 
         val article = TelegramParser().parse(html, sourceId = 13L).first()
-        val cleaned = ContentProcessingTestSupport.cleanArticleTextUseCase(
+        val cleaned = ContentProcessingTestSupport.cleanArticleTextUseCase.clean(
             article.content,
-            SourceType.TELEGRAM,
+            com.andrewwin.sumup.domain.source.SourceType.TELEGRAM,
             footerPattern = null
         )
         val summarySentences = getExtractiveSummaryUseCase(cleaned, n = 2)

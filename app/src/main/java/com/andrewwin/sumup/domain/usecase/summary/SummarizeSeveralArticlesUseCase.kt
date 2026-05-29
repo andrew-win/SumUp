@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.usecase.summary
 
-import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.domain.entities.article.Article
 import com.andrewwin.sumup.domain.ai.AdaptiveTextShrinker
 import com.andrewwin.sumup.domain.ai.AiPromptBuilder
 import com.andrewwin.sumup.domain.ai.AiRequestSender
@@ -10,17 +10,17 @@ import com.andrewwin.sumup.domain.ai.ProportionalTextLimiter
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
 import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
-import com.andrewwin.sumup.domain.ai.YoutubeSubtitleFetchSummary
+import com.andrewwin.sumup.domain.entities.ai.YoutubeSubtitleFetchSummary
 import com.andrewwin.sumup.domain.news.SimilarityScorer
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.AiStrategy
-import com.andrewwin.sumup.domain.settings.UserSettings
+import com.andrewwin.sumup.domain.entities.settings.AiStrategy
+import com.andrewwin.sumup.domain.entities.settings.UserSettings
 import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
-import com.andrewwin.sumup.domain.summary.SummaryItem
+import com.andrewwin.sumup.domain.entities.summary.SummaryItem
 import com.andrewwin.sumup.domain.summary.SummaryLimits
-import com.andrewwin.sumup.domain.summary.SummaryResult
-import com.andrewwin.sumup.domain.summary.SummarySourceRef
+import com.andrewwin.sumup.domain.entities.summary.SummaryResult
+import com.andrewwin.sumup.domain.entities.summary.SummarySourceRef
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.support.LocalModelMissingException
@@ -80,7 +80,7 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
                 sourceUrl = sourceUrl,
                 title = article.title,
                 content = contentToProcess,
-                youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.youtubeSubtitleStatus)
+                youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.status)
             )
         }
         val youtubeSubtitleSummary = cloudArticles.fold(YoutubeSubtitleFetchSummary()) { total, article ->
@@ -270,7 +270,7 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
             }
         return LocalClusterSentenceCandidates(
             items = items,
-            youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.youtubeSubtitleStatus)
+            youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.status)
         )
     }
 

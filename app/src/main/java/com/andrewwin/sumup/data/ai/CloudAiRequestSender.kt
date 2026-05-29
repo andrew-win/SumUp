@@ -2,8 +2,8 @@ package com.andrewwin.sumup.data.ai
 
 import android.content.Context
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.ai.AiModelConfig
-import com.andrewwin.sumup.domain.ai.AiModelType
+import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
+import com.andrewwin.sumup.domain.entities.ai.AiModelType
 import com.andrewwin.sumup.data.remote.AiService
 import com.andrewwin.sumup.domain.ai.AiModelFailure
 import com.andrewwin.sumup.domain.ai.AiRequestSender

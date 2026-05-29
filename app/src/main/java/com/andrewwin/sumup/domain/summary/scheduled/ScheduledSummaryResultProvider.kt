@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.domain.summary.scheduled
 
 import com.andrewwin.sumup.domain.feed.ScheduledSummaryArticleCollector
-import com.andrewwin.sumup.domain.summary.SummaryResult
+import com.andrewwin.sumup.domain.entities.summary.SummaryResult
 import com.andrewwin.sumup.domain.usecase.summary.SummarizeFeedUseCase
 import javax.inject.Inject
 

@@ -1,20 +1,16 @@
 package com.andrewwin.sumup.data.remote
 
-import com.andrewwin.sumup.data.local.dao.SourceHttpCacheDao
 import com.andrewwin.sumup.data.local.entities.Article
-import com.andrewwin.sumup.data.local.entities.SourceHttpCache
 import com.prof18.rssparser.RssParserBuilder
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.text.SimpleDateFormat
 import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import com.prof18.rssparser.RssParser as ProfRssParser
 
 class RssParser @Inject constructor(
-    private val okHttpClient: OkHttpClient,
-    private val sourceHttpCacheDao: SourceHttpCacheDao? = null
+    private val okHttpClient: OkHttpClient
 ) {
     private val parser: ProfRssParser = RssParserBuilder(callFactory = okHttpClient).build()
     private val formattersThreadLocal = ThreadLocal.withInitial {
@@ -24,48 +20,18 @@ class RssParser @Inject constructor(
             SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
         ).onEach { it.timeZone = java.util.TimeZone.getTimeZone("UTC") }
     }
-    private val responseHeadersCache = ConcurrentHashMap<String, CachedRssHeaders>()
 
     suspend fun parseUrl(url: String, sourceId: Long): List<Article> =
         parseUrlResult(url, sourceId).getOrDefault(emptyList())
 
     suspend fun parseUrlResult(url: String, sourceId: Long): Result<List<Article>> {
         return runCatching {
-            val requestBuilder = Request.Builder().url(url)
-            val cachedHeaders = responseHeadersCache[url] ?: sourceHttpCacheDao
-                ?.getByUrl(url)
-                ?.let { cached ->
-                    CachedRssHeaders(
-                        etag = cached.etag,
-                        lastModified = cached.lastModified
-                    )
-                }
-            cachedHeaders?.etag?.let { requestBuilder.header(HEADER_IF_NONE_MATCH, it) }
-            cachedHeaders?.lastModified?.let { requestBuilder.header(HEADER_IF_MODIFIED_SINCE, it) }
-            if (cachedHeaders != null) {
-                responseHeadersCache[url] = cachedHeaders
-            }
-
-            okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
-                if (response.code == HTTP_NOT_MODIFIED) {
-                    return@runCatching emptyList()
-                }
+            val request = Request.Builder().url(url).build()
+            okHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     error("RSS request failed with code ${response.code}")
                 }
 
-                val responseHeaders = CachedRssHeaders(
-                    etag = response.header(HEADER_ETAG),
-                    lastModified = response.header(HEADER_LAST_MODIFIED)
-                )
-                responseHeadersCache[url] = responseHeaders
-                sourceHttpCacheDao?.upsert(
-                    SourceHttpCache(
-                        url = url,
-                        etag = responseHeaders.etag,
-                        lastModified = responseHeaders.lastModified
-                    )
-                )
                 val xml = response.body?.string().orEmpty()
                 if (xml.isBlank()) return@runCatching emptyList()
 
@@ -159,17 +125,7 @@ class RssParser @Inject constructor(
         return cleaned.ifBlank { null }
     }
 
-    private data class CachedRssHeaders(
-        val etag: String?,
-        val lastModified: String?
-    )
-
     companion object {
-        private const val HTTP_NOT_MODIFIED = 304
-        private const val HEADER_ETAG = "ETag"
-        private const val HEADER_LAST_MODIFIED = "Last-Modified"
-        private const val HEADER_IF_NONE_MATCH = "If-None-Match"
-        private const val HEADER_IF_MODIFIED_SINCE = "If-Modified-Since"
         private const val MIN_REASONABLE_TIMESTAMP = 946684800000L
         private val IMAGE_SRC_REGEX = Regex("<img[^>]+src=[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
     }

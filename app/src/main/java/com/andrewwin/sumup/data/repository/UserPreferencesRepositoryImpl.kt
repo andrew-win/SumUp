@@ -4,7 +4,7 @@ import com.andrewwin.sumup.data.mappers.toDomainModel
 import com.andrewwin.sumup.data.mappers.toRoomEntity
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.UserSettings
+import com.andrewwin.sumup.domain.entities.settings.UserSettings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach

@@ -8,7 +8,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
-import com.andrewwin.sumup.domain.settings.AppThemeMode
+import com.andrewwin.sumup.domain.entities.settings.AppThemeMode
 
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryBlue,

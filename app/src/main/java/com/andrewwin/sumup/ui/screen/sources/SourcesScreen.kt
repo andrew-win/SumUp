@@ -1,5 +1,11 @@
 package com.andrewwin.sumup.ui.screen.sources
 
+import com.andrewwin.sumup.ui.screen.sources.model.FirebaseThemeSuggestion
+
+import com.andrewwin.sumup.ui.screen.sources.model.SourceSortOrder
+
+import com.andrewwin.sumup.ui.screen.sources.model.SourcesUiState
+
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -99,11 +105,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.settings.AppLanguage
-import com.andrewwin.sumup.domain.source.Source
-import com.andrewwin.sumup.domain.source.SourceGroup
-import com.andrewwin.sumup.domain.source.SourceGroupWithSources
-import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.entities.settings.AppLanguage
+import com.andrewwin.sumup.domain.entities.source.Source
+import com.andrewwin.sumup.domain.entities.source.SourceGroup
+import com.andrewwin.sumup.domain.entities.source.SourceGroupWithSources
+import com.andrewwin.sumup.domain.entities.source.SourceType
 import com.andrewwin.sumup.domain.source.SourceUrlValidator
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
@@ -834,12 +840,14 @@ fun GroupCard(
                                     showDropdown = false
                                 }
                             )
-                            if (groupWithSources.group.isDeletable) {
+                            if (canEditGroup(groupWithSources.group)) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.edit_group)) },
                                     trailingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                     onClick = { onEditGroup(groupWithSources.group); showDropdown = false }
                                 )
+                            }
+                            if (canDeleteGroup(groupWithSources.group)) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
                                     trailingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) },
@@ -880,6 +888,8 @@ fun GroupCard(
                             SourceItem(
                                 source = source,
                                 isGroupEnabled = groupWithSources.group.isEnabled,
+                                canEdit = canEditSourceInGroup(groupWithSources.group),
+                                canDelete = canDeleteSourceFromGroup(groupWithSources.group),
                                 isSelected = selectedSourceIds.contains(source.id),
                                 isSelectionMode = isSourceSelectionMode,
                                 onLongSelect = { onLongSelectSource(source) },
@@ -900,6 +910,8 @@ fun GroupCard(
 fun SourceItem(
     source: Source,
     isGroupEnabled: Boolean,
+    canEdit: Boolean,
+    canDelete: Boolean,
     isSelected: Boolean,
     isSelectionMode: Boolean,
     onLongSelect: () -> Unit,
@@ -1010,8 +1022,19 @@ fun SourceItem(
                             shape = MaterialTheme.shapes.large,
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                         ) {
+                            val deleteTextColor = if (canDelete) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            }
+                            val deleteIconTint = if (canDelete) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.edit_source)) },
+                                enabled = canEdit,
                                 trailingIcon = {
                                     Icon(
                                         imageVector = Icons.Outlined.Edit,
@@ -1020,22 +1043,27 @@ fun SourceItem(
                                     )
                                 },
                                 onClick = {
-                                    onEdit(source)
+                                    if (canEdit) {
+                                        onEdit(source)
+                                    }
                                     showDropdown = false
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
+                                text = { Text(stringResource(R.string.delete), color = deleteTextColor) },
+                                enabled = canDelete,
                                 trailingIcon = {
                                     Icon(
                                         imageVector = Icons.Outlined.Delete,
                                         contentDescription = null,
                                         modifier = Modifier.size(18.dp),
-                                        tint = MaterialTheme.colorScheme.error
+                                        tint = deleteIconTint
                                     )
                                 },
                                 onClick = {
-                                    onDelete(source)
+                                    if (canDelete) {
+                                        onDelete(source)
+                                    }
                                     showDropdown = false
                                 }
                             )

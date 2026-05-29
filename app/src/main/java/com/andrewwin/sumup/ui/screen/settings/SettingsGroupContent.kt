@@ -1,5 +1,7 @@
 package com.andrewwin.sumup.ui.screen.settings
 
+import com.andrewwin.sumup.ui.screen.settings.model.SettingsGroup
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,13 +26,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.ai.AiModelConfig
-import com.andrewwin.sumup.domain.settings.AiStrategy
-import com.andrewwin.sumup.domain.settings.AppLanguage
-import com.andrewwin.sumup.domain.settings.AppThemeMode
-import com.andrewwin.sumup.domain.settings.DeduplicationStrategy
-import com.andrewwin.sumup.domain.settings.SummaryLanguage
-import com.andrewwin.sumup.domain.settings.UserSettings
+import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
+import com.andrewwin.sumup.domain.entities.settings.AiStrategy
+import com.andrewwin.sumup.domain.entities.settings.AppLanguage
+import com.andrewwin.sumup.domain.entities.settings.AppThemeMode
+import com.andrewwin.sumup.domain.entities.settings.DeduplicationStrategy
+import com.andrewwin.sumup.domain.entities.settings.SummaryLanguage
+import com.andrewwin.sumup.domain.entities.settings.UserSettings
 import java.util.Locale
 import kotlin.math.roundToInt
 

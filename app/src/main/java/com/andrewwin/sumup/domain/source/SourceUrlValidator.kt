@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.source
 
-import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.entities.source.SourceType
 import java.net.URI
 
 object SourceUrlValidator {

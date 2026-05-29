@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.usecase.summary
 
-import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.domain.entities.article.Article
 import com.andrewwin.sumup.domain.ai.AdaptiveTextShrinker
 import com.andrewwin.sumup.domain.ai.AiPromptBuilder
 import com.andrewwin.sumup.domain.ai.AiRequestSender
@@ -8,15 +8,15 @@ import com.andrewwin.sumup.domain.ai.LocalSummaryReason
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
 import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
-import com.andrewwin.sumup.domain.ai.YoutubeSubtitleFetchSummary
+import com.andrewwin.sumup.domain.entities.ai.YoutubeSubtitleFetchSummary
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.AiStrategy
+import com.andrewwin.sumup.domain.entities.settings.AiStrategy
 import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
-import com.andrewwin.sumup.domain.summary.SummaryItem
+import com.andrewwin.sumup.domain.entities.summary.SummaryItem
 import com.andrewwin.sumup.domain.summary.SummaryLimits
-import com.andrewwin.sumup.domain.summary.SummaryResult
-import com.andrewwin.sumup.domain.summary.SummarySourceRef
+import com.andrewwin.sumup.domain.entities.summary.SummaryResult
+import com.andrewwin.sumup.domain.entities.summary.SummarySourceRef
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.support.NoActiveModelException
 import kotlinx.coroutines.flow.first
@@ -39,7 +39,7 @@ class SummarizeSingleArticleUseCase @Inject constructor(
         
         val fullContent = articleRepository.fetchFullContent(article)
         val contentToProcess = fullContent.text.ifBlank { article.content }
-        val youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.youtubeSubtitleStatus)
+        val youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.status)
 
         summarizeInternal(
             articleId = article.id,

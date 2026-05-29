@@ -1,5 +1,9 @@
 package com.andrewwin.sumup.ui.screen.summary
 
+import com.andrewwin.sumup.ui.screen.summary.model.SummaryChartItem
+
+import com.andrewwin.sumup.ui.screen.summary.model.SummaryChartType
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

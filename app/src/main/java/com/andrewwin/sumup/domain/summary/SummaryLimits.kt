@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.summary
 
-import com.andrewwin.sumup.domain.settings.UserSettings
+import com.andrewwin.sumup.domain.entities.settings.UserSettings
 
 object SummaryLimits {
     var currentPrefs: UserSettings? = null

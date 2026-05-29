@@ -1,16 +1,16 @@
 package com.andrewwin.sumup.domain.repository
 
-import com.andrewwin.sumup.domain.ai.YoutubeSubtitleFetchStatus
-import com.andrewwin.sumup.domain.article.Article
-import com.andrewwin.sumup.domain.article.ArticleEmbeddingRecord
-import com.andrewwin.sumup.domain.article.ArticleSimilarityRecord
-import com.andrewwin.sumup.domain.article.SavedArticleSnapshot
-import com.andrewwin.sumup.domain.source.Source
+import com.andrewwin.sumup.domain.entities.ai.RemoteContentFetchStatus
+import com.andrewwin.sumup.domain.entities.article.Article
+import com.andrewwin.sumup.domain.entities.article.ArticleEmbeddingRecord
+import com.andrewwin.sumup.domain.entities.article.ArticleSimilarityRecord
+import com.andrewwin.sumup.domain.entities.article.SavedArticleSnapshot
+import com.andrewwin.sumup.domain.entities.source.Source
 import kotlinx.coroutines.flow.Flow
 
 data class FullArticleContent(
     val text: String,
-    val youtubeSubtitleStatus: YoutubeSubtitleFetchStatus? = null
+    val status: RemoteContentFetchStatus
 )
 
 data class ArticleRefreshResult(

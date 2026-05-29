@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.domain.news
 
-import com.andrewwin.sumup.domain.article.Article
-import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.entities.article.Article
+import com.andrewwin.sumup.domain.entities.source.SourceType
 
 class ArticleImportanceScorer {
 

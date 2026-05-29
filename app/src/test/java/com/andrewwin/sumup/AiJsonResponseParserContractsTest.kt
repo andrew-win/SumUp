@@ -1,6 +1,6 @@
 package com.andrewwin.sumup
 
-import com.andrewwin.sumup.data.ai.AiSummaryResponseMapper
+import com.andrewwin.sumup.data.mappers.AiSummaryResponseMapper
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

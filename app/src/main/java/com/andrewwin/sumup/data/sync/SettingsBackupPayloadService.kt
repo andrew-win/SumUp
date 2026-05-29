@@ -6,13 +6,13 @@ import androidx.core.os.LocaleListCompat
 import com.andrewwin.sumup.data.mappers.toDomainModel
 import com.andrewwin.sumup.data.mappers.toRoomEntity
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
-import com.andrewwin.sumup.domain.ai.AiModelConfig
-import com.andrewwin.sumup.domain.ai.normalizedStableKey
+import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
+import com.andrewwin.sumup.domain.entities.ai.normalizedStableKey
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.AppLanguage
+import com.andrewwin.sumup.domain.entities.settings.AppLanguage
 import com.andrewwin.sumup.domain.usecase.summary.CreateScheduleSummaryUseCase
 import com.andrewwin.sumup.worker.WorkerContracts
 import dagger.hilt.android.qualifiers.ApplicationContext

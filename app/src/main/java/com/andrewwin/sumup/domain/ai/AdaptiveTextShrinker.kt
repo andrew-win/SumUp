@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.ai
 
-import com.andrewwin.sumup.domain.settings.UserSettings
+import com.andrewwin.sumup.domain.entities.settings.UserSettings
 import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
 import com.andrewwin.sumup.domain.summary.SummaryLimits
 import javax.inject.Inject

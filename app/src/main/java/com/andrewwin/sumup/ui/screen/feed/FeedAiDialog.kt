@@ -63,12 +63,12 @@ import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.settings.AiStrategy
-import com.andrewwin.sumup.domain.summary.DigestTheme
-import com.andrewwin.sumup.domain.summary.SummaryItem
+import com.andrewwin.sumup.domain.entities.settings.AiStrategy
+import com.andrewwin.sumup.domain.entities.summary.DigestTheme
+import com.andrewwin.sumup.domain.entities.summary.SummaryItem
 import com.andrewwin.sumup.domain.summary.SummaryLimits
-import com.andrewwin.sumup.domain.summary.SummaryResult
-import com.andrewwin.sumup.domain.summary.SummarySourceRef
+import com.andrewwin.sumup.domain.entities.summary.SummaryResult
+import com.andrewwin.sumup.domain.entities.summary.SummarySourceRef
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppCardSurface
 import com.andrewwin.sumup.ui.components.AppMotion
@@ -76,6 +76,10 @@ import com.andrewwin.sumup.ui.components.SummaryExecutionMetaBlock
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import com.andrewwin.sumup.ui.util.*
+import com.andrewwin.sumup.ui.util.model.SummaryBlockUi
+import com.andrewwin.sumup.ui.util.model.SummarySourceLinkUi
+import com.andrewwin.sumup.ui.util.model.SummarySourceStyle
+import com.andrewwin.sumup.ui.util.model.ThemeItem
 
 @Composable
 fun FeedAiDialog(

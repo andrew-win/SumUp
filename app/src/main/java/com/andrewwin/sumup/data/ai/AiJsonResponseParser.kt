@@ -1,5 +1,8 @@
 package com.andrewwin.sumup.data.ai
 
+import com.andrewwin.sumup.data.remote.models.ai.CompareResponseJson
+import com.andrewwin.sumup.data.remote.models.ai.QaResponseJson
+import com.andrewwin.sumup.data.remote.models.ai.SummaryResponseJson
 import kotlinx.serialization.json.Json
 
 object AiJsonResponseParser {

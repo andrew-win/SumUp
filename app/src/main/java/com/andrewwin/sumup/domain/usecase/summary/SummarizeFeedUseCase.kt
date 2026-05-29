@@ -3,8 +3,8 @@ package com.andrewwin.sumup.domain.usecase.summary
 import android.content.Context
 import android.util.Log
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.article.Article
-import com.andrewwin.sumup.domain.article.ArticleSimilarityRecord
+import com.andrewwin.sumup.domain.entities.article.Article
+import com.andrewwin.sumup.domain.entities.article.ArticleSimilarityRecord
 import com.andrewwin.sumup.domain.ai.AdaptiveTextShrinker
 import com.andrewwin.sumup.domain.ai.AiPromptBuilder
 import com.andrewwin.sumup.domain.ai.AiRequestSender
@@ -12,19 +12,19 @@ import com.andrewwin.sumup.domain.ai.LocalSummaryReason
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
 import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
-import com.andrewwin.sumup.domain.ai.YoutubeSubtitleFetchSummary
+import com.andrewwin.sumup.domain.entities.ai.YoutubeSubtitleFetchSummary
 import com.andrewwin.sumup.domain.feed.FeedSummaryArticle
 import com.andrewwin.sumup.domain.news.SimilarityScorer
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.AiStrategy
-import com.andrewwin.sumup.domain.settings.DeduplicationStrategy
-import com.andrewwin.sumup.domain.source.SourceType
-import com.andrewwin.sumup.domain.summary.DigestTheme
-import com.andrewwin.sumup.domain.summary.SummaryItem
+import com.andrewwin.sumup.domain.entities.settings.AiStrategy
+import com.andrewwin.sumup.domain.entities.settings.DeduplicationStrategy
+import com.andrewwin.sumup.domain.entities.source.SourceType
+import com.andrewwin.sumup.domain.entities.summary.DigestTheme
+import com.andrewwin.sumup.domain.entities.summary.SummaryItem
 import com.andrewwin.sumup.domain.summary.SummaryLimits
-import com.andrewwin.sumup.domain.summary.SummaryResult
-import com.andrewwin.sumup.domain.summary.SummarySourceRef
+import com.andrewwin.sumup.domain.entities.summary.SummaryResult
+import com.andrewwin.sumup.domain.entities.summary.SummarySourceRef
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.support.NoActiveModelException
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -132,7 +132,7 @@ class SummarizeFeedUseCase @Inject constructor(
                 }
                 val contentToProcess = if (shouldFetchFullContent) {
                     val fullContent = articleRepository.fetchFullContent(article)
-                    youtubeSubtitleSummary += YoutubeSubtitleFetchSummary.from(fullContent.youtubeSubtitleStatus)
+                    youtubeSubtitleSummary += YoutubeSubtitleFetchSummary.from(fullContent.status)
                     fullContent.text.ifBlank { article.content }
                 } else {
                     article.content

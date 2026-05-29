@@ -3,8 +3,8 @@ package com.andrewwin.sumup.domain.usecase.summary
 import com.andrewwin.sumup.domain.feed.pipeline.FeedArticlesBuilder
 import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.repository.SourceRepository
-import com.andrewwin.sumup.domain.settings.UserSettings
-import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.entities.settings.UserSettings
+import com.andrewwin.sumup.domain.entities.source.SourceType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine

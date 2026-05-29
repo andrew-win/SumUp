@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.ai
 
-import com.andrewwin.sumup.domain.summary.SummaryResult
+import com.andrewwin.sumup.domain.entities.summary.SummaryResult
 
 interface SummaryResponseMapper {
     fun parseSingle(jsonResponse: String, content: String): SummaryResult.Single

@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.summary.scheduled
 
-import com.andrewwin.sumup.domain.summary.SummaryResult
+import com.andrewwin.sumup.domain.entities.summary.SummaryResult
 import com.andrewwin.sumup.domain.summary.SummaryResultFormatter
 import javax.inject.Inject
 

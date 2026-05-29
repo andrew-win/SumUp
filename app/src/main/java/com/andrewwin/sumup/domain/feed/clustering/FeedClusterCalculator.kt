@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.feed.clustering
 
-import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.domain.entities.article.Article
 import com.andrewwin.sumup.domain.news.ArticleCluster
 
 object FeedClusterCalculator {

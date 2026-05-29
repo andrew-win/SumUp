@@ -4,7 +4,7 @@ import android.content.Context
 import com.andrewwin.sumup.data.remote.PublicSourcesCatalogService
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.PublicSubscriptionsCatalog
-import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.entities.source.SourceType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex

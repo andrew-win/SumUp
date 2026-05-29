@@ -1,9 +1,9 @@
 package com.andrewwin.sumup.domain.usecase.sources
 
-import com.andrewwin.sumup.domain.ai.AiModelType
+import com.andrewwin.sumup.domain.entities.ai.AiModelType
 import com.andrewwin.sumup.domain.ai.CloudEmbeddingProvider
 import com.andrewwin.sumup.domain.ai.LocalEmbeddingProvider
-import com.andrewwin.sumup.domain.article.Article
+import com.andrewwin.sumup.domain.entities.article.Article
 import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.news.EmbeddingUtils
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
@@ -13,9 +13,9 @@ import com.andrewwin.sumup.domain.repository.PublicSubscriptionsCatalog
 import com.andrewwin.sumup.domain.repository.SourceRepository
 import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.DeduplicationStrategy
-import com.andrewwin.sumup.domain.source.SourceGroupWithSources
-import com.andrewwin.sumup.domain.source.SourceType
+import com.andrewwin.sumup.domain.entities.settings.DeduplicationStrategy
+import com.andrewwin.sumup.domain.entities.source.SourceGroupWithSources
+import com.andrewwin.sumup.domain.entities.source.SourceType
 import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
 import com.andrewwin.sumup.domain.source.SuggestedThemesRefreshPolicy
 import kotlinx.coroutines.flow.Flow
