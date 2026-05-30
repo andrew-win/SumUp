@@ -8,14 +8,13 @@ import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.data.auth.FirebaseSettingsAuthService
-import com.andrewwin.sumup.data.sync.SettingsSyncPreferencesStore
-import com.andrewwin.sumup.data.sync.SettingsSyncService
+import com.andrewwin.sumup.data.remote.firebase.auth.FirebaseSettingsAuthService
+import com.andrewwin.sumup.data.remote.firebase.sync.SettingsSyncPreferencesStore
+import com.andrewwin.sumup.data.remote.firebase.sync.SettingsSyncService
 import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
 import com.andrewwin.sumup.domain.entities.ai.AiModelType
 import com.andrewwin.sumup.domain.entities.ai.AiProvider
 import com.andrewwin.sumup.domain.entities.ai.normalizedStableKey
-import com.andrewwin.sumup.domain.ai.LocalModelManager
 import com.andrewwin.sumup.domain.news.DedupRuntimeCoordinator
 import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.repository.ArticleRepository

@@ -1,6 +1,6 @@
 package com.andrewwin.sumup
 
-import com.andrewwin.sumup.data.remote.YouTubeParser
+import com.andrewwin.sumup.data.remote.sources.youtube.YouTubeParser
 import java.io.ByteArrayInputStream
 import org.junit.Assert.assertEquals
 import org.junit.Test

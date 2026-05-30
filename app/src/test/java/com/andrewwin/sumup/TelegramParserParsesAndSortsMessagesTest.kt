@@ -1,6 +1,6 @@
 package com.andrewwin.sumup
 
-import com.andrewwin.sumup.data.remote.TelegramParser
+import com.andrewwin.sumup.data.remote.sources.telegram.TelegramParser
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

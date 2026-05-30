@@ -1,6 +1,6 @@
 package com.andrewwin.sumup
 
-import com.andrewwin.sumup.data.remote.ArticleStableKeyFactory
+import com.andrewwin.sumup.data.remote.sources.ArticleStableKeyFactory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test

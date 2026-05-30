@@ -19,9 +19,8 @@ import com.andrewwin.sumup.data.local.entities.SavedArticle
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.data.remote.ArticleStableKeyFactory
-import com.andrewwin.sumup.data.remote.NewsParsingLogger
-import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
+import com.andrewwin.sumup.data.remote.sources.ArticleStableKeyFactory
+import com.andrewwin.sumup.data.remote.sources.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.entities.article.Article
 import com.andrewwin.sumup.domain.entities.article.ArticleEmbeddingRecord
 import com.andrewwin.sumup.domain.entities.article.ArticleSimilarityRecord
@@ -86,7 +85,6 @@ class ArticleRepositoryImpl @Inject constructor(
             .filter { it.group.isEnabled }
             .flatMap { groupWithSources -> groupWithSources.sources.filter { it.isEnabled } }
 
-        val fetchStartedAt = NewsParsingLogger.now()
         val fetchedArticlesBySource = fetchEnabledSources(enabledSources, cutoffTimestamp)
         val sourceTypeById = enabledSources.associateBy({ it.id }, { it.type })
         val allFreshFetchedArticles = fetchedArticlesBySource
@@ -95,11 +93,6 @@ class ArticleRepositoryImpl @Inject constructor(
         val averageViews = articleImportanceScorer.averageViews(
             allFreshFetchedArticles.map { it.toDomainModel() }
         )
-        val fetchElapsedMs = NewsParsingLogger.elapsedMs(fetchStartedAt)
-        logParseSummaries(enabledSources, fetchElapsedMs)
-
-        val cleaningStartedAt = NewsParsingLogger.now()
-        val cleaningDurationByType = mutableMapOf<SourceType, Long>()
         var oldFetchedArticlesSkipped = 0
         var existingFetchedArticlesSkipped = 0
         for ((source, fetchedArticles) in fetchedArticlesBySource) {
@@ -110,7 +103,6 @@ class ArticleRepositoryImpl @Inject constructor(
             existingArticlesToRefreshMetrics.addAll(processingPlan.existingArticlesForMetricsRefresh)
             existingFetchedArticlesSkipped += processingPlan.skippedExistingArticlesCount
             if (articlesToClean.isNotEmpty()) {
-                val sourceCleaningStartedAt = NewsParsingLogger.now()
                 val footerDetection = detectFooterPatternIfNeeded(source, articlesToClean)
                 val newFooterPattern = footerDetection.footerPattern
 
@@ -137,14 +129,8 @@ class ArticleRepositoryImpl @Inject constructor(
                         article.stableArticleKey.takeIf { it.isNotBlank() }
                     }
                 )
-                val sourceCleaningElapsedMs = NewsParsingLogger.elapsedMs(sourceCleaningStartedAt)
-                cleaningDurationByType[source.type] =
-                    cleaningDurationByType.getOrDefault(source.type, 0L) + sourceCleaningElapsedMs
             }
         }
-        logCleaningSummaries(cleaningDurationByType)
-
-        val databaseStartedAt = NewsParsingLogger.now()
         for (sourceUpdate in sourceFooterUpdates) {
             sourceDao.updateSource(sourceUpdate)
         }
@@ -174,7 +160,6 @@ class ArticleRepositoryImpl @Inject constructor(
             articleDao.getArticleIdsByStableArticleKeys(changedStableArticleKeys.toList())
         }
 
-        val cleanupStartedAt = NewsParsingLogger.now()
         val newerCount = articleDao.countArticlesNewerThan(cutoffTimestamp)
         var deletedOldArticles = 0
         if (newerCount > 0) {
@@ -310,40 +295,6 @@ class ArticleRepositoryImpl @Inject constructor(
                 }
             }
         }.awaitAll()
-    }
-
-    private fun logParseSummaries(enabledSources: List<Source>, totalDurationMs: Long) {
-        val channelCountByType = enabledSources.groupingBy { it.type }.eachCount()
-        NewsParsingLogger.parseSummary(
-            sourceType = SourceType.TELEGRAM,
-            channelCount = channelCountByType[SourceType.TELEGRAM] ?: 0,
-            durationMs = totalDurationMs
-        )
-        NewsParsingLogger.parseSummary(
-            sourceType = SourceType.RSS,
-            channelCount = channelCountByType[SourceType.RSS] ?: 0,
-            durationMs = totalDurationMs
-        )
-        NewsParsingLogger.parseSummary(
-            sourceType = SourceType.YOUTUBE,
-            channelCount = channelCountByType[SourceType.YOUTUBE] ?: 0,
-            durationMs = totalDurationMs
-        )
-    }
-
-    private fun logCleaningSummaries(cleaningDurationByType: Map<SourceType, Long>) {
-        NewsParsingLogger.cleaningSummary(
-            sourceType = SourceType.TELEGRAM,
-            durationMs = cleaningDurationByType[SourceType.TELEGRAM] ?: 0L
-        )
-        NewsParsingLogger.cleaningSummary(
-            sourceType = SourceType.RSS,
-            durationMs = cleaningDurationByType[SourceType.RSS] ?: 0L
-        )
-        NewsParsingLogger.cleaningSummary(
-            sourceType = SourceType.YOUTUBE,
-            durationMs = cleaningDurationByType[SourceType.YOUTUBE] ?: 0L
-        )
     }
 
     private data class ArticleProcessingPlan(

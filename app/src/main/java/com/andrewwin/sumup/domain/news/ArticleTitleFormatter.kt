@@ -32,6 +32,9 @@ class ArticleTitleFormatter @Inject constructor() {
         if (firstSentence.length > MAX_TITLE_LENGTH) {
             return firstSentence.takeCompleteWords(MAX_TITLE_LENGTH)
         }
+        if (firstSentence.length > TITLE_EXTENSION_THRESHOLD) {
+            return firstSentence
+        }
 
         val title = StringBuilder(firstSentence)
         sentences.drop(1).forEach { sentence ->
@@ -148,6 +151,7 @@ class ArticleTitleFormatter @Inject constructor() {
 
     private companion object {
         private const val MAX_TITLE_LENGTH = 150
+        private const val TITLE_EXTENSION_THRESHOLD = 50
         private val TITLE_MULTI_DOT_ABBREVIATIONS = setOf("e.g", "i.e")
         private val TITLE_DOT_ABBREVIATIONS = setOf(
             "грн", "коп", "дол", "руб", "євро", "тис", "млн", "млрд", "трлн",

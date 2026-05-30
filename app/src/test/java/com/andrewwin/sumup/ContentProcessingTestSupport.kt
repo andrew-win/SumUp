@@ -1,7 +1,7 @@
 package com.andrewwin.sumup
 
 import com.andrewwin.sumup.domain.support.DispatcherProvider
-import com.andrewwin.sumup.data.news.ArticleTextCleaner
+import com.andrewwin.sumup.data.local.cleaners.ArticleTextCleaner
 import kotlinx.coroutines.Dispatchers
 
 object ContentProcessingTestSupport {

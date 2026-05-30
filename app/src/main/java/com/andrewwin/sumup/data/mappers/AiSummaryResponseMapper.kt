@@ -1,11 +1,11 @@
 package com.andrewwin.sumup.data.mappers
 
-import com.andrewwin.sumup.data.ai.AiJsonResponseParser
-import com.andrewwin.sumup.data.remote.models.ai.CompareFactJson
-import com.andrewwin.sumup.data.remote.models.ai.CompareResponseJson
-import com.andrewwin.sumup.data.remote.models.ai.QaResponseJson
-import com.andrewwin.sumup.data.remote.models.ai.SummaryDetailJson
-import com.andrewwin.sumup.data.remote.models.ai.SummaryResponseJson
+import com.andrewwin.sumup.data.remote.ai.AiJsonResponseParser
+import com.andrewwin.sumup.data.remote.ai.models.CompareFactJson
+import com.andrewwin.sumup.data.remote.ai.models.CompareResponseJson
+import com.andrewwin.sumup.data.remote.ai.models.QaResponseJson
+import com.andrewwin.sumup.data.remote.ai.models.SummaryDetailJson
+import com.andrewwin.sumup.data.remote.ai.models.SummaryResponseJson
 import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
 import com.andrewwin.sumup.domain.entities.summary.DigestTheme
 import com.andrewwin.sumup.domain.entities.summary.SummaryItem

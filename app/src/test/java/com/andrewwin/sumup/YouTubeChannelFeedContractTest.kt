@@ -1,10 +1,10 @@
 package com.andrewwin.sumup
 
 import com.andrewwin.sumup.data.local.entities.SourceType
-import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
-import com.andrewwin.sumup.data.remote.RssParser
-import com.andrewwin.sumup.data.remote.TelegramParser
-import com.andrewwin.sumup.data.remote.YouTubeParser
+import com.andrewwin.sumup.data.remote.sources.RemoteArticleDataSource
+import com.andrewwin.sumup.data.remote.sources.rss.RssParser
+import com.andrewwin.sumup.data.remote.sources.telegram.TelegramParser
+import com.andrewwin.sumup.data.remote.sources.youtube.YouTubeParser
 import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
 import com.andrewwin.sumup.domain.source.SourceUrlValidator
 import java.net.HttpURLConnection

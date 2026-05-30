@@ -28,6 +28,8 @@ class LocalEmbeddingWarmupCoordinator @Inject constructor(
         if (!shouldWarmUp) {
             return
         }
+
+        localEmbeddingProvider.initialize()
     }
 
     private companion object {

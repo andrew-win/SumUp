@@ -13,6 +13,7 @@ import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.entities.settings.AiStrategy
 import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
+import com.andrewwin.sumup.domain.summary.LocalSummarySentenceSelector
 import com.andrewwin.sumup.domain.entities.summary.SummaryItem
 import com.andrewwin.sumup.domain.summary.SummaryLimits
 import com.andrewwin.sumup.domain.entities.summary.SummaryResult
@@ -26,6 +27,7 @@ class SummarizeSingleArticleUseCase @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val articleRepository: ArticleRepository,
     private val getExtractiveSummaryUseCase: ExtractiveSummaryService,
+    private val localSummarySentenceSelector: LocalSummarySentenceSelector,
     private val shrinkTextForAdaptiveStrategyUseCase: AdaptiveTextShrinker,
     private val aiRequestSender: AiRequestSender,
     private val summaryResponseMapper: SummaryResponseMapper,
@@ -151,17 +153,47 @@ class SummarizeSingleArticleUseCase @Inject constructor(
         }
     }
 
-    private fun buildLocalSingleSummary(
+    private suspend fun buildLocalSingleSummary(
         title: String,
         content: String,
         sourceRef: SummarySourceRef
     ): SummaryResult.Single {
-        val sentences = getExtractiveSummaryUseCase(content, SummaryLimits.Single.localExtractiveSentences)
+        if (!localSummarySentenceSelector.initialize()) {
+            return buildFallbackLocalSingleSummary(title, content, sourceRef)
+        }
+
+        val candidates = getExtractiveSummaryUseCase.getTopCandidates(
+            content,
+            SummaryLimits.Single.localCandidateSentences
+        )
+
+        val sentences = localSummarySentenceSelector.selectDistinct(
+            candidates = candidates,
+            maxCount = SummaryLimits.Single.mainSentences + SummaryLimits.Single.maxPoints
+        )
+
+        return buildSingleSummaryResult(title, sourceRef, sentences)
+    }
+
+    private fun buildFallbackLocalSingleSummary(
+        title: String,
+        content: String,
+        sourceRef: SummarySourceRef
+    ): SummaryResult.Single {
+        val sentences = getExtractiveSummaryUseCase(content, SummaryLimits.Single.localCandidateSentences)
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .distinct()
-            .take(SummaryLimits.Single.localExtractiveSentences)
+            .take(SummaryLimits.Single.mainSentences + SummaryLimits.Single.maxPoints)
 
+        return buildSingleSummaryResult(title, sourceRef, sentences)
+    }
+
+    private fun buildSingleSummaryResult(
+        title: String,
+        sourceRef: SummarySourceRef,
+        sentences: List<String>
+    ): SummaryResult.Single {
         val main = sentences.firstOrNull()
         val points = sentences
             .drop(SummaryLimits.Single.mainSentences)

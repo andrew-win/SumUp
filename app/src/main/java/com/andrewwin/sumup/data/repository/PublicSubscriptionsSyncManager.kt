@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.repository
 
 import android.content.Context
-import com.andrewwin.sumup.data.remote.PublicSourcesCatalogService
+import com.andrewwin.sumup.data.remote.firebase.catalog.PublicSourcesCatalogService
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.repository.PublicSubscriptionsCatalog
 import com.andrewwin.sumup.domain.entities.source.SourceType

@@ -1,6 +1,6 @@
 package com.andrewwin.sumup
 
-import com.andrewwin.sumup.data.remote.TelegramParser
+import com.andrewwin.sumup.data.remote.sources.telegram.TelegramParser
 import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue

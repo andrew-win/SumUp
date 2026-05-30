@@ -4,7 +4,7 @@ import android.net.Uri
 import com.andrewwin.sumup.data.mappers.toDomainModel
 import com.andrewwin.sumup.data.mappers.toRoomEntity
 import com.andrewwin.sumup.data.local.dao.SourceDao
-import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
+import com.andrewwin.sumup.data.remote.sources.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.news.ArticleContentCleaner
 import com.andrewwin.sumup.domain.repository.ImportedSource
 import com.andrewwin.sumup.domain.repository.ImportedSourceGroup

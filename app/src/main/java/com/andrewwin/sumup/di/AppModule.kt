@@ -3,9 +3,9 @@ package com.andrewwin.sumup.di
 import android.content.Context
 import androidx.work.WorkManager
 import com.andrewwin.sumup.data.mappers.AiSummaryResponseMapper
-import com.andrewwin.sumup.data.ai.CloudAiRequestSender
-import com.andrewwin.sumup.data.ai.CloudEmbeddingGenerator
-import com.andrewwin.sumup.data.ai.LocalEmbeddingService
+import com.andrewwin.sumup.data.remote.ai.CloudAiRequestSender
+import com.andrewwin.sumup.data.remote.ai.CloudEmbeddingGenerator
+import com.andrewwin.sumup.data.local.ai.LocalEmbeddingService
 import com.andrewwin.sumup.data.export.AndroidPdfExportService
 import com.andrewwin.sumup.data.local.AppDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
@@ -19,21 +19,25 @@ import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.scheduler.ScheduledSummaryTimeCalculator
 import com.andrewwin.sumup.data.local.scheduler.SummarySchedulerImpl
-import com.andrewwin.sumup.data.news.ArticleTextCleaner
+import com.andrewwin.sumup.data.local.cleaners.ArticleTextCleaner
 import com.andrewwin.sumup.data.provider.AppDispatcherProvider
-import com.andrewwin.sumup.data.remote.AiService
-import com.andrewwin.sumup.data.remote.ai.*
+import com.andrewwin.sumup.data.remote.ai.AiService
 import com.andrewwin.sumup.domain.entities.ai.AiProvider
 import com.andrewwin.sumup.data.local.entities.SourceType
-import com.andrewwin.sumup.data.remote.RemoteArticleDataSource
-import com.andrewwin.sumup.data.remote.RemoteSourceDataSource
-import com.andrewwin.sumup.data.remote.rss.RssRemoteDataSource
-import com.andrewwin.sumup.data.remote.telegram.TelegramRemoteDataSource
-import com.andrewwin.sumup.data.remote.youtube.YouTubeRemoteDataSource
-import com.andrewwin.sumup.data.remote.RemoteFullContent
-import com.andrewwin.sumup.data.remote.RssParser
-import com.andrewwin.sumup.data.remote.TelegramParser
-import com.andrewwin.sumup.data.remote.YouTubeParser
+import com.andrewwin.sumup.data.remote.sources.RemoteArticleDataSource
+import com.andrewwin.sumup.data.remote.ai.handlers.ChatGPTHandler
+import com.andrewwin.sumup.data.remote.ai.handlers.ClaudeHandler
+import com.andrewwin.sumup.data.remote.ai.handlers.CohereHandler
+import com.andrewwin.sumup.data.remote.ai.handlers.GeminiHandler
+import com.andrewwin.sumup.data.remote.ai.handlers.GroqHandler
+import com.andrewwin.sumup.data.remote.ai.handlers.OpenRouterHandler
+import com.andrewwin.sumup.data.remote.firebase.sync.SettingsSyncService
+import com.andrewwin.sumup.data.remote.sources.rss.RssRemoteDataSource
+import com.andrewwin.sumup.data.remote.sources.telegram.TelegramRemoteDataSource
+import com.andrewwin.sumup.data.remote.sources.youtube.YouTubeRemoteDataSource
+import com.andrewwin.sumup.data.remote.sources.rss.RssParser
+import com.andrewwin.sumup.data.remote.sources.telegram.TelegramParser
+import com.andrewwin.sumup.data.remote.sources.youtube.YouTubeParser
 import com.andrewwin.sumup.data.repository.ArticleRepositoryImpl
 import com.andrewwin.sumup.data.repository.FeedClusterSnapshotStore
 import com.andrewwin.sumup.data.repository.ModelRepositoryImpl
@@ -289,7 +293,7 @@ object AppModule {
     @Provides
     @Singleton
     fun provideUserDataSyncRepository(
-        impl: com.andrewwin.sumup.data.sync.SettingsSyncService
+        impl: SettingsSyncService
     ): UserDataSyncRepository = impl
 
     @Provides

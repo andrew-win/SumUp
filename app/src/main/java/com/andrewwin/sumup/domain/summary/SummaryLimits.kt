@@ -8,7 +8,7 @@ object SummaryLimits {
     object Single {
         const val mainSentences = 1
         const val maxPoints = 5
-        const val localExtractiveSentences = mainSentences + maxPoints
+        const val localCandidateSentences = 10
         const val uiMaxDetails = maxPoints
         const val maxWordsPerPoint = 16
     }
@@ -20,11 +20,14 @@ object SummaryLimits {
         const val maxWordsPerPoint = 16
     }
 
+    object LocalSummary {
+        const val nearDuplicateThreshold: Float = 0.88f
+    }
+
     object LocalClusterSummary {
         const val maxSummarySentences = 5
         const val minSentencesPerSource = 1
-        const val candidateSentencesPerSource = 3
-        const val nearDuplicateThreshold: Float = 0.87f
+        const val candidateSentencesPerSource = 5
     }
 
     object Digest {

@@ -1,6 +1,6 @@
 package com.andrewwin.sumup
 
-import com.andrewwin.sumup.data.remote.RssParser
+import com.andrewwin.sumup.data.remote.sources.rss.RssParser
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals

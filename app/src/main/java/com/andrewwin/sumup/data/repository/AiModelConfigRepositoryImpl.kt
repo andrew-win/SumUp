@@ -3,7 +3,7 @@ package com.andrewwin.sumup.data.repository
 import com.andrewwin.sumup.data.mappers.toDomainModel
 import com.andrewwin.sumup.data.mappers.toRoomEntity
 import com.andrewwin.sumup.data.local.dao.AiModelDao
-import com.andrewwin.sumup.data.remote.AiService
+import com.andrewwin.sumup.data.remote.ai.AiService
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
 import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
 import com.andrewwin.sumup.domain.entities.ai.AiModelType

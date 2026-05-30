@@ -4,19 +4,19 @@ import com.andrewwin.sumup.domain.entities.article.Article
 import com.andrewwin.sumup.domain.ai.AdaptiveTextShrinker
 import com.andrewwin.sumup.domain.ai.AiPromptBuilder
 import com.andrewwin.sumup.domain.ai.AiRequestSender
-import com.andrewwin.sumup.domain.ai.LocalEmbeddingProvider
 import com.andrewwin.sumup.domain.ai.LocalSummaryReason
 import com.andrewwin.sumup.domain.ai.ProportionalTextLimiter
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
 import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
 import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
 import com.andrewwin.sumup.domain.entities.ai.YoutubeSubtitleFetchSummary
-import com.andrewwin.sumup.domain.news.SimilarityScorer
 import com.andrewwin.sumup.domain.repository.ArticleRepository
 import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.entities.settings.AiStrategy
+import com.andrewwin.sumup.domain.summary.ExtractiveSentenceCandidate
 import com.andrewwin.sumup.domain.entities.settings.UserSettings
 import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
+import com.andrewwin.sumup.domain.summary.LocalSummarySentenceSelector
 import com.andrewwin.sumup.domain.entities.summary.SummaryItem
 import com.andrewwin.sumup.domain.summary.SummaryLimits
 import com.andrewwin.sumup.domain.entities.summary.SummaryResult
@@ -38,8 +38,7 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
     private val summaryResponseMapper: SummaryResponseMapper,
     private val limitTextsProportionallyUseCase: ProportionalTextLimiter,
     private val getExtractiveSummaryUseCase: ExtractiveSummaryService,
-    private val localEmbeddingProvider: LocalEmbeddingProvider,
-    private val similarityScorer: SimilarityScorer,
+    private val localSummarySentenceSelector: LocalSummarySentenceSelector,
     private val dispatcherProvider: DispatcherProvider,
     private val summaryExecutionInfoFormatter: SummaryExecutionInfoFormatter,
     private val summaryExecutionInfoStore: SummaryExecutionInfoStore
@@ -180,7 +179,7 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
     )
 
     private data class LocalClusterSentenceCandidate(
-        val text: String,
+        val candidate: ExtractiveSentenceCandidate,
         val source: SummarySourceRef,
         val articleId: Long
     )
@@ -196,7 +195,7 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
             )
         }
 
-        if (!localEmbeddingProvider.initialize()) {
+        if (!localSummarySentenceSelector.initialize()) {
             throw LocalModelMissingException()
         }
 
@@ -204,7 +203,7 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
         val candidatesByArticle = articles.associate { article ->
             val candidates = buildLocalClusterSentenceCandidates(article)
             youtubeSubtitleSummary += candidates.youtubeSubtitleSummary
-            article.id to candidates.items
+            article.id to selectDistinctLocalClusterCandidates(candidates.items)
         }
 
         val requiredSourceItems = buildRequiredLocalClusterSummaryItems(
@@ -219,17 +218,18 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
         if (remainingSlots > 0) {
             val remainingCandidates = articles
                 .flatMap { article -> candidatesByArticle[article.id].orEmpty() }
-                .filterNot { candidate -> selectedTexts.any { it == candidate.text } }
+                .filterNot { candidate -> selectedTexts.any { it == candidate.candidate.text } }
+                .sortedByDescending { it.candidate.score }
 
             for (candidate in remainingCandidates) {
                 if (selectedItems.size >= SummaryLimits.LocalClusterSummary.maxSummarySentences) break
-                if (isNearDuplicateOfSelected(candidate.text, selectedTexts)) continue
+                if (localSummarySentenceSelector.isNearDuplicate(candidate.candidate.text, selectedTexts)) continue
 
                 selectedItems += SummaryItem(
-                    text = candidate.text,
+                    text = candidate.candidate.text,
                     sources = listOf(candidate.source)
                 )
-                selectedTexts += candidate.text
+                selectedTexts += candidate.candidate.text
             }
         }
 
@@ -254,16 +254,13 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
         val sourceMeta = SummarySourceRef(name = sourceName, url = sourceUrl)
 
         val fullContent = articleRepository.fetchFullContent(article)
-        val items = getExtractiveSummaryUseCase(
+        val items = getExtractiveSummaryUseCase.getTopCandidates(
             fullContent.text,
             SummaryLimits.LocalClusterSummary.candidateSentencesPerSource
         )
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .distinct()
-            .map { sentence ->
+            .map { sentenceCandidate ->
                 LocalClusterSentenceCandidate(
-                    text = sentence,
+                    candidate = sentenceCandidate,
                     source = sourceMeta,
                     articleId = article.id
                 )
@@ -272,6 +269,19 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
             items = items,
             youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.status)
         )
+    }
+
+    private suspend fun selectDistinctLocalClusterCandidates(
+        candidates: List<LocalClusterSentenceCandidate>
+    ): List<LocalClusterSentenceCandidate> {
+        if (candidates.isEmpty()) return emptyList()
+
+        val selectedCandidates = localSummarySentenceSelector.selectDistinctCandidates(
+            candidates = candidates.map { it.candidate },
+            maxCount = SummaryLimits.LocalClusterSummary.candidateSentencesPerSource
+        )
+        val sourceCandidateByText = candidates.associateBy { it.candidate.text }
+        return selectedCandidates.mapNotNull { candidate -> sourceCandidateByText[candidate.text] }
     }
 
     private suspend fun buildRequiredLocalClusterSummaryItems(
@@ -286,34 +296,18 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
         for (article in articles.take(maxRequiredSources)) {
             val articleCandidates = candidatesByArticle[article.id].orEmpty()
             val selectedCandidate = articleCandidates.firstOrNull { candidate ->
-                !isNearDuplicateOfSelected(candidate.text, selectedTexts)
-            } ?: articleCandidates.firstOrNull()
+                !localSummarySentenceSelector.isNearDuplicate(candidate.candidate.text, selectedTexts)
+            } ?: articleCandidates.maxByOrNull { it.candidate.score }
 
             if (selectedCandidate != null) {
                 items += SummaryItem(
-                    text = selectedCandidate.text,
+                    text = selectedCandidate.candidate.text,
                     sources = listOf(selectedCandidate.source)
                 )
-                selectedTexts += selectedCandidate.text
+                selectedTexts += selectedCandidate.candidate.text
             }
         }
 
         return items
-    }
-
-    private suspend fun isNearDuplicateOfSelected(
-        candidateText: String,
-        selectedTexts: List<String>
-    ): Boolean {
-        if (selectedTexts.isEmpty()) return false
-        val candidateEmbedding = localEmbeddingProvider.computeLocalEmbedding(candidateText)
-        if (candidateEmbedding.isEmpty()) return selectedTexts.any { it == candidateText }
-
-        return selectedTexts.any { selectedText ->
-            val selectedEmbedding = localEmbeddingProvider.computeLocalEmbedding(selectedText)
-            selectedEmbedding.isNotEmpty() &&
-                similarityScorer.calculateSimilarity(candidateEmbedding, selectedEmbedding) >=
-                SummaryLimits.LocalClusterSummary.nearDuplicateThreshold
-        }
     }
 }
