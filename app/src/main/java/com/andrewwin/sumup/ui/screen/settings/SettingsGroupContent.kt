@@ -26,13 +26,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
-import com.andrewwin.sumup.domain.entities.settings.AiStrategy
-import com.andrewwin.sumup.domain.entities.settings.AppLanguage
-import com.andrewwin.sumup.domain.entities.settings.AppThemeMode
-import com.andrewwin.sumup.domain.entities.settings.DeduplicationStrategy
-import com.andrewwin.sumup.domain.entities.settings.SummaryLanguage
-import com.andrewwin.sumup.domain.entities.settings.UserSettings
+import com.andrewwin.sumup.domain.ai.model.AiModelConfig
+import com.andrewwin.sumup.domain.settings.model.AiStrategy
+import com.andrewwin.sumup.domain.settings.model.AppLanguage
+import com.andrewwin.sumup.domain.settings.model.AppThemeMode
+import com.andrewwin.sumup.domain.settings.model.DeduplicationStrategy
+import com.andrewwin.sumup.domain.settings.model.SummaryLanguage
+import com.andrewwin.sumup.domain.settings.model.UserSettings
 import java.util.Locale
 import kotlin.math.roundToInt
 

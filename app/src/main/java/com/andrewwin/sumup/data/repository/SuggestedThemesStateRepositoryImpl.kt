@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.repository
 
 import android.content.Context
-import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
+import com.andrewwin.sumup.domain.settings.repository.SuggestedThemesStateRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton

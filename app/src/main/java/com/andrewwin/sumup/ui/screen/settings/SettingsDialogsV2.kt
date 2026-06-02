@@ -61,9 +61,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
-import com.andrewwin.sumup.domain.entities.ai.AiModelType
-import com.andrewwin.sumup.domain.entities.ai.AiProvider
+import com.andrewwin.sumup.domain.ai.model.AiModelConfig
+import com.andrewwin.sumup.domain.ai.model.AiModelType
+import com.andrewwin.sumup.domain.ai.model.AiProvider
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 
 @Composable

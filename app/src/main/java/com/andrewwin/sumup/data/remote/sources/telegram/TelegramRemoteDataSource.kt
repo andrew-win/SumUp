@@ -4,7 +4,7 @@ import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.remote.sources.RemoteFullContent
 import com.andrewwin.sumup.data.remote.sources.RemoteSourceDataSource
-import com.andrewwin.sumup.domain.entities.ai.RemoteContentFetchStatus
+import com.andrewwin.sumup.domain.ai.model.RemoteContentFetchStatus
 import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

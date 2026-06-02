@@ -1,9 +1,9 @@
 package com.andrewwin.sumup.data.remote.firebase.sync
 
-import com.andrewwin.sumup.domain.entities.sync.BackupSelection
-import com.andrewwin.sumup.domain.entities.sync.SyncConflictStrategy
-import com.andrewwin.sumup.domain.entities.sync.SyncOverwritePriority
-import com.andrewwin.sumup.domain.entities.sync.UserDataSyncState
+import com.andrewwin.sumup.domain.sync.model.BackupSelection
+import com.andrewwin.sumup.domain.sync.model.SyncConflictStrategy
+import com.andrewwin.sumup.domain.sync.model.SyncOverwritePriority
+import com.andrewwin.sumup.domain.sync.model.UserDataSyncState
 
 typealias BackupSelection = BackupSelection
 typealias SettingsSyncState = UserDataSyncState

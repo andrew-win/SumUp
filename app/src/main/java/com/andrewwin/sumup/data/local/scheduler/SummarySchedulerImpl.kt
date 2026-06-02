@@ -7,32 +7,35 @@ import android.content.Intent
 import android.os.Build
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
-import com.andrewwin.sumup.domain.entities.settings.ScheduledSummaryTime
-import com.andrewwin.sumup.domain.entities.settings.normalizedScheduledSummaryTimes
-import com.andrewwin.sumup.domain.repository.SummaryScheduler
+import com.andrewwin.sumup.domain.settings.model.ScheduledSummaryTime
+import com.andrewwin.sumup.domain.settings.model.normalizedScheduledSummaryTimes
+import com.andrewwin.sumup.domain.summary.repository.SummaryScheduler
 import com.andrewwin.sumup.receiver.ScheduledSummaryAlarmReceiver
-import com.andrewwin.sumup.worker.ScheduledSummaryWorkKind
-import com.andrewwin.sumup.worker.SummaryWorkRequestFactory
-import com.andrewwin.sumup.worker.WorkerContracts
+import com.andrewwin.sumup.worker.summary.model.ScheduledSummaryWorkKind
+import com.andrewwin.sumup.worker.summary.SummaryWorkRequestFactory
+import com.andrewwin.sumup.worker.summary.SummaryConstants
+import com.andrewwin.sumup.worker.summary.SummaryWorkerHandler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
 class SummarySchedulerImpl @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val workManager: WorkManager,
-    private val timeCalculator: ScheduledSummaryTimeCalculator
+    private val timeCalculator: ScheduledSummaryTimeCalculator,
+    private val alarmStore: ScheduledSummaryAlarmStore
 ) : SummaryScheduler {
 
     override fun schedule(times: List<ScheduledSummaryTime>) {
-        cancelAlarms()
-        times.normalizedScheduledSummaryTimes().forEach { time ->
+        val normalizedTimes = times.normalizedScheduledSummaryTimes()
+        cancelAlarms(alarmStore.read())
+        normalizedTimes.forEach { time ->
             val scheduledAtMillis = timeCalculator.nextTriggerAtMillis(time.hour, time.minute)
             scheduleAlarm(
                 triggerAtMillis = timeCalculator.preparationTriggerAtMillis(scheduledAtMillis),
                 pendingIntent = createPendingIntent(
-                    action = WorkerContracts.ACTION_PREPARE_SCHEDULED_SUMMARY,
+                    action = SummaryConstants.ACTION_PREPARE_SCHEDULED_SUMMARY,
                     requestCode = alarmRequestCode(
-                        baseRequestCode = WorkerContracts.SCHEDULED_SUMMARY_PREPARE_ALARM_REQUEST_CODE,
+                        baseRequestCode = SummaryConstants.SCHEDULED_SUMMARY_PREPARE_ALARM_REQUEST_CODE,
                         time = time
                     ),
                     scheduledAtMillis = scheduledAtMillis
@@ -41,15 +44,16 @@ class SummarySchedulerImpl @Inject constructor(
             scheduleAlarm(
                 triggerAtMillis = scheduledAtMillis,
                 pendingIntent = createPendingIntent(
-                    action = WorkerContracts.ACTION_DELIVER_SCHEDULED_SUMMARY,
+                    action = SummaryConstants.ACTION_DELIVER_SCHEDULED_SUMMARY,
                     requestCode = alarmRequestCode(
-                        baseRequestCode = WorkerContracts.SCHEDULED_SUMMARY_DELIVER_ALARM_REQUEST_CODE,
+                        baseRequestCode = SummaryConstants.SCHEDULED_SUMMARY_DELIVER_ALARM_REQUEST_CODE,
                         time = time
                     ),
                     scheduledAtMillis = scheduledAtMillis
                 )
             )
         }
+        alarmStore.save(normalizedTimes)
     }
 
     private fun scheduleAlarm(triggerAtMillis: Long, pendingIntent: PendingIntent) {
@@ -68,10 +72,7 @@ class SummarySchedulerImpl @Inject constructor(
 
     override fun prepareNow(scheduledAt: Long) {
         workManager.enqueueUniqueWork(
-            WorkerContracts.scheduledSummaryWorkName(
-                WorkerContracts.PREPARE_SCHEDULED_SUMMARY_WORK_NAME,
-                scheduledAt
-            ),
+            createWorkName(SummaryConstants.PREPARE_SCHEDULED_SUMMARY_WORK_NAME, scheduledAt),
             ExistingWorkPolicy.KEEP,
             SummaryWorkRequestFactory.create(ScheduledSummaryWorkKind.PREPARE, scheduledAt)
         )
@@ -79,45 +80,38 @@ class SummarySchedulerImpl @Inject constructor(
 
     override fun deliverNow(scheduledAt: Long) {
         workManager.enqueueUniqueWork(
-            WorkerContracts.scheduledSummaryWorkName(
-                WorkerContracts.DELIVER_SCHEDULED_SUMMARY_WORK_NAME,
-                scheduledAt
-            ),
+            createWorkName(SummaryConstants.DELIVER_SCHEDULED_SUMMARY_WORK_NAME, scheduledAt),
             ExistingWorkPolicy.REPLACE,
             SummaryWorkRequestFactory.create(ScheduledSummaryWorkKind.DELIVER, scheduledAt)
         )
     }
 
     override fun cancel() {
-        cancelAlarms()
-        workManager.cancelAllWorkByTag(WorkerContracts.SCHEDULED_SUMMARY_WORK_TAG)
-        workManager.cancelUniqueWork(WorkerContracts.PREPARE_SCHEDULED_SUMMARY_WORK_NAME)
-        workManager.cancelUniqueWork(WorkerContracts.DELIVER_SCHEDULED_SUMMARY_WORK_NAME)
+        cancelAlarms(alarmStore.read())
+        alarmStore.clear()
+        workManager.cancelAllWorkByTag(SummaryConstants.SCHEDULED_SUMMARY_WORK_TAG)
     }
 
-    private fun cancelAlarms() {
+    private fun cancelAlarms(times: List<ScheduledSummaryTime>) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        for (hour in 0..23) {
-            for (minute in 0..59) {
-                val time = ScheduledSummaryTime(hour, minute)
-                findPendingIntent(
-                    action = WorkerContracts.ACTION_PREPARE_SCHEDULED_SUMMARY,
-                    requestCode = alarmRequestCode(WorkerContracts.SCHEDULED_SUMMARY_PREPARE_ALARM_REQUEST_CODE, time)
-                )?.let(alarmManager::cancel)
-                findPendingIntent(
-                    action = WorkerContracts.ACTION_DELIVER_SCHEDULED_SUMMARY,
-                    requestCode = alarmRequestCode(WorkerContracts.SCHEDULED_SUMMARY_DELIVER_ALARM_REQUEST_CODE, time)
-                )?.let(alarmManager::cancel)
-            }
+        times.forEach { time ->
+            findPendingIntent(
+                action = SummaryConstants.ACTION_PREPARE_SCHEDULED_SUMMARY,
+                requestCode = alarmRequestCode(SummaryConstants.SCHEDULED_SUMMARY_PREPARE_ALARM_REQUEST_CODE, time)
+            )?.let(alarmManager::cancel)
+            findPendingIntent(
+                action = SummaryConstants.ACTION_DELIVER_SCHEDULED_SUMMARY,
+                requestCode = alarmRequestCode(SummaryConstants.SCHEDULED_SUMMARY_DELIVER_ALARM_REQUEST_CODE, time)
+            )?.let(alarmManager::cancel)
         }
         findPendingIntent(
-            action = WorkerContracts.ACTION_DELIVER_SCHEDULED_SUMMARY,
-            requestCode = WorkerContracts.LEGACY_SCHEDULED_SUMMARY_DELIVER_ALARM_REQUEST_CODE
+            action = SummaryConstants.ACTION_DELIVER_SCHEDULED_SUMMARY,
+            requestCode = SummaryConstants.LEGACY_SCHEDULED_SUMMARY_DELIVER_ALARM_REQUEST_CODE
         )?.let(alarmManager::cancel)
     }
 
     private fun createPendingIntent(action: String, requestCode: Int, scheduledAtMillis: Long): PendingIntent {
-        val intent = createAlarmIntent(action).putExtra(WorkerContracts.KEY_SCHEDULED_SUMMARY_AT, scheduledAtMillis)
+        val intent = createAlarmIntent(action).putExtra(SummaryWorkerHandler.KEY_SCHEDULED_SUMMARY_AT, scheduledAtMillis)
         return PendingIntent.getBroadcast(
             context,
             requestCode,
@@ -139,6 +133,10 @@ class SummarySchedulerImpl @Inject constructor(
         return Intent(context, ScheduledSummaryAlarmReceiver::class.java).apply {
             this.action = action
         }
+    }
+
+    private fun createWorkName(baseName: String, scheduledAt: Long): String {
+        return SummaryConstants.scheduledSummaryWorkName(baseName, scheduledAt)
     }
 
     private fun alarmRequestCode(baseRequestCode: Int, time: ScheduledSummaryTime): Int {

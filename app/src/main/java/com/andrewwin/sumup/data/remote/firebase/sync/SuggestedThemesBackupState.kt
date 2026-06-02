@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.remote.firebase.sync
 
 import android.content.SharedPreferences
-import com.andrewwin.sumup.worker.WorkerContracts
+import com.andrewwin.sumup.worker.sync.CloudSyncWorkerHandler
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -15,33 +15,33 @@ data class SuggestedThemesBackupState(
 
 fun SharedPreferences.readSuggestedThemesBackupState(): SuggestedThemesBackupState {
     return SuggestedThemesBackupState(
-        savedThemeIds = getStringSet(WorkerContracts.KEY_SAVED_THEME_IDS, null).orEmpty().filterNotBlank().toSet(),
-        savedThemeTitlesLegacy = getStringSet(WorkerContracts.KEY_SAVED_THEMES, null).orEmpty().filterNotBlank().toSet(),
-        sourcesHash = takeIf { contains(WorkerContracts.KEY_SOURCES_HASH) }
-            ?.getInt(WorkerContracts.KEY_SOURCES_HASH, 0),
-        lastRecommendationAt = getLong(WorkerContracts.KEY_LAST_RECOMMENDATION_AT, 0L),
-        lastFeedRefreshAt = getLong(WorkerContracts.KEY_LAST_FEED_REFRESH_AT, 0L)
+        savedThemeIds = getStringSet(CloudSyncWorkerHandler.KEY_SAVED_THEME_IDS, null).orEmpty().filterNotBlank().toSet(),
+        savedThemeTitlesLegacy = getStringSet(CloudSyncWorkerHandler.KEY_SAVED_THEMES, null).orEmpty().filterNotBlank().toSet(),
+        sourcesHash = takeIf { contains(CloudSyncWorkerHandler.KEY_SOURCES_HASH) }
+            ?.getInt(CloudSyncWorkerHandler.KEY_SOURCES_HASH, 0),
+        lastRecommendationAt = getLong(CloudSyncWorkerHandler.KEY_LAST_RECOMMENDATION_AT, 0L),
+        lastFeedRefreshAt = getLong(CloudSyncWorkerHandler.KEY_LAST_FEED_REFRESH_AT, 0L)
     )
 }
 
 fun JSONObject.putSuggestedThemesBackupState(state: SuggestedThemesBackupState) {
-    put(WorkerContracts.KEY_SAVED_THEME_IDS, JSONArray(state.savedThemeIds.toList()))
-    put(WorkerContracts.KEY_SAVED_THEMES, JSONArray(state.savedThemeTitlesLegacy.toList()))
-    state.sourcesHash?.let { put(WorkerContracts.KEY_SOURCES_HASH, it) }
-    put(WorkerContracts.KEY_LAST_RECOMMENDATION_AT, state.lastRecommendationAt)
-    put(WorkerContracts.KEY_LAST_FEED_REFRESH_AT, state.lastFeedRefreshAt)
+    put(CloudSyncWorkerHandler.KEY_SAVED_THEME_IDS, JSONArray(state.savedThemeIds.toList()))
+    put(CloudSyncWorkerHandler.KEY_SAVED_THEMES, JSONArray(state.savedThemeTitlesLegacy.toList()))
+    state.sourcesHash?.let { put(CloudSyncWorkerHandler.KEY_SOURCES_HASH, it) }
+    put(CloudSyncWorkerHandler.KEY_LAST_RECOMMENDATION_AT, state.lastRecommendationAt)
+    put(CloudSyncWorkerHandler.KEY_LAST_FEED_REFRESH_AT, state.lastFeedRefreshAt)
 }
 
 fun JSONObject.toSuggestedThemesBackupState(): SuggestedThemesBackupState {
-    val savedThemeIds = optJSONArray(WorkerContracts.KEY_SAVED_THEME_IDS).toStringSet()
-    val savedThemeTitlesLegacy = optJSONArray(WorkerContracts.KEY_SAVED_THEMES).toStringSet()
+    val savedThemeIds = optJSONArray(CloudSyncWorkerHandler.KEY_SAVED_THEME_IDS).toStringSet()
+    val savedThemeTitlesLegacy = optJSONArray(CloudSyncWorkerHandler.KEY_SAVED_THEMES).toStringSet()
     return SuggestedThemesBackupState(
         savedThemeIds = savedThemeIds,
         savedThemeTitlesLegacy = savedThemeTitlesLegacy,
-        sourcesHash = takeIf { has(WorkerContracts.KEY_SOURCES_HASH) }
-            ?.optInt(WorkerContracts.KEY_SOURCES_HASH),
-        lastRecommendationAt = optLong(WorkerContracts.KEY_LAST_RECOMMENDATION_AT, 0L),
-        lastFeedRefreshAt = optLong(WorkerContracts.KEY_LAST_FEED_REFRESH_AT, 0L)
+        sourcesHash = takeIf { has(CloudSyncWorkerHandler.KEY_SOURCES_HASH) }
+            ?.optInt(CloudSyncWorkerHandler.KEY_SOURCES_HASH),
+        lastRecommendationAt = optLong(CloudSyncWorkerHandler.KEY_LAST_RECOMMENDATION_AT, 0L),
+        lastFeedRefreshAt = optLong(CloudSyncWorkerHandler.KEY_LAST_FEED_REFRESH_AT, 0L)
     )
 }
 
@@ -49,15 +49,15 @@ fun SharedPreferences.Editor.writeSuggestedThemesBackupState(
     state: SuggestedThemesBackupState,
     clearWhenEmpty: Boolean
 ): SharedPreferences.Editor {
-    putStringSet(WorkerContracts.KEY_SAVED_THEME_IDS, state.savedThemeIds.ifEmpty { emptySet() })
-    putStringSet(WorkerContracts.KEY_SAVED_THEMES, state.savedThemeTitlesLegacy.ifEmpty { emptySet() })
+    putStringSet(CloudSyncWorkerHandler.KEY_SAVED_THEME_IDS, state.savedThemeIds.ifEmpty { emptySet() })
+    putStringSet(CloudSyncWorkerHandler.KEY_SAVED_THEMES, state.savedThemeTitlesLegacy.ifEmpty { emptySet() })
     if (state.sourcesHash != null) {
-        putInt(WorkerContracts.KEY_SOURCES_HASH, state.sourcesHash)
+        putInt(CloudSyncWorkerHandler.KEY_SOURCES_HASH, state.sourcesHash)
     } else if (clearWhenEmpty) {
-        remove(WorkerContracts.KEY_SOURCES_HASH)
+        remove(CloudSyncWorkerHandler.KEY_SOURCES_HASH)
     }
-    putLong(WorkerContracts.KEY_LAST_RECOMMENDATION_AT, state.lastRecommendationAt)
-    putLong(WorkerContracts.KEY_LAST_FEED_REFRESH_AT, state.lastFeedRefreshAt)
+    putLong(CloudSyncWorkerHandler.KEY_LAST_RECOMMENDATION_AT, state.lastRecommendationAt)
+    putLong(CloudSyncWorkerHandler.KEY_LAST_FEED_REFRESH_AT, state.lastFeedRefreshAt)
     return this
 }
 

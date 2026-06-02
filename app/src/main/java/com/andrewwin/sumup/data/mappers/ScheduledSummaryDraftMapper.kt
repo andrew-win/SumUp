@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.mappers
 
 import com.andrewwin.sumup.data.local.entities.PreparedScheduledSummary
-import com.andrewwin.sumup.domain.entities.summary.ScheduledSummaryDraft
+import com.andrewwin.sumup.domain.summary.model.ScheduledSummaryDraft
 
 fun PreparedScheduledSummary.toDomainModel(): ScheduledSummaryDraft = ScheduledSummaryDraft(
     scheduledAt = scheduledAt,

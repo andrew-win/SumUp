@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.mappers
 
 import com.andrewwin.sumup.data.local.entities.AiModelType as RoomAiModelType
-import com.andrewwin.sumup.domain.entities.ai.AiModelType
+import com.andrewwin.sumup.domain.ai.model.AiModelType
 
 fun RoomAiModelType.toDomainModel(): AiModelType = when (this) {
     RoomAiModelType.SUMMARY -> AiModelType.SUMMARY

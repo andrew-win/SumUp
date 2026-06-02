@@ -57,16 +57,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.entities.source.SourceGroup
-import com.andrewwin.sumup.domain.entities.source.SourceType
+import com.andrewwin.sumup.domain.source.model.SourceType
 import com.andrewwin.sumup.ui.components.AppExportPdfButton
 import com.andrewwin.sumup.ui.components.AppFilterMenuChip
 import com.andrewwin.sumup.ui.components.AppSearchField
-import com.andrewwin.sumup.ui.displayName
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.DateFilter
 import com.andrewwin.sumup.ui.screen.feed.model.SavedFilter
+import com.andrewwin.sumup.ui.screen.feed.model.SourceGroupUiModel
 import com.andrewwin.sumup.ui.theme.AppCardShape
 import com.andrewwin.sumup.ui.theme.AppDimens
 import com.andrewwin.sumup.ui.theme.appCardBorder
@@ -94,7 +93,7 @@ fun FeedFilters(
     onSavedFilterChange: (SavedFilter) -> Unit,
     selectedGroupId: Long?,
     onGroupSelect: (Long?) -> Unit,
-    groups: List<SourceGroup>,
+    groups: List<SourceGroupUiModel>,
     onExportPdf: () -> Unit,
     isExportEnabled: Boolean
 ) {
@@ -141,7 +140,7 @@ fun FeedFilters(
         ) {
             val dateLabel = stringResource(dateFilter.labelRes)
             val savedLabel = stringResource(savedFilter.labelRes)
-            val groupName = groups.find { it.id == selectedGroupId }?.displayName()
+            val groupName = groups.find { it.id == selectedGroupId }?.displayName
                 ?: stringResource(R.string.all_groups)
 
             FilterMenuChip(
@@ -209,7 +208,7 @@ fun FeedFilters(
 
                 groups.forEach { group ->
                     DropdownMenuItem(
-                        text = { Text(group.displayName()) },
+                        text = { Text(group.displayName) },
                         onClick = {
                             onGroupSelect(group.id)
                             showGroupMenu = false

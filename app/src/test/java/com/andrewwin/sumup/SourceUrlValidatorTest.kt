@@ -1,7 +1,7 @@
 package com.andrewwin.sumup
 
 import com.andrewwin.sumup.data.local.entities.SourceType
-import com.andrewwin.sumup.domain.source.SourceUrlValidator
+import com.andrewwin.sumup.domain.source.util.SourceUrlValidator
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test

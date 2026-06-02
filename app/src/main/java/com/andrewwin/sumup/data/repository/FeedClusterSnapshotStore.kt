@@ -3,9 +3,9 @@ package com.andrewwin.sumup.data.repository
 import android.util.Log
 import com.andrewwin.sumup.data.local.dao.FeedClusterSnapshotDao
 import com.andrewwin.sumup.data.local.entities.FeedClusterSnapshot
-import com.andrewwin.sumup.domain.entities.article.Article
-import com.andrewwin.sumup.domain.news.ArticleCluster
-import com.andrewwin.sumup.domain.repository.FeedClusterSnapshotRepository
+import com.andrewwin.sumup.domain.article.model.Article
+import com.andrewwin.sumup.domain.feed.model.ArticleCluster
+import com.andrewwin.sumup.domain.feed.repository.FeedClusterSnapshotRepository
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest

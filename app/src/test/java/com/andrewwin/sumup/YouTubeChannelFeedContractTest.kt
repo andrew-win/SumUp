@@ -5,8 +5,8 @@ import com.andrewwin.sumup.data.remote.sources.RemoteArticleDataSource
 import com.andrewwin.sumup.data.remote.sources.rss.RssParser
 import com.andrewwin.sumup.data.remote.sources.telegram.TelegramParser
 import com.andrewwin.sumup.data.remote.sources.youtube.YouTubeParser
-import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
-import com.andrewwin.sumup.domain.source.SourceUrlValidator
+import com.andrewwin.sumup.domain.source.util.SourceUrlNormalizer
+import com.andrewwin.sumup.domain.source.util.SourceUrlValidator
 import java.net.HttpURLConnection
 import java.net.URL
 import okhttp3.OkHttpClient

@@ -15,27 +15,29 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.entities.ai.AiModelType
-import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoFormatter
-import com.andrewwin.sumup.domain.ai.SummaryExecutionInfoStore
-import com.andrewwin.sumup.domain.export.SummaryExportItem
-import com.andrewwin.sumup.domain.export.SummaryExportStrategy
-import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
-import com.andrewwin.sumup.domain.repository.SummaryRepository
-import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.entities.settings.AiStrategy
-import com.andrewwin.sumup.domain.entities.settings.UserSettings
-import com.andrewwin.sumup.domain.entities.summary.SummaryRecord
+import com.andrewwin.sumup.domain.ai.model.AiModelType
+import com.andrewwin.sumup.domain.summary.formatter.SummaryExecutionInfoFormatter
+import com.andrewwin.sumup.domain.ai.service.SummaryExecutionInfoStore
+import com.andrewwin.sumup.domain.export.model.ExportDestination
+import com.andrewwin.sumup.domain.export.model.SummaryExportItem
+import com.andrewwin.sumup.domain.export.model.SummaryExportStrategy
+import com.andrewwin.sumup.domain.ai.repository.AiModelConfigRepository
+import com.andrewwin.sumup.domain.summary.repository.SummaryRepository
+import com.andrewwin.sumup.domain.settings.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.settings.model.AiStrategy
+import com.andrewwin.sumup.domain.settings.model.UserSettings
+import com.andrewwin.sumup.domain.summary.model.SummaryRecord
 import com.andrewwin.sumup.domain.summary.scheduled.NoArticlesException
 import com.andrewwin.sumup.domain.summary.scheduled.ScheduledSummaryTextGenerator
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
-import com.andrewwin.sumup.domain.usecase.export.ExportSummariesUseCase
-import com.andrewwin.sumup.domain.usecase.summary.CreateNewsStatisticsUseCase
-import com.andrewwin.sumup.domain.usecase.summary.NewsStatisticsMetric
-import com.andrewwin.sumup.domain.usecase.summary.NewsStatisticsType
-import com.andrewwin.sumup.worker.ScheduledSummaryWorkKind
-import com.andrewwin.sumup.worker.SummaryWorker
-import com.andrewwin.sumup.worker.WorkerContracts
+import com.andrewwin.sumup.domain.export.service.ExportSummariesUseCase
+import com.andrewwin.sumup.domain.summary.usecase.CreateNewsStatisticsUseCase
+import com.andrewwin.sumup.domain.summary.usecase.NewsStatisticsMetric
+import com.andrewwin.sumup.domain.summary.usecase.NewsStatisticsType
+import com.andrewwin.sumup.worker.summary.model.ScheduledSummaryWorkKind
+import com.andrewwin.sumup.worker.summary.SummaryWorker
+import com.andrewwin.sumup.worker.summary.SummaryConstants
+import com.andrewwin.sumup.worker.summary.SummaryWorkerHandler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,7 +71,7 @@ class SummaryViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserSettings())
 
     val workInfo: StateFlow<List<WorkInfo>> =
-        workManager.getWorkInfosByTagFlow(WorkerContracts.SCHEDULED_SUMMARY_WORK_TAG)
+        workManager.getWorkInfosByTagFlow(SummaryConstants.SCHEDULED_SUMMARY_WORK_TAG)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _isGenerating = MutableStateFlow(false)
@@ -172,8 +174,8 @@ class SummaryViewModel @Inject constructor(
             )
             .setInputData(
                 workDataOf(
-                    WorkerContracts.KEY_SCHEDULED_SUMMARY_WORK_KIND to ScheduledSummaryWorkKind.PREPARE.name,
-                    WorkerContracts.KEY_SCHEDULED_SUMMARY_AT to System.currentTimeMillis()
+                    SummaryWorkerHandler.KEY_SCHEDULED_SUMMARY_WORK_KIND to ScheduledSummaryWorkKind.PREPARE.name,
+                    SummaryWorkerHandler.KEY_SCHEDULED_SUMMARY_AT to System.currentTimeMillis()
                 )
             )
             .build()
@@ -205,7 +207,9 @@ class SummaryViewModel @Inject constructor(
                     }
                 )
             },
-            uri = uri
+            destination = ExportDestination {
+                context.contentResolver.openOutputStream(uri)
+            }
         )
     }
 

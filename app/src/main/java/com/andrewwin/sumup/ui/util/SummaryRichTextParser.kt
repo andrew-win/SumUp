@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.ui.util
 
-import com.andrewwin.sumup.domain.support.SummarySourceMeta
+import com.andrewwin.sumup.domain.summary.model.SummarySourceMeta
 
 import com.andrewwin.sumup.ui.util.model.SummaryBlockUi
 import com.andrewwin.sumup.ui.util.model.SummarySourceLinkUi

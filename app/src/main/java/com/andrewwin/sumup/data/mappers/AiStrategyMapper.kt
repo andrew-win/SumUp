@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.mappers
 
 import com.andrewwin.sumup.data.local.entities.AiStrategy as RoomAiStrategy
-import com.andrewwin.sumup.domain.entities.settings.AiStrategy
+import com.andrewwin.sumup.domain.settings.model.AiStrategy
 
 fun RoomAiStrategy.toDomainModel(): AiStrategy = when (this) {
     RoomAiStrategy.CLOUD -> AiStrategy.CLOUD

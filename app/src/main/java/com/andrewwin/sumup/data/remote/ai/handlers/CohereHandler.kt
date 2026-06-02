@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.remote.ai.handlers
 
-import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
-import com.andrewwin.sumup.domain.entities.ai.AiModelType
+import com.andrewwin.sumup.domain.ai.model.AiModelConfig
+import com.andrewwin.sumup.domain.ai.model.AiModelType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray

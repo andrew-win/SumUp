@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.mappers
 
 import com.andrewwin.sumup.data.local.entities.UserPreferences
-import com.andrewwin.sumup.domain.entities.settings.UserSettings
+import com.andrewwin.sumup.domain.settings.model.UserSettings
 
 fun UserPreferences.toDomainModel(): UserSettings {
     return UserSettings(

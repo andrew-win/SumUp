@@ -7,7 +7,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
-import com.andrewwin.sumup.worker.CloudSyncWorker
+import com.andrewwin.sumup.worker.sync.CloudSyncWorker
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject

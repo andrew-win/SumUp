@@ -11,15 +11,15 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.local.entities.toScheduledSummaryTimes
 import com.andrewwin.sumup.data.local.entities.toScheduledSummaryTimesStorageValue
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
-import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
-import com.andrewwin.sumup.domain.entities.ai.AiModelType
-import com.andrewwin.sumup.domain.entities.ai.AiProvider
-import com.andrewwin.sumup.domain.entities.article.SavedArticleSnapshot
-import com.andrewwin.sumup.domain.repository.ImportedSource
-import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
-import com.andrewwin.sumup.domain.entities.source.Source
-import com.andrewwin.sumup.domain.entities.source.SourceGroupOrigin
-import com.andrewwin.sumup.domain.entities.source.SourceType
+import com.andrewwin.sumup.domain.ai.model.AiModelConfig
+import com.andrewwin.sumup.domain.ai.model.AiModelType
+import com.andrewwin.sumup.domain.ai.model.AiProvider
+import com.andrewwin.sumup.domain.article.model.SavedArticleSnapshot
+import com.andrewwin.sumup.domain.source.repository.ImportedSource
+import com.andrewwin.sumup.domain.source.repository.ImportedSourceGroup
+import com.andrewwin.sumup.domain.source.model.Source
+import com.andrewwin.sumup.domain.source.model.SourceGroupOrigin
+import com.andrewwin.sumup.domain.source.model.SourceType
 import org.json.JSONArray
 import org.json.JSONObject
 

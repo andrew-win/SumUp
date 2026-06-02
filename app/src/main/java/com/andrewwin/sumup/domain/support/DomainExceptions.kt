@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.domain.support
 
-import com.andrewwin.sumup.domain.ai.AiModelFailure
+import com.andrewwin.sumup.domain.ai.service.AiModelFailure
 
 class NoActiveModelException : Exception()
 

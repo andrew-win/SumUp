@@ -11,33 +11,31 @@ import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.remote.firebase.auth.FirebaseSettingsAuthService
 import com.andrewwin.sumup.data.remote.firebase.sync.SettingsSyncPreferencesStore
 import com.andrewwin.sumup.data.remote.firebase.sync.SettingsSyncService
-import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
-import com.andrewwin.sumup.domain.entities.ai.AiModelType
-import com.andrewwin.sumup.domain.entities.ai.AiProvider
-import com.andrewwin.sumup.domain.entities.ai.normalizedStableKey
-import com.andrewwin.sumup.domain.news.DedupRuntimeCoordinator
-import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
-import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.repository.SummaryRepository
-import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.entities.settings.AiStrategy
-import com.andrewwin.sumup.domain.entities.settings.AppLanguage
-import com.andrewwin.sumup.domain.entities.settings.AppThemeMode
-import com.andrewwin.sumup.domain.entities.settings.DeduplicationStrategy
-import com.andrewwin.sumup.domain.entities.settings.ScheduledSummaryTime
-import com.andrewwin.sumup.domain.entities.settings.SummaryLanguage
-import com.andrewwin.sumup.domain.entities.settings.UserSettings
-import com.andrewwin.sumup.domain.entities.settings.normalizedScheduledSummaryTimes
-import com.andrewwin.sumup.domain.settings.actions.UpdateCustomSummaryPromptEnabledAction
-import com.andrewwin.sumup.domain.settings.actions.UpdateSummaryPromptAction
-import com.andrewwin.sumup.domain.entities.sync.BackupSelection
-import com.andrewwin.sumup.domain.entities.sync.SyncConflictStrategy
-import com.andrewwin.sumup.domain.entities.sync.SyncOverwritePriority
-import com.andrewwin.sumup.domain.entities.sync.UserDataSyncState
-import com.andrewwin.sumup.domain.usecase.summary.CreateScheduleSummaryUseCase
-import com.andrewwin.sumup.domain.usecase.sync.ExportBackupUseCase
-import com.andrewwin.sumup.domain.usecase.sync.ImportBackupUseCase
-import com.andrewwin.sumup.domain.usecase.sync.SyncUserDataUseCase
+import com.andrewwin.sumup.domain.ai.model.AiModelConfig
+import com.andrewwin.sumup.domain.ai.model.AiModelType
+import com.andrewwin.sumup.domain.ai.model.AiProvider
+import com.andrewwin.sumup.domain.ai.model.normalizedStableKey
+import com.andrewwin.sumup.domain.article.deduplication.DedupRuntimeCoordinator
+import com.andrewwin.sumup.domain.ai.repository.AiModelConfigRepository
+import com.andrewwin.sumup.domain.article.repository.ArticleRepository
+import com.andrewwin.sumup.domain.summary.repository.SummaryRepository
+import com.andrewwin.sumup.domain.settings.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.settings.model.AiStrategy
+import com.andrewwin.sumup.domain.settings.model.AppLanguage
+import com.andrewwin.sumup.domain.settings.model.AppThemeMode
+import com.andrewwin.sumup.domain.settings.model.DeduplicationStrategy
+import com.andrewwin.sumup.domain.settings.model.ScheduledSummaryTime
+import com.andrewwin.sumup.domain.settings.model.SummaryLanguage
+import com.andrewwin.sumup.domain.settings.model.UserSettings
+import com.andrewwin.sumup.domain.settings.model.normalizedScheduledSummaryTimes
+import com.andrewwin.sumup.domain.sync.model.BackupSelection
+import com.andrewwin.sumup.domain.sync.model.SyncConflictStrategy
+import com.andrewwin.sumup.domain.sync.model.SyncOverwritePriority
+import com.andrewwin.sumup.domain.sync.model.UserDataSyncState
+import com.andrewwin.sumup.domain.summary.usecase.CreateScheduleSummaryUseCase
+import com.andrewwin.sumup.domain.sync.usecase.ExportBackupUseCase
+import com.andrewwin.sumup.domain.sync.usecase.ImportBackupUseCase
+import com.andrewwin.sumup.domain.sync.usecase.SyncUserDataUseCase
 import com.andrewwin.sumup.ui.screen.settings.model.AuthUiState
 import com.andrewwin.sumup.ui.screen.settings.model.TransferState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -58,8 +56,6 @@ class SettingsViewModel @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val summaryRepository: SummaryRepository,
     private val createScheduleSummaryUseCase: CreateScheduleSummaryUseCase,
-    private val updateSummaryPromptAction: UpdateSummaryPromptAction,
-    private val updateCustomSummaryPromptEnabledAction: UpdateCustomSummaryPromptEnabledAction,
     private val dedupRuntimeCoordinator: DedupRuntimeCoordinator,
     private val authService: FirebaseSettingsAuthService,
     private val syncPreferencesStore: SettingsSyncPreferencesStore,
@@ -317,11 +313,11 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun updateSummaryPrompt(prompt: String) {
-        viewModelScope.launch { updateSummaryPromptAction(prompt) }
+        viewModelScope.launch { updatePreferences { it.copy(summaryPrompt = prompt) } }
     }
 
     fun updateCustomSummaryPromptEnabled(enabled: Boolean) {
-        viewModelScope.launch { updateCustomSummaryPromptEnabledAction(enabled) }
+        viewModelScope.launch { updatePreferences { it.copy(isCustomSummaryPromptEnabled = enabled) } }
     }
 
     fun updateFeedMediaEnabled(enabled: Boolean) {

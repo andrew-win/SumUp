@@ -7,52 +7,38 @@ import ai.onnxruntime.extensions.OrtxPackage
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
-import com.andrewwin.sumup.domain.ai.LocalEmbeddingProvider
-import com.andrewwin.sumup.domain.news.EmbeddingUtils
+import com.andrewwin.sumup.domain.ai.embedding.LocalEmbeddingProvider
+import com.andrewwin.sumup.domain.article.deduplication.EmbeddingUtils
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.LongBuffer
-import java.util.concurrent.atomic.AtomicReference
 
 class LocalEmbeddingService(
     private val context: Context
 ) : LocalEmbeddingProvider {
     private val ortEnv: OrtEnvironment = OrtEnvironment.getEnvironment()
+    private val sessionLock = Any()
     private var tokenizerSession: OrtSession? = null
     private var modelSession: OrtSession? = null
-    private val initMutex = Mutex()
-    private val initState = AtomicReference(InitState.IDLE)
+    private var initialized = false
 
     override val embeddingCacheType: String = EMBEDDING_CACHE_TYPE
 
     override suspend fun initialize(): Boolean {
-        if (initMutex.isLocked && initState.get() == InitState.RUNNING) {
-            Log.d(LOCAL_EMBEDDING_INIT_LOG_TAG, "local_embedding_init_wait_for_running_session")
-        }
-        return initMutex.withLock {
-            if (tokenizerSession != null && modelSession != null) {
-                initState.set(InitState.COMPLETE)
-                Log.d(LOCAL_EMBEDDING_INIT_LOG_TAG, "local_embedding_init_skip_already_initialized")
-                return@withLock true
-            }
+        return withContext(Dispatchers.IO) {
+            synchronized(sessionLock) {
+                if (initialized && tokenizerSession != null && modelSession != null) {
+                    return@synchronized true
+                }
 
-            val previousState = initState.getAndSet(InitState.RUNNING)
-            if (previousState == InitState.RUNNING) {
-                Log.d(LOCAL_EMBEDDING_INIT_LOG_TAG, "local_embedding_init_join_existing")
-            } else {
-                Log.d(LOCAL_EMBEDDING_INIT_LOG_TAG, "local_embedding_init_start previousState=$previousState")
-            }
-
-            withContext(Dispatchers.IO) {
+                Log.d(LOCAL_EMBEDDING_INIT_LOG_TAG, "local_embedding_init_start")
                 val startMs = SystemClock.elapsedRealtime()
-                val initialized = runCatching {
-                    val copyStartMs = SystemClock.elapsedRealtime()
-                    val tokenizerFile = ensureAssetFile(TOKENIZER_ASSET_NAME)
-                    val modelFile = ensureAssetFile(MODEL_ASSET_NAME)
-                    val copyDurationMs = SystemClock.elapsedRealtime() - copyStartMs
+                runCatching {
+                    closeSessions()
+
+                    val tokenizerFile = getCachedAssetFile(TOKENIZER_ASSET_NAME)
+                    val modelFile = getCachedAssetFile(MODEL_ASSET_NAME)
 
                     val tokenizerOptions = OrtSession.SessionOptions().apply {
                         setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
@@ -69,40 +55,26 @@ class LocalEmbeddingService(
                         setMemoryPatternOptimization(true)
                     }
 
-                    val tokenizerSessionStartMs = SystemClock.elapsedRealtime()
-                    tokenizerSession =
-                        ortEnv.createSession(tokenizerFile.absolutePath, tokenizerOptions)
-                    val tokenizerSessionDurationMs =
-                        SystemClock.elapsedRealtime() - tokenizerSessionStartMs
-
-                    val modelSessionStartMs = SystemClock.elapsedRealtime()
+                    tokenizerSession = ortEnv.createSession(tokenizerFile.absolutePath, tokenizerOptions)
                     modelSession = ortEnv.createSession(modelFile.absolutePath, modelOptions)
-                    val modelSessionDurationMs = SystemClock.elapsedRealtime() - modelSessionStartMs
-
-                    Log.d(
-                        LOCAL_EMBEDDING_SPEED_LOG_TAG,
-                        "local_embedding_init_stages copy_assets_ms=$copyDurationMs " +
-                                "tokenizer_session_ms=$tokenizerSessionDurationMs " +
-                                "model_session_ms=$modelSessionDurationMs"
-                    )
+                    initialized = true
                     true
-                }.onFailure { e ->
-                    initState.set(InitState.IDLE)
-                    Log.e("LocalEmbeddingService", "Failed to initialize ONNX session", e)
-                }.getOrDefault(false)
-                if (initialized) {
-                    initState.set(InitState.COMPLETE)
+                }.onFailure { error ->
+                    closeSessions()
+                    initialized = false
+                    Log.e(LOCAL_EMBEDDING_INIT_LOG_TAG, "local_embedding_init_failed", error)
+                }.getOrElse { false }.also { success ->
+                    val durationMs = SystemClock.elapsedRealtime() - startMs
+                    Log.d(
+                        LOCAL_EMBEDDING_INIT_LOG_TAG,
+                        "local_embedding_init_complete success=$success duration_ms=$durationMs"
+                    )
                 }
-                Log.d(
-                    LOCAL_EMBEDDING_SPEED_LOG_TAG,
-                    "local_embedding_init_ms=${SystemClock.elapsedRealtime() - startMs} success=$initialized"
-                )
-                initialized
             }
         }
     }
 
-    private fun ensureAssetFile(assetName: String): File {
+    private fun getCachedAssetFile(assetName: String): File {
         val targetFile = File(context.cacheDir, assetName)
         if (targetFile.exists() && targetFile.length() > 0L) {
             return targetFile
@@ -110,33 +82,36 @@ class LocalEmbeddingService(
 
         targetFile.parentFile?.mkdirs()
         context.assets.open(assetName).use { input ->
-            targetFile.outputStream().use { output ->
+            val tempFile = File(targetFile.absolutePath + TEMP_FILE_SUFFIX)
+            tempFile.outputStream().use { output ->
                 input.copyTo(output)
             }
+            if (targetFile.exists()) {
+                targetFile.delete()
+            }
+            tempFile.renameTo(targetFile)
         }
         return targetFile
     }
 
     override suspend fun computeLocalEmbedding(text: String): FloatArray =
         withContext(Dispatchers.Default) {
-            val tokenizer = tokenizerSession
+            val tokenizer = synchronized(sessionLock) { tokenizerSession }
                 ?: return@withContext FloatArray(EmbeddingUtils.LOCAL_EMBEDDING_DIM)
-            val model =
-                modelSession ?: return@withContext FloatArray(EmbeddingUtils.LOCAL_EMBEDDING_DIM)
+            val model = synchronized(sessionLock) { modelSession }
+                ?: return@withContext FloatArray(EmbeddingUtils.LOCAL_EMBEDDING_DIM)
             runCatching {
                 val tokenizedInput = tokenize(tokenizer, "$QUERY_PREFIX$text")
                 val rawEmbedding = runModel(model, tokenizedInput)
                 EmbeddingUtils.normalize(rawEmbedding)
-            }.onFailure { e ->
-                Log.e("LocalEmbeddingService", "Failed to compute local embedding", e)
             }.getOrDefault(FloatArray(EmbeddingUtils.LOCAL_EMBEDDING_DIM))
         }
 
     override fun close() {
-        tokenizerSession?.close()
-        modelSession?.close()
-        tokenizerSession = null
-        modelSession = null
+        synchronized(sessionLock) {
+            closeSessions()
+            initialized = false
+        }
     }
 
     private fun tokenize(session: OrtSession, text: String): TokenizedLocalInput {
@@ -270,6 +245,13 @@ class LocalEmbeddingService(
         val attentionMask: LongArray
     )
 
+    private fun closeSessions() {
+        tokenizerSession?.close()
+        modelSession?.close()
+        tokenizerSession = null
+        modelSession = null
+    }
+
     companion object {
         const val EMBEDDING_CACHE_TYPE = "LOCAL_MULTILINGUAL_E5_SMALL"
 
@@ -287,12 +269,6 @@ class LocalEmbeddingService(
         private const val MODEL_INTRA_OP_THREADS = 2
         private const val MODEL_INTER_OP_THREADS = 2
         private const val LOCAL_EMBEDDING_INIT_LOG_TAG = "LocalEmbeddingInit"
-        private const val LOCAL_EMBEDDING_SPEED_LOG_TAG = "LocalEmbeddingSpeedTest"
-    }
-
-    private enum class InitState {
-        IDLE,
-        RUNNING,
-        COMPLETE
+        private const val TEMP_FILE_SUFFIX = ".tmp"
     }
 }

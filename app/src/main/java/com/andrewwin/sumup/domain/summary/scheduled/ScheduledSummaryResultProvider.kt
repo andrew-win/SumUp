@@ -1,8 +1,8 @@
 package com.andrewwin.sumup.domain.summary.scheduled
 
-import com.andrewwin.sumup.domain.feed.ScheduledSummaryArticleCollector
-import com.andrewwin.sumup.domain.entities.summary.SummaryResult
-import com.andrewwin.sumup.domain.usecase.summary.SummarizeFeedUseCase
+import com.andrewwin.sumup.domain.feed.pipeline.ScheduledSummaryArticleCollector
+import com.andrewwin.sumup.domain.summary.model.SummaryResult
+import com.andrewwin.sumup.domain.summary.usecase.SummarizeFeedUseCase
 import javax.inject.Inject
 
 class ScheduledSummaryResultProvider @Inject constructor(

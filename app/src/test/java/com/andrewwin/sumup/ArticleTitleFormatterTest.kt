@@ -2,7 +2,7 @@ package com.andrewwin.sumup
 
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.SourceType
-import com.andrewwin.sumup.domain.news.ArticleTitleFormatter
+import com.andrewwin.sumup.domain.article.processing.ArticleTitleFormatter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test

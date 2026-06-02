@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.ui.screen.sources
 
-import com.andrewwin.sumup.domain.entities.source.SourceGroup
-import com.andrewwin.sumup.domain.entities.source.SourceGroupOrigin
+import com.andrewwin.sumup.domain.source.model.SourceGroup
+import com.andrewwin.sumup.domain.source.model.SourceGroupOrigin
 
 internal fun canAddSourceToGroup(group: SourceGroup): Boolean =
     group.isEnabled && !isPublicSubscriptionGroup(group)

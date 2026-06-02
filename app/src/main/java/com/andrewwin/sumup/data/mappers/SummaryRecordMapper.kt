@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.mappers
 
 import com.andrewwin.sumup.data.local.entities.Summary
-import com.andrewwin.sumup.domain.entities.summary.SummaryRecord
+import com.andrewwin.sumup.domain.summary.model.SummaryRecord
 
 fun Summary.toDomainModel(): SummaryRecord = SummaryRecord(
     id = id,

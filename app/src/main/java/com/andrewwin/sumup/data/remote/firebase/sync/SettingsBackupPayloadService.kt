@@ -6,15 +6,15 @@ import androidx.core.os.LocaleListCompat
 import com.andrewwin.sumup.data.mappers.toDomainModel
 import com.andrewwin.sumup.data.mappers.toRoomEntity
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
-import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
-import com.andrewwin.sumup.domain.entities.ai.normalizedStableKey
-import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
-import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.repository.SourceRepository
-import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.entities.settings.AppLanguage
-import com.andrewwin.sumup.domain.usecase.summary.CreateScheduleSummaryUseCase
-import com.andrewwin.sumup.worker.WorkerContracts
+import com.andrewwin.sumup.domain.ai.model.AiModelConfig
+import com.andrewwin.sumup.domain.ai.model.normalizedStableKey
+import com.andrewwin.sumup.domain.ai.repository.AiModelConfigRepository
+import com.andrewwin.sumup.domain.article.repository.ArticleRepository
+import com.andrewwin.sumup.domain.source.repository.SourceRepository
+import com.andrewwin.sumup.domain.settings.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.settings.model.AppLanguage
+import com.andrewwin.sumup.domain.summary.usecase.CreateScheduleSummaryUseCase
+import com.andrewwin.sumup.worker.sync.CloudSyncWorkerHandler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import org.json.JSONArray
@@ -31,7 +31,7 @@ class SettingsBackupPayloadService @Inject constructor(
     private val secretEncryptionManager: SecretEncryptionManager
 ) {
     private val subscriptionsPrefs by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        context.getSharedPreferences(WorkerContracts.SUBSCRIPTIONS_PREFS, 0)
+        context.getSharedPreferences(CloudSyncWorkerHandler.SUBSCRIPTIONS_PREFS, 0)
     }
 
     suspend fun buildBackupJson(
@@ -155,11 +155,11 @@ class SettingsBackupPayloadService @Inject constructor(
                     .apply()
             } else if (!merge) {
                 subscriptionsPrefs.edit()
-                    .remove(WorkerContracts.KEY_SAVED_THEME_IDS)
-                    .remove(WorkerContracts.KEY_SAVED_THEMES)
-                    .remove(WorkerContracts.KEY_SOURCES_HASH)
-                    .remove(WorkerContracts.KEY_LAST_RECOMMENDATION_AT)
-                    .remove(WorkerContracts.KEY_LAST_FEED_REFRESH_AT)
+                    .remove(CloudSyncWorkerHandler.KEY_SAVED_THEME_IDS)
+                    .remove(CloudSyncWorkerHandler.KEY_SAVED_THEMES)
+                    .remove(CloudSyncWorkerHandler.KEY_SOURCES_HASH)
+                    .remove(CloudSyncWorkerHandler.KEY_LAST_RECOMMENDATION_AT)
+                    .remove(CloudSyncWorkerHandler.KEY_LAST_FEED_REFRESH_AT)
                     .apply()
             }
         }

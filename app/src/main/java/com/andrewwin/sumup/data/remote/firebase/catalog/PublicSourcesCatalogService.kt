@@ -1,8 +1,8 @@
 package com.andrewwin.sumup.data.remote.firebase.catalog
 
-import com.andrewwin.sumup.domain.entities.source.SourceType
-import com.andrewwin.sumup.domain.repository.ImportedSource
-import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
+import com.andrewwin.sumup.domain.source.model.SourceType
+import com.andrewwin.sumup.domain.source.repository.ImportedSource
+import com.andrewwin.sumup.domain.source.repository.ImportedSourceGroup
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject

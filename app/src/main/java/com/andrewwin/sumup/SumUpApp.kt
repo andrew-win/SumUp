@@ -5,8 +5,8 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.WorkManager
 import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
-import com.andrewwin.sumup.domain.ai.LocalEmbeddingWarmupCoordinator
-import com.andrewwin.sumup.domain.repository.SourceRepository
+import com.andrewwin.sumup.domain.ai.embedding.LocalEmbeddingWarmupCoordinator
+import com.andrewwin.sumup.domain.source.repository.SourceRepository
 import com.google.firebase.FirebaseApp
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope

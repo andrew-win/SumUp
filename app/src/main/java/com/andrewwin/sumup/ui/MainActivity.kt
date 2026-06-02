@@ -10,7 +10,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.os.LocaleListCompat
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.andrewwin.sumup.domain.entities.settings.AppLanguage
+import com.andrewwin.sumup.domain.settings.model.AppLanguage
 import com.andrewwin.sumup.ui.theme.SumUpTheme
 import dagger.hilt.android.AndroidEntryPoint
 

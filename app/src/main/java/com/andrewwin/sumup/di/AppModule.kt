@@ -6,7 +6,7 @@ import com.andrewwin.sumup.data.mappers.AiSummaryResponseMapper
 import com.andrewwin.sumup.data.remote.ai.CloudAiRequestSender
 import com.andrewwin.sumup.data.remote.ai.CloudEmbeddingGenerator
 import com.andrewwin.sumup.data.local.ai.LocalEmbeddingService
-import com.andrewwin.sumup.data.export.AndroidPdfExportService
+import com.andrewwin.sumup.data.export.PdfExportServiceImpl
 import com.andrewwin.sumup.data.local.AppDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.dao.ArticleDao
@@ -18,11 +18,12 @@ import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.scheduler.ScheduledSummaryTimeCalculator
+import com.andrewwin.sumup.data.local.scheduler.ScheduledSummaryAlarmStore
 import com.andrewwin.sumup.data.local.scheduler.SummarySchedulerImpl
 import com.andrewwin.sumup.data.local.cleaners.ArticleTextCleaner
 import com.andrewwin.sumup.data.provider.AppDispatcherProvider
 import com.andrewwin.sumup.data.remote.ai.AiService
-import com.andrewwin.sumup.domain.entities.ai.AiProvider
+import com.andrewwin.sumup.domain.ai.model.AiProvider
 import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.remote.sources.RemoteArticleDataSource
 import com.andrewwin.sumup.data.remote.ai.handlers.ChatGPTHandler
@@ -47,41 +48,41 @@ import com.andrewwin.sumup.data.repository.SuggestedThemesStateRepositoryImpl
 import com.andrewwin.sumup.data.repository.SummaryRepositoryImpl
 import com.andrewwin.sumup.data.repository.UserPreferencesRepositoryImpl
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
-import com.andrewwin.sumup.domain.ai.AiRequestSender
-import com.andrewwin.sumup.domain.ai.CloudEmbeddingProvider
-import com.andrewwin.sumup.domain.ai.LocalEmbeddingProvider
-import com.andrewwin.sumup.domain.ai.LocalModelManager
-import com.andrewwin.sumup.domain.ai.LocalModelManagerImpl
-import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
-import com.andrewwin.sumup.domain.export.PdfExportService
-import com.andrewwin.sumup.domain.feed.UpdateArticlesFromSources
-import com.andrewwin.sumup.domain.feed.UpdateArticlesFromSourcesImpl
+import com.andrewwin.sumup.domain.ai.service.AiRequestSender
+import com.andrewwin.sumup.domain.ai.embedding.CloudEmbeddingProvider
+import com.andrewwin.sumup.domain.ai.embedding.LocalEmbeddingProvider
+import com.andrewwin.sumup.domain.ai.service.LocalModelManager
+import com.andrewwin.sumup.domain.ai.service.LocalModelManagerImpl
+import com.andrewwin.sumup.domain.ai.service.SummaryResponseMapper
+import com.andrewwin.sumup.domain.export.service.PdfExportService
+import com.andrewwin.sumup.domain.feed.pipeline.UpdateArticlesFromSources
+import com.andrewwin.sumup.domain.feed.pipeline.UpdateArticlesFromSourcesImpl
 import com.andrewwin.sumup.domain.feed.dedup.FeedDeduplicationProcessor
-import com.andrewwin.sumup.domain.news.ArticleContentCleaner
-import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
-import com.andrewwin.sumup.domain.news.ArticleTitleFormatter
-import com.andrewwin.sumup.domain.news.DedupRuntimeCoordinator
-import com.andrewwin.sumup.domain.news.SimilarityScorer
-import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
-import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.repository.FeedClusterSnapshotRepository
-import com.andrewwin.sumup.domain.repository.ModelRepository
-import com.andrewwin.sumup.domain.repository.PublicSubscriptionsCatalog
-import com.andrewwin.sumup.domain.repository.SourceRepository
-import com.andrewwin.sumup.domain.repository.SuggestedThemesStateRepository
-import com.andrewwin.sumup.domain.repository.SummaryRepository
-import com.andrewwin.sumup.domain.repository.SummaryScheduler
-import com.andrewwin.sumup.domain.repository.UserDataSyncRepository
-import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.summary.ExtractiveSummaryService
-import com.andrewwin.sumup.domain.summary.ExtractiveSummaryTextFormatter
-import com.andrewwin.sumup.domain.summary.SummaryResultFormatter
+import com.andrewwin.sumup.domain.article.processing.ArticleContentCleaner
+import com.andrewwin.sumup.domain.article.processing.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.article.processing.ArticleTitleFormatter
+import com.andrewwin.sumup.domain.article.deduplication.DedupRuntimeCoordinator
+import com.andrewwin.sumup.domain.article.deduplication.SimilarityScorer
+import com.andrewwin.sumup.domain.ai.repository.AiModelConfigRepository
+import com.andrewwin.sumup.domain.article.repository.ArticleRepository
+import com.andrewwin.sumup.domain.feed.repository.FeedClusterSnapshotRepository
+import com.andrewwin.sumup.domain.ai.repository.ModelRepository
+import com.andrewwin.sumup.domain.source.repository.PublicSubscriptionsCatalog
+import com.andrewwin.sumup.domain.source.repository.SourceRepository
+import com.andrewwin.sumup.domain.settings.repository.SuggestedThemesStateRepository
+import com.andrewwin.sumup.domain.summary.repository.SummaryRepository
+import com.andrewwin.sumup.domain.summary.repository.SummaryScheduler
+import com.andrewwin.sumup.domain.sync.repository.UserDataSyncRepository
+import com.andrewwin.sumup.domain.settings.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.summary.service.ExtractiveSummaryService
+import com.andrewwin.sumup.domain.summary.formatter.ExtractiveSummaryTextFormatter
+import com.andrewwin.sumup.domain.summary.formatter.SummaryResultFormatter
 import com.andrewwin.sumup.domain.summary.scheduled.DefaultScheduledSummaryTextGenerator
 import com.andrewwin.sumup.domain.summary.scheduled.ScheduledSummaryResultProvider
 import com.andrewwin.sumup.domain.summary.scheduled.ScheduledSummaryTextGenerator
-import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
-import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCaseImpl
-import com.andrewwin.sumup.domain.usecase.sources.GetRecommendationsUseCase
+import com.andrewwin.sumup.domain.feed.usecase.RefreshFeedUseCase
+import com.andrewwin.sumup.domain.feed.usecase.RefreshFeedUseCaseImpl
+import com.andrewwin.sumup.domain.source.usecase.GetRecommendationsUseCase
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Module
 import dagger.Provides
@@ -329,7 +330,7 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun providePdfExportService(impl: AndroidPdfExportService): PdfExportService = impl
+    fun providePdfExportService(impl: PdfExportServiceImpl): PdfExportService = impl
 
     @Provides
     @Singleton
@@ -414,7 +415,12 @@ object AppModule {
         @ApplicationContext context: Context,
         workManager: WorkManager,
         timeCalculator: ScheduledSummaryTimeCalculator
-    ): SummaryScheduler = SummarySchedulerImpl(context, workManager, timeCalculator)
+    ): SummaryScheduler = SummarySchedulerImpl(
+        context = context,
+        workManager = workManager,
+        timeCalculator = timeCalculator,
+        alarmStore = ScheduledSummaryAlarmStore(context)
+    )
 
     @Provides
     @Singleton

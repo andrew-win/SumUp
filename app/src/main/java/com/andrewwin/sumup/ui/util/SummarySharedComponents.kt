@@ -35,10 +35,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
-import com.andrewwin.sumup.domain.entities.summary.DigestTheme
-import com.andrewwin.sumup.domain.entities.summary.SummaryItem
-import com.andrewwin.sumup.domain.entities.summary.SummaryResult
-import com.andrewwin.sumup.domain.entities.summary.SummarySourceRef
+import com.andrewwin.sumup.domain.summary.model.DigestTheme
+import com.andrewwin.sumup.domain.summary.model.SummaryItem
+import com.andrewwin.sumup.domain.summary.model.SummaryResult
+import com.andrewwin.sumup.domain.summary.model.SummarySourceRef
 import com.andrewwin.sumup.ui.components.AppCardSurface
 import com.andrewwin.sumup.ui.theme.appCardBorder
 import com.andrewwin.sumup.ui.util.model.SummarySourceStyle

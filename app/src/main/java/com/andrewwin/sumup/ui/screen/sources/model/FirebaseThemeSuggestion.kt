@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.ui.screen.sources.model
 
-import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
+import com.andrewwin.sumup.domain.source.repository.ImportedSourceGroup
 
 data class FirebaseThemeSuggestion(
     val group: ImportedSourceGroup,

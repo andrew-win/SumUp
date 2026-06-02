@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.mappers
 
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
-import com.andrewwin.sumup.domain.entities.article.ArticleSimilarityRecord
+import com.andrewwin.sumup.domain.article.model.ArticleSimilarityRecord
 
 fun ArticleSimilarity.toDomainRecord(): ArticleSimilarityRecord = ArticleSimilarityRecord(
     leftArticleId = leftArticleId,

@@ -2,12 +2,12 @@ package com.andrewwin.sumup.data.remote.ai
 
 import android.content.Context
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
-import com.andrewwin.sumup.domain.entities.ai.AiModelType
-import com.andrewwin.sumup.domain.ai.AiModelFailure
-import com.andrewwin.sumup.domain.ai.AiRequestSender
-import com.andrewwin.sumup.domain.ai.CloudAiResponse
-import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
+import com.andrewwin.sumup.domain.ai.model.AiModelConfig
+import com.andrewwin.sumup.domain.ai.model.AiModelType
+import com.andrewwin.sumup.domain.ai.service.AiModelFailure
+import com.andrewwin.sumup.domain.ai.service.AiRequestSender
+import com.andrewwin.sumup.domain.ai.service.CloudAiResponse
+import com.andrewwin.sumup.domain.ai.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.support.AiServiceException
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.support.NoActiveModelException

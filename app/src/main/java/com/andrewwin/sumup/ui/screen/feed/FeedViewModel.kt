@@ -3,24 +3,25 @@ package com.andrewwin.sumup.ui.screen.feed
 import android.app.Application
 import android.net.Uri
 import android.util.Log
-import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.export.FeedExportArticle
+import com.andrewwin.sumup.domain.export.model.ExportDestination
+import com.andrewwin.sumup.domain.export.model.FeedExportArticle
 import com.andrewwin.sumup.domain.feed.pipeline.FeedArticlesBuilder
-import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.repository.SourceRepository
-import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.entities.settings.UserSettings
-import com.andrewwin.sumup.domain.entities.source.SourceGroupWithSources
-import com.andrewwin.sumup.domain.usecase.export.ExportFeedUseCase
-import com.andrewwin.sumup.domain.usecase.feed.ArticleBookmarkToggleRequest
-import com.andrewwin.sumup.domain.usecase.feed.FeedRefreshStage
-import com.andrewwin.sumup.domain.usecase.feed.RefreshFeedUseCase
-import com.andrewwin.sumup.domain.usecase.feed.ToggleArticleBookmarkUseCase
+import com.andrewwin.sumup.domain.article.repository.ArticleRepository
+import com.andrewwin.sumup.domain.source.repository.SourceRepository
+import com.andrewwin.sumup.domain.settings.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.settings.model.UserSettings
+import com.andrewwin.sumup.domain.source.model.SourceGroupWithSources
+import com.andrewwin.sumup.domain.export.service.ExportFeedUseCase
+import com.andrewwin.sumup.domain.feed.usecase.ArticleBookmarkToggleRequest
+import com.andrewwin.sumup.domain.feed.usecase.FeedRefreshStage
+import com.andrewwin.sumup.domain.feed.usecase.RefreshFeedUseCase
+import com.andrewwin.sumup.domain.feed.usecase.ToggleArticleBookmarkUseCase
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
+import com.andrewwin.sumup.ui.screen.feed.model.SourceGroupUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -94,7 +95,21 @@ class FeedViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val groups = groupsWithSources
-        .map { list -> list.map { it.group }.filter { it.isEnabled } }
+        .map { list ->
+            val uncategorizedName = getApplication<Application>().getString(R.string.group_uncategorized)
+            list.map { it.group }
+                .filter { it.isEnabled }
+                .map { group ->
+                    SourceGroupUiModel(
+                        id = group.id,
+                        displayName = if (group.id == UNCATEGORIZED_GROUP_ID && !group.isDeletable) {
+                            uncategorizedName
+                        } else {
+                            group.name
+                        }
+                    )
+                }
+        }
         .distinctUntilChanged()
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -424,7 +439,9 @@ class FeedViewModel @Inject constructor(
                     mediaUrl = article.article.mediaUrl
                 )
             },
-            uri = uri,
+            destination = ExportDestination {
+                getApplication<Application>().contentResolver.openOutputStream(uri)
+            },
             includeMedia = includeMedia
         )
     }
@@ -460,6 +477,7 @@ class FeedViewModel @Inject constructor(
     }
 
     private companion object {
+        private const val UNCATEGORIZED_GROUP_ID = 1L
         private const val MIN_LOADING_STAGE_VISIBLE_MS = 250L
         private const val LOADING_STAGE_FINISH_SETTLE_MS = 250L
         private const val AUTO_REFRESH_AFTER_INVALIDATION_SUPPRESSION_MS = 6_000L

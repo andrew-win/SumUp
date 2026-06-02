@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.local.cleaners
 
-import com.andrewwin.sumup.domain.news.ArticleContentCleaner
-import com.andrewwin.sumup.domain.entities.source.SourceType
+import com.andrewwin.sumup.domain.article.processing.ArticleContentCleaner
+import com.andrewwin.sumup.domain.source.model.SourceType
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import kotlinx.coroutines.withContext
 import net.dankito.readability4j.Readability4J

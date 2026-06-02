@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.mappers
 
 import com.andrewwin.sumup.data.local.entities.Source as RoomSource
-import com.andrewwin.sumup.domain.entities.source.Source
+import com.andrewwin.sumup.domain.source.model.Source
 
 fun RoomSource.toDomainModel(): Source = Source(
     id = id,

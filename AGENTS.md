@@ -9,7 +9,7 @@
 * **Принцип «Один файл — одна сутність»**:
     * Кожна сутність (entity), модель (model), енум (enum) та мапер мають бути в окремому файлі.
     * Заборонено створювати файли-контейнери (наприклад, `Models.kt`, `CommonEnums.kt` або `Mappers.kt`).
-    * Використовуй пакети для логічного групування за функціоналом (наприклад, `domain/entities/article/`, `data/mappers/source/`).
+    * Використовуй пакети для логічного групування за функціоналом (наприклад, `domain/article/models/` замість `domain/entites/articles` (всі в купі)).
 * `data` — DTO, data models, repository implementations, джерела даних і mapper-и.
 * Якщо data model виходить за межі `data`, створи domain model і mapper у `mappers`.
 * Дотримуйся Dependency Inversion: високорівневий код працює через інтерфейси, а не напряму з реалізаціями. Наприклад, use case залежить від `ArticleRepository`, а не від `FirebaseArticleRepository`.

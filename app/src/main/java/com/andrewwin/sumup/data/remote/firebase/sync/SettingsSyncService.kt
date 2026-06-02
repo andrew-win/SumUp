@@ -7,7 +7,7 @@ import android.net.Uri
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.data.remote.firebase.auth.FirebaseSettingsAuthService
 import com.andrewwin.sumup.data.security.SecretEncryptionManager
-import com.andrewwin.sumup.domain.repository.UserDataSyncRepository
+import com.andrewwin.sumup.domain.sync.repository.UserDataSyncRepository
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException

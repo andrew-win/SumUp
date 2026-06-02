@@ -1,7 +1,5 @@
 package com.andrewwin.sumup.ui.screen.settings
 
-import com.andrewwin.sumup.ui.screen.settings.model.AuthUiState
-
 import com.andrewwin.sumup.ui.screen.settings.model.TransferState
 
 import com.andrewwin.sumup.ui.screen.settings.model.SettingsGroup
@@ -54,11 +52,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
-import com.andrewwin.sumup.domain.entities.ai.AiModelType
-import com.andrewwin.sumup.domain.entities.ai.AiProvider
-import com.andrewwin.sumup.domain.entities.sync.BackupSelection
-import com.andrewwin.sumup.domain.entities.sync.SyncConflictStrategy
+import com.andrewwin.sumup.domain.ai.model.AiModelConfig
+import com.andrewwin.sumup.domain.ai.model.AiModelType
+import com.andrewwin.sumup.domain.ai.model.AiProvider
+import com.andrewwin.sumup.domain.sync.model.BackupSelection
+import com.andrewwin.sumup.domain.sync.model.SyncConflictStrategy
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
 import com.andrewwin.sumup.ui.components.AppHelpToggleAction
 import com.andrewwin.sumup.ui.components.AppSearchField

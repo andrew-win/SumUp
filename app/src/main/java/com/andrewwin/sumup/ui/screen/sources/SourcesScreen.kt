@@ -105,12 +105,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.entities.settings.AppLanguage
-import com.andrewwin.sumup.domain.entities.source.Source
-import com.andrewwin.sumup.domain.entities.source.SourceGroup
-import com.andrewwin.sumup.domain.entities.source.SourceGroupWithSources
-import com.andrewwin.sumup.domain.entities.source.SourceType
-import com.andrewwin.sumup.domain.source.SourceUrlValidator
+import com.andrewwin.sumup.domain.settings.model.AppLanguage
+import com.andrewwin.sumup.domain.source.model.Source
+import com.andrewwin.sumup.domain.source.model.SourceGroup
+import com.andrewwin.sumup.domain.source.model.SourceGroupWithSources
+import com.andrewwin.sumup.domain.source.model.SourceType
+import com.andrewwin.sumup.domain.source.util.SourceUrlValidator
+import com.andrewwin.sumup.domain.source.util.SourceUrlNormalizer
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
@@ -119,7 +120,6 @@ import com.andrewwin.sumup.ui.components.AppProminentFab
 import com.andrewwin.sumup.ui.components.AppSearchField
 import com.andrewwin.sumup.ui.components.AppSelectionActions
 import com.andrewwin.sumup.ui.components.AppTopBar
-import com.andrewwin.sumup.ui.displayName
 import com.andrewwin.sumup.ui.screen.settings.SettingsConfirmDeleteDialog
 import com.andrewwin.sumup.ui.theme.AppCardShape
 import com.andrewwin.sumup.ui.theme.AppDimens
@@ -1387,7 +1387,7 @@ fun SourceDialog(
 }
 
 private fun normalizeSourceUrl(url: String, type: SourceType): String {
-    return com.andrewwin.sumup.domain.source.SourceUrlNormalizer.normalize(url, type)
+    return SourceUrlNormalizer.normalize(url, type)
 }
 
 @Composable

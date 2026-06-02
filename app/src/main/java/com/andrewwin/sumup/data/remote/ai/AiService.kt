@@ -1,9 +1,9 @@
 package com.andrewwin.sumup.data.remote.ai
 
-import com.andrewwin.sumup.domain.ai.AiProviderHandler
-import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
-import com.andrewwin.sumup.domain.entities.ai.AiModelType
-import com.andrewwin.sumup.domain.entities.ai.AiProvider
+import com.andrewwin.sumup.domain.ai.service.AiProviderHandler
+import com.andrewwin.sumup.domain.ai.model.AiModelConfig
+import com.andrewwin.sumup.domain.ai.model.AiModelType
+import com.andrewwin.sumup.domain.ai.model.AiProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

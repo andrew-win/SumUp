@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.data.remote.ai.handlers
 
-import com.andrewwin.sumup.domain.ai.AiProviderHandler
+import com.andrewwin.sumup.domain.ai.service.AiProviderHandler
 import com.andrewwin.sumup.domain.support.AiProviderUnavailableException
 import com.andrewwin.sumup.domain.support.AiRateLimitException
 import com.andrewwin.sumup.domain.support.AiServiceException

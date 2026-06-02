@@ -4,8 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.andrewwin.sumup.data.local.scheduler.ScheduledSummaryTimeCalculator
-import com.andrewwin.sumup.domain.repository.SummaryScheduler
-import com.andrewwin.sumup.domain.repository.UserPreferencesRepository
+import com.andrewwin.sumup.domain.summary.repository.SummaryScheduler
+import com.andrewwin.sumup.domain.settings.repository.UserPreferencesRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

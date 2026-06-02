@@ -6,12 +6,12 @@ import com.andrewwin.sumup.data.remote.ai.models.CompareResponseJson
 import com.andrewwin.sumup.data.remote.ai.models.QaResponseJson
 import com.andrewwin.sumup.data.remote.ai.models.SummaryDetailJson
 import com.andrewwin.sumup.data.remote.ai.models.SummaryResponseJson
-import com.andrewwin.sumup.domain.ai.SummaryResponseMapper
-import com.andrewwin.sumup.domain.entities.summary.DigestTheme
-import com.andrewwin.sumup.domain.entities.summary.SummaryItem
-import com.andrewwin.sumup.domain.summary.SummaryLimits
-import com.andrewwin.sumup.domain.entities.summary.SummaryResult
-import com.andrewwin.sumup.domain.entities.summary.SummarySourceRef
+import com.andrewwin.sumup.domain.ai.service.SummaryResponseMapper
+import com.andrewwin.sumup.domain.summary.model.DigestTheme
+import com.andrewwin.sumup.domain.summary.model.SummaryItem
+import com.andrewwin.sumup.domain.summary.service.SummaryLimits
+import com.andrewwin.sumup.domain.summary.model.SummaryResult
+import com.andrewwin.sumup.domain.summary.model.SummarySourceRef
 import com.andrewwin.sumup.domain.support.InvalidAiResponseException
 import javax.inject.Inject
 

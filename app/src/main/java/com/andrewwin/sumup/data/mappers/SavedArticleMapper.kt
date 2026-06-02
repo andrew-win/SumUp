@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.mappers
 
 import com.andrewwin.sumup.data.local.entities.SavedArticle
-import com.andrewwin.sumup.domain.entities.article.SavedArticleSnapshot
+import com.andrewwin.sumup.domain.article.model.SavedArticleSnapshot
 
 fun SavedArticle.toDomainSnapshot(): SavedArticleSnapshot = SavedArticleSnapshot(
     id = id,

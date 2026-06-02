@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.mappers
 
 import com.andrewwin.sumup.data.local.entities.AppThemeMode as RoomAppThemeMode
-import com.andrewwin.sumup.domain.entities.settings.AppThemeMode
+import com.andrewwin.sumup.domain.settings.model.AppThemeMode
 
 fun RoomAppThemeMode.toDomainModel(): AppThemeMode = when (this) {
     RoomAppThemeMode.SYSTEM -> AppThemeMode.SYSTEM

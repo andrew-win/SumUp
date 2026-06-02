@@ -1,7 +1,8 @@
 package com.andrewwin.sumup.domain.feed.clustering
 
-import com.andrewwin.sumup.domain.entities.article.Article
-import com.andrewwin.sumup.domain.news.ArticleCluster
+import com.andrewwin.sumup.domain.article.model.Article
+import com.andrewwin.sumup.domain.feed.model.ArticleCluster
+import com.andrewwin.sumup.domain.feed.model.ArticlePairKey
 
 object FeedClusterCalculator {
     fun buildFinalClusters(

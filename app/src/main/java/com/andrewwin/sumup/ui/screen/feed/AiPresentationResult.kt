@@ -1,6 +1,6 @@
 package com.andrewwin.sumup.ui.screen.feed
 
-import com.andrewwin.sumup.domain.entities.summary.SummaryResult
+import com.andrewwin.sumup.domain.summary.model.SummaryResult
 
 data class AiPresentationResult(
     val result: SummaryResult,

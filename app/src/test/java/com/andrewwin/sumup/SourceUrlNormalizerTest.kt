@@ -1,7 +1,7 @@
 package com.andrewwin.sumup
 
 import com.andrewwin.sumup.data.local.entities.SourceType
-import com.andrewwin.sumup.domain.source.SourceUrlNormalizer
+import com.andrewwin.sumup.domain.source.util.SourceUrlNormalizer
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

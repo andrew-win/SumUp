@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.repository
 
 import android.content.Context
-import com.andrewwin.sumup.domain.repository.ModelRepository
+import com.andrewwin.sumup.domain.ai.repository.ModelRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 

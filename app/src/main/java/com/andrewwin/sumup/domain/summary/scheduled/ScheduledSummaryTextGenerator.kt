@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.domain.summary.scheduled
 
-import com.andrewwin.sumup.domain.entities.summary.SummaryResult
-import com.andrewwin.sumup.domain.summary.SummaryResultFormatter
+import com.andrewwin.sumup.domain.summary.model.SummaryResult
+import com.andrewwin.sumup.domain.summary.formatter.SummaryResultFormatter
 import javax.inject.Inject
 
 interface ScheduledSummaryTextGenerator {

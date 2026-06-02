@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.mappers
 
 import com.andrewwin.sumup.data.local.entities.SourceGroupOrigin as RoomSourceGroupOrigin
-import com.andrewwin.sumup.domain.entities.source.SourceGroupOrigin
+import com.andrewwin.sumup.domain.source.model.SourceGroupOrigin
 
 fun String.toDomainSourceGroupOrigin(): SourceGroupOrigin = when (this) {
     RoomSourceGroupOrigin.PUBLIC_SUBSCRIPTION -> SourceGroupOrigin.PUBLIC_SUBSCRIPTION

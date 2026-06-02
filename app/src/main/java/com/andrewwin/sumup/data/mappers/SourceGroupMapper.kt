@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.mappers
 
 import com.andrewwin.sumup.data.local.entities.SourceGroup as RoomSourceGroup
-import com.andrewwin.sumup.domain.entities.source.SourceGroup
+import com.andrewwin.sumup.domain.source.model.SourceGroup
 
 fun RoomSourceGroup.toDomainModel(): SourceGroup = SourceGroup(
     id = id,

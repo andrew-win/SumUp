@@ -21,16 +21,17 @@ import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 import com.andrewwin.sumup.data.remote.sources.ArticleStableKeyFactory
 import com.andrewwin.sumup.data.remote.sources.RemoteArticleDataSource
-import com.andrewwin.sumup.domain.entities.article.Article
-import com.andrewwin.sumup.domain.entities.article.ArticleEmbeddingRecord
-import com.andrewwin.sumup.domain.entities.article.ArticleSimilarityRecord
-import com.andrewwin.sumup.domain.entities.article.SavedArticleSnapshot
-import com.andrewwin.sumup.domain.news.ArticleContentCleaner
-import com.andrewwin.sumup.domain.news.ArticleImportanceScorer
-import com.andrewwin.sumup.domain.news.ArticleTitleFormatter
-import com.andrewwin.sumup.domain.repository.ArticleRefreshResult
-import com.andrewwin.sumup.domain.repository.ArticleRepository
-import com.andrewwin.sumup.domain.repository.FullArticleContent
+import com.andrewwin.sumup.domain.ai.model.RemoteContentFetchStatus
+import com.andrewwin.sumup.domain.article.model.Article
+import com.andrewwin.sumup.domain.article.model.ArticleEmbeddingRecord
+import com.andrewwin.sumup.domain.article.model.ArticleSimilarityRecord
+import com.andrewwin.sumup.domain.article.model.SavedArticleSnapshot
+import com.andrewwin.sumup.domain.article.processing.ArticleContentCleaner
+import com.andrewwin.sumup.domain.article.processing.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.article.processing.ArticleTitleFormatter
+import com.andrewwin.sumup.domain.article.repository.ArticleRefreshResult
+import com.andrewwin.sumup.domain.article.repository.ArticleRepository
+import com.andrewwin.sumup.domain.article.repository.FullArticleContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -369,13 +370,13 @@ class ArticleRepositoryImpl @Inject constructor(
     override suspend fun getEnabledArticlesSince(timestamp: Long): List<Article> =
         articleDao.getEnabledArticlesSince(timestamp).map { it.toDomainModel() }
 
-    override suspend fun getSourceById(id: Long): com.andrewwin.sumup.domain.entities.source.Source? =
+    override suspend fun getSourceById(id: Long): com.andrewwin.sumup.domain.source.model.Source? =
         sourceDao.getSourceById(id)?.toDomainModel()
 
     override suspend fun fetchFullContent(article: Article): FullArticleContent {
         val source = sourceDao.getSourceById(article.sourceId) ?: return FullArticleContent(
             text = article.content,
-            status = com.andrewwin.sumup.domain.entities.ai.RemoteContentFetchStatus.FETCH_FAILED
+            status = RemoteContentFetchStatus.FETCH_FAILED
         )
         val fetchedRemote = remoteArticleDataSource.fetchFullContent(article.url, source.type)
         val remoteContent = fetchedRemote?.text ?: article.content
@@ -384,7 +385,7 @@ class ArticleRepositoryImpl @Inject constructor(
         val cleaned = cleanArticleTextUseCase.clean(mainContent, sourceType, source.footerPattern)
         return FullArticleContent(
             text = cleaned,
-            status = fetchedRemote?.status ?: com.andrewwin.sumup.domain.entities.ai.RemoteContentFetchStatus.FETCH_FAILED
+            status = fetchedRemote?.status ?: RemoteContentFetchStatus.FETCH_FAILED
         )
     }
 

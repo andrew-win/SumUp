@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.ui.screen.feed.model
 
-import com.andrewwin.sumup.domain.entities.article.Article
-import com.andrewwin.sumup.domain.entities.source.SourceType
+import com.andrewwin.sumup.domain.article.model.Article
+import com.andrewwin.sumup.domain.source.model.SourceType
 
 data class ArticleUiModel(
     val article: Article,

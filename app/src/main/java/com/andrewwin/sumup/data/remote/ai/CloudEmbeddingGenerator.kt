@@ -1,10 +1,10 @@
 package com.andrewwin.sumup.data.remote.ai
 
 import android.util.Log
-import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
-import com.andrewwin.sumup.domain.entities.ai.AiModelType
-import com.andrewwin.sumup.domain.ai.CloudEmbeddingProvider
-import com.andrewwin.sumup.domain.repository.AiModelConfigRepository
+import com.andrewwin.sumup.domain.ai.model.AiModelConfig
+import com.andrewwin.sumup.domain.ai.model.AiModelType
+import com.andrewwin.sumup.domain.ai.embedding.CloudEmbeddingProvider
+import com.andrewwin.sumup.domain.ai.repository.AiModelConfigRepository
 import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 

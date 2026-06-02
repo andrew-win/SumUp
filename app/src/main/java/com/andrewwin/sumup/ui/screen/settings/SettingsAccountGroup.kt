@@ -47,9 +47,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
-import com.andrewwin.sumup.domain.entities.sync.BackupSelection
-import com.andrewwin.sumup.domain.entities.sync.SyncConflictStrategy
-import com.andrewwin.sumup.domain.entities.sync.SyncOverwritePriority
+import com.andrewwin.sumup.domain.sync.model.BackupSelection
+import com.andrewwin.sumup.domain.sync.model.SyncConflictStrategy
+import com.andrewwin.sumup.domain.sync.model.SyncOverwritePriority
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.theme.appCardBorder
 import java.text.DateFormat

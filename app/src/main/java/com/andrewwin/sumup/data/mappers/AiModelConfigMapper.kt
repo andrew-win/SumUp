@@ -1,7 +1,7 @@
 package com.andrewwin.sumup.data.mappers
 
 import com.andrewwin.sumup.data.local.entities.AiModelConfig as RoomAiModelConfig
-import com.andrewwin.sumup.domain.entities.ai.AiModelConfig
+import com.andrewwin.sumup.domain.ai.model.AiModelConfig
 
 fun RoomAiModelConfig.toDomainModel(): AiModelConfig = AiModelConfig(
     id = id,

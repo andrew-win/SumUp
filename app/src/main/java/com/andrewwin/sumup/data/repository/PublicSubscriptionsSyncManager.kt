@@ -2,9 +2,10 @@ package com.andrewwin.sumup.data.repository
 
 import android.content.Context
 import com.andrewwin.sumup.data.remote.firebase.catalog.PublicSourcesCatalogService
-import com.andrewwin.sumup.domain.repository.ImportedSourceGroup
-import com.andrewwin.sumup.domain.repository.PublicSubscriptionsCatalog
-import com.andrewwin.sumup.domain.entities.source.SourceType
+import com.andrewwin.sumup.domain.source.repository.ImportedSourceGroup
+import com.andrewwin.sumup.domain.source.repository.PublicSubscriptionsCatalog
+import com.andrewwin.sumup.domain.source.model.SourceType
+import com.andrewwin.sumup.domain.source.repository.ImportedSource
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
@@ -146,17 +147,22 @@ class PublicSubscriptionsSyncManager @Inject constructor(
                 }.getOrNull() ?: continue
                 if (sourceName.isBlank() || sourceUrl.isBlank()) continue
                 add(
-                    com.andrewwin.sumup.domain.repository.ImportedSource(
+                    ImportedSource(
                         name = sourceName,
                         url = sourceUrl,
                         type = sourceType,
                         isEnabled = sourceJson.optBoolean("isEnabled", true),
-                        footerPattern = sourceJson.optString("footerPattern").trim().takeIf { it.isNotEmpty() },
+                        footerPattern = sourceJson.optString("footerPattern").trim()
+                            .takeIf { it.isNotEmpty() },
                         footerPatternCheckedAt = sourceJson.optLong("footerPatternCheckedAt", 0L),
-                        titleSelector = sourceJson.optString("titleSelector").trim().takeIf { it.isNotEmpty() },
-                        postLinkSelector = sourceJson.optString("postLinkSelector").trim().takeIf { it.isNotEmpty() },
-                        descriptionSelector = sourceJson.optString("descriptionSelector").trim().takeIf { it.isNotEmpty() },
-                        dateSelector = sourceJson.optString("dateSelector").trim().takeIf { it.isNotEmpty() },
+                        titleSelector = sourceJson.optString("titleSelector").trim()
+                            .takeIf { it.isNotEmpty() },
+                        postLinkSelector = sourceJson.optString("postLinkSelector").trim()
+                            .takeIf { it.isNotEmpty() },
+                        descriptionSelector = sourceJson.optString("descriptionSelector").trim()
+                            .takeIf { it.isNotEmpty() },
+                        dateSelector = sourceJson.optString("dateSelector").trim()
+                            .takeIf { it.isNotEmpty() },
                         useHeadlessBrowser = sourceJson.optBoolean("useHeadlessBrowser", false)
                     )
                 )
