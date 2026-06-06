@@ -18,6 +18,7 @@ import com.andrewwin.sumup.domain.ai.model.normalizedStableKey
 import com.andrewwin.sumup.domain.article.deduplication.DedupRuntimeCoordinator
 import com.andrewwin.sumup.domain.ai.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.article.repository.ArticleRepository
+import com.andrewwin.sumup.domain.feed.dedup.FeedDeduplicationProcessor
 import com.andrewwin.sumup.domain.summary.repository.SummaryRepository
 import com.andrewwin.sumup.domain.settings.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.settings.model.AiStrategy
@@ -54,6 +55,7 @@ class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val aiModelConfigRepository: AiModelConfigRepository,
     private val articleRepository: ArticleRepository,
+    private val feedDeduplicationProcessor: FeedDeduplicationProcessor,
     private val summaryRepository: SummaryRepository,
     private val createScheduleSummaryUseCase: CreateScheduleSummaryUseCase,
     private val dedupRuntimeCoordinator: DedupRuntimeCoordinator,
@@ -150,20 +152,28 @@ class SettingsViewModel @Inject constructor(
     fun updateDeduplicationStrategy(strategy: DeduplicationStrategy) {
         viewModelScope.launch {
             val current = userPreferencesRepository.preferences.first()
-            if (current.deduplicationStrategy != strategy) {
-                dedupRuntimeCoordinator.invalidateAfterEmbeddingsClear()
-                articleRepository.clearEmbeddings()
-                articleRepository.clearSimilarities()
-                Log.d("FeedDedupDebug", "embedding_runs_invalidated reason=strategy_changed")
-                Log.d("FeedDedupDebug", "dedup_restart_skipped reason=strategy_changed")
-            }
-            userPreferencesRepository.updatePreferences(current.copy(deduplicationStrategy = strategy))
+            if (current.deduplicationStrategy == strategy) return@launch
+
+            val updated = current.copy(deduplicationStrategy = strategy)
+            dedupRuntimeCoordinator.invalidateAfterEmbeddingsClear()
+            articleRepository.clearEmbeddings()
+            articleRepository.clearSimilarities()
+            Log.d("FeedDedupDebug", "embedding_runs_invalidated reason=strategy_changed")
+            userPreferencesRepository.updatePreferences(updated)
+            rebuildFeedSimilaritiesForThresholdChange(updated)
+            articleRepository.requestFeedRefresh()
         }
     }
 
     private fun updateThreshold(transform: (UserSettings) -> UserSettings) {
         viewModelScope.launch {
-            updatePreferences(transform)
+            val current = userPreferencesRepository.preferences.first()
+            val updated = transform(current)
+            if (updated == current) return@launch
+
+            rebuildFeedSimilaritiesForThresholdChange(updated)
+            userPreferencesRepository.updatePreferences(updated)
+            articleRepository.requestFeedRefresh()
         }
     }
 
@@ -610,6 +620,14 @@ class SettingsViewModel @Inject constructor(
     private suspend fun updatePreferences(transform: (UserSettings) -> UserSettings) {
         val current = userPreferencesRepository.preferences.first()
         userPreferencesRepository.updatePreferences(transform(current))
+    }
+
+    private suspend fun rebuildFeedSimilaritiesForThresholdChange(updated: UserSettings) {
+        if (!updated.isDeduplicationEnabled) return
+
+        if (articleRepository.getEnabledArticlesOnce().isEmpty()) return
+
+        feedDeduplicationProcessor.rebuildSimilarities(updated).getOrThrow()
     }
 
     private fun updateFeedPreferences(transform: (UserSettings) -> UserSettings) {

@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
 import com.andrewwin.sumup.domain.ai.service.LocalModelManager
+import com.andrewwin.sumup.domain.article.repository.ArticleRepository
 import com.andrewwin.sumup.domain.source.repository.ImportedSourceGroup
 import com.andrewwin.sumup.domain.source.repository.SourceRepository
 import com.andrewwin.sumup.domain.settings.repository.UserPreferencesRepository
@@ -56,6 +57,7 @@ class SourcesViewModel @Inject constructor(
     private val addSubscriptionUseCase: AddSubscriptionUseCase,
     private val removeSubscriptionUseCase: RemoveSubscriptionUseCase,
     private val getRecommendationsUseCase: GetRecommendationsUseCase,
+    private val articleRepository: ArticleRepository,
     userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
@@ -476,7 +478,11 @@ class SourcesViewModel @Inject constructor(
 
     fun updateSource(source: Source) {
         viewModelScope.launch {
+            val previousSource = repository.getSourcesByIds(listOf(source.id)).firstOrNull()
             repository.updateSource(source)
+            if (previousSource != null && previousSource.isEnabled != source.isEnabled) {
+                articleRepository.requestFeedRefresh()
+            }
         }
     }
 
@@ -497,7 +503,9 @@ class SourcesViewModel @Inject constructor(
     
     fun toggleGroup(group: SourceGroup, isEnabled: Boolean) {
         viewModelScope.launch {
+            if (group.isEnabled == isEnabled) return@launch
             repository.toggleGroup(group, isEnabled)
+            articleRepository.requestFeedRefresh()
         }
     }
 

@@ -1,9 +1,12 @@
 package com.andrewwin.sumup.data.remote.sources.youtube
 
-import android.util.Xml
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.remote.sources.ArticleStableKeyFactory
+import io.github.thoroldvix.api.TranscriptContent
+import org.jsoup.Jsoup
+import org.jsoup.parser.Parser
 import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserFactory
 import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -13,15 +16,13 @@ class YouTubeParser {
     fun parseFeed(
         inputStream: InputStream,
         sourceId: Long,
-        oldestAllowedPublishedAt: Long? = null,
-        latestKnownVideoId: String? = null
+        oldestAllowedPublishedAt: Long? = null
     ): YouTubeFeedParseResult {
         inputStream.use {
-            val parser = Xml.newPullParser()
-            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+            val parser = newXmlPullParser()
             parser.setInput(it, null)
             parser.nextTag()
-            return readFeedParseResult(parser, sourceId, oldestAllowedPublishedAt, latestKnownVideoId)
+            return readFeedParseResult(parser, sourceId, oldestAllowedPublishedAt)
         }
     }
 
@@ -31,8 +32,7 @@ class YouTubeParser {
         oldestAllowedPublishedAt: Long? = null
     ): List<Article> {
         inputStream.use {
-            val parser = Xml.newPullParser()
-            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+            val parser = newXmlPullParser()
             parser.setInput(it, null)
             parser.nextTag()
             return readFeed(parser, sourceId, oldestAllowedPublishedAt)
@@ -41,25 +41,29 @@ class YouTubeParser {
 
     fun parseFeedMetadata(
         inputStream: InputStream,
-        oldestAllowedPublishedAt: Long?,
-        latestKnownVideoId: String?
+        oldestAllowedPublishedAt: Long?
     ): YouTubeFeedMetadata {
         inputStream.use {
-            val parser = Xml.newPullParser()
-            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+            val parser = newXmlPullParser()
             parser.setInput(it, null)
             parser.nextTag()
-            return readFeedMetadata(parser, oldestAllowedPublishedAt, latestKnownVideoId)
+            return readFeedMetadata(parser, oldestAllowedPublishedAt)
         }
     }
 
     fun parseChannelDisplayName(inputStream: InputStream): String? {
-        inputStream.use {
-            val parser = Xml.newPullParser()
-            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
-            parser.setInput(it, null)
-            parser.nextTag()
-            return readFeedDisplayName(parser)
+        val xml = inputStream.use { stream ->
+            stream.bufferedReader().use { reader -> reader.readText() }
+        }
+        val document = Jsoup.parse(xml, "", Parser.xmlParser())
+        val title = document.selectFirst("feed > title")?.text()?.trim().orEmpty()
+        val authorName = document.selectFirst("feed > author > name")?.text()?.trim().orEmpty()
+        return title.ifBlank { authorName }.ifBlank { null }
+    }
+
+    private fun newXmlPullParser(): XmlPullParser {
+        return XmlPullParserFactory.newInstance().newPullParser().apply {
+            setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
         }
     }
 
@@ -84,8 +88,7 @@ class YouTubeParser {
     private fun readFeedParseResult(
         parser: XmlPullParser,
         sourceId: Long,
-        oldestAllowedPublishedAt: Long?,
-        latestKnownVideoId: String?
+        oldestAllowedPublishedAt: Long?
     ): YouTubeFeedParseResult {
         val articles = mutableListOf<Article>()
         var entryCount = 0
@@ -93,7 +96,6 @@ class YouTubeParser {
         var newestPublishedAt: Long? = null
         var newestVideoId: String? = null
         var hasRelevantEntry = oldestAllowedPublishedAt == null
-        var hasNewerThanKnownEntry = latestKnownVideoId.isNullOrBlank()
 
         parser.require(XmlPullParser.START_TAG, null, "feed")
         while (parser.next() != XmlPullParser.END_TAG) {
@@ -112,9 +114,6 @@ class YouTubeParser {
                 if (newestVideoId.isNullOrBlank() && !entryData.videoId.isNullOrBlank()) {
                     newestVideoId = entryData.videoId
                 }
-                if (!latestKnownVideoId.isNullOrBlank() && !entryData.videoId.isNullOrBlank() && entryData.videoId != latestKnownVideoId) {
-                    hasNewerThanKnownEntry = true
-                }
                 entryData.article?.let(articles::add)
             } else {
                 skip(parser)
@@ -128,23 +127,60 @@ class YouTubeParser {
                 oldestPublishedAt = oldestPublishedAt,
                 newestPublishedAt = newestPublishedAt,
                 newestVideoId = newestVideoId,
-                hasRelevantEntry = hasRelevantEntry,
-                hasNewerThanKnownEntry = hasNewerThanKnownEntry
+                hasRelevantEntry = hasRelevantEntry
             )
         )
     }
 
+    fun formatTranscriptByTiming(transcript: TranscriptContent): String {
+        val fragments = transcript.content
+            .filter { !it.text.isNullOrBlank() }
+            .sortedBy { it.start }
+        if (fragments.isEmpty()) return ""
+
+        val blocks = mutableListOf<String>()
+        val current = StringBuilder()
+        var blockStart = fragments.first().start
+        var blockEnd = blockStart
+
+        fragments.forEach { fragment ->
+            val normalized = normalizeTranscriptFragment(fragment.text)
+            if (normalized.isBlank()) return@forEach
+
+            val fragmentEnd = fragment.start + fragment.dur
+            val shouldFlush =
+                current.isNotEmpty() &&
+                    (fragment.start - blockEnd > YT_BLOCK_GAP_SECONDS ||
+                        fragmentEnd - blockStart >= YT_BLOCK_WINDOW_SECONDS ||
+                        current.length >= YT_BLOCK_MAX_CHARS)
+
+            if (shouldFlush) {
+                blocks += finalizeTranscriptBlock(current.toString())
+                current.clear()
+                blockStart = fragment.start
+            }
+
+            if (current.isNotEmpty()) current.append(' ')
+            current.append(normalized)
+            blockEnd = fragmentEnd
+        }
+
+        if (current.isNotEmpty()) {
+            blocks += finalizeTranscriptBlock(current.toString())
+        }
+
+        return blocks.joinToString(separator = "\n\n")
+    }
+
     private fun readFeedMetadata(
         parser: XmlPullParser,
-        oldestAllowedPublishedAt: Long?,
-        latestKnownVideoId: String?
+        oldestAllowedPublishedAt: Long?
     ): YouTubeFeedMetadata {
         var entryCount = 0
         var oldestPublishedAt: Long? = null
         var newestPublishedAt: Long? = null
         var newestVideoId: String? = null
         var hasRelevantEntry = oldestAllowedPublishedAt == null
-        var hasNewerThanKnownEntry = latestKnownVideoId.isNullOrBlank()
 
         parser.require(XmlPullParser.START_TAG, null, "feed")
         while (parser.next() != XmlPullParser.END_TAG) {
@@ -163,9 +199,6 @@ class YouTubeParser {
                 if (newestVideoId.isNullOrBlank() && !metadata.videoId.isNullOrBlank()) {
                     newestVideoId = metadata.videoId
                 }
-                if (!latestKnownVideoId.isNullOrBlank() && !metadata.videoId.isNullOrBlank() && metadata.videoId != latestKnownVideoId) {
-                    hasNewerThanKnownEntry = true
-                }
             } else {
                 skip(parser)
             }
@@ -176,31 +209,8 @@ class YouTubeParser {
             oldestPublishedAt = oldestPublishedAt,
             newestPublishedAt = newestPublishedAt,
             newestVideoId = newestVideoId,
-            hasRelevantEntry = hasRelevantEntry,
-            hasNewerThanKnownEntry = hasNewerThanKnownEntry
+            hasRelevantEntry = hasRelevantEntry
         )
-    }
-
-    private fun readFeedDisplayName(parser: XmlPullParser): String? {
-        var title: String? = null
-        var authorName: String? = null
-        parser.require(XmlPullParser.START_TAG, null, "feed")
-        while (parser.next() != XmlPullParser.END_TAG) {
-            if (parser.eventType != XmlPullParser.START_TAG) continue
-            when (parser.name.localTagName()) {
-                "entry" -> skip(parser)
-                "title" -> {
-                    if (title.isNullOrBlank()) {
-                        title = readText(parser).trim().ifBlank { null }
-                    } else {
-                        skip(parser)
-                    }
-                }
-                "author" -> authorName = readAuthorName(parser) ?: authorName
-                else -> skip(parser)
-            }
-        }
-        return title?.takeIf { it.isNotBlank() } ?: authorName?.takeIf { it.isNotBlank() }
     }
 
     private fun readEntry(
@@ -511,6 +521,28 @@ class YouTubeParser {
         return name
     }
 
+    private fun normalizeTranscriptFragment(raw: String?): String {
+        if (raw.isNullOrBlank()) return ""
+        val withoutTags = raw.replace(Regex("<[^>]+>"), " ")
+        return withoutTags
+            .replace('\n', ' ')
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
+    private fun finalizeTranscriptBlock(rawBlock: String): String {
+        val cleaned = rawBlock
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        if (cleaned.isEmpty()) return ""
+
+        return if (cleaned.last() == '.' || cleaned.last() == '!' || cleaned.last() == '?') {
+            cleaned
+        } else {
+            "$cleaned."
+        }
+    }
+
     private fun parseDate(dateString: String): Long {
         val formatters = formattersThreadLocal.get().orEmpty()
         for (formatter in formatters) {
@@ -587,8 +619,7 @@ class YouTubeParser {
         val oldestPublishedAt: Long? = null,
         val newestPublishedAt: Long? = null,
         val newestVideoId: String? = null,
-        val hasRelevantEntry: Boolean = false,
-        val hasNewerThanKnownEntry: Boolean = false
+        val hasRelevantEntry: Boolean = false
     )
 
     data class YouTubeFeedParseResult(
@@ -626,6 +657,9 @@ class YouTubeParser {
     }
 
     private companion object {
+        private const val YT_BLOCK_WINDOW_SECONDS = 22.0
+        private const val YT_BLOCK_GAP_SECONDS = 2.2
+        private const val YT_BLOCK_MAX_CHARS = 260
         private val VIDEO_QUERY_REGEX = Regex("[?&]v=([^?&#]+)")
         private val SHORTS_URL_REGEX = Regex("youtube\\.com/shorts/([^?&#]+)")
         private val EMBED_URL_REGEX = Regex("youtube\\.com/embed/([^?&#]+)")

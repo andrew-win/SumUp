@@ -44,11 +44,8 @@ interface ArticleRepository {
         strategyKey: String,
         threshold: Float
     ): List<ArticleSimilarityRecord>
-    suspend fun getSimilaritiesTouchingChangedArticles(
-        changedArticleIds: List<Long>,
-        activeArticleIds: List<Long>,
-        strategyKey: String
-    ): List<ArticleSimilarityRecord>
+    suspend fun deleteSimilaritiesByStrategyKey(strategyKey: String)
+    suspend fun deleteSimilaritiesForArticles(articleIds: List<Long>, strategyKey: String)
     suspend fun upsertSimilarities(items: List<ArticleSimilarityRecord>)
     suspend fun clearAllArticles()
     suspend fun clearEmbeddings()

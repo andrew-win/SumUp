@@ -277,7 +277,7 @@ fun FeedScreen(
                             onShowDescription = { helpDescription = it }
                         ) {
                             AppMessageState(
-                                message = stringResource(R.string.feed_empty_title),
+                                message = stringResource(R.string.feed_empty_message),
                                 modifier = Modifier.fillParentMaxHeight(0.7f)
                             )
                         }

@@ -19,12 +19,13 @@ class GeminiHandler(okHttpClient: OkHttpClient) : BaseAiHandler(okHttpClient) {
             for (i in 0 until models.length()) {
                 val model = models.getJSONObject(i)
                 val methods = model.getJSONArray("supportedGenerationMethods").toString()
+                val name = model.getString("name").removePrefix(MODEL_PREFIX)
                 val match = when (type) {
-                    AiModelType.SUMMARY -> methods.contains("generateContent")
+                    AiModelType.SUMMARY -> methods.contains("generateContent") && name.contains(FLASH_MODEL_NAME_PART, ignoreCase = true)
                     AiModelType.EMBEDDING -> methods.contains("embedContent")
                 }
                 if (match) {
-                    result.add(model.getString("name").removePrefix(MODEL_PREFIX))
+                    result.add(name)
                 }
             }
             result.sorted()
@@ -45,6 +46,9 @@ class GeminiHandler(okHttpClient: OkHttpClient) : BaseAiHandler(okHttpClient) {
             if (expectJson) {
                 put("generationConfig", JSONObject().apply {
                     put("responseMimeType", "application/json")
+                    createThinkingConfig(config.modelName)?.let { thinkingConfig ->
+                        put("thinkingConfig", thinkingConfig)
+                    }
                 })
             }
         }
@@ -114,9 +118,31 @@ class GeminiHandler(okHttpClient: OkHttpClient) : BaseAiHandler(okHttpClient) {
         }
     }
 
+    private fun createThinkingConfig(modelName: String): JSONObject? {
+        val normalizedModelName = modelName
+            .removePrefix(MODEL_PREFIX)
+            .lowercase()
+
+        return when {
+            normalizedModelName.startsWith(GEMINI_2_5_PREFIX) -> JSONObject().apply {
+                put("thinkingBudget", MIN_THINKING_BUDGET)
+            }
+            normalizedModelName.startsWith(GEMINI_3_PREFIX) || normalizedModelName.endsWith(LATEST_MODEL_SUFFIX) -> JSONObject().apply {
+                put("thinkingLevel", MIN_THINKING_LEVEL)
+            }
+            else -> null
+        }
+    }
+
     private companion object {
         private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
         private const val MODEL_PREFIX = "models/"
+        private const val GEMINI_2_5_PREFIX = "gemini-2.5-"
+        private const val GEMINI_3_PREFIX = "gemini-3"
+        private const val LATEST_MODEL_SUFFIX = "-latest"
+        private const val FLASH_MODEL_NAME_PART = "flash"
+        private const val MIN_THINKING_BUDGET = 0
+        private const val MIN_THINKING_LEVEL = "minimal"
         private const val TASK_TYPE_SIMILARITY = "SEMANTIC_SIMILARITY"
         private const val EMBEDDING_DIMENSIONALITY = 768
     }

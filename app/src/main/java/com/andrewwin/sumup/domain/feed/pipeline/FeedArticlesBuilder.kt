@@ -2,13 +2,12 @@ package com.andrewwin.sumup.domain.feed.pipeline
 
 import android.util.Log
 import com.andrewwin.sumup.domain.article.model.Article
-import com.andrewwin.sumup.domain.feed.model.ArticlePairKey
 import com.andrewwin.sumup.domain.feed.clustering.FeedClusterCalculator
 import com.andrewwin.sumup.domain.feed.model.ArticleCluster
 import com.andrewwin.sumup.domain.article.processing.ArticleImportanceScorer
 import com.andrewwin.sumup.domain.article.deduplication.SimilarityScorer
 import com.andrewwin.sumup.domain.article.repository.ArticleRepository
-import com.andrewwin.sumup.domain.feed.repository.FeedClusterSnapshotRepository
+import com.andrewwin.sumup.domain.feed.dedup.ThresholdSimilarityResolver
 import com.andrewwin.sumup.domain.source.repository.SourceRepository
 import com.andrewwin.sumup.domain.settings.model.DeduplicationStrategy
 import com.andrewwin.sumup.domain.settings.model.UserSettings
@@ -31,7 +30,7 @@ class FeedArticlesBuilder @Inject constructor(
     private val sourceRepository: SourceRepository,
     private val feedSearchMatcher: FeedSearchMatcher,
     private val similarityScorer: SimilarityScorer,
-    private val feedClusterSnapshotStore: FeedClusterSnapshotRepository
+    private val thresholdSimilarityResolver: ThresholdSimilarityResolver
 ) {
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     operator fun invoke(
@@ -49,22 +48,20 @@ class FeedArticlesBuilder @Inject constructor(
             sourceRepository.groupsWithSources,
             searchQueryFlow
         ) { enabledArticles, favoriteArticles, groups, query ->
-            FeedData(enabledArticles, favoriteArticles, groups, query)
+            FeedData(
+                enabledArticles = enabledArticles,
+                favoriteArticles = favoriteArticles,
+                groupsWithSources = groups,
+                query = query,
+                fingerprint = buildFeedDataFingerprint(
+                    enabledArticles = enabledArticles,
+                    favoriteArticles = favoriteArticles,
+                    groupsWithSources = groups,
+                    query = query
+                )
+            )
         }.distinctUntilChanged { old, new ->
-            old.enabledArticles.size == new.enabledArticles.size &&
-                old.enabledArticles.zip(new.enabledArticles).all { (oldArticle, newArticle) ->
-                    oldArticle.id == newArticle.id &&
-                        oldArticle.title == newArticle.title &&
-                        oldArticle.content == newArticle.content &&
-                        oldArticle.publishedAt == newArticle.publishedAt &&
-                        oldArticle.sourceId == newArticle.sourceId &&
-                        oldArticle.url == newArticle.url &&
-                        oldArticle.isFavorite == newArticle.isFavorite &&
-                        oldArticle.isRead == newArticle.isRead
-                } &&
-                old.query == new.query &&
-                old.favoriteArticles.size == new.favoriteArticles.size &&
-                old.groupsWithSources == new.groupsWithSources
+            old.fingerprint == new.fingerprint
         }
 
         val filterParamsFlow = combine(
@@ -88,14 +85,20 @@ class FeedArticlesBuilder @Inject constructor(
             }
         }
             .flowOn(Dispatchers.Default)
-            .debounce(FEED_SNAPSHOT_DEBOUNCE_MS)
+            .debounce(FEED_BUILD_DEBOUNCE_MS)
             .flatMapLatest { state ->
                 flow {
                     val emitStartedAt = System.currentTimeMillis()
                     val buildClustersStartedAt = System.currentTimeMillis()
                     val clusters = buildClusters(state)
                     val filteredClusters = applyMinMentionsFilter(clusters, state.prefs, state.savedOnly)
-                    emit(FeedResult(filteredClusters, state.invalidationSignal))
+                    emit(
+                        FeedResult(
+                            clusters = filteredClusters,
+                            invalidationSignal = state.invalidationSignal,
+                            fingerprint = buildClusterFingerprint(filteredClusters)
+                        )
+                    )
                 }
             }
     }
@@ -179,14 +182,12 @@ class FeedArticlesBuilder @Inject constructor(
         if (clusters.isEmpty()) return clusters
 
         return clusters.filter { cluster ->
-            val mentions = cluster.duplicates.size + 1
             val isSingle = cluster.duplicates.isEmpty()
-            val requiredMentions = prefs.minMentions.coerceAtLeast(2)
 
             if (isSingle) {
                 !prefs.isHideSingleNewsEnabled
             } else {
-                mentions >= requiredMentions
+                cluster.duplicates.size >= prefs.minMentions
             }
         }
     }
@@ -196,49 +197,32 @@ class FeedArticlesBuilder @Inject constructor(
         prefs: UserSettings
     ): List<ArticleCluster> {
         val startedAt = System.currentTimeMillis()
-        val ids = currentArticles.map { it.id }
-        val strategyKey = similarityScorer.similarityCacheKeyForStrategy(prefs.deduplicationStrategy)
         val threshold = prefs.deduplicationThreshold()
-        val clusteringSettingsSignature = feedClusterSnapshotStore.buildClusteringSettingsSignature(
-            strategyKey = strategyKey,
-            threshold = threshold
+        val strategyKey = similarityScorer.thresholdSimilarityCacheKey(
+            prefs.deduplicationStrategy,
+            threshold
         )
-        feedClusterSnapshotStore.loadClusters(
-            articles = currentArticles,
-            clusteringSettingsSignature = clusteringSettingsSignature
-        )?.let { clusters ->
-            Log.d(
-                FEED_BUILD_PROFILE_LOG_TAG,
-                "clusters_from_db snapshotHit=true durationMs=${System.currentTimeMillis() - startedAt} " +
-                    "articles=${currentArticles.size} clusters=${clusters.size}"
-            )
-            return clusters
-        }
-
         val similaritiesStartedAt = System.currentTimeMillis()
-        val similarities = articleRepository.getSimilaritiesInsideArticleSetAboveThreshold(
-            articleIds = ids,
-            strategyKey = strategyKey,
-            threshold = threshold
+        val pairScores = thresholdSimilarityResolver.resolvePairScores(
+            articles = currentArticles,
+            prefs = prefs,
+            persistComputed = false,
+            allowOnDemandComputation = false
         )
         val similaritiesDurationMs = System.currentTimeMillis() - similaritiesStartedAt
-        if (similarities.isEmpty()) return emptyList()
+        if (pairScores.isEmpty()) return emptyList()
 
         val clusterCalculationStartedAt = System.currentTimeMillis()
-        val currentArticleIds = currentArticles.mapTo(mutableSetOf()) { it.id }
-        val pairScores = similarities
-            .asSequence()
-            .filter { it.leftArticleId in currentArticleIds && it.rightArticleId in currentArticleIds }
-            .associate { similarity ->
-                ArticlePairKey.of(similarity.leftArticleId, similarity.rightArticleId) to similarity.score
-            }
-
-        val clusters = FeedClusterCalculator.buildFinalClusters(currentArticles, pairScores)
-        val clusterCalculationDurationMs = System.currentTimeMillis() - clusterCalculationStartedAt
-        feedClusterSnapshotStore.saveClusters(
+        val clusters = FeedClusterCalculator.buildFinalClusters(
             articles = currentArticles,
-            clusteringSettingsSignature = clusteringSettingsSignature,
-            clusters = clusters
+            pairScores = pairScores,
+            threshold = threshold
+        )
+        val clusterCalculationDurationMs = System.currentTimeMillis() - clusterCalculationStartedAt
+        Log.d(
+            FEED_BUILD_PROFILE_LOG_TAG,
+            "clusters_from_db threshold_similarity_resolve_ms=$similaritiesDurationMs " +
+                "clusterCalculationMs=$clusterCalculationDurationMs pairScores=${pairScores.size} strategyKey=$strategyKey"
         )
         return clusters
     }
@@ -251,8 +235,11 @@ class FeedArticlesBuilder @Inject constructor(
         val byId = favoriteArticles.associateBy { it.id }
         val mappings = articleRepository.getFavoriteClusterMappings(favoriteArticles.map { it.id })
         val savedAtById = articleRepository.getFavoriteSavedAt(favoriteArticles.map { it.id })
-        val strategyKey = similarityScorer.similarityCacheKeyForStrategy(prefs.deduplicationStrategy)
         val threshold = prefs.deduplicationThreshold()
+        val strategyKey = similarityScorer.thresholdSimilarityCacheKey(
+            prefs.deduplicationStrategy,
+            threshold
+        )
         val similarities = articleRepository.getFavoriteSimilarities(favoriteArticles.map { it.id }, strategyKey)
         val savedClusterScores = articleRepository.getFavoriteClusterScores(favoriteArticles.map { it.id })
         val scoreMap = buildMap<Pair<Long, Long>, Float> {
@@ -311,7 +298,8 @@ class FeedArticlesBuilder @Inject constructor(
 
     data class FeedResult(
         val clusters: List<ArticleCluster>,
-        val invalidationSignal: Long
+        val invalidationSignal: Long,
+        val fingerprint: Long
     )
 
     private data class FeedPipelineState(
@@ -333,13 +321,73 @@ class FeedArticlesBuilder @Inject constructor(
         val enabledArticles: List<Article>,
         val favoriteArticles: List<Article>,
         val groupsWithSources: List<SourceGroupWithSources>,
-        val query: String
+        val query: String,
+        val fingerprint: Long
     )
 
     companion object {
         private const val FEED_BUILD_PROFILE_LOG_TAG = "FeedBuildProfile"
-        private const val FEED_SNAPSHOT_DEBOUNCE_MS = 200L
+        private const val FEED_BUILD_DEBOUNCE_MS = 200L
         private var feedCollectorId = 0L
+    }
+
+    private fun buildFeedDataFingerprint(
+        enabledArticles: List<Article>,
+        favoriteArticles: List<Article>,
+        groupsWithSources: List<SourceGroupWithSources>,
+        query: String
+    ): Long {
+        var fingerprint = query.hashCode().toLong()
+        fingerprint = fingerprint * 31 + buildArticleListFingerprint(enabledArticles)
+        fingerprint = fingerprint * 31 + buildArticleListFingerprint(favoriteArticles)
+        fingerprint = fingerprint * 31 + buildGroupsFingerprint(groupsWithSources)
+        return fingerprint
+    }
+
+    private fun buildArticleListFingerprint(articles: List<Article>): Long {
+        var fingerprint = articles.size.toLong()
+        articles.forEach { article ->
+            fingerprint = fingerprint * 31 + article.id
+            fingerprint = fingerprint * 31 + article.sourceId
+            fingerprint = fingerprint * 31 + article.publishedAt
+            fingerprint = fingerprint * 31 + article.title.hashCode().toLong()
+            fingerprint = fingerprint * 31 + article.content.hashCode().toLong()
+            fingerprint = fingerprint * 31 + article.url.hashCode().toLong()
+            fingerprint = fingerprint * 31 + article.isFavorite.hashCode().toLong()
+            fingerprint = fingerprint * 31 + article.isRead.hashCode().toLong()
+        }
+        return fingerprint
+    }
+
+    private fun buildGroupsFingerprint(groupsWithSources: List<SourceGroupWithSources>): Long {
+        var fingerprint = groupsWithSources.size.toLong()
+        groupsWithSources.forEach { groupWithSources ->
+            fingerprint = fingerprint * 31 + groupWithSources.group.id
+            fingerprint = fingerprint * 31 + groupWithSources.group.isEnabled.hashCode().toLong()
+            fingerprint = fingerprint * 31 + groupWithSources.group.name.hashCode().toLong()
+            groupWithSources.sources.forEach { source ->
+                fingerprint = fingerprint * 31 + source.id
+                fingerprint = fingerprint * 31 + source.groupId
+                fingerprint = fingerprint * 31 + source.isEnabled.hashCode().toLong()
+                fingerprint = fingerprint * 31 + source.name.hashCode().toLong()
+            }
+        }
+        return fingerprint
+    }
+
+    private fun buildClusterFingerprint(clusters: List<ArticleCluster>): Long {
+        var fingerprint = clusters.size.toLong()
+        clusters.forEach { cluster ->
+            fingerprint = fingerprint * 31 + cluster.representative.id
+            fingerprint = fingerprint * 31 + cluster.representative.isFavorite.hashCode().toLong()
+            fingerprint = fingerprint * 31 + cluster.duplicates.size
+            cluster.duplicates.forEach { (article, score) ->
+                fingerprint = fingerprint * 31 + article.id
+                fingerprint = fingerprint * 31 + article.isFavorite.hashCode().toLong()
+                fingerprint = fingerprint * 31 + score.toRawBits()
+            }
+        }
+        return fingerprint
     }
 }
 

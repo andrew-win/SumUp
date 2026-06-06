@@ -46,7 +46,7 @@
     <string name="summary_selection_clear">Вийти з режиму вибору</string>
     <string name="summary_selection_delete">Видалити вибрані зведення</string>
     <string name="summary_selection_select_all">Виділити все</string>
-    <string name="summary_empty">Запланованих зведень ще немає</string>
+    <string name="summary_empty">Запланованих зведень немає. Можливо вони не увімкнені або ще не прийшов час</string>
     <string name="summary_not_ready">Згенеровано пізніше</string>
     <string name="summary_next_at">Наступне о %s</string>
     <string name="summary_scheduling_disabled">Не було
@@ -93,6 +93,25 @@
     <string name="settings_api_key_mask_short">....</string>
     <string name="settings_add_api_key">Додати API Ключ</string>
     <string name="settings_edit_api_key">Редагувати API Ключ</string>
+    <string name="settings_api_keys_help_button">Як отримати API-ключі?</string>
+    <string name="api_key_help_title">Як отримати API-ключі?</string>
+    <string name="api_key_help_intro">У додатку є провайдери, з якими можна почати безкоштовно. Це залежить від конкретних моделей і лімітів, але безкоштовні варіанти є.</string>
+    <string name="api_key_help_instruction">Щоб отримати ключ, відкрийте потрібне посилання нижче, увійдіть у кабінет провайдера й створіть API-ключ.</string>
+    <string name="api_key_help_open_link">Відкрити сторінку створення ключа</string>
+    <string name="api_key_help_free_title">Провайдери з безкоштовними варіантами</string>
+    <string name="api_key_help_paid_title">Провайдери, що зазвичай працюють платно</string>
+    <string name="api_key_help_gemini_name">Gemini</string>
+    <string name="api_key_help_gemini_desc">Один із найкращих варіантів від Google. Рекомендовано почати з flash-lite-latest.</string>
+    <string name="api_key_help_groq_name">Groq</string>
+    <string name="api_key_help_groq_desc">Надшвидкий провайдер з open-source моделями.</string>
+    <string name="api_key_help_openrouter_name">OpenRouter</string>
+    <string name="api_key_help_openrouter_desc">Агрегатор моделей з безкоштовними варіантами.</string>
+    <string name="api_key_help_cohere_name">Cohere</string>
+    <string name="api_key_help_cohere_desc">Провайдер із власними безкоштовними моделями.</string>
+    <string name="api_key_help_openai_name">ChatGPT / OpenAI</string>
+    <string name="api_key_help_openai_desc">Один із найкращих провайдерів, але API зазвичай потребує оплати.</string>
+    <string name="api_key_help_claude_name">Claude</string>
+    <string name="api_key_help_claude_desc">Сильний у технічних і складних задачах, але API зазвичай платний.</string>
     <string name="settings_scheduling">Планування</string>
     <string name="settings_scheduled_summary">Заплановані зведення</string>
     <string name="settings_time_label">Час: %s</string>
@@ -115,6 +134,7 @@
     <string name="dialog_model">Модель</string>
     <string name="dialog_model_loading">Завантаження…</string>
     <string name="dialog_model_select">Оберіть модель</string>
+    <string name="dialog_summary_model_recommendation">Наполеглива рекомендація: flash-lite-latest або інші легкі моделі БЕЗ міркування</string>
     <string name="dialog_load">Завантажити</string>
     <string name="error_prefix">Помилка</string>
     <string name="no_articles_prefix">Немає</string>
@@ -242,6 +262,10 @@
     <string name="settings_sync_passphrase_saved">Пароль синхронізації API-ключів збережено</string>
     <string name="settings_sync_passphrase_cleared">Синхронізацію API-ключів вимкнено, пароль очищено</string>
     <string name="settings_sync_passphrase_required">Спочатку задайте пароль синхронізації для API-ключів</string>
+    <string name="settings_sync_api_keys_warning_title">Синхронізація без API-ключів</string>
+    <string name="settings_sync_api_keys_warning_body">Ви не ввели пароль синхронізації API-ключів. Якщо ввімкнути синхронізацію без нього, API-ключі не будуть додані до Firebase backup, а наявні API-ключі в хмарному backup можуть бути видалені під час перезапису. Введіть пароль або підтвердьте синхронізацію без API-ключів.</string>
+    <string name="settings_sync_api_keys_warning_enter_passphrase">Ввести пароль</string>
+    <string name="settings_sync_api_keys_warning_enable_without_keys">Увімкнути без ключів</string>
     <string name="settings_not_signed_in">Не виконано вхід</string>
     <string name="settings_sign_in_success">Вхід успішний</string>
     <string name="settings_sign_in_error">Помилка входу</string>
@@ -300,7 +324,7 @@
     <string name="summary_digest_main_news_title">📰📌🧭 Головні новини</string>
     <string name="summary_extractive_item_header">%1$d. %2$s:</string>
     <string name="summary_article_format">%1$s: %2$s</string>
-    <string name="feed_empty_message">Новин немає. Можливо, фільтри занадто жорсткі. Для оновлення потягніть зверху вниз.</string>
+    <string name="feed_empty_message">Новин немає. Можливо фільтри/налаштування надто жорсткі. Для оновлення потягніть вниз.</string>
     <string name="feed_empty_title">Новин не знайдено</string>
     <string name="feed_empty_actions_title">Що можна зробити:</string>
     <string name="feed_empty_hint_filters">Пом’якшіть
@@ -351,6 +375,7 @@
 заплановані</string>
     <string name="summary_tab_scheduled">Заплановані</string>
     <string name="summary_tab_statistics">Статистика</string>
+    <string name="summary_statistics_empty">Даних немає. Можливо треба оновити стрічку, щоб вони підвантажилися.</string>
     <string name="summary_default_title">Зведення</string>
     <string name="summary_section_main">Основне</string>
     <string name="summary_section_details">Детальніше</string>

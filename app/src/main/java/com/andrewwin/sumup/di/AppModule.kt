@@ -11,7 +11,6 @@ import com.andrewwin.sumup.data.local.AppDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
-import com.andrewwin.sumup.data.local.dao.FeedClusterSnapshotDao
 import com.andrewwin.sumup.data.local.dao.PreparedScheduledSummaryDao
 import com.andrewwin.sumup.data.local.dao.SavedArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
@@ -33,14 +32,16 @@ import com.andrewwin.sumup.data.remote.ai.handlers.GeminiHandler
 import com.andrewwin.sumup.data.remote.ai.handlers.GroqHandler
 import com.andrewwin.sumup.data.remote.ai.handlers.OpenRouterHandler
 import com.andrewwin.sumup.data.remote.firebase.sync.SettingsSyncService
-import com.andrewwin.sumup.data.remote.sources.rss.RssRemoteDataSource
-import com.andrewwin.sumup.data.remote.sources.telegram.TelegramRemoteDataSource
-import com.andrewwin.sumup.data.remote.sources.youtube.YouTubeRemoteDataSource
+import com.andrewwin.sumup.data.remote.sources.rss.RssFetcher
+import com.andrewwin.sumup.data.remote.sources.rss.RssSourceGateway
+import com.andrewwin.sumup.data.remote.sources.telegram.TelegramFetcher
+import com.andrewwin.sumup.data.remote.sources.telegram.TelegramSourceGateway
+import com.andrewwin.sumup.data.remote.sources.youtube.YouTubeFetcher
+import com.andrewwin.sumup.data.remote.sources.youtube.YouTubeSourceGateway
 import com.andrewwin.sumup.data.remote.sources.rss.RssParser
 import com.andrewwin.sumup.data.remote.sources.telegram.TelegramParser
 import com.andrewwin.sumup.data.remote.sources.youtube.YouTubeParser
 import com.andrewwin.sumup.data.repository.ArticleRepositoryImpl
-import com.andrewwin.sumup.data.repository.FeedClusterSnapshotStore
 import com.andrewwin.sumup.data.repository.ModelRepositoryImpl
 import com.andrewwin.sumup.data.repository.PublicSubscriptionsSyncManager
 import com.andrewwin.sumup.data.repository.SourceRepositoryImpl
@@ -65,7 +66,6 @@ import com.andrewwin.sumup.domain.article.deduplication.DedupRuntimeCoordinator
 import com.andrewwin.sumup.domain.article.deduplication.SimilarityScorer
 import com.andrewwin.sumup.domain.ai.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.article.repository.ArticleRepository
-import com.andrewwin.sumup.domain.feed.repository.FeedClusterSnapshotRepository
 import com.andrewwin.sumup.domain.ai.repository.ModelRepository
 import com.andrewwin.sumup.domain.source.repository.PublicSubscriptionsCatalog
 import com.andrewwin.sumup.domain.source.repository.SourceRepository
@@ -108,9 +108,6 @@ object AppModule {
 
     @Provides
     fun provideArticleSimilarityDao(db: AppDatabase): ArticleSimilarityDao = db.articleSimilarityDao()
-
-    @Provides
-    fun provideFeedClusterSnapshotDao(db: AppDatabase): FeedClusterSnapshotDao = db.feedClusterSnapshotDao()
 
     @Provides
     fun providePreparedScheduledSummaryDao(db: AppDatabase): PreparedScheduledSummaryDao =
@@ -184,9 +181,7 @@ object AppModule {
     }
 
     @Provides
-    fun provideRssParser(
-        @Named(NEWS_OK_HTTP_CLIENT) okHttpClient: OkHttpClient
-    ): RssParser = RssParser(okHttpClient)
+    fun provideRssParser(): RssParser = RssParser()
 
     @Provides
     fun provideTelegramParser(): TelegramParser = TelegramParser()
@@ -203,12 +198,24 @@ object AppModule {
         telegramParser: TelegramParser,
         youtubeParser: YouTubeParser
     ): RemoteArticleDataSource {
-        val handlers = mapOf(
-            SourceType.RSS to RssRemoteDataSource(okHttpClient, displayNameOkHttpClient, rssParser),
-            SourceType.TELEGRAM to TelegramRemoteDataSource(okHttpClient, displayNameOkHttpClient, telegramParser),
-            SourceType.YOUTUBE to YouTubeRemoteDataSource(okHttpClient, displayNameOkHttpClient, youtubeParser)
+        val gateways = mapOf(
+            SourceType.RSS to RssSourceGateway(
+                rssFetcher = RssFetcher(okHttpClient),
+                displayNameRssFetcher = RssFetcher(displayNameOkHttpClient),
+                rssParser = rssParser
+            ),
+            SourceType.TELEGRAM to TelegramSourceGateway(
+                telegramFetcher = TelegramFetcher(okHttpClient),
+                displayNameTelegramFetcher = TelegramFetcher(displayNameOkHttpClient),
+                telegramParser = telegramParser
+            ),
+            SourceType.YOUTUBE to YouTubeSourceGateway(
+                youtubeFetcher = YouTubeFetcher(okHttpClient),
+                displayNameYouTubeFetcher = YouTubeFetcher(displayNameOkHttpClient),
+                youtubeParser = youtubeParser
+            )
         )
-        return RemoteArticleDataSource(handlers)
+        return RemoteArticleDataSource(gateways)
     }
 
     @Provides
@@ -216,7 +223,6 @@ object AppModule {
     fun provideArticleRepository(
         articleDao: ArticleDao,
         articleSimilarityDao: ArticleSimilarityDao,
-        feedClusterSnapshotDao: FeedClusterSnapshotDao,
         savedArticleDao: SavedArticleDao,
         sourceDao: SourceDao,
         userPreferencesDao: UserPreferencesDao,
@@ -227,7 +233,6 @@ object AppModule {
     ): ArticleRepository = ArticleRepositoryImpl(
         articleDao,
         articleSimilarityDao,
-        feedClusterSnapshotDao,
         savedArticleDao,
         sourceDao,
         userPreferencesDao,
@@ -284,12 +289,6 @@ object AppModule {
     fun provideSuggestedThemesStateRepository(
         @ApplicationContext context: Context
     ): SuggestedThemesStateRepository = SuggestedThemesStateRepositoryImpl(context)
-
-    @Provides
-    @Singleton
-    fun provideFeedClusterSnapshotRepository(
-        impl: FeedClusterSnapshotStore
-    ): FeedClusterSnapshotRepository = impl
 
     @Provides
     @Singleton

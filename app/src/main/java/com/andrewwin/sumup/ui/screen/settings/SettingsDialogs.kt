@@ -1,5 +1,6 @@
 package com.andrewwin.sumup.ui.screen.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -53,11 +55,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
@@ -65,6 +69,13 @@ import com.andrewwin.sumup.domain.ai.model.AiModelConfig
 import com.andrewwin.sumup.domain.ai.model.AiModelType
 import com.andrewwin.sumup.domain.ai.model.AiProvider
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
+
+private const val GEMINI_API_KEY_URL = "https://aistudio.google.com/app/apikey"
+private const val GROQ_API_KEY_URL = "https://console.groq.com/keys"
+private const val OPENROUTER_API_KEY_URL = "https://openrouter.ai/settings/keys"
+private const val COHERE_API_KEY_URL = "https://dashboard.cohere.com/api-keys"
+private const val OPENAI_API_KEY_URL = "https://platform.openai.com/api-keys"
+private const val ANTHROPIC_API_KEY_URL = "https://console.anthropic.com/settings/keys"
 
 @Composable
 fun SettingsConfirmDeleteDialog(
@@ -87,6 +98,191 @@ fun SettingsConfirmDeleteDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
+}
+
+@Composable
+fun SettingsCloudSyncApiKeysWarningDialog(
+    onEnterPassphrase: () -> Unit,
+    onEnableWithoutApiKeys: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_sync_api_keys_warning_title)) },
+        text = { Text(stringResource(R.string.settings_sync_api_keys_warning_body)) },
+        confirmButton = {
+            Row {
+                TextButton(onClick = {
+                    onEnableWithoutApiKeys()
+                    onDismiss()
+                }) {
+                    Text(stringResource(R.string.settings_sync_api_keys_warning_enable_without_keys))
+                }
+                TextButton(onClick = {
+                    onEnterPassphrase()
+                    onDismiss()
+                }) {
+                    Text(stringResource(R.string.settings_sync_api_keys_warning_enter_passphrase))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
+}
+
+@Composable
+fun ApiKeyHelpDialog(onDismiss: () -> Unit) {
+    val uriHandler = LocalUriHandler.current
+
+    AppAnimatedDialog(
+        visible = true,
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.api_key_help_title),
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = null)
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.api_key_help_intro),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = stringResource(R.string.api_key_help_instruction),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    ApiKeyHelpSectionTitle(text = stringResource(R.string.api_key_help_free_title))
+                    ApiKeyProviderLink(
+                        name = stringResource(R.string.api_key_help_gemini_name),
+                        description = stringResource(R.string.api_key_help_gemini_desc),
+                        onClick = { uriHandler.openUri(GEMINI_API_KEY_URL) }
+                    )
+                    ApiKeyProviderLink(
+                        name = stringResource(R.string.api_key_help_groq_name),
+                        description = stringResource(R.string.api_key_help_groq_desc),
+                        onClick = { uriHandler.openUri(GROQ_API_KEY_URL) }
+                    )
+                    ApiKeyProviderLink(
+                        name = stringResource(R.string.api_key_help_openrouter_name),
+                        description = stringResource(R.string.api_key_help_openrouter_desc),
+                        onClick = { uriHandler.openUri(OPENROUTER_API_KEY_URL) }
+                    )
+                    ApiKeyProviderLink(
+                        name = stringResource(R.string.api_key_help_cohere_name),
+                        description = stringResource(R.string.api_key_help_cohere_desc),
+                        onClick = { uriHandler.openUri(COHERE_API_KEY_URL) }
+                    )
+
+                    ApiKeyHelpSectionTitle(text = stringResource(R.string.api_key_help_paid_title))
+                    ApiKeyProviderLink(
+                        name = stringResource(R.string.api_key_help_openai_name),
+                        description = stringResource(R.string.api_key_help_openai_desc),
+                        onClick = { uriHandler.openUri(OPENAI_API_KEY_URL) }
+                    )
+                    ApiKeyProviderLink(
+                        name = stringResource(R.string.api_key_help_claude_name),
+                        description = stringResource(R.string.api_key_help_claude_desc),
+                        onClick = { uriHandler.openUri(ANTHROPIC_API_KEY_URL) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ApiKeyHelpSectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.padding(top = 6.dp)
+    )
+}
+
+@Composable
+private fun ApiKeyProviderLink(
+    name: String,
+    description: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = stringResource(R.string.api_key_help_open_link),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -461,39 +657,47 @@ fun SettingsAiKeyItem(
             Text(
                 text = config.name,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Normal
+                fontWeight = FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = config.modelName,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
-        IconButton(onClick = onMoveUp, enabled = canMoveUp, modifier = Modifier.size(32.dp)) {
+        IconButton(onClick = onMoveUp, enabled = canMoveUp, modifier = Modifier.size(28.dp)) {
             Icon(
                 Icons.Default.KeyboardArrowUp,
                 contentDescription = stringResource(R.string.settings_api_key_move_up),
                 modifier = Modifier.size(20.dp)
             )
         }
-        IconButton(onClick = onMoveDown, enabled = canMoveDown, modifier = Modifier.size(32.dp)) {
+        IconButton(onClick = onMoveDown, enabled = canMoveDown, modifier = Modifier.size(28.dp)) {
             Icon(
                 Icons.Default.KeyboardArrowDown,
                 contentDescription = stringResource(R.string.settings_api_key_move_down),
                 modifier = Modifier.size(20.dp)
             )
         }
-        Switch(
-            checked = config.isEnabled,
-            onCheckedChange = onToggle,
-            modifier = Modifier.scale(0.75f)
-        )
+        Box(
+            modifier = Modifier.size(width = 44.dp, height = 32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Switch(
+                checked = config.isEnabled,
+                onCheckedChange = onToggle,
+                modifier = Modifier.scale(0.75f)
+            )
+        }
         Box {
             var showDropdown by remember { mutableStateOf(false) }
             IconButton(
                 onClick = { showDropdown = true },
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(28.dp)
             ) {
                 Icon(
                     Icons.Default.MoreVert,
@@ -540,7 +744,6 @@ fun SettingsAiKeyItem(
         }
     }
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsAiConfigDialog(
@@ -732,6 +935,15 @@ fun SettingsAiConfigDialog(
                                 Text(stringResource(R.string.dialog_load))
                             }
                         }
+                    }
+
+                    if (type == AiModelType.SUMMARY) {
+                        Text(
+                            text = stringResource(R.string.dialog_summary_model_recommendation),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
                     }
 
                     Row(

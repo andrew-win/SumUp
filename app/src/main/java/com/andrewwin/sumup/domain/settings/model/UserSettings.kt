@@ -13,7 +13,7 @@ data class UserSettings(
     val localDeduplicationThreshold: Float = 0.87f,
     val cloudDeduplicationThreshold: Float = 0.87f,
     val minMentions: Int = 2,
-    val isHideSingleNewsEnabled: Boolean = false,
+    val isHideSingleNewsEnabled: Boolean = true,
     val modelPath: String? = null,
     val isImportanceFilterEnabled: Boolean = true,
     val isAdaptiveExtractivePreprocessingEnabled: Boolean = true,
@@ -132,6 +132,6 @@ data class UserSettings(
     companion object {
         const val MIN_ARTICLE_AUTO_CLEANUP_HOURS = 6
         const val MAX_ARTICLE_AUTO_CLEANUP_HOURS = 24
-        const val DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS = 13
+        const val DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS = 16
     }
 }

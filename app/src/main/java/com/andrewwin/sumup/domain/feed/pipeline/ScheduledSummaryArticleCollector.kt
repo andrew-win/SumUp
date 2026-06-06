@@ -1,12 +1,10 @@
 package com.andrewwin.sumup.domain.feed.pipeline
 
-import com.andrewwin.sumup.domain.feed.model.ArticlePairKey
 import com.andrewwin.sumup.domain.feed.clustering.FeedClusterCalculator
 import com.andrewwin.sumup.domain.article.processing.ArticleImportanceScorer
-import com.andrewwin.sumup.domain.article.deduplication.SimilarityScorer
 import com.andrewwin.sumup.domain.article.repository.ArticleRepository
+import com.andrewwin.sumup.domain.feed.dedup.ThresholdSimilarityResolver
 import com.andrewwin.sumup.domain.settings.repository.UserPreferencesRepository
-import com.andrewwin.sumup.domain.settings.model.DeduplicationStrategy
 import com.andrewwin.sumup.domain.source.model.SourceType
 import com.andrewwin.sumup.domain.feed.model.FeedSummaryArticle
 import kotlinx.coroutines.flow.first
@@ -17,7 +15,7 @@ class ScheduledSummaryArticleCollector @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val importanceScorer: ArticleImportanceScorer,
-    private val similarityScorer: SimilarityScorer
+    private val thresholdSimilarityResolver: ThresholdSimilarityResolver
 ) {
     suspend operator fun invoke(refresh: Boolean): List<FeedSummaryArticle> {
         if (refresh) {
@@ -54,21 +52,21 @@ class ScheduledSummaryArticleCollector @Inject constructor(
         }
         if (filteredArticles.isEmpty()) return emptyList()
 
-        val currentArticleIds = filteredArticles.mapTo(mutableSetOf()) { it.id }
-        val strategyKey = similarityScorer.similarityCacheKeyForStrategy(prefs.deduplicationStrategy)
+        val pairScores = thresholdSimilarityResolver.resolvePairScores(
+            articles = filteredArticles,
+            prefs = prefs,
+            persistComputed = false,
+            allowOnDemandComputation = false
+        )
         val threshold = when (prefs.deduplicationStrategy) {
-            DeduplicationStrategy.LOCAL -> prefs.localDeduplicationThreshold
-            DeduplicationStrategy.CLOUD -> prefs.cloudDeduplicationThreshold
+            com.andrewwin.sumup.domain.settings.model.DeduplicationStrategy.LOCAL -> prefs.localDeduplicationThreshold
+            com.andrewwin.sumup.domain.settings.model.DeduplicationStrategy.CLOUD -> prefs.cloudDeduplicationThreshold
         }
-        val pairScores = articleRepository
-            .getSimilaritiesInsideArticleSet(filteredArticles.map { it.id }, strategyKey)
-            .asSequence()
-            .filter { it.leftArticleId in currentArticleIds && it.rightArticleId in currentArticleIds }
-            .filter { it.score >= threshold }
-            .associate { similarity ->
-                ArticlePairKey.of(similarity.leftArticleId, similarity.rightArticleId) to similarity.score
-            }
-        val clusters = FeedClusterCalculator.buildFinalClusters(filteredArticles, pairScores)
+        val clusters = FeedClusterCalculator.buildFinalClusters(
+            articles = filteredArticles,
+            pairScores = pairScores,
+            threshold = threshold
+        )
 
         return clusters
             .filter { cluster -> !prefs.isHideSingleNewsEnabled || cluster.duplicates.size >= prefs.minMentions }

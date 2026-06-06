@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
@@ -110,13 +111,13 @@ fun SummaryChart(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (isModelEnabled) {
-                            stringResource(R.string.no_articles_prefix)
-                        } else {
-                            stringResource(R.string.no_articles_prefix)
-                        },
+                        text = stringResource(R.string.summary_statistics_empty),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
                     )
                 }
             }

@@ -47,7 +47,7 @@
     <string name="summary_selection_clear">Exit selection mode</string>
     <string name="summary_selection_delete">Delete selected summaries</string>
     <string name="summary_selection_select_all">Select all</string>
-    <string name="summary_empty">No scheduled summaries yet</string>
+    <string name="summary_empty">No scheduled summaries. They may be disabled or their scheduled time may not have arrived yet.</string>
     <string name="summary_not_ready">Will be later</string>
     <string name="summary_next_at">Next at %s</string>
     <string name="summary_scheduling_disabled">Was not
@@ -92,6 +92,25 @@ scheduled</string>
     <string name="settings_api_key_mask_short">....</string>
     <string name="settings_add_api_key">Add API key</string>
     <string name="settings_edit_api_key">Edit API key</string>
+    <string name="settings_api_keys_help_button">How to get API keys?</string>
+    <string name="api_key_help_title">How to get API keys?</string>
+    <string name="api_key_help_intro">The app has providers you can start with for free. Availability depends on specific models and limits, but free options exist.</string>
+    <string name="api_key_help_instruction">To get a key, open the provider link below, sign in to its dashboard, and create an API key.</string>
+    <string name="api_key_help_open_link">Open key creation page</string>
+    <string name="api_key_help_free_title">Providers with free options</string>
+    <string name="api_key_help_paid_title">Providers that usually require payment</string>
+    <string name="api_key_help_gemini_name">Gemini</string>
+    <string name="api_key_help_gemini_desc">One of the best options from Google. Recommended starting point: flash-lite-latest.</string>
+    <string name="api_key_help_groq_name">Groq</string>
+    <string name="api_key_help_groq_desc">An ultra-fast provider with open-source models.</string>
+    <string name="api_key_help_openrouter_name">OpenRouter</string>
+    <string name="api_key_help_openrouter_desc">A model aggregator with free options.</string>
+    <string name="api_key_help_cohere_name">Cohere</string>
+    <string name="api_key_help_cohere_desc">A provider with its own free models.</string>
+    <string name="api_key_help_openai_name">ChatGPT / OpenAI</string>
+    <string name="api_key_help_openai_desc">One of the best providers, but its API usually requires payment.</string>
+    <string name="api_key_help_claude_name">Claude</string>
+    <string name="api_key_help_claude_desc">Strong for technical and complex tasks, but its API is usually paid.</string>
     <string name="settings_scheduling">Scheduling</string>
     <string name="settings_scheduled_summary">Scheduled summaries</string>
     <string name="settings_time_label">Time: %s</string>
@@ -114,6 +133,7 @@ scheduled</string>
     <string name="dialog_model">Model</string>
     <string name="dialog_model_loading">Loading…</string>
     <string name="dialog_model_select">Choose a model</string>
+    <string name="dialog_summary_model_recommendation">Strong recommendation: flash-lite-latest or other lightweight models WITHOUT reasoning</string>
     <string name="dialog_load">Load</string>
     <string name="error_prefix">Error</string>
     <string name="no_articles_prefix">No data</string>
@@ -232,6 +252,10 @@ scheduled</string>
     <string name="settings_sync_passphrase_saved">API key sync passphrase saved</string>
     <string name="settings_sync_passphrase_cleared">API key sync disabled, passphrase cleared</string>
     <string name="settings_sync_passphrase_required">Set a sync passphrase for API keys first</string>
+    <string name="settings_sync_api_keys_warning_title">Sync without API keys</string>
+    <string name="settings_sync_api_keys_warning_body">You have not entered an API key sync passphrase. If you enable sync without it, API keys will not be added to the Firebase backup, and existing API keys in the cloud backup may be removed when the backup is overwritten. Enter a passphrase or confirm syncing without API keys.</string>
+    <string name="settings_sync_api_keys_warning_enter_passphrase">Enter passphrase</string>
+    <string name="settings_sync_api_keys_warning_enable_without_keys">Enable without keys</string>
     <string name="settings_not_signed_in">Not signed in</string>
     <string name="settings_sign_in_success">Signed in successfully</string>
     <string name="settings_sign_in_error">Sign-in error</string>
@@ -275,7 +299,7 @@ scheduled</string>
     <string name="summary_extractive_intro">Here are the top news for this period:</string>
     <string name="summary_extractive_item_header">%1$d. %2$s:</string>
     <string name="summary_article_format">%1$s: %2$s</string>
-    <string name="feed_empty_message">No news. The filters may be too strict. Pull down from the top to refresh.</string>
+    <string name="feed_empty_message">No news. The filters or settings may be too strict. Pull down to refresh.</string>
     <string name="feed_empty_title">No news found</string>
     <string name="feed_empty_actions_title">What you can do:</string>
     <string name="feed_empty_hint_filters">Relax
@@ -322,6 +346,7 @@ filters</string>
 scheduled</string>
     <string name="summary_tab_scheduled">Scheduled</string>
     <string name="summary_tab_statistics">Statistics</string>
+    <string name="summary_statistics_empty">No data. You may need to refresh the feed so it can load.</string>
     <string name="summary_default_title">Summary</string>
     <string name="summary_section_main">Main</string>
     <string name="summary_section_details">Details</string>

@@ -67,13 +67,15 @@ class RefreshFeedUseCaseImpl @Inject constructor(
                 emitStage(runId, FeedRefreshStage.PARSING_NEWS, onStageChange)
                 val articleRefreshResult = updateArticlesFromSources()
                 val prefs = userPreferencesRepository.preferences.first()
-                if (prefs.isDeduplicationEnabled && articleRefreshResult.changedArticleIds.isNotEmpty()) {
+                if (prefs.isDeduplicationEnabled) {
                     emitStage(runId, FeedRefreshStage.DEDUPLICATING_NEWS, onStageChange)
                     delay(DEDUPE_STAGE_UI_BOUNDARY_MS)
-                    feedDeduplicationProcessor.rebuildSimilarities(
-                        prefs = prefs,
-                        changedArticleIds = articleRefreshResult.changedArticleIds
-                    ).getOrThrow()
+                    if (articleRefreshResult.changedArticleIds.isNotEmpty()) {
+                        feedDeduplicationProcessor.rebuildSimilaritiesForArticles(
+                            prefs = prefs,
+                            articleIds = articleRefreshResult.changedArticleIds
+                        ).getOrThrow()
+                    }
                 }
             }
             

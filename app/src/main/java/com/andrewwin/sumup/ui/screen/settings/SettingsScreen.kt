@@ -130,6 +130,7 @@ internal fun SettingsScreen(
     var showResetSettingsDialog by remember { mutableStateOf(false) }
     var showEmailAuthDialog by remember { mutableStateOf(false) }
     var showSyncPassphraseDialog by remember { mutableStateOf(false) }
+    var showCloudSyncApiKeysWarningDialog by remember { mutableStateOf(false) }
     var deleteAiConfigConfirm by remember { mutableStateOf<AiModelConfig?>(null) }
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
@@ -321,7 +322,7 @@ internal fun SettingsScreen(
         mutableStateOf(userPreferences.cloudDeduplicationThreshold)
     }
     var minMentions by rememberSaveable(userPreferences.minMentions) {
-        mutableStateOf((userPreferences.minMentions - 1).coerceAtLeast(1).toFloat())
+        mutableStateOf(userPreferences.minMentions.coerceAtLeast(1).toFloat())
     }
     var adaptiveExtractiveOnlyBelowChars by rememberSaveable(userPreferences.adaptiveExtractiveOnlyBelowChars) {
         mutableStateOf(userPreferences.adaptiveExtractiveOnlyBelowChars.toFloat())
@@ -451,7 +452,11 @@ internal fun SettingsScreen(
                             onSyncStrategySelect = viewModel::updateSyncStrategy,
                             onSyncOverwritePrioritySelect = viewModel::updateSyncOverwritePriority,
                             onSyncEnabledChange = { enabled ->
-                                viewModel.setCloudSyncEnabled(enabled, syncSelection)
+                                if (enabled && !hasSyncPassphrase) {
+                                    showCloudSyncApiKeysWarningDialog = true
+                                } else {
+                                    viewModel.setCloudSyncEnabled(enabled, syncSelection)
+                                }
                             },
                             onSyncSelectionChange = viewModel::updateSyncSelection,
                             onManageSyncPassphrase = { showSyncPassphraseDialog = true },
@@ -611,7 +616,7 @@ internal fun SettingsScreen(
                             },
                             onMinMentionsChange = { minMentions = it },
                             onMinMentionsCommitted = {
-                                viewModel.updateMinMentions(minMentions.toInt() + 1)
+                                viewModel.updateMinMentions(minMentions.toInt())
                             },
                             onHelpRequest = { helpDescription = it }
                         )
@@ -777,6 +782,19 @@ internal fun SettingsScreen(
                 onDismiss = { showSyncPassphraseDialog = false },
                 onSave = viewModel::saveSyncPassphrase,
                 onClear = viewModel::clearSyncPassphrase
+            )
+        }
+
+        if (showCloudSyncApiKeysWarningDialog) {
+            SettingsCloudSyncApiKeysWarningDialog(
+                onEnterPassphrase = { showSyncPassphraseDialog = true },
+                onEnableWithoutApiKeys = {
+                    viewModel.setCloudSyncEnabled(
+                        enabled = true,
+                        selection = syncSelection.copy(includeApiKeys = false)
+                    )
+                },
+                onDismiss = { showCloudSyncApiKeysWarningDialog = false }
             )
         }
 

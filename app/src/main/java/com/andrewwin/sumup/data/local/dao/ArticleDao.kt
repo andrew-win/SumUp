@@ -217,6 +217,18 @@ interface ArticleDao {
     )
     suspend fun getArticlesWithMetaByIds(ids: List<Long>): List<ArticleWithMeta>
 
+    @Query(
+        """
+        SELECT
+            articles.id AS articleId,
+            saved_articles.savedAt AS savedAt
+        FROM articles
+        INNER JOIN saved_articles ON saved_articles.url = articles.url
+        WHERE articles.id IN (:articleIds)
+        """
+    )
+    suspend fun getFavoriteSavedAtByArticleIds(articleIds: List<Long>): List<ArticleSavedAtRow>
+
     @Query("SELECT id, embedding, embeddingType FROM articles WHERE id IN (:ids)")
     suspend fun getEmbeddingsByIds(ids: List<Long>): List<ArticleEmbedding>
 
@@ -225,6 +237,9 @@ interface ArticleDao {
 
     @Query("SELECT stableArticleKey FROM articles WHERE stableArticleKey IN (:stableArticleKeys)")
     suspend fun getExistingStableArticleKeys(stableArticleKeys: List<String>): List<String>
+
+    @Query("SELECT * FROM articles WHERE stableArticleKey IN (:stableArticleKeys)")
+    suspend fun getArticlesByStableArticleKeys(stableArticleKeys: List<String>): List<Article>
 
     @Query("SELECT id FROM articles WHERE stableArticleKey IN (:stableArticleKeys)")
     suspend fun getArticleIdsByStableArticleKeys(stableArticleKeys: List<String>): List<Long>
@@ -290,4 +305,9 @@ data class ArticleWithMeta(
     val embedding: ByteArray?,
     val sourceName: String?,
     val groupName: String?
+)
+
+data class ArticleSavedAtRow(
+    val articleId: Long,
+    val savedAt: Long
 )

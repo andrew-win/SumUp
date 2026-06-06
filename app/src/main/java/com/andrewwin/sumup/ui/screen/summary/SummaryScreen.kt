@@ -253,7 +253,7 @@ fun SummaryScreen(
                 } else {
                     item {
                         AppMessageState(
-                            message = stringResource(R.string.summary_empty_title),
+                            message = stringResource(R.string.summary_empty),
                             modifier = Modifier.fillParentMaxHeight(0.55f)
                         )
                     }

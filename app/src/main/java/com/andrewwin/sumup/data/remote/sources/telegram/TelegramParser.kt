@@ -21,37 +21,20 @@ class TelegramParser {
             ?.takeUnless { it.equals(TELEGRAM_DEFAULT_TITLE, ignoreCase = true) }
     }
 
-    fun parsePageMetadata(
-        html: String,
-        oldestAllowedPublishedAt: Long?,
-        latestKnownMessageId: Long? = null
-    ): TelegramPageMetadata {
-        return parsePageMetadata(Jsoup.parse(html), oldestAllowedPublishedAt, latestKnownMessageId)
-    }
-
-    fun parsePageMetadata(
-        document: Document,
-        oldestAllowedPublishedAt: Long?,
-        latestKnownMessageId: Long? = null
-    ): TelegramPageMetadata {
-        return buildPageMetadata(document, oldestAllowedPublishedAt, latestKnownMessageId)
-    }
-
-    fun parse(html: String, sourceId: Long, oldestAllowedPublishedAt: Long? = null): List<Article> {
+    fun parseHtml(html: String, sourceId: Long, oldestAllowedPublishedAt: Long? = null): List<Article> {
         val document = Jsoup.parse(html)
-        return parseDocument(document, sourceId, oldestAllowedPublishedAt)
+        return parseArticlesFromDocument(document, sourceId, oldestAllowedPublishedAt)
     }
 
-    fun parse(document: Document, sourceId: Long, oldestAllowedPublishedAt: Long? = null): List<Article> {
-        return parseDocument(document, sourceId, oldestAllowedPublishedAt)
+    fun parseDocument(document: Document, sourceId: Long, oldestAllowedPublishedAt: Long? = null): List<Article> {
+        return parseArticlesFromDocument(document, sourceId, oldestAllowedPublishedAt)
     }
 
-    fun scanPage(
+    fun parsePage(
         document: Document,
         sourceId: Long,
-        oldestAllowedPublishedAt: Long?,
-        latestKnownMessageId: Long?
-    ): TelegramPageScanResult {
+        oldestAllowedPublishedAt: Long?
+    ): TelegramPageParseResult {
         val partsByKey = linkedMapOf<String, MessageParts>()
         val messages = document.select(".tgme_widget_message")
         var oldestPublishedAt: Long? = null
@@ -59,7 +42,6 @@ class TelegramParser {
         var oldestMessageId: Long? = null
         var newestMessageId: Long? = null
         var hasRelevantMessage = oldestAllowedPublishedAt == null
-        var hasMessageNewerThanKnown = latestKnownMessageId == null
 
         messages.forEach { message ->
             val dateLink = message.selectFirst(".tgme_widget_message_date")
@@ -78,16 +60,10 @@ class TelegramParser {
             if (messageId != null) {
                 oldestMessageId = minOf(oldestMessageId ?: messageId, messageId)
                 newestMessageId = maxOf(newestMessageId ?: messageId, messageId)
-                if (latestKnownMessageId != null && messageId > latestKnownMessageId) {
-                    hasMessageNewerThanKnown = true
-                }
             }
 
             if (publishedAt == null) return@forEach
             if (oldestAllowedPublishedAt != null && publishedAt < oldestAllowedPublishedAt) {
-                return@forEach
-            }
-            if (latestKnownMessageId != null && messageId != null && messageId <= latestKnownMessageId) {
                 return@forEach
             }
             if (key.isBlank()) {
@@ -129,6 +105,7 @@ class TelegramParser {
         }
 
         val articles = buildArticlesFromParts(sourceId, partsByKey.values)
+            .sortedByDescending { it.publishedAt }
         val metadata = TelegramPageMetadata(
             messageCount = messages.size,
             oldestPublishedAt = oldestPublishedAt,
@@ -136,17 +113,16 @@ class TelegramParser {
             oldestMessageId = oldestMessageId,
             newestMessageId = newestMessageId,
             nextBeforeCursor = findNextBeforeCursor(document),
-            hasRelevantMessage = hasRelevantMessage,
-            hasMessageNewerThanKnown = hasMessageNewerThanKnown
+            hasRelevantMessage = hasRelevantMessage
         )
-        return TelegramPageScanResult(
+        return TelegramPageParseResult(
             articles = articles,
             metadata = metadata,
             nextPageCursor = metadata.nextBeforeCursor ?: metadata.oldestMessageId?.toString()
         )
     }
 
-    private fun parseDocument(
+    private fun parseArticlesFromDocument(
         document: Document,
         sourceId: Long,
         oldestAllowedPublishedAt: Long?
@@ -202,59 +178,6 @@ class TelegramParser {
             .distinctBy { it.url }
             .sortedByDescending { it.publishedAt }
         return articles
-    }
-
-    private fun buildPageMetadata(
-        document: Document,
-        oldestAllowedPublishedAt: Long?,
-        latestKnownMessageId: Long?
-    ): TelegramPageMetadata {
-        val messages = document.select(".tgme_widget_message")
-        if (messages.isEmpty()) {
-            return TelegramPageMetadata(
-                messageCount = 0,
-                nextBeforeCursor = findNextBeforeCursor(document),
-                hasMessageNewerThanKnown = latestKnownMessageId == null
-            )
-        }
-
-        var oldestPublishedAt: Long? = null
-        var newestPublishedAt: Long? = null
-        var oldestMessageId: Long? = null
-        var newestMessageId: Long? = null
-        var hasRelevantMessage = oldestAllowedPublishedAt == null
-        var hasMessageNewerThanKnown = latestKnownMessageId == null
-
-        messages.forEach { message ->
-            val publishedAt = extractPublishedAt(message)
-            if (publishedAt != null) {
-                oldestPublishedAt = minOf(oldestPublishedAt ?: publishedAt, publishedAt)
-                newestPublishedAt = maxOf(newestPublishedAt ?: publishedAt, publishedAt)
-                if (oldestAllowedPublishedAt != null && publishedAt >= oldestAllowedPublishedAt) {
-                    hasRelevantMessage = true
-                }
-            }
-
-            val messageId = extractMessageId(message)
-            if (messageId != null) {
-                oldestMessageId = minOf(oldestMessageId ?: messageId, messageId)
-                newestMessageId = maxOf(newestMessageId ?: messageId, messageId)
-                if (latestKnownMessageId != null && messageId > latestKnownMessageId) {
-                    hasMessageNewerThanKnown = true
-                }
-            }
-        }
-
-        return TelegramPageMetadata(
-            messageCount = messages.size,
-            oldestPublishedAt = oldestPublishedAt,
-            newestPublishedAt = newestPublishedAt,
-            oldestMessageId = oldestMessageId,
-            newestMessageId = newestMessageId,
-            nextBeforeCursor = findNextBeforeCursor(document),
-            hasRelevantMessage = hasRelevantMessage,
-            hasMessageNewerThanKnown = hasMessageNewerThanKnown
-        )
     }
 
     private fun buildKey(element: Element): String {
@@ -544,11 +467,10 @@ class TelegramParser {
         val oldestMessageId: Long? = null,
         val newestMessageId: Long? = null,
         val nextBeforeCursor: String? = null,
-        val hasRelevantMessage: Boolean = false,
-        val hasMessageNewerThanKnown: Boolean = true
+        val hasRelevantMessage: Boolean = false
     )
 
-    data class TelegramPageScanResult(
+    data class TelegramPageParseResult(
         val articles: List<Article>,
         val metadata: TelegramPageMetadata,
         val nextPageCursor: String?

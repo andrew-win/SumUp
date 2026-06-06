@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -19,6 +20,10 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -223,6 +228,8 @@ internal fun SettingsApiKeysGroupContent(
     onMoveEmbeddingConfigUp: (AiModelConfig) -> Unit,
     onMoveEmbeddingConfigDown: (AiModelConfig) -> Unit
 ) {
+    var showApiKeyHelpDialog by rememberSaveable { mutableStateOf(false) }
+
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SettingsSection(
             title = stringResource(R.string.settings_cloud_summary_api_keys),
@@ -285,6 +292,17 @@ internal fun SettingsApiKeysGroupContent(
                 )
             }
         }
+
+        Button(
+            onClick = { showApiKeyHelpDialog = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(stringResource(R.string.settings_api_keys_help_button))
+        }
+    }
+
+    if (showApiKeyHelpDialog) {
+        ApiKeyHelpDialog(onDismiss = { showApiKeyHelpDialog = false })
     }
 }
 

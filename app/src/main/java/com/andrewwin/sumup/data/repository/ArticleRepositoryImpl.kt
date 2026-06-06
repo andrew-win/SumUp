@@ -10,7 +10,6 @@ import com.andrewwin.sumup.data.mappers.toRoomEntity
 import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.dao.ArticleEmbedding
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
-import com.andrewwin.sumup.data.local.dao.FeedClusterSnapshotDao
 import com.andrewwin.sumup.data.local.dao.SavedArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
@@ -49,7 +48,6 @@ import javax.inject.Inject
 class ArticleRepositoryImpl @Inject constructor(
     private val articleDao: ArticleDao,
     private val articleSimilarityDao: ArticleSimilarityDao,
-    private val feedClusterSnapshotDao: FeedClusterSnapshotDao,
     private val savedArticleDao: SavedArticleDao,
     private val sourceDao: SourceDao,
     private val userPreferencesDao: UserPreferencesDao,
@@ -78,7 +76,8 @@ class ArticleRepositoryImpl @Inject constructor(
         val cleanupHours = userPreferencesDao.getUserPreferences().first()?.articleAutoCleanupHours
             ?: UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS
         val cutoffTimestamp = System.currentTimeMillis() - (cleanupHours.toLong() * 60 * 60 * 1000L)
-        val fetchedArticlesToSave = mutableListOf<com.andrewwin.sumup.data.local.entities.Article>()
+        val fetchedArticlesToInsert = mutableListOf<com.andrewwin.sumup.data.local.entities.Article>()
+        val fetchedArticlesToUpdate = mutableListOf<com.andrewwin.sumup.data.local.entities.Article>()
         val existingArticlesToRefreshMetrics = mutableListOf<com.andrewwin.sumup.data.local.entities.Article>()
         val changedStableArticleKeys = linkedSetOf<String>()
         val sourceFooterUpdates = mutableListOf<Source>()
@@ -88,18 +87,45 @@ class ArticleRepositoryImpl @Inject constructor(
 
         val fetchedArticlesBySource = fetchEnabledSources(enabledSources, cutoffTimestamp)
         val sourceTypeById = enabledSources.associateBy({ it.id }, { it.type })
+        val existingArticlesByStableKey = articleDao.getArticlesByStableArticleKeys(
+            fetchedArticlesBySource
+                .asSequence()
+                .flatMap { (_, fetchedArticles) -> fetchedArticles.asSequence() }
+                .map { it.stableArticleKey }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .toList()
+        ).associateBy { it.stableArticleKey }
         val allFreshFetchedArticles = fetchedArticlesBySource
             .flatMap { (_, fetchedArticles) -> fetchedArticles }
             .filter { it.publishedAt >= cutoffTimestamp }
+        val averageViewsStartedAt = System.currentTimeMillis()
         val averageViews = articleImportanceScorer.averageViews(
             allFreshFetchedArticles.map { it.toDomainModel() }
+        )
+        Log.d(
+            IMPORTANCE_SCORE_LOG_TAG,
+            "refresh averageViews durationMs=${System.currentTimeMillis() - averageViewsStartedAt} articles=${allFreshFetchedArticles.size}"
         )
         var oldFetchedArticlesSkipped = 0
         var existingFetchedArticlesSkipped = 0
         for ((source, fetchedArticles) in fetchedArticlesBySource) {
             val freshArticles = fetchedArticles.filter { it.publishedAt >= cutoffTimestamp }
             oldFetchedArticlesSkipped += fetchedArticles.size - freshArticles.size
-            val processingPlan = filterArticlesForProcessing(source, freshArticles)
+            val processingPlan = filterArticlesForProcessing(
+                source = source,
+                freshArticles = freshArticles,
+                existingArticlesByStableKey = existingArticlesByStableKey
+            )
+            Log.d(
+                ARTICLE_REFRESH_PROFILE_LOG_TAG,
+                "source_refresh sourceId=${source.id} type=${source.type} " +
+                    "fetched=${fetchedArticles.size} fresh=${freshArticles.size} " +
+                    "new=${processingPlan.newArticles.size} " +
+                    "existing=${processingPlan.existingArticlesForMetricsRefresh.size} " +
+                    "skippedExisting=${processingPlan.skippedExistingArticlesCount} " +
+                    "skippedOld=${fetchedArticles.size - freshArticles.size}"
+            )
             val articlesToClean = processingPlan.newArticles
             existingArticlesToRefreshMetrics.addAll(processingPlan.existingArticlesForMetricsRefresh)
             existingFetchedArticlesSkipped += processingPlan.skippedExistingArticlesCount
@@ -117,14 +143,34 @@ class ArticleRepositoryImpl @Inject constructor(
                 }
 
                 val currentFooter = newFooterPattern ?: source.footerPattern
+                val newArticlesImportanceStartedAt = System.currentTimeMillis()
                 val cleanedArticles = cleanArticlesInParallel(
                     articles = articlesToClean,
                     sourceType = source.type,
                     footerPattern = currentFooter,
                     averageViews = averageViews
                 )
+                Log.d(
+                    IMPORTANCE_SCORE_LOG_TAG,
+                    "refresh newArticles durationMs=${System.currentTimeMillis() - newArticlesImportanceStartedAt} sourceId=${source.id} count=${articlesToClean.size}"
+                )
 
-                fetchedArticlesToSave.addAll(cleanedArticles)
+                cleanedArticles.forEach { article ->
+                    val existingArticle = existingArticlesByStableKey[article.stableArticleKey]
+                    if (existingArticle == null) {
+                        fetchedArticlesToInsert.add(article)
+                    } else {
+                        fetchedArticlesToUpdate.add(
+                            article.copy(
+                                id = existingArticle.id,
+                                isRead = existingArticle.isRead,
+                                isFavorite = existingArticle.isFavorite,
+                                embedding = existingArticle.embedding,
+                                embeddingType = existingArticle.embeddingType
+                            )
+                        )
+                    }
+                }
                 changedStableArticleKeys.addAll(
                     cleanedArticles.mapNotNull { article ->
                         article.stableArticleKey.takeIf { it.isNotBlank() }
@@ -136,14 +182,18 @@ class ArticleRepositoryImpl @Inject constructor(
             sourceDao.updateSource(sourceUpdate)
         }
 
-        if (fetchedArticlesToSave.isNotEmpty()) {
-            articleDao.insertAndUpdateFetchedArticles(fetchedArticlesToSave)
+        if (fetchedArticlesToInsert.isNotEmpty()) {
+            articleDao.insertArticles(fetchedArticlesToInsert)
+        }
+        if (fetchedArticlesToUpdate.isNotEmpty()) {
+            articleDao.updateArticles(fetchedArticlesToUpdate)
         }
         if (existingArticlesToRefreshMetrics.isNotEmpty()) {
-            existingArticlesToRefreshMetrics.forEach { article ->
+            val existingArticlesImportanceStartedAt = System.currentTimeMillis()
+            val articlesWithRefreshedMetrics = existingArticlesToRefreshMetrics.mapNotNull { article ->
+                val existingArticle = existingArticlesByStableKey[article.stableArticleKey] ?: return@mapNotNull null
                 val sourceType = sourceTypeById[article.sourceId] ?: SourceType.RSS
-                articleDao.updateArticleLiveMetricsByStableArticleKey(
-                    stableArticleKey = article.stableArticleKey,
+                existingArticle.copy(
                     viewCount = article.viewCount,
                     importanceScore = articleImportanceScorer.score(
                         article = article.toDomainModel(),
@@ -154,6 +204,13 @@ class ArticleRepositoryImpl @Inject constructor(
                     videoId = article.videoId
                 )
             }
+            if (articlesWithRefreshedMetrics.isNotEmpty()) {
+                articleDao.updateArticles(articlesWithRefreshedMetrics)
+            }
+            Log.d(
+                IMPORTANCE_SCORE_LOG_TAG,
+                "refresh existingArticles durationMs=${System.currentTimeMillis() - existingArticlesImportanceStartedAt} count=${existingArticlesToRefreshMetrics.size}"
+            )
         }
         val changedArticleIds = if (changedStableArticleKeys.isEmpty()) {
             emptyList()
@@ -166,9 +223,6 @@ class ArticleRepositoryImpl @Inject constructor(
         if (newerCount > 0) {
             deletedOldArticles = articleDao.deleteOldArticles(cutoffTimestamp)
         }
-        if (deletedOldArticles > 0) {
-            feedClusterSnapshotDao.deleteAll()
-        }
         ArticleRefreshResult(
             changedArticleIds = changedArticleIds,
             deletedOldArticlesCount = deletedOldArticles
@@ -177,7 +231,8 @@ class ArticleRepositoryImpl @Inject constructor(
 
     private suspend fun filterArticlesForProcessing(
         source: Source,
-        freshArticles: List<com.andrewwin.sumup.data.local.entities.Article>
+        freshArticles: List<com.andrewwin.sumup.data.local.entities.Article>,
+        existingArticlesByStableKey: Map<String, com.andrewwin.sumup.data.local.entities.Article>
     ): ArticleProcessingPlan {
         if (freshArticles.isEmpty()) return ArticleProcessingPlan()
         val stableArticleKeys = freshArticles
@@ -190,7 +245,9 @@ class ArticleRepositoryImpl @Inject constructor(
                 skippedExistingArticlesCount = 0
             )
         }
-        val existingKeys = articleDao.getExistingStableArticleKeys(stableArticleKeys).toHashSet()
+        val existingKeys = stableArticleKeys
+            .filter { existingArticlesByStableKey.containsKey(it) }
+            .toHashSet()
         if (existingKeys.isEmpty()) {
             return ArticleProcessingPlan(
                 newArticles = freshArticles,
@@ -251,14 +308,9 @@ class ArticleRepositoryImpl @Inject constructor(
         sources.map { source ->
             async(Dispatchers.IO) {
                 semaphore.withPermit {
-                    val latestKnownArticleUrl = when (source.type) {
-                        SourceType.TELEGRAM, SourceType.YOUTUBE -> articleDao.getLatestArticleUrlBySourceId(source.id)
-                        else -> null
-                    }
                     val articles = remoteArticleDataSource.fetchArticles(
                         source = source,
-                        oldestAllowedPublishedAt = cutoffTimestamp,
-                        latestKnownArticleUrl = latestKnownArticleUrl
+                        oldestAllowedPublishedAt = cutoffTimestamp
                     )
                     source to articles
                 }
@@ -432,17 +484,14 @@ class ArticleRepositoryImpl @Inject constructor(
             }
     }
 
-    override suspend fun getSimilaritiesTouchingChangedArticles(
-        changedArticleIds: List<Long>,
-        activeArticleIds: List<Long>,
-        strategyKey: String
-    ): List<ArticleSimilarityRecord> {
-        if (changedArticleIds.isEmpty() || activeArticleIds.isEmpty() || strategyKey.isBlank()) return emptyList()
-        return articleSimilarityDao.getSimilaritiesTouchingChangedArticles(
-            changedArticleIds = changedArticleIds,
-            activeArticleIds = activeArticleIds,
-            strategyKey = strategyKey
-        ).map(ArticleSimilarity::toDomainRecord)
+    override suspend fun deleteSimilaritiesByStrategyKey(strategyKey: String) {
+        if (strategyKey.isBlank()) return
+        articleSimilarityDao.deleteSimilaritiesByStrategyKey(strategyKey)
+    }
+
+    override suspend fun deleteSimilaritiesForArticles(articleIds: List<Long>, strategyKey: String) {
+        if (articleIds.isEmpty() || strategyKey.isBlank()) return
+        articleSimilarityDao.deleteSimilaritiesForArticles(articleIds.distinct(), strategyKey)
     }
 
     override suspend fun upsertSimilarities(items: List<ArticleSimilarityRecord>) {
@@ -469,19 +518,16 @@ class ArticleRepositoryImpl @Inject constructor(
     }
 
     override suspend fun clearAllArticles() {
-        feedClusterSnapshotDao.deleteAll()
         articleSimilarityDao.deleteAll()
         articleDao.deleteAllArticles()
     }
 
     override suspend fun clearEmbeddings() {
-        feedClusterSnapshotDao.deleteAll()
         articleSimilarityDao.deleteAll()
         articleDao.clearEmbeddings()
     }
 
     override suspend fun clearSimilarities() {
-        feedClusterSnapshotDao.deleteAll()
         articleSimilarityDao.deleteAll()
     }
 
@@ -490,7 +536,6 @@ class ArticleRepositoryImpl @Inject constructor(
         val cutoffTimestamp = System.currentTimeMillis() - (safeDays.toLong() * 24 * 60 * 60 * 1000L)
         val newerCount = articleDao.countArticlesNewerThan(cutoffTimestamp)
         if (newerCount > 0) {
-            feedClusterSnapshotDao.deleteAll()
             articleDao.deleteOldArticles(cutoffTimestamp)
         }
     }
@@ -558,7 +603,7 @@ class ArticleRepositoryImpl @Inject constructor(
 
     override suspend fun getFavoriteClusterMappings(articleIds: List<Long>): Map<Long, String> {
         if (articleIds.isEmpty()) return emptyMap()
-        val savedById = savedArticleDao.getSavedArticlesOnce().associateBy { savedArticleUiId(it.id) }
+        val savedById = loadSavedArticlesByUiIds(articleIds).associateBy { savedArticleUiId(it.id) }
         return buildMap {
             articleIds.distinct().forEach { uiId ->
                 savedById[uiId]?.clusterKey?.takeIf { it.isNotBlank() }?.let { put(uiId, it) }
@@ -577,17 +622,31 @@ class ArticleRepositoryImpl @Inject constructor(
     override suspend fun getFavoriteSavedAt(articleIds: List<Long>): Map<Long, Long> {
         if (articleIds.isEmpty()) return emptyMap()
         val startedAt = System.currentTimeMillis()
-        val savedById = savedArticleDao.getSavedArticlesOnce().associateBy { savedArticleUiId(it.id) }
+        val distinctIds = articleIds.distinct()
+        val negativeIds = distinctIds.filter { it < 0L }
+        val positiveIds = distinctIds.filter { it > 0L }
+        val negativeLookupStartedAt = System.currentTimeMillis()
+        val directSavedAtByUiId = loadSavedAtByUiIds(negativeIds)
+        val negativeLookupDurationMs = System.currentTimeMillis() - negativeLookupStartedAt
+        val positiveLookupStartedAt = System.currentTimeMillis()
+        val directSavedAtByArticleId = loadSavedAtByPositiveArticleIds(positiveIds)
+        val positiveLookupDurationMs = System.currentTimeMillis() - positiveLookupStartedAt
+
         return buildMap {
-            articleIds.distinct().forEach { uiId ->
-                val savedAt = savedById[uiId]?.savedAt ?: 0L
+            distinctIds.forEach { uiId ->
+                val savedAt = when {
+                    uiId < 0L -> directSavedAtByUiId[uiId] ?: 0L
+                    else -> directSavedAtByArticleId[uiId] ?: 0L
+                }
                 if (savedAt > 0L) put(uiId, savedAt)
             }
         }.also { result ->
             Log.d(
                 FEED_BUILD_PROFILE_LOG_TAG,
                 "favorite_saved_at durationMs=${System.currentTimeMillis() - startedAt} " +
-                    "articleIds=${articleIds.size} savedRows=${savedById.size} result=${result.size}"
+                    "negativeLookupMs=$negativeLookupDurationMs positiveLookupMs=$positiveLookupDurationMs " +
+                    "articleIds=${articleIds.size} negativeIds=${negativeIds.size} positiveIds=${positiveIds.size} " +
+                    "savedRows=${directSavedAtByUiId.size + directSavedAtByArticleId.size} result=${result.size}"
             )
         }
     }
@@ -615,7 +674,7 @@ class ArticleRepositoryImpl @Inject constructor(
 
     override suspend fun getFavoriteClusterScores(articleIds: List<Long>): Map<Long, Float> {
         if (articleIds.isEmpty()) return emptyMap()
-        val savedById = savedArticleDao.getSavedArticlesOnce().associateBy { savedArticleUiId(it.id) }
+        val savedById = loadSavedArticlesByUiIds(articleIds).associateBy { savedArticleUiId(it.id) }
         return buildMap {
             articleIds.distinct().forEach { uiId ->
                 savedById[uiId]?.clusterScore?.let { score ->
@@ -632,7 +691,7 @@ class ArticleRepositoryImpl @Inject constructor(
         if (articleIds.isEmpty() || strategyKey.isBlank()) return emptyList()
 
         val requestedUiIds = articleIds.distinct()
-        val savedByUiId = savedArticleDao.getSavedArticlesOnce().associateBy { savedArticleUiId(it.id) }
+        val savedByUiId = loadSavedArticlesByUiIds(requestedUiIds).associateBy { savedArticleUiId(it.id) }
         val targetSaved = requestedUiIds.mapNotNull { uiId ->
             savedByUiId[uiId]?.let { uiId to it }
         }
@@ -824,6 +883,25 @@ class ArticleRepositoryImpl @Inject constructor(
     private fun uiArticleIdToSavedId(uiId: Long): Long? =
         if (uiId < 0L) (-uiId) - 1L else null
 
+    private suspend fun loadSavedArticlesByUiIds(uiIds: List<Long>): List<SavedArticle> {
+        val savedIds = uiIds.distinct().mapNotNull(::uiArticleIdToSavedId)
+        if (savedIds.isEmpty()) return emptyList()
+        return savedArticleDao.getSavedArticlesByIds(savedIds)
+    }
+
+    private suspend fun loadSavedAtByUiIds(uiIds: List<Long>): Map<Long, Long> {
+        val savedIds = uiIds.distinct().mapNotNull(::uiArticleIdToSavedId)
+        if (savedIds.isEmpty()) return emptyMap()
+        return savedArticleDao.getSavedArticleSavedAtByIds(savedIds)
+            .associate { savedArticleUiId(it.id) to it.savedAt }
+    }
+
+    private suspend fun loadSavedAtByPositiveArticleIds(articleIds: List<Long>): Map<Long, Long> {
+        if (articleIds.isEmpty()) return emptyMap()
+        return articleDao.getFavoriteSavedAtByArticleIds(articleIds.distinct())
+            .associate { it.articleId to it.savedAt }
+    }
+
     private data class FooterDetectionResult(
         val didRun: Boolean,
         val reason: String,
@@ -833,6 +911,8 @@ class ArticleRepositoryImpl @Inject constructor(
 
     private companion object {
         private const val FEED_BUILD_PROFILE_LOG_TAG = "FeedBuildProfile"
+        private const val IMPORTANCE_SCORE_LOG_TAG = "ArticleImportanceTiming"
+        private const val ARTICLE_REFRESH_PROFILE_LOG_TAG = "ArticleRefreshProfile"
         private val NEWS_REFRESH_PARALLELISM = Runtime.getRuntime().availableProcessors()
         private val ARTICLE_CLEANING_PARALLELISM = Runtime.getRuntime().availableProcessors()
         private const val FOOTER_PATTERN_SAMPLE_ARTICLES = 10

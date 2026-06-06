@@ -15,6 +15,15 @@ interface SavedArticleDao {
     @Query("SELECT * FROM saved_articles ORDER BY savedAt DESC")
     suspend fun getSavedArticlesOnce(): List<SavedArticle>
 
+    @Query("SELECT * FROM saved_articles WHERE id IN (:ids)")
+    suspend fun getSavedArticlesByIds(ids: List<Long>): List<SavedArticle>
+
+    @Query("SELECT id, savedAt FROM saved_articles WHERE id IN (:ids)")
+    suspend fun getSavedArticleSavedAtByIds(ids: List<Long>): List<SavedArticleSavedAtRow>
+
+    @Query("SELECT * FROM saved_articles WHERE url IN (:urls)")
+    suspend fun getSavedArticlesByUrls(urls: List<String>): List<SavedArticle>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(items: List<SavedArticle>)
 
@@ -42,3 +51,8 @@ interface SavedArticleDao {
     @Query("UPDATE saved_articles SET clusterScore = :score WHERE url = :url")
     suspend fun updateClusterScoreByUrl(url: String, score: Float): Int
 }
+
+data class SavedArticleSavedAtRow(
+    val id: Long,
+    val savedAt: Long
+)

@@ -4,6 +4,7 @@ import android.net.Uri
 import com.andrewwin.sumup.data.mappers.toDomainModel
 import com.andrewwin.sumup.data.mappers.toRoomEntity
 import com.andrewwin.sumup.data.local.dao.SourceDao
+import com.andrewwin.sumup.data.local.entities.SourceType as DataSourceType
 import com.andrewwin.sumup.data.remote.sources.RemoteArticleDataSource
 import com.andrewwin.sumup.domain.article.processing.ArticleContentCleaner
 import com.andrewwin.sumup.domain.source.repository.ImportedSource
@@ -486,7 +487,7 @@ class SourceRepositoryImpl @Inject constructor(
     private fun String.normalizedGroupName(): String = trim().lowercase()
 
     private suspend fun generateTelegramName(url: String): String {
-        remoteArticleDataSource.fetchTelegramChannelDisplayName(url)
+        remoteArticleDataSource.fetchDisplayName(url, DataSourceType.TELEGRAM)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
             ?.let { return it }
@@ -503,7 +504,7 @@ class SourceRepositoryImpl @Inject constructor(
     }
 
     private suspend fun generateYouTubeName(url: String): String {
-        remoteArticleDataSource.fetchYouTubeChannelDisplayName(url)
+        remoteArticleDataSource.fetchDisplayName(url, DataSourceType.YOUTUBE)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
             ?.let { return it }
@@ -522,7 +523,7 @@ class SourceRepositoryImpl @Inject constructor(
     }
 
     private suspend fun generateRssName(url: String): String {
-        remoteArticleDataSource.fetchRssChannelDisplayName(url)
+        remoteArticleDataSource.fetchDisplayName(url, DataSourceType.RSS)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
             ?.let { return it }

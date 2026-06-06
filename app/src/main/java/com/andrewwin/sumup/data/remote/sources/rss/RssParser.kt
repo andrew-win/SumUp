@@ -2,23 +2,16 @@ package com.andrewwin.sumup.data.remote.sources.rss
 
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.remote.sources.ArticleStableKeyFactory
-import com.prof18.rssparser.RssParser
-import com.prof18.rssparser.RssParserBuilder
-import com.prof18.rssparser.model.RssChannel
-import com.prof18.rssparser.model.RssItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
+import org.jsoup.parser.Parser
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
-import javax.inject.Inject
 
-class RssParser @Inject constructor(
-    private val okHttpClient: OkHttpClient
-) {
-    private val parser: RssParser = RssParserBuilder(callFactory = okHttpClient).build()
+class RssParser {
     private val formattersThreadLocal = ThreadLocal.withInitial {
         listOf(
             SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.US),
@@ -27,61 +20,38 @@ class RssParser @Inject constructor(
         ).onEach { it.timeZone = TimeZone.getTimeZone("UTC") }
     }
 
-    suspend fun parseUrlResult(url: String, sourceId: Long): Result<List<Article>> {
+    suspend fun parseArticlesXml(xml: String, sourceId: Long): Result<List<Article>> {
         return runCatching {
-            val request = Request.Builder().url(url).build()
-            okHttpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    error("RSS request failed with code ${response.code}")
-                }
-
-                val xml = response.body?.string().orEmpty()
-                if (xml.isBlank()) return@runCatching emptyList()
-
-                withContext(Dispatchers.Default) {
-                    val channel = parser.parse(xml)
-                    mapChannel(channel, sourceId)
+            if (xml.isBlank()) return@runCatching emptyList()
+            withContext(Dispatchers.Default) {
+                val document = Jsoup.parse(xml, "", Parser.xmlParser())
+                document.select("item, entry").mapNotNull { item ->
+                    mapItem(item, sourceId)
                 }
             }
         }
-    }
-
-
-    suspend fun parseChannelTitleUrl(url: String): String? {
-        return runCatching {
-            val request = Request.Builder().url(url).build()
-            okHttpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@use null
-                val xml = response.body?.string().orEmpty()
-                if (xml.isBlank()) return@use null
-                withContext(Dispatchers.Default) {
-                    parser.parse(xml).title.orEmpty().cleanChannelTitle()
-                }
-            }
-        }.getOrNull()
     }
 
     suspend fun parseChannelTitleXml(xml: String): String? {
         return runCatching {
             withContext(Dispatchers.Default) {
-                parser.parse(xml).title.orEmpty().cleanChannelTitle()
+                val document = Jsoup.parse(xml, "", Parser.xmlParser())
+                document.selectFirst("channel > title, feed > title")
+                    ?.text()
+                    .orEmpty()
+                    .cleanChannelTitle()
             }
         }.getOrNull()
     }
 
-    private fun mapChannel(channel: RssChannel, sourceId: Long): List<Article> {
-        return channel.items.orEmpty().mapNotNull { item ->
-            mapItem(item, sourceId)
-        }
-    }
-
-    private fun mapItem(item: RssItem, sourceId: Long): Article? {
-        val title = item.title.orEmpty()
-        val link = item.link.orEmpty()
-        val guid = item.guid.orEmpty()
-        val description = item.description.orEmpty()
-        val content = item.content.orEmpty()
-        val pubDate = parseRssDate(item.pubDate.orEmpty())
+    private fun mapItem(item: Element, sourceId: Long): Article? {
+        val title = item.firstText("title")
+        val link = item.firstText("link")
+            .ifBlank { item.selectFirst("link[href]")?.attr("href").orEmpty() }
+        val guid = item.firstText("guid, id")
+        val description = item.firstText("description, summary")
+        val content = item.firstText("content|encoded, encoded, content")
+        val pubDate = parseRssDate(item.firstText("pubDate, published, updated"))
         val rawUrl = if (guid.startsWith("http")) guid else link
         if (rawUrl.isBlank()) return null
         val cleanUrl = rawUrl.substringBefore("#")
@@ -118,6 +88,9 @@ class RssParser @Inject constructor(
 
     private fun extractImageFromHtml(html: String): String? =
         IMAGE_SRC_REGEX.find(html)?.groups?.get(1)?.value
+
+    private fun Element.firstText(cssQuery: String): String =
+        selectFirst(cssQuery)?.text().orEmpty()
 
     private fun String.cleanChannelTitle(): String? {
         val cleaned = trim()

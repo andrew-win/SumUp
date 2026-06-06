@@ -48,22 +48,20 @@ interface ArticleSimilarityDao {
         threshold: Float
     ): List<ArticleSimilarity>
 
+    @Query("DELETE FROM article_similarities WHERE strategyKey = :strategyKey")
+    suspend fun deleteSimilaritiesByStrategyKey(strategyKey: String)
+
     @Query(
         """
-        SELECT * FROM article_similarities
+        DELETE FROM article_similarities
         WHERE strategyKey = :strategyKey
-            AND (
-                (leftArticleId IN (:changedArticleIds) AND rightArticleId IN (:activeArticleIds))
-                OR
-                (leftArticleId IN (:activeArticleIds) AND rightArticleId IN (:changedArticleIds))
-            )
+            AND (leftArticleId IN (:articleIds) OR rightArticleId IN (:articleIds))
         """
     )
-    suspend fun getSimilaritiesTouchingChangedArticles(
-        changedArticleIds: List<Long>,
-        activeArticleIds: List<Long>,
+    suspend fun deleteSimilaritiesForArticles(
+        articleIds: List<Long>,
         strategyKey: String
-    ): List<ArticleSimilarity>
+    )
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSimilarities(items: List<ArticleSimilarity>)

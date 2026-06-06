@@ -12,6 +12,7 @@ import com.andrewwin.sumup.domain.ai.model.YoutubeSubtitleFetchSummary
 import com.andrewwin.sumup.domain.article.repository.ArticleRepository
 import com.andrewwin.sumup.domain.settings.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.settings.model.AiStrategy
+import com.andrewwin.sumup.domain.source.model.SourceType
 import com.andrewwin.sumup.domain.summary.service.ExtractiveSummaryService
 import com.andrewwin.sumup.domain.summary.service.LocalSummarySentenceSelector
 import com.andrewwin.sumup.domain.summary.model.SummaryItem
@@ -38,10 +39,12 @@ class SummarizeSingleArticleUseCase @Inject constructor(
         val source = articleRepository.getSourceById(article.sourceId)
         val sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело"
         val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
-        
-        val fullContent = articleRepository.fetchFullContent(article)
-        val contentToProcess = fullContent.text.ifBlank { article.content }
-        val youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.status)
+        val (contentToProcess, youtubeSubtitleSummary) = if (source?.type == SourceType.TELEGRAM) {
+            article.content to YoutubeSubtitleFetchSummary()
+        } else {
+            val fullContent = articleRepository.fetchFullContent(article)
+            fullContent.text.ifBlank { article.content } to YoutubeSubtitleFetchSummary.from(fullContent.status)
+        }
 
         summarizeInternal(
             articleId = article.id,

@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.domain.article.model.Article
-import com.andrewwin.sumup.domain.article.model.ArticleSimilarityRecord
 import com.andrewwin.sumup.domain.ai.prompt.AdaptiveTextShrinker
 import com.andrewwin.sumup.domain.ai.prompt.AiPromptBuilder
 import com.andrewwin.sumup.domain.ai.service.AiRequestSender
@@ -14,11 +13,10 @@ import com.andrewwin.sumup.domain.ai.service.SummaryExecutionInfoStore
 import com.andrewwin.sumup.domain.ai.service.SummaryResponseMapper
 import com.andrewwin.sumup.domain.ai.model.YoutubeSubtitleFetchSummary
 import com.andrewwin.sumup.domain.feed.model.FeedSummaryArticle
-import com.andrewwin.sumup.domain.article.deduplication.SimilarityScorer
 import com.andrewwin.sumup.domain.article.repository.ArticleRepository
+import com.andrewwin.sumup.domain.feed.dedup.ThresholdSimilarityResolver
 import com.andrewwin.sumup.domain.settings.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.settings.model.AiStrategy
-import com.andrewwin.sumup.domain.settings.model.DeduplicationStrategy
 import com.andrewwin.sumup.domain.source.model.SourceType
 import com.andrewwin.sumup.domain.summary.model.DigestTheme
 import com.andrewwin.sumup.domain.summary.model.SummaryItem
@@ -28,7 +26,12 @@ import com.andrewwin.sumup.domain.summary.model.SummarySourceRef
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.support.NoActiveModelException
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import javax.inject.Inject
 
 class SummarizeFeedUseCase @Inject constructor(
@@ -38,7 +41,7 @@ class SummarizeFeedUseCase @Inject constructor(
     private val shrinkTextForAdaptiveStrategyUseCase: AdaptiveTextShrinker,
     private val aiRequestSender: AiRequestSender,
     private val summaryResponseMapper: SummaryResponseMapper,
-    private val similarityScorer: SimilarityScorer,
+    private val thresholdSimilarityResolver: ThresholdSimilarityResolver,
     private val summaryExecutionInfoFormatter: SummaryExecutionInfoFormatter,
     private val summaryExecutionInfoStore: SummaryExecutionInfoStore
 ) {
@@ -110,33 +113,20 @@ class SummarizeFeedUseCase @Inject constructor(
         var originalContentChars = 0
         var includedArticlesCount = 0
         var partiallyIncludedArticlesCount = 0
-        var youtubeFullTextArticlesCount = 0
-        var youtubeSubtitleSummary = YoutubeSubtitleFetchSummary()
         val totalArticlesCount = feedSummaryArticles.size
+        val cloudArticles = loadCloudFeedArticles(feedSummaryArticles, prefs)
+        val youtubeSubtitleSummary = cloudArticles.fold(YoutubeSubtitleFetchSummary()) { total, article ->
+            total + article.youtubeSubtitleSummary
+        }
         val cloudInput = buildString {
             append(PAYLOAD_HEADER)
             remainingTotal -= PAYLOAD_HEADER.length
             availablePayloadChars += PAYLOAD_HEADER.length
 
-            for (feedSummaryArticle in feedSummaryArticles) {
+            for (cloudArticle in cloudArticles) {
+                val feedSummaryArticle = cloudArticle.feedSummaryArticle
                 val article = feedSummaryArticle.article
-                val source = articleRepository.getSourceById(article.sourceId)
-                val sourceName = source?.name?.trim()?.ifBlank { sourceFallbackName } ?: sourceFallbackName
-                val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
-
-                val shouldFetchFullContent = prefs.isFeedSummaryUseFullTextEnabled &&
-                    (source?.type != SourceType.YOUTUBE ||
-                        youtubeFullTextArticlesCount < MAX_YOUTUBE_FULL_TEXT_ARTICLES_IN_FEED_SUMMARY)
-                if (shouldFetchFullContent && source?.type == SourceType.YOUTUBE) {
-                    youtubeFullTextArticlesCount++
-                }
-                val contentToProcess = if (shouldFetchFullContent) {
-                    val fullContent = articleRepository.fetchFullContent(article)
-                    youtubeSubtitleSummary += YoutubeSubtitleFetchSummary.from(fullContent.status)
-                    fullContent.text.ifBlank { article.content }
-                } else {
-                    article.content
-                }
+                val contentToProcess = cloudArticle.content
                 originalContentChars += contentToProcess.length
 
                 val maxCharsForFeedItem = if (feedSummaryArticle.similarArticlesCount > 0) {
@@ -155,8 +145,8 @@ class SummarizeFeedUseCase @Inject constructor(
 
                 val block = buildPayloadRow(
                     id = article.id,
-                    sourceName = sourceName,
-                    sourceUrl = sourceUrl,
+                    sourceName = cloudArticle.sourceName,
+                    sourceUrl = cloudArticle.sourceUrl,
                     title = article.title,
                     content = textForCloud
                 )
@@ -232,15 +222,12 @@ class SummarizeFeedUseCase @Inject constructor(
 
     private suspend fun buildFeedSummaryArticles(articles: List<Article>): List<FeedSummaryArticle> {
         val prefs = userPreferencesRepository.preferences.first()
-        val strategyKey = similarityScorer.similarityCacheKeyForStrategy(prefs.deduplicationStrategy)
-        val threshold = when (prefs.deduplicationStrategy) {
-            DeduplicationStrategy.LOCAL -> prefs.localDeduplicationThreshold
-            DeduplicationStrategy.CLOUD -> prefs.cloudDeduplicationThreshold
-        }
-        val similarityByArticleId = articleRepository
-            .getSimilaritiesInsideArticleSet(articles.map { it.id }, strategyKey)
-            .filter { it.score >= threshold }
-            .groupBySimilarityCount()
+        val similarityByArticleId = thresholdSimilarityResolver.resolveSimilarityCounts(
+            articles = articles,
+            prefs = prefs,
+            persistComputed = false,
+            allowOnDemandComputation = false
+        )
 
         return articles.map { article ->
             FeedSummaryArticle(
@@ -251,13 +238,65 @@ class SummarizeFeedUseCase @Inject constructor(
         }
     }
 
-    private fun List<ArticleSimilarityRecord>.groupBySimilarityCount(): Map<Long, Int> {
-        val relatedArticleIds = mutableMapOf<Long, MutableSet<Long>>()
-        forEach { similarity ->
-            relatedArticleIds.getOrPut(similarity.leftArticleId) { mutableSetOf() }.add(similarity.rightArticleId)
-            relatedArticleIds.getOrPut(similarity.rightArticleId) { mutableSetOf() }.add(similarity.leftArticleId)
+    private data class CloudFeedArticle(
+        val feedSummaryArticle: FeedSummaryArticle,
+        val sourceName: String,
+        val sourceUrl: String,
+        val content: String,
+        val youtubeSubtitleSummary: YoutubeSubtitleFetchSummary
+    )
+
+    private suspend fun loadCloudFeedArticles(
+        feedSummaryArticles: List<FeedSummaryArticle>,
+        prefs: com.andrewwin.sumup.domain.settings.model.UserSettings
+    ): List<CloudFeedArticle> = coroutineScope {
+        val sourceByArticleId = feedSummaryArticles.map { feedSummaryArticle ->
+            async {
+                val article = feedSummaryArticle.article
+                article.id to articleRepository.getSourceById(article.sourceId)
+            }
+        }.awaitAll().toMap()
+
+        var youtubeFullTextArticlesCount = 0
+        val shouldFetchFullContentByArticleId = feedSummaryArticles.associate { feedSummaryArticle ->
+            val article = feedSummaryArticle.article
+            val sourceType = sourceByArticleId[article.id]?.type
+            val shouldFetch = prefs.isFeedSummaryUseFullTextEnabled &&
+                sourceType != SourceType.TELEGRAM &&
+                (sourceType != SourceType.YOUTUBE ||
+                    youtubeFullTextArticlesCount < MAX_YOUTUBE_FULL_TEXT_ARTICLES_IN_FEED_SUMMARY)
+            if (shouldFetch && sourceType == SourceType.YOUTUBE) {
+                youtubeFullTextArticlesCount++
+            }
+            article.id to shouldFetch
         }
-        return relatedArticleIds.mapValues { it.value.size }
+
+        val semaphore = Semaphore(CONTENT_LOADING_PARALLELISM)
+        feedSummaryArticles.map { feedSummaryArticle ->
+            async {
+                semaphore.withPermit {
+                    val article = feedSummaryArticle.article
+                    val source = sourceByArticleId[article.id]
+                    val sourceName = source?.name?.trim()?.ifBlank { sourceFallbackName } ?: sourceFallbackName
+                    val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
+                    val shouldFetchFullContent = shouldFetchFullContentByArticleId[article.id] == true
+                    val (content, youtubeSubtitleSummary) = if (shouldFetchFullContent) {
+                        val fullContent = articleRepository.fetchFullContent(article)
+                        fullContent.text.ifBlank { article.content } to YoutubeSubtitleFetchSummary.from(fullContent.status)
+                    } else {
+                        article.content to YoutubeSubtitleFetchSummary()
+                    }
+
+                    CloudFeedArticle(
+                        feedSummaryArticle = feedSummaryArticle,
+                        sourceName = sourceName,
+                        sourceUrl = sourceUrl,
+                        content = content,
+                        youtubeSubtitleSummary = youtubeSubtitleSummary
+                    )
+                }
+            }
+        }.awaitAll()
     }
 
     private fun buildPayloadRow(
@@ -295,6 +334,7 @@ class SummarizeFeedUseCase @Inject constructor(
         private const val CLOUD_CHARS_LOG_TAG = "CloudChars"
         private const val PAYLOAD_FIELD_SEPARATOR = "|"
         private const val PAYLOAD_HEADER = "# id|src|url|title|content\n"
+        private val CONTENT_LOADING_PARALLELISM = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
         private val WHITESPACE_REGEX = Regex("\\s+")
     }
 }

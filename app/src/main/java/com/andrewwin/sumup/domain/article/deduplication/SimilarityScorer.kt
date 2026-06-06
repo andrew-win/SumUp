@@ -22,7 +22,6 @@ class SimilarityScorer(
     private val cloudEmbeddingProvider: CloudEmbeddingProvider,
     private val dedupRuntimeCoordinator: DedupRuntimeCoordinator
 ) {
-    private val localEmbeddingSemaphore = Semaphore(LOCAL_EMBEDDING_PARALLELISM)
     private val cloudEmbeddingSemaphore = Semaphore(CLOUD_EMBEDDING_PARALLELISM)
     private val embeddingsRunMutex = Mutex()
 
@@ -88,6 +87,11 @@ class SimilarityScorer(
     fun similarityCacheKeyForStrategy(strategy: DeduplicationStrategy): String =
         embeddingTypeForStrategy(strategy)
 
+    fun thresholdSimilarityCacheKey(
+        strategy: DeduplicationStrategy,
+        threshold: Float
+    ): String = "${similarityCacheKeyForStrategy(strategy)}|thr=${"%.4f".format(java.util.Locale.US, threshold)}"
+
     fun getEmbeddingsProgress(
         articles: List<Article>,
         strategy: DeduplicationStrategy
@@ -112,16 +116,11 @@ class SimilarityScorer(
                     articleEmbeddingVector?.let { result[article.id] = it }
                     return@forEach
                 }
-                if (article.embeddingType == embeddingType && articleEmbeddingVector != null) {
-                    return@forEach
-                }
 
                 val stored = storedEmbeddings[article.id]
                 val storedEmbeddingVector = stored?.embedding?.let(EmbeddingUtils::toFloatArray)
                 if (stored?.embeddingType == embeddingType && isUsableEmbedding(storedEmbeddingVector)) {
                     storedEmbeddingVector?.let { result[article.id] = it }
-                } else if (stored?.embeddingType == embeddingType && storedEmbeddingVector != null) {
-                    return@forEach
                 }
             }
 
@@ -169,20 +168,15 @@ class SimilarityScorer(
                 }
 
                 DeduplicationStrategy.LOCAL -> {
-                    val chunks = missingArticles.chunked(LOCAL_EMBEDDING_BATCH_SIZE)
-                    for ((chunkIndex, chunk) in chunks.withIndex()) {
-                        val batchGeneratedEmbeddings = getLocalEmbeddingBatch(
-                            runId = runId,
-                            chunk = chunk,
-                            chunkIndex = chunkIndex,
-                            totalChunkCount = chunks.size
-                        )
-                        generatedEmbeddings.addAll(batchGeneratedEmbeddings)
-                        batchGeneratedEmbeddings.forEach { generated ->
-                            generated.embedding
-                                ?.takeIf(::isUsableEmbedding)
-                                ?.let { result[generated.article.id] = it }
-                        }
+                    val localGeneratedEmbeddings = generateLocalEmbeddings(
+                        runId = runId,
+                        articles = missingArticles
+                    )
+                    generatedEmbeddings.addAll(localGeneratedEmbeddings)
+                    localGeneratedEmbeddings.forEach { generated ->
+                        generated.embedding
+                            ?.takeIf(::isUsableEmbedding)
+                            ?.let { result[generated.article.id] = it }
                     }
                 }
             }
@@ -235,32 +229,28 @@ class SimilarityScorer(
         return BatchResult(batchGeneratedEmbeddings, shouldStop)
     }
 
-    private suspend fun getLocalEmbeddingBatch(
+    private suspend fun generateLocalEmbeddings(
         runId: Long,
-        chunk: List<Article>,
-        chunkIndex: Int,
-        totalChunkCount: Int
-) : List<GeneratedEmbedding> {
-        val batchStartMs = SystemClock.elapsedRealtime()
-        val batchGeneratedEmbeddings = mutableListOf<GeneratedEmbedding>()
+        articles: List<Article>
+    ) : List<GeneratedEmbedding> {
+        val startMs = SystemClock.elapsedRealtime()
+        val generatedEmbeddings = mutableListOf<GeneratedEmbedding>()
         var totalEmbeddingMs = 0L
-        chunk.forEach { article ->
-            localEmbeddingSemaphore.withPermit {
-                val titleForEmbedding = article.title
-                val embeddingStartMs = SystemClock.elapsedRealtime()
-                val embedding = EmbeddingUtils.normalize(localEmbeddingProvider.computeLocalEmbedding(titleForEmbedding))
-                totalEmbeddingMs += SystemClock.elapsedRealtime() - embeddingStartMs
-                batchGeneratedEmbeddings.add(GeneratedEmbedding(article, embedding))
-            }
+        articles.forEach { article ->
+            val titleForEmbedding = article.title
+            val embeddingStartMs = SystemClock.elapsedRealtime()
+            val embedding = localEmbeddingProvider.computeLocalEmbedding(titleForEmbedding)
+            totalEmbeddingMs += SystemClock.elapsedRealtime() - embeddingStartMs
+            generatedEmbeddings += GeneratedEmbedding(article, embedding)
         }
         Log.d(
             EMBEDDINGS_TEST_LOG_TAG,
-            "local_embedding_avg_ms=${totalEmbeddingMs / chunk.size.coerceAtLeast(1)} " +
-                "count=${chunk.size} total_ms=${SystemClock.elapsedRealtime() - batchStartMs} " +
-                "runId=$runId batch=${chunkIndex + 1}/$totalChunkCount"
+            "local_embedding_avg_ms=${totalEmbeddingMs / articles.size.coerceAtLeast(1)} " +
+                "count=${articles.size} total_ms=${SystemClock.elapsedRealtime() - startMs} " +
+                "runId=$runId"
         )
 
-        return batchGeneratedEmbeddings
+        return generatedEmbeddings
     }
 
     private suspend fun saveGeneratedEmbeddings(generatedEmbeddings: List<GeneratedEmbedding>, embeddingType: String) {
@@ -291,8 +281,6 @@ class SimilarityScorer(
         }
 
     private companion object {
-        private const val LOCAL_EMBEDDING_PARALLELISM = 1
-        private const val LOCAL_EMBEDDING_BATCH_SIZE = 1024
         private const val CLOUD_EMBEDDING_PARALLELISM = 4
         private const val CLOUD_EMBEDDING_BATCH_SIZE = 32
         private const val CLOUD_EMBEDDING_BATCH_DELAY_MS = 1_000L

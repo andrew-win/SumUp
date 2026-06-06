@@ -24,7 +24,10 @@ import androidx.room.Index
     indices = [
         Index("leftArticleId"),
         Index("rightArticleId"),
-        Index("strategyKey")
+        Index("strategyKey"),
+        Index(value = ["strategyKey", "leftArticleId", "rightArticleId"]),
+        Index(value = ["strategyKey", "rightArticleId", "leftArticleId"]),
+        Index(value = ["strategyKey", "score"])
     ]
 )
 data class ArticleSimilarity(

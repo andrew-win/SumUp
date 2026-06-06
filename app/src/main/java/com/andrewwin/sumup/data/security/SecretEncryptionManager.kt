@@ -79,23 +79,6 @@ class SecretEncryptionManager @Inject constructor(
 
     fun isLocallyEncrypted(value: String): Boolean = value.startsWith(LOCAL_PREFIX)
 
-    fun encryptForSync(plainText: String, passphrase: String): String {
-        if (plainText.isBlank()) return plainText
-        val salt = randomBytes(SYNC_SALT_SIZE)
-        val iv = randomBytes(SYNC_IV_SIZE)
-        val cipher = Cipher.getInstance(SYNC_TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, deriveSyncKey(passphrase, salt), GCMParameterSpec(GCM_TAG_BITS, iv))
-        val encrypted = cipher.doFinal(plainText.toByteArray(StandardCharsets.UTF_8))
-        return buildString {
-            append(SYNC_PREFIX)
-            append(encode(salt))
-            append(':')
-            append(encode(iv))
-            append(':')
-            append(encode(encrypted))
-        }
-    }
-
     fun decryptFromSync(payload: String, passphrase: String): String {
         if (!isSyncEncrypted(payload)) return payload
         if (payload.startsWith(SYNC_SESSION_PREFIX)) {
@@ -200,7 +183,6 @@ class SecretEncryptionManager @Inject constructor(
         private const val PBKDF2_ITERATIONS = 120_000
         private const val PBKDF2_KEY_BITS = 256
         private const val GCM_TAG_BITS = 128
-        private const val LOCAL_IV_SIZE = 12
         private const val SYNC_IV_SIZE = 12
         private const val SYNC_SALT_SIZE = 16
 

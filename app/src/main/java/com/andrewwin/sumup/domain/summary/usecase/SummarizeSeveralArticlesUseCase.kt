@@ -6,13 +6,16 @@ import com.andrewwin.sumup.domain.ai.prompt.AiPromptBuilder
 import com.andrewwin.sumup.domain.ai.service.AiRequestSender
 import com.andrewwin.sumup.domain.summary.formatter.LocalSummaryReason
 import com.andrewwin.sumup.domain.ai.prompt.ProportionalTextLimiter
+import com.andrewwin.sumup.domain.ai.model.RemoteContentFetchStatus
 import com.andrewwin.sumup.domain.summary.formatter.SummaryExecutionInfoFormatter
 import com.andrewwin.sumup.domain.ai.service.SummaryExecutionInfoStore
 import com.andrewwin.sumup.domain.ai.service.SummaryResponseMapper
 import com.andrewwin.sumup.domain.ai.model.YoutubeSubtitleFetchSummary
+import com.andrewwin.sumup.domain.article.repository.FullArticleContent
 import com.andrewwin.sumup.domain.article.repository.ArticleRepository
 import com.andrewwin.sumup.domain.settings.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.settings.model.AiStrategy
+import com.andrewwin.sumup.domain.source.model.SourceType
 import com.andrewwin.sumup.domain.summary.model.ExtractiveSentenceCandidate
 import com.andrewwin.sumup.domain.settings.model.UserSettings
 import com.andrewwin.sumup.domain.summary.service.ExtractiveSummaryService
@@ -25,7 +28,12 @@ import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.support.LocalModelMissingException
 import com.andrewwin.sumup.domain.support.NoActiveModelException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
@@ -66,22 +74,7 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
             }
         }
 
-        val cloudArticles = articles.map { article ->
-            val source = articleRepository.getSourceById(article.sourceId)
-            val sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело"
-            val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
-            val fullContent = articleRepository.fetchFullContent(article)
-            val contentToProcess = fullContent.text.ifBlank { article.content }
-
-            CloudCompareArticle(
-                id = article.id,
-                sourceName = sourceName,
-                sourceUrl = sourceUrl,
-                title = article.title,
-                content = contentToProcess,
-                youtubeSubtitleSummary = YoutubeSubtitleFetchSummary.from(fullContent.status)
-            )
-        }
+        val cloudArticles = loadCloudCompareArticles(articles)
         val youtubeSubtitleSummary = cloudArticles.fold(YoutubeSubtitleFetchSummary()) { total, article ->
             total + article.youtubeSubtitleSummary
         }
@@ -173,6 +166,34 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
         val youtubeSubtitleSummary: YoutubeSubtitleFetchSummary
     )
 
+    private suspend fun loadCloudCompareArticles(articles: List<Article>): List<CloudCompareArticle> = coroutineScope {
+        val semaphore = Semaphore(CONTENT_LOADING_PARALLELISM)
+        articles.map { article ->
+            async(dispatcherProvider.io) {
+                semaphore.withPermit {
+                    val source = articleRepository.getSourceById(article.sourceId)
+                    val sourceName = source?.name?.trim()?.ifBlank { SOURCE_FALLBACK_NAME } ?: SOURCE_FALLBACK_NAME
+                    val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
+                    val (contentToProcess, youtubeSubtitleSummary) = if (source?.type == SourceType.TELEGRAM) {
+                        article.content to YoutubeSubtitleFetchSummary()
+                    } else {
+                        val fullContent = articleRepository.fetchFullContent(article)
+                        fullContent.text.ifBlank { article.content } to YoutubeSubtitleFetchSummary.from(fullContent.status)
+                    }
+
+                    CloudCompareArticle(
+                        id = article.id,
+                        sourceName = sourceName,
+                        sourceUrl = sourceUrl,
+                        title = article.title,
+                        content = contentToProcess,
+                        youtubeSubtitleSummary = youtubeSubtitleSummary
+                    )
+                }
+            }
+        }.awaitAll()
+    }
+
     private data class LocalComparisonResult(
         val summary: SummaryResult.Compare,
         val youtubeSubtitleSummary: YoutubeSubtitleFetchSummary
@@ -253,7 +274,14 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
         val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
         val sourceMeta = SummarySourceRef(name = sourceName, url = sourceUrl)
 
-        val fullContent = articleRepository.fetchFullContent(article)
+        val fullContent = if (source?.type == SourceType.TELEGRAM) {
+            FullArticleContent(
+                text = article.content,
+                status = RemoteContentFetchStatus.SUCCESS
+            )
+        } else {
+            articleRepository.fetchFullContent(article)
+        }
         val items = getExtractiveSummaryUseCase.getTopCandidates(
             fullContent.text,
             SummaryLimits.LocalClusterSummary.candidateSentencesPerSource
@@ -309,5 +337,10 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
         }
 
         return items
+    }
+
+    private companion object {
+        private val CONTENT_LOADING_PARALLELISM = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+        private const val SOURCE_FALLBACK_NAME = "Джерело"
     }
 }

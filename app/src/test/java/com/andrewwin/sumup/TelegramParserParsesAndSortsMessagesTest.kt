@@ -24,7 +24,7 @@ class TelegramParserParsesAndSortsMessagesTest {
             </div>
         """.trimIndent()
 
-        val articles = TelegramParser().parse(html, sourceId = 10L)
+        val articles = TelegramParser().parseHtml(html, sourceId = 10L)
 
         assertEquals(2, articles.size)
         assertEquals("Newer news line", articles[0].title)
@@ -34,7 +34,7 @@ class TelegramParserParsesAndSortsMessagesTest {
     }
 
     @Test
-    fun telegramParser_scanPageKeepsMetadataButSkipsKnownArticles() {
+    fun telegramParser_scanPageKeepsMetadataAndAllRelevantArticles() {
         val html = """
             <div class="tgme_widget_message" data-post="channel/1">
               <a class="tgme_widget_message_date" href="https://t.me/channel/1">
@@ -50,19 +50,18 @@ class TelegramParserParsesAndSortsMessagesTest {
             </div>
         """.trimIndent()
 
-        val result = TelegramParser().scanPage(
+        val result = TelegramParser().parsePage(
             document = Jsoup.parse(html),
             sourceId = 10L,
-            oldestAllowedPublishedAt = null,
-            latestKnownMessageId = 1L
+            oldestAllowedPublishedAt = null
         )
 
         assertEquals(2, result.metadata.messageCount)
         assertEquals(1L, result.metadata.oldestMessageId)
         assertEquals(2L, result.metadata.newestMessageId)
-        assertTrue(result.metadata.hasMessageNewerThanKnown)
         assertEquals("1", result.nextPageCursor)
-        assertEquals(1, result.articles.size)
+        assertEquals(2, result.articles.size)
         assertEquals("Fresh news line", result.articles.first().title)
+        assertEquals("Known news line", result.articles.last().title)
     }
 }

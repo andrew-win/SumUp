@@ -8,38 +8,30 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 class RemoteArticleDataSource @Inject constructor(
-    private val handlers: Map<SourceType, RemoteSourceDataSource>
+    private val gateways: Map<SourceType, RemoteSourceGateway>
 ) {
 
     suspend fun fetchArticles(
         source: Source,
-        oldestAllowedPublishedAt: Long? = null,
-        latestKnownArticleUrl: String? = null
+        oldestAllowedPublishedAt: Long? = null
     ): List<Article> = withContext(Dispatchers.IO) {
         runCatching {
-            getHandler(source.type).fetchArticles(
+            getGateway(source.type).fetchArticles(
                 source = source,
-                oldestAllowedPublishedAt = oldestAllowedPublishedAt,
-                latestKnownArticleUrl = latestKnownArticleUrl
+                oldestAllowedPublishedAt = oldestAllowedPublishedAt
             )
         }.getOrElse { error ->
             emptyList()
         }
     }
 
-    suspend fun fetchYouTubeChannelDisplayName(url: String): String? =
-        getHandler(SourceType.YOUTUBE).fetchDisplayName(url)
-
-    suspend fun fetchTelegramChannelDisplayName(url: String): String? =
-        getHandler(SourceType.TELEGRAM).fetchDisplayName(url)
-
-    suspend fun fetchRssChannelDisplayName(url: String): String? =
-        getHandler(SourceType.RSS).fetchDisplayName(url)
+    suspend fun fetchDisplayName(url: String, type: SourceType): String? =
+        getGateway(type).fetchDisplayName(url)
 
     suspend fun fetchFullContent(url: String, type: SourceType): RemoteFullContent? =
-        getHandler(type).fetchFullContent(url)
+        getGateway(type).fetchFullContent(url)
 
-    private fun getHandler(type: SourceType): RemoteSourceDataSource {
-        return handlers[type] ?: throw IllegalArgumentException("No handler for source type: $type")
+    private fun getGateway(type: SourceType): RemoteSourceGateway {
+        return gateways[type] ?: throw IllegalArgumentException("No gateway for source type: $type")
     }
 }

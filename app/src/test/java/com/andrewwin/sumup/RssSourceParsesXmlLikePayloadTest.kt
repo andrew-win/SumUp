@@ -2,7 +2,6 @@ package com.andrewwin.sumup
 
 import com.andrewwin.sumup.data.remote.sources.rss.RssParser
 import kotlinx.coroutines.runBlocking
-import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -43,7 +42,7 @@ class RssSourceParsesXmlLikePayloadTest {
             </rss>
         """.trimIndent()
 
-        val parser = RssParser(OkHttpClient())
+        val parser = RssParser()
 
         assertEquals("suspilne.news", parser.parseChannelTitleXml(xml))
     }

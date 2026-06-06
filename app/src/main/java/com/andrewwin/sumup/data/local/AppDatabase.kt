@@ -9,7 +9,6 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.dao.ArticleDao
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
-import com.andrewwin.sumup.data.local.dao.FeedClusterSnapshotDao
 import com.andrewwin.sumup.data.local.dao.PreparedScheduledSummaryDao
 import com.andrewwin.sumup.data.local.dao.SavedArticleDao
 import com.andrewwin.sumup.data.local.dao.SourceDao
@@ -18,12 +17,12 @@ import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
-import com.andrewwin.sumup.data.local.entities.FeedClusterSnapshot
 import com.andrewwin.sumup.data.local.entities.PreparedScheduledSummary
 import com.andrewwin.sumup.data.local.entities.SavedArticle
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.local.entities.SourceGroup
 import com.andrewwin.sumup.data.local.entities.SourceGroupOrigin
+import com.andrewwin.sumup.data.local.entities.SourceType
 import com.andrewwin.sumup.data.local.entities.Summary
 import com.andrewwin.sumup.data.local.entities.UserPreferences
 
@@ -33,21 +32,19 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
         Source::class, 
         Article::class, 
         ArticleSimilarity::class,
-        FeedClusterSnapshot::class,
         PreparedScheduledSummary::class,
         SavedArticle::class,
         AiModelConfig::class, 
         Summary::class,
         UserPreferences::class
     ],
-    version = 71,
+    version = 73,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sourceDao(): SourceDao
     abstract fun articleDao(): ArticleDao
     abstract fun articleSimilarityDao(): ArticleSimilarityDao
-    abstract fun feedClusterSnapshotDao(): FeedClusterSnapshotDao
     abstract fun preparedScheduledSummaryDao(): PreparedScheduledSummaryDao
     abstract fun savedArticleDao(): SavedArticleDao
     abstract fun aiModelDao(): AiModelDao
@@ -106,7 +103,9 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_67_68,
                         MIGRATION_68_69,
                         MIGRATION_69_70,
-                        MIGRATION_70_71
+                        MIGRATION_70_71,
+                        MIGRATION_71_72,
+                        MIGRATION_72_73
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -117,9 +116,10 @@ abstract class AppDatabase : RoomDatabase() {
                             db.execSQL(
                                 "INSERT OR IGNORE INTO source_groups (id, name, isEnabled, isDeletable, origin, subscriptionId) VALUES (1, 'Без категорії', 1, 0, '${SourceGroupOrigin.SYSTEM}', NULL)"
                             )
+                            insertDefaultSources(db)
                             db.execSQL(
                                 "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, scheduledSummaryTimes, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsSingleArticle, aiMaxCharsNewsCluster, aiMaxCharsSingleFeedArticle, aiMaxCharsFeedCluster, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
-                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, '08:00', 0, 1, 'LOCAL', 0.87, 0.87, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 10, 0, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}, 'SYSTEM', 'UK', 'UK')"
+                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, '08:00', 0, 1, 'LOCAL', 0.87, 0.87, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 10, 1, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}, 'SYSTEM', 'UK', 'UK')"
                             )
                         }
                     })
@@ -1010,5 +1010,67 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("DROP TABLE IF EXISTS source_http_cache")
             }
         }
+
+        private val MIGRATION_71_72 = object : Migration(71, 72) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE INDEX IF NOT EXISTS index_article_similarities_strategyKey_leftArticleId_rightArticleId
+                    ON article_similarities(strategyKey, leftArticleId, rightArticleId)
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE INDEX IF NOT EXISTS index_article_similarities_strategyKey_rightArticleId_leftArticleId
+                    ON article_similarities(strategyKey, rightArticleId, leftArticleId)
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE INDEX IF NOT EXISTS index_article_similarities_strategyKey_score
+                    ON article_similarities(strategyKey, score)
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_72_73 = object : Migration(72, 73) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS feed_cluster_snapshots")
+            }
+        }
+
+        private fun insertDefaultSources(db: SupportSQLiteDatabase) {
+            insertDefaultSource(db, "Труха", "@truexanewsua", SourceType.TELEGRAM)
+            insertDefaultSource(db, "Times Ukraine", "@times_ukraina", SourceType.TELEGRAM)
+            insertDefaultSource(db, "Реальна війна", "@voynareal", SourceType.TELEGRAM)
+            insertDefaultSource(db, "Україна онлайн", "@uaonlii", SourceType.TELEGRAM)
+            insertDefaultSource(db, "Україна зараз", "@u_now", SourceType.TELEGRAM)
+            insertDefaultSource(db, "Суспільне новини", "https://suspilne.media/rss/all.rss", SourceType.RSS)
+            insertDefaultSource(db, "NV", "https://nv.ua/ukr/rss/2283.xml", SourceType.RSS)
+            insertDefaultSource(db, "5 канал", "UCkyrSWEcjZKpIwMxiPfOcgg", SourceType.YOUTUBE)
+            insertDefaultSource(db, "Вікна-новини", "UCurJsOc2S-CyK4T7jKIolIg", SourceType.YOUTUBE)
+        }
+
+        private fun insertDefaultSource(
+            db: SupportSQLiteDatabase,
+            name: String,
+            url: String,
+            type: SourceType
+        ) {
+            db.execSQL(
+                """
+                INSERT OR IGNORE INTO sources (
+                    groupId, name, url, type, isEnabled, footerPattern, footerPatternCheckedAt,
+                    titleSelector, postLinkSelector, descriptionSelector, dateSelector, useHeadlessBrowser
+                ) VALUES (
+                    1, '${name.sqlEscaped()}', '${url.sqlEscaped()}', '${type.name}', 1, NULL, 0,
+                    NULL, NULL, NULL, NULL, 0
+                )
+                """.trimIndent()
+            )
+        }
+
+        private fun String.sqlEscaped(): String = replace("'", "''")
     }
 }

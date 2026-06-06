@@ -90,12 +90,12 @@ class ArticleImportanceScorer {
 
     companion object {
         private const val CONTENT_SYMBOLS_FOR_FACTS = 200
-        private const val MIN_TITLE_AND_CONTENT_LENGTH = 50
+        private const val MIN_TITLE_AND_CONTENT_LENGTH = 30
         private const val VIEWS_FACTOR = 0.5f
         private const val RSS_FIXED_VIEWS_SCORE = 0.35f
         private const val MAX_FACTS_SCORE = 0.6f
         private const val FACT_BONUS_STEP = 0.15f
-        private const val SHORT_LENGTH_BONUS_THRESHOLD = 100
+        private const val SHORT_LENGTH_BONUS_THRESHOLD = 70
         private const val MEDIUM_LENGTH_BONUS_THRESHOLD = 125
         private const val EXACT_LENGTH_BONUS_THRESHOLD = 150
         private const val SHORT_LENGTH_BONUS = 0.1f

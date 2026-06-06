@@ -26,6 +26,9 @@ object AiPromptBuilder {
                 "Bad: \"The situation escalated.\" " +
                 "Good: \"North Korea said a nuclear strike would follow automatically if Kim Jong Un is killed.\" " +
 
+                "NOISY CONTENT: Input can be noisy, fragmented, or poorly punctuated, for example because it is a YouTube transcript. " +
+                "Still try to extract the key facts or produce a cautious useful summary from the title and available content. " +
+
                 "SOURCE IDS: Use source IDs only in source_id or source_ids fields. Never write source IDs in title or text. " +
 
                 "CLEAN TEXT: title and text fields contain only human-readable content. No IDs. No references. No metadata. " +
@@ -221,7 +224,8 @@ object AiPromptBuilder {
                 "NO WORDING-ONLY DETAILS: Do not create a detail only because sources use different wording, tone, or emphasis.",
                 "NO MAIN DUPLICATE: Details must not repeat the main sentence. Add only new facts, context, evidence, contrast, or caveats.",
                 "NO DUPLICATES: Do not repeat the same meaning in multiple items.",
-                "EMPTY: If no meaningful details exist, set details to [] and fill fallback.",
+                "ALWAYS EXTRACT: Prefer a cautious partial summary with fewer details over fallback. " +
+                        "Use fallback only when titles and content contain no understandable news claim at all.",
 
                 "CHAIN SPLIT: Output main claim, evidence, contrast, and cause as separate facts. " +
                         "Bad: \"Putin's attitude changed from insulting to polite.\" " +
@@ -231,7 +235,7 @@ object AiPromptBuilder {
 
                 "DETAIL LENGTH: Each detail is at most ${SummaryLimits.Compare.maxWordsPerPoint} words.",
 
-                "FALLBACK: If no meaningful summary is possible, set main to null, details to [], and fallback to: $fallback",
+                "FALLBACK: Only if no understandable news claim exists in either titles or content, set main to null, details to [], and fallback to: $fallback",
                 "NO FALLBACK AS DETAIL: Never write fallback text inside details.",
                 "NULL FALLBACK: Set fallback to null when not needed.",
 
