@@ -91,7 +91,7 @@ class ArticleImportanceScorer {
     companion object {
         private const val CONTENT_SYMBOLS_FOR_FACTS = 200
         private const val MIN_TITLE_AND_CONTENT_LENGTH = 30
-        private const val VIEWS_FACTOR = 0.5f
+        private const val VIEWS_FACTOR = 0.6f
         private const val RSS_FIXED_VIEWS_SCORE = 0.35f
         private const val MAX_FACTS_SCORE = 0.6f
         private const val FACT_BONUS_STEP = 0.15f
@@ -103,14 +103,14 @@ class ArticleImportanceScorer {
         private const val EXACT_LENGTH_BONUS = 0.15f
         private const val KEYWORD_PENALTY_STEP = 0.15f
 
-        const val IMPORTANCE_THRESHOLD = 0.5f
+        const val IMPORTANCE_THRESHOLD = 0.35f
 
         private val URL_REGEX = Regex("https?://[^\\s]+", RegexOption.IGNORE_CASE)
         private val ZERO_SCORE_KEYWORD_REGEX = Regex(
             "(?<!\\p{L})(?:реклама|рекламний|промо|промокод|спонсорський|на\\s+правах\\s+реклами|ad|advert|advertisement|sponsored|promo\\s+code|discount\\s+code|coupon)(?!\\p{L})",
             RegexOption.IGNORE_CASE
         )
-        private val ENTITY_REGEX = Regex("(?<!\\p{L})(?:[\\p{Lu}][\\p{Ll}'’-]+|[A-Z]{2,})(?:[\\s-]+(?:[\\p{Lu}][\\p{Ll}'’-]+|[A-Z]{2,}))*")
+        private val ENTITY_REGEX = Regex("(?<!\\p{L})(?:[\\p{Lu}][\\p{Ll}'’-]+|\\p{Lu}{2,})(?:[\\s-]+(?:[\\p{Lu}][\\p{Ll}'’-]+|\\p{Lu}{2,}))*")
         private val DIGIT_NUMBER_REGEX = Regex(
             "(?<![\\p{L}\\d])\\d{1,3}(?:(?:[\\s.,])\\d{3})*(?:[.,]\\d+)?(?:\\s?(?:%|відсотк\\p{L}*|процент\\p{L}*|percent|pct|грн|грив\\p{L}*|₴|usd|дол\\p{L}*|\\$|eur|євро|€|gbp|фунт\\p{L}*|£|pln|зл\\p{L}*|тис\\p{L}*|тисяч\\p{L}*|тыс\\p{L}*|тысяч\\p{L}*|k|млн|мільйон\\p{L}*|миллион\\p{L}*|million\\p{L}*|m|млрд|мільярд\\p{L}*|миллиард\\p{L}*|billion\\p{L}*|b|bln|трлн|трильйон\\p{L}*|триллион\\p{L}*|trillion\\p{L}*|t|trn))?(?![\\p{L}\\d])",
             RegexOption.IGNORE_CASE

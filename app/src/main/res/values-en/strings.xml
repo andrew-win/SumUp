@@ -352,6 +352,8 @@ scheduled</string>
     <string name="summary_section_details">Details</string>
     <string name="summary_none_short">None</string>
     <string name="summary_not_enough_data">Not enough data.</string>
+    <string name="summary_local_short_fallback_main">The news describes the event “%1$s”</string>
+    <string name="summary_local_short_fallback_detail">The news is too short for a full summary. It may consist of 1-2 sentences where the headline already carries the main point.</string>
     <string name="summary_compare_empty">No meaningful points could be extracted. The news items may be too short or contain too little context.</string>
     <string name="summary_source_fallback">Source</string>
     <string name="summary_stat_views_count">%1$s views</string>

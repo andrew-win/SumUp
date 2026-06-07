@@ -381,6 +381,8 @@
     <string name="summary_section_details">Детальніше</string>
     <string name="summary_none_short">Немає</string>
     <string name="summary_not_enough_data">Немає достатньо даних.</string>
+    <string name="summary_local_short_fallback_main">Новини описують подію «%1$s»</string>
+    <string name="summary_local_short_fallback_detail">Новини занадто короткі для повного зведення. Можливо, вони складаються з 1-2 речень, де заголовок уже і так передає основну суть.</string>
     <string name="summary_compare_empty">Не вдалося виділити змістовні тези. Можливо новини надто короткі або містять замало контексту</string>
     <string name="summary_source_fallback">Джерело</string>
     <string name="summary_stat_views_count">%1$s перегл.</string>

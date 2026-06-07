@@ -31,4 +31,27 @@ class ArticleImportanceScorerTest {
             score >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
         )
     }
+
+    @Test
+    fun rssHeadlineOnly_ukrainianUppercaseAbbreviations_reachImportanceThreshold() {
+        val article = Article(
+            sourceId = 1L,
+            title = "ЗСУ СБУ ГУР повідомили деталі",
+            content = "",
+            url = "https://example.com/article",
+            publishedAt = 1L,
+            viewCount = 1_000L
+        )
+
+        val score = scorer.score(
+            article = article,
+            averageViews = 1_000L,
+            sourceType = SourceType.RSS
+        )
+
+        assertTrue(
+            "Expected Ukrainian uppercase abbreviations to count as entities and reach ${ArticleImportanceScorer.IMPORTANCE_THRESHOLD}, but was $score",
+            score >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
+        )
+    }
 }

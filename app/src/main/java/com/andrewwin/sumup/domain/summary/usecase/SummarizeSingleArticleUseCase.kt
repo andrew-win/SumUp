@@ -1,5 +1,7 @@
 package com.andrewwin.sumup.domain.summary.usecase
 
+import android.content.Context
+import com.andrewwin.sumup.R
 import com.andrewwin.sumup.domain.article.model.Article
 import com.andrewwin.sumup.domain.ai.prompt.AdaptiveTextShrinker
 import com.andrewwin.sumup.domain.ai.prompt.AiPromptBuilder
@@ -21,10 +23,12 @@ import com.andrewwin.sumup.domain.summary.model.SummaryResult
 import com.andrewwin.sumup.domain.summary.model.SummarySourceRef
 import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.support.NoActiveModelException
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
 class SummarizeSingleArticleUseCase @Inject constructor(
+    @param:ApplicationContext private val context: Context,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val articleRepository: ArticleRepository,
     private val getExtractiveSummaryUseCase: ExtractiveSummaryService,
@@ -202,10 +206,31 @@ class SummarizeSingleArticleUseCase @Inject constructor(
             .drop(SummaryLimits.Single.mainSentences)
             .take(SummaryLimits.Single.maxPoints)
             .map { SummaryItem(text = it, sources = listOf(sourceRef)) }
+        if (main.isNullOrBlank() || points.isEmpty()) {
+            return buildShortTextFallbackSingleSummary(title, sourceRef)
+        }
         return SummaryResult.Single(
             title = title,
             main = main,
             points = points,
+            sources = listOf(sourceRef)
+        )
+    }
+
+    private fun buildShortTextFallbackSingleSummary(
+        title: String,
+        sourceRef: SummarySourceRef
+    ): SummaryResult.Single {
+        val safeTitle = title.ifBlank { context.getString(R.string.summary_default_title) }
+        return SummaryResult.Single(
+            title = safeTitle,
+            main = context.getString(R.string.summary_local_short_fallback_main, safeTitle),
+            points = listOf(
+                SummaryItem(
+                    text = context.getString(R.string.summary_local_short_fallback_detail),
+                    sources = listOf(sourceRef)
+                )
+            ),
             sources = listOf(sourceRef)
         )
     }

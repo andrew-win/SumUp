@@ -1,5 +1,7 @@
 package com.andrewwin.sumup.domain.summary.usecase
 
+import android.content.Context
+import com.andrewwin.sumup.R
 import com.andrewwin.sumup.domain.article.model.Article
 import com.andrewwin.sumup.domain.ai.prompt.AdaptiveTextShrinker
 import com.andrewwin.sumup.domain.ai.prompt.AiPromptBuilder
@@ -28,6 +30,7 @@ import com.andrewwin.sumup.domain.support.AllAiModelsFailedException
 import com.andrewwin.sumup.domain.support.DispatcherProvider
 import com.andrewwin.sumup.domain.support.LocalModelMissingException
 import com.andrewwin.sumup.domain.support.NoActiveModelException
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -39,6 +42,7 @@ import javax.inject.Inject
 
 
 class SummarizeSeveralArticlesUseCase @Inject constructor(
+    @param:ApplicationContext private val context: Context,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val articleRepository: ArticleRepository,
     private val shrinkTextForAdaptiveStrategyUseCase: AdaptiveTextShrinker,
@@ -172,7 +176,7 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
             async(dispatcherProvider.io) {
                 semaphore.withPermit {
                     val source = articleRepository.getSourceById(article.sourceId)
-                    val sourceName = source?.name?.trim()?.ifBlank { SOURCE_FALLBACK_NAME } ?: SOURCE_FALLBACK_NAME
+                    val sourceName = source?.name?.trim()?.ifBlank { sourceFallbackName } ?: sourceFallbackName
                     val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
                     val (contentToProcess, youtubeSubtitleSummary) = if (source?.type == SourceType.TELEGRAM) {
                         article.content to YoutubeSubtitleFetchSummary()
@@ -254,10 +258,19 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
             }
         }
 
+        val main = selectedItems.firstOrNull()?.text
+        val points = selectedItems.drop(SummaryLimits.Compare.mainSentences)
+        if (main.isNullOrBlank() || points.isEmpty()) {
+            return LocalComparisonResult(
+                summary = buildShortTextFallbackCompareSummary(articles),
+                youtubeSubtitleSummary = youtubeSubtitleSummary
+            )
+        }
+
         return LocalComparisonResult(
             summary = SummaryResult.Compare(
-                main = selectedItems.firstOrNull()?.text,
-                points = selectedItems.drop(SummaryLimits.Compare.mainSentences)
+                main = main,
+                points = points
             ),
             youtubeSubtitleSummary = youtubeSubtitleSummary
         )
@@ -270,7 +283,7 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
 
     private suspend fun buildLocalClusterSentenceCandidates(article: Article): LocalClusterSentenceCandidates {
         val source = articleRepository.getSourceById(article.sourceId)
-        val sourceName = source?.name?.trim()?.ifBlank { "Джерело" } ?: "Джерело"
+        val sourceName = source?.name?.trim()?.ifBlank { sourceFallbackName } ?: sourceFallbackName
         val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
         val sourceMeta = SummarySourceRef(name = sourceName, url = sourceUrl)
 
@@ -339,8 +352,31 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
         return items
     }
 
+    private suspend fun buildShortTextFallbackCompareSummary(articles: List<Article>): SummaryResult.Compare {
+        val firstArticle = articles.firstOrNull()
+        val title = firstArticle?.title?.takeIf { it.isNotBlank() } ?: context.getString(R.string.summary_default_title)
+        val sourceRef = firstArticle?.let { article ->
+            val source = articleRepository.getSourceById(article.sourceId)
+            val sourceName = source?.name?.trim()?.ifBlank { sourceFallbackName } ?: sourceFallbackName
+            val sourceUrl = article.url.takeIf { it.isNotBlank() } ?: source?.url.orEmpty()
+            SummarySourceRef(name = sourceName, url = sourceUrl)
+        } ?: SummarySourceRef(name = sourceFallbackName, url = "")
+
+        return SummaryResult.Compare(
+            main = context.getString(R.string.summary_local_short_fallback_main, title),
+            points = listOf(
+                SummaryItem(
+                    text = context.getString(R.string.summary_local_short_fallback_detail),
+                    sources = listOf(sourceRef)
+                )
+            )
+        )
+    }
+
+    private val sourceFallbackName: String
+        get() = context.getString(R.string.summary_source_fallback)
+
     private companion object {
         private val CONTENT_LOADING_PARALLELISM = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
-        private const val SOURCE_FALLBACK_NAME = "Джерело"
     }
 }
