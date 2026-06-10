@@ -2,8 +2,10 @@ package com.andrewwin.sumup.domain.feed.pipeline
 
 import com.andrewwin.sumup.domain.feed.clustering.FeedClusterCalculator
 import com.andrewwin.sumup.domain.article.processing.ArticleImportanceScorer
+import com.andrewwin.sumup.domain.article.repository.ArticleRefreshResult
 import com.andrewwin.sumup.domain.article.repository.ArticleRepository
 import com.andrewwin.sumup.domain.feed.dedup.ThresholdSimilarityResolver
+import com.andrewwin.sumup.domain.feed.model.ArticleCluster
 import com.andrewwin.sumup.domain.settings.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.source.model.SourceType
 import com.andrewwin.sumup.domain.feed.model.FeedSummaryArticle
@@ -18,9 +20,8 @@ class ScheduledSummaryArticleCollector @Inject constructor(
     private val thresholdSimilarityResolver: ThresholdSimilarityResolver
 ) {
     suspend operator fun invoke(refresh: Boolean): List<FeedSummaryArticle> {
-        if (refresh) {
-        updateArticlesFromSources()
-        }
+        val refreshResult = if (refresh) updateArticlesFromSources() else ArticleRefreshResult()
+        val refreshedArticleIds = refreshResult.changedArticleIds.toSet()
 
         val prefs = userPreferencesRepository.preferences.first()
         val articles = articleRepository.getEnabledArticlesOnce()
@@ -69,7 +70,14 @@ class ScheduledSummaryArticleCollector @Inject constructor(
         )
 
         return clusters
-            .filter { cluster -> !prefs.isHideSingleNewsEnabled || cluster.duplicates.size >= prefs.minMentions }
+            .filter { cluster ->
+                shouldIncludeScheduledCluster(
+                    cluster = cluster,
+                    hideSingleNews = prefs.isHideSingleNewsEnabled,
+                    minMentions = prefs.minMentions,
+                    refreshedArticleIds = refreshedArticleIds
+                )
+            }
             .sortedByDescending { cluster ->
                 cluster.representative.importanceScore + cluster.duplicates.size * SIMILAR_NEWS_BONUS_PER_MATCH
             }
@@ -80,6 +88,18 @@ class ScheduledSummaryArticleCollector @Inject constructor(
                     baseImportanceScore = cluster.representative.importanceScore
                 )
             }
+    }
+
+    private fun shouldIncludeScheduledCluster(
+        cluster: ArticleCluster,
+        hideSingleNews: Boolean,
+        minMentions: Int,
+        refreshedArticleIds: Set<Long>
+    ): Boolean {
+        if (!hideSingleNews || cluster.duplicates.size >= minMentions) return true
+
+        return cluster.representative.id in refreshedArticleIds ||
+            cluster.duplicates.any { (article, _) -> article.id in refreshedArticleIds }
     }
 
     private companion object {

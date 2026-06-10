@@ -25,7 +25,7 @@ object FeedClusterCalculator {
                 val leftArticle = articleById[leftId]
                 val rightArticle = articleById[rightId]
                 if (leftArticle == null || rightArticle == null) {
-                    Log.d(
+                    logClusterDebug(
                         CLUSTER_DEBUG_LOG_TAG,
                         "pair_skip_missing score=${score.formatScore()} left=$leftId right=$rightId " +
                             "leftExists=${leftArticle != null} rightExists=${rightArticle != null}"
@@ -40,7 +40,7 @@ object FeedClusterCalculator {
                         val cluster = mutableSetOf(leftId, rightId)
                         clustersByArticleId[leftId] = cluster
                         clustersByArticleId[rightId] = cluster
-                        Log.d(
+                        logClusterDebug(
                             CLUSTER_DEBUG_LOG_TAG,
                             "cluster_create score=${score.formatScore()} pair=${pair.describe(articleById)} " +
                                 "cluster=${cluster.describeCluster(articleById)}"
@@ -52,14 +52,14 @@ object FeedClusterCalculator {
                         if (isAccepted) {
                             leftCluster.add(rightId)
                             clustersByArticleId[rightId] = leftCluster
-                            Log.d(
+                            logClusterDebug(
                                 CLUSTER_DEBUG_LOG_TAG,
                                 "cluster_attach_existing_right score=${score.formatScore()} pair=${pair.describe(articleById)} " +
                                     "target=${leftCluster.describeCluster(articleById)} " +
                                     "metrics=${rightId.describeStrictMembership(leftCluster, pairScores)}"
                             )
                         } else {
-                            Log.d(
+                            logClusterDebug(
                                 CLUSTER_DEBUG_LOG_TAG,
                                 "cluster_attach_rejected_right score=${score.formatScore()} pair=${pair.describe(articleById)} " +
                                     "target=${leftCluster.describeCluster(articleById)} " +
@@ -73,14 +73,14 @@ object FeedClusterCalculator {
                         if (isAccepted) {
                             rightCluster.add(leftId)
                             clustersByArticleId[leftId] = rightCluster
-                            Log.d(
+                            logClusterDebug(
                                 CLUSTER_DEBUG_LOG_TAG,
                                 "cluster_attach_existing_left score=${score.formatScore()} pair=${pair.describe(articleById)} " +
                                     "target=${rightCluster.describeCluster(articleById)} " +
                                     "metrics=${leftId.describeStrictMembership(rightCluster, pairScores)}"
                             )
                         } else {
-                            Log.d(
+                            logClusterDebug(
                                 CLUSTER_DEBUG_LOG_TAG,
                                 "cluster_attach_rejected_left score=${score.formatScore()} pair=${pair.describe(articleById)} " +
                                     "target=${rightCluster.describeCluster(articleById)} " +
@@ -96,7 +96,7 @@ object FeedClusterCalculator {
                             val beforeRight = rightCluster.toSet()
                             leftCluster.addAll(rightCluster)
                             rightCluster.forEach { clustersByArticleId[it] = leftCluster }
-                            Log.d(
+                            logClusterDebug(
                                 CLUSTER_DEBUG_LOG_TAG,
                                 "cluster_merge score=${score.formatScore()} pair=${pair.describe(articleById)} " +
                                     "left=${beforeLeft.describeCluster(articleById)} " +
@@ -105,7 +105,7 @@ object FeedClusterCalculator {
                                     "metrics=${beforeLeft.describeStrictMerge(beforeRight, pairScores)}"
                             )
                         } else {
-                            Log.d(
+                            logClusterDebug(
                                 CLUSTER_DEBUG_LOG_TAG,
                                 "cluster_merge_rejected score=${score.formatScore()} pair=${pair.describe(articleById)} " +
                                     "left=${leftCluster.describeCluster(articleById)} " +
@@ -116,7 +116,7 @@ object FeedClusterCalculator {
                     }
 
                     else -> {
-                        Log.d(
+                        logClusterDebug(
                             CLUSTER_DEBUG_LOG_TAG,
                             "pair_skip_same_cluster score=${score.formatScore()} pair=${pair.describe(articleById)} " +
                                 "cluster=${leftCluster?.describeCluster(articleById).orEmpty()}"
@@ -155,7 +155,7 @@ object FeedClusterCalculator {
             .filterNot { it.id in clusteredIds }
             .forEach {
                 result.add(ArticleCluster(it, emptyList()))
-                Log.d(
+                logClusterDebug(
                     CLUSTER_DEBUG_LOG_TAG,
                     "cluster_singleton article=${it.describeArticle()} reason=no_cluster_match"
                 )
@@ -229,7 +229,7 @@ object FeedClusterCalculator {
         pairScores: Map<ArticlePairKey, Float>,
         threshold: Float
     ) {
-        Log.d(
+        logClusterDebug(
             CLUSTER_DEBUG_LOG_TAG,
             "cluster_build_start articles=${articles.size} pairScores=${pairScores.size} threshold=${threshold.formatScore()}"
         )
@@ -237,7 +237,7 @@ object FeedClusterCalculator {
         pairScores.entries
             .sortedByDescending { it.value }
             .forEachIndexed { index, entry ->
-                Log.d(
+                logClusterDebug(
                     CLUSTER_DEBUG_LOG_TAG,
                     "pair_score[$index] score=${entry.value.formatScore()} pair=${entry.key.describe(articleById)}"
                 )
@@ -265,7 +265,7 @@ object FeedClusterCalculator {
                     }
                 }
             }.joinToString(separator = "; ").ifBlank { "none" }
-            Log.d(
+            logClusterDebug(
                 CLUSTER_DEBUG_LOG_TAG,
                 "cluster_final[$index] representative=${cluster.representative.describeArticle()} " +
                     "size=${memberIds.size} duplicates=$duplicateDetails pairs=$memberPairScores"
@@ -297,6 +297,13 @@ object FeedClusterCalculator {
 
     private fun Float.formatScore(): String = String.format(java.util.Locale.US, "%.4f", this)
 
+    private fun logClusterDebug(tag: String, message: String) {
+        if (CLUSTER_DEBUG_LOGS_ENABLED) {
+            Log.d(tag, message)
+        }
+    }
+
+    private const val CLUSTER_DEBUG_LOGS_ENABLED = false
     private const val CLUSTER_DEBUG_LOG_TAG = "FeedClusterDebug"
     private const val MAX_TITLE_LOG_LENGTH = 80
 }

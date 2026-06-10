@@ -36,10 +36,8 @@ class ArticleImportanceScorer {
 
         return (
             computeViewsScore(article.viewCount, averageViews, sourceType) +
-                computeFactsScore(textForFacts) +
-                computeLengthBonus(article.content) -
-                computeKeywordPenalty(fullText)
-            ).coerceIn(0f, 1f)
+                computeFactsScore(textForFacts)
+            ).coerceAtLeast(0f)
     }
 
     private fun computeViewsScore(
@@ -55,20 +53,7 @@ class ArticleImportanceScorer {
     private fun computeFactsScore(text: String): Float {
         val entityBonus = ENTITY_REGEX.findAll(text).count() * FACT_BONUS_STEP
         val numberBonus = countNumbers(text) * FACT_BONUS_STEP
-        return (entityBonus + numberBonus).coerceAtMost(MAX_FACTS_SCORE)
-    }
-
-    private fun computeLengthBonus(content: String): Float {
-        return when {
-            content.length >= EXACT_LENGTH_BONUS_THRESHOLD -> EXACT_LENGTH_BONUS
-            content.length > MEDIUM_LENGTH_BONUS_THRESHOLD -> MEDIUM_LENGTH_BONUS
-            content.length > SHORT_LENGTH_BONUS_THRESHOLD -> SHORT_LENGTH_BONUS
-            else -> 0f
-        }
-    }
-
-    private fun computeKeywordPenalty(fullText: String): Float {
-        return CLICKBAIT_KEYWORD_REGEX.findAll(fullText).count() * KEYWORD_PENALTY_STEP
+        return entityBonus + numberBonus
     }
 
     private fun countNumbers(text: String): Int {
@@ -89,21 +74,13 @@ class ArticleImportanceScorer {
     }
 
     companion object {
-        private const val CONTENT_SYMBOLS_FOR_FACTS = 200
+        private const val CONTENT_SYMBOLS_FOR_FACTS = 250
         private const val MIN_TITLE_AND_CONTENT_LENGTH = 30
-        private const val VIEWS_FACTOR = 0.6f
-        private const val RSS_FIXED_VIEWS_SCORE = 0.35f
-        private const val MAX_FACTS_SCORE = 0.6f
-        private const val FACT_BONUS_STEP = 0.15f
-        private const val SHORT_LENGTH_BONUS_THRESHOLD = 70
-        private const val MEDIUM_LENGTH_BONUS_THRESHOLD = 125
-        private const val EXACT_LENGTH_BONUS_THRESHOLD = 150
-        private const val SHORT_LENGTH_BONUS = 0.1f
-        private const val MEDIUM_LENGTH_BONUS = 0.125f
-        private const val EXACT_LENGTH_BONUS = 0.15f
-        private const val KEYWORD_PENALTY_STEP = 0.15f
+        private const val VIEWS_FACTOR = 0.45f
+        private const val RSS_FIXED_VIEWS_SCORE = 0.4f
+        private const val FACT_BONUS_STEP = 0.2f
 
-        const val IMPORTANCE_THRESHOLD = 0.35f
+        const val IMPORTANCE_THRESHOLD = 0.5f
 
         private val URL_REGEX = Regex("https?://[^\\s]+", RegexOption.IGNORE_CASE)
         private val ZERO_SCORE_KEYWORD_REGEX = Regex(
@@ -117,10 +94,6 @@ class ArticleImportanceScorer {
         )
         private val WRITTEN_NUMBER_SEQUENCE_REGEX = Regex(
             "(?<!\\p{L})(?:один|одна|одне|одного|одній|одним|одними|перш\\p{L}*|два|дві|двох|двом|двома|друг\\p{L}*|три|трьох|трьом|трьома|трет\\p{L}*|чотири|чотирьох|чотирьом|чотирма|четвер\\p{L}*|п['’]?ять|п['’]?яти|п['’]?ятьох|п['’]?ятьма|п['’]?ят\\p{L}*|шість|шести|шістьох|шістьма|шост\\p{L}*|сім|семи|сімох|сьома|сьом\\p{L}*|вісім|восьми|вісьмох|вісьма|восьм\\p{L}*|дев['’]?ять|дев['’]?яти|дев['’]?ятьох|дев['’]?ятьма|дев['’]?ят\\p{L}*|десять|десяти|десятьох|десятьма|десят\\p{L}*|одинадцять|одинадцяти|дванадцять|дванадцяти|тринадцять|тринадцяти|чотирнадцять|чотирнадцяти|п['’]?ятнадцять|п['’]?ятнадцяти|шістнадцять|шістнадцяти|сімнадцять|сімнадцяти|вісімнадцять|вісімнадцяти|дев['’]?ятнадцять|дев['’]?ятнадцяти|двадцять|двадцяти|тридцять|тридцяти|сорок|сорока|п['’]?ятдесят|п['’]?ятдесяти|шістдесят|шістдесяти|сімдесят|сімдесяти|вісімдесят|вісімдесяти|дев['’]?яносто|дев['’]?яноста|сто|ста|сот\\p{L}*|двісті|двохсот|триста|трьохсот|чотириста|чотирьохсот|п['’]?ятсот|п['’]?ятисот|шістсот|шестисот|сімсот|семисот|вісімсот|восьмисот|дев['’]?ятсот|дев['’]?ятисот|тисяч\\p{L}*|мільйон\\p{L}*|мільярд\\p{L}*|one|first|two|second|three|third|four|fourth|five|fifth|six|sixth|seven|seventh|eight|eighth|nine|ninth|ten|tenth|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred\\p{L}*|thousand\\p{L}*|million\\p{L}*|billion\\p{L}*|trillion\\p{L}*|ноль|нуль|один|одна|одно|одного|одной|одним|одними|перв\\p{L}*|два|две|двух|двум|двумя|втор\\p{L}*|три|трех|трёх|трем|трём|тремя|треть\\p{L}*|четыре|четырех|четырёх|четырем|четырём|четырьмя|четвер\\p{L}*|пять|пяти|пятер\\p{L}*|пяты\\p{L}*|шесть|шести|шестер\\p{L}*|шест\\p{L}*|семь|семи|семер\\p{L}*|седьм\\p{L}*|восемь|восьми|восьм\\p{L}*|девять|девяти|девят\\p{L}*|десять|десяти|десят\\p{L}*|одиннадцать|одиннадцати|двенадцать|двенадцати|тринадцать|тринадцати|четырнадцать|четырнадцати|пятнадцать|пятнадцати|шестнадцать|шестнадцати|семнадцать|семнадцати|восемнадцать|восемнадцати|девятнадцать|девятнадцати|двадцать|двадцати|тридцать|тридцати|сорок|сорока|пятьдесят|пятидесяти|шестьдесят|шестидесяти|семьдесят|семидесяти|восемьдесят|восьмидесяти|девяносто|девяноста|сто|ста|сот\\p{L}*|двести|двухсот|триста|трехсот|трёхсот|четыреста|четырехсот|четырёхсот|пятьсот|пятисот|шестьсот|шестисот|семьсот|семисот|восемьсот|восьмисот|девятьсот|девятисот|тысяч\\p{L}*|миллион\\p{L}*|миллиард\\p{L}*|триллион\\p{L}*)(?:[\\s-]+(?:один|одна|одне|одного|одній|одним|одними|перш\\p{L}*|два|дві|двох|двом|двома|друг\\p{L}*|три|трьох|трьом|трьома|трет\\p{L}*|чотири|чотирьох|чотирьом|чотирма|четвер\\p{L}*|п['’]?ять|п['’]?яти|п['’]?ятьох|п['’]?ятьма|п['’]?ят\\p{L}*|шість|шести|шістьох|шістьма|шост\\p{L}*|сім|семи|сімох|сьома|сьом\\p{L}*|вісім|восьми|вісьмох|вісьма|восьм\\p{L}*|дев['’]?ять|дев['’]?яти|дев['’]?ятьох|дев['’]?ятьма|дев['’]?ят\\p{L}*|десять|десяти|десятьох|десятьма|десят\\p{L}*|одинадцять|одинадцяти|дванадцять|дванадцяти|тринадцять|тринадцяти|чотирнадцять|чотирнадцяти|п['’]?ятнадцять|п['’]?ятнадцяти|шістнадцять|шістнадцяти|сімнадцять|сімнадцяти|вісімнадцять|вісімнадцяти|дев['’]?ятнадцять|дев['’]?ятнадцяти|двадцять|двадцяти|тридцять|тридцяти|сорок|сорока|п['’]?ятдесят|п['’]?ятдесяти|шістдесят|шістдесяти|сімдесят|сімдесяти|вісімдесят|вісімдесяти|дев['’]?яносто|дев['’]?яноста|сто|ста|сот\\p{L}*|двісті|двохсот|триста|трьохсот|чотириста|чотирьохсот|п['’]?ятсот|п['’]?ятисот|шістсот|шестисот|сімсот|семисот|вісімсот|восьмисот|дев['’]?ятсот|дев['’]?ятисот|тисяч\\p{L}*|мільйон\\p{L}*|мільярд\\p{L}*|one|first|two|second|three|third|four|fourth|five|fifth|six|sixth|seven|seventh|eight|eighth|nine|ninth|ten|tenth|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred\\p{L}*|thousand\\p{L}*|million\\p{L}*|billion\\p{L}*|trillion\\p{L}*|ноль|нуль|один|одна|одно|одного|одной|одним|одними|перв\\p{L}*|два|две|двух|двум|двумя|втор\\p{L}*|три|трех|трёх|трем|трём|тремя|треть\\p{L}*|четыре|четырех|четырёх|четырем|четырём|четырьмя|четвер\\p{L}*|пять|пяти|пятер\\p{L}*|пяты\\p{L}*|шесть|шести|шестер\\p{L}*|шест\\p{L}*|семь|семи|семер\\p{L}*|седьм\\p{L}*|восемь|восьми|восьм\\p{L}*|девять|девяти|девят\\p{L}*|десять|десяти|десят\\p{L}*|одиннадцать|одиннадцати|двенадцать|двенадцати|тринадцать|тринадцати|четырнадцать|четырнадцати|пятнадцать|пятнадцати|шестнадцать|шестнадцати|семнадцать|семнадцати|восемнадцать|восемнадцати|девятнадцать|девятнадцати|двадцать|двадцати|тридцать|тридцати|сорок|сорока|пятьдесят|пятидесяти|шестьдесят|шестидесяти|семьдесят|семидесяти|восемьдесят|восьмидесяти|девяносто|девяноста|сто|ста|сот\\p{L}*|двести|двухсот|триста|трехсот|трёхсот|четыреста|четырехсот|четырёхсот|пятьсот|пятисот|шестьсот|шестисот|семьсот|семисот|восемьсот|восьмисот|девятьсот|девятисот|тысяч\\p{L}*|миллион\\p{L}*|миллиард\\p{L}*|триллион\\p{L}*))*?(?!\\p{L})",
-            RegexOption.IGNORE_CASE
-        )
-        private val CLICKBAIT_KEYWORD_REGEX = Regex(
-            "(?<!\\p{L})(?:шок(?:уюч\\p{L}*)?|сенсац\\p{L}*|терміново|shock(?:ing)?|sensational|breaking)(?!\\p{L})",
             RegexOption.IGNORE_CASE
         )
     }
