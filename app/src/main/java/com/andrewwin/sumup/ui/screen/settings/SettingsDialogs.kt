@@ -58,6 +58,8 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -289,12 +291,18 @@ private fun ApiKeyProviderLink(
 fun SettingsBackupOptionRow(
     title: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    isHelpMode: Boolean = false,
+    helpDescription: String? = null,
+    onHelpRequest: ((String) -> Unit)? = null
 ) {
     SettingsToggleRow(
         label = title,
         checked = checked,
-        onCheckedChange = onCheckedChange
+        onCheckedChange = onCheckedChange,
+        isHelpMode = isHelpMode,
+        helpDescription = helpDescription,
+        onHelpRequest = onHelpRequest
     )
 }
 
@@ -302,23 +310,36 @@ fun SettingsBackupOptionRow(
 fun SettingsBackupCheckboxRow(
     title: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    isHelpMode: Boolean = false,
+    helpDescription: String? = null,
+    onHelpRequest: ((String) -> Unit)? = null
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    SettingsHelpTarget(
+        isHelpMode = isHelpMode,
+        helpDescription = helpDescription,
+        onHelpRequest = onHelpRequest,
+        contentDescription = title
     ) {
-        Checkbox(
-            checked = checked,
-            onCheckedChange = onCheckedChange
-        )
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onCheckedChange(!checked) },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Checkbox(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                modifier = Modifier.semantics {
+                    contentDescription = title
+                }
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
     }
 }
 
@@ -638,108 +659,128 @@ fun SettingsAiKeyItem(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     canMoveUp: Boolean,
-    canMoveDown: Boolean
+    canMoveDown: Boolean,
+    isHelpMode: Boolean,
+    onHelpRequest: (String) -> Unit,
+    helpDescription: String
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onEdit),
-        verticalAlignment = Alignment.CenterVertically
+    val itemContentDescription = stringResource(R.string.settings_cd_api_key_item, config.name)
+    val providerLabel = stringResource(config.provider.labelRes)
+    val toggleContentDescription = stringResource(R.string.settings_cd_toggle_api_key, config.name)
+    SettingsHelpTarget(
+        isHelpMode = isHelpMode,
+        helpDescription = helpDescription,
+        onHelpRequest = onHelpRequest,
+        contentDescription = itemContentDescription
     ) {
-        Icon(
-            painter = painterResource(config.provider.iconRes),
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.secondary
-        )
-        Spacer(Modifier.size(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = config.name,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Normal,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = config.modelName,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        IconButton(onClick = onMoveUp, enabled = canMoveUp, modifier = Modifier.size(28.dp)) {
-            Icon(
-                Icons.Default.KeyboardArrowUp,
-                contentDescription = stringResource(R.string.settings_api_key_move_up),
-                modifier = Modifier.size(20.dp)
-            )
-        }
-        IconButton(onClick = onMoveDown, enabled = canMoveDown, modifier = Modifier.size(28.dp)) {
-            Icon(
-                Icons.Default.KeyboardArrowDown,
-                contentDescription = stringResource(R.string.settings_api_key_move_down),
-                modifier = Modifier.size(20.dp)
-            )
-        }
-        Box(
-            modifier = Modifier.size(width = 44.dp, height = 32.dp),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onEdit)
+                .semantics {
+                    contentDescription = itemContentDescription
+                },
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Switch(
-                checked = config.isEnabled,
-                onCheckedChange = onToggle,
-                modifier = Modifier.scale(0.75f)
+            Icon(
+                painter = painterResource(config.provider.iconRes),
+                contentDescription = providerLabel,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.secondary
             )
-        }
-        Box {
-            var showDropdown by remember { mutableStateOf(false) }
-            IconButton(
-                onClick = { showDropdown = true },
-                modifier = Modifier.size(28.dp)
-            ) {
-                Icon(
-                    Icons.Default.MoreVert,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
+            Spacer(Modifier.size(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = config.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = config.modelName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-            DropdownMenu(
-                expanded = showDropdown,
-                onDismissRequest = { showDropdown = false },
-                shape = MaterialTheme.shapes.large,
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            IconButton(onClick = onMoveUp, enabled = canMoveUp, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    Icons.Default.KeyboardArrowUp,
+                    contentDescription = stringResource(R.string.settings_api_key_move_up),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            IconButton(onClick = onMoveDown, enabled = canMoveDown, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    Icons.Default.KeyboardArrowDown,
+                    contentDescription = stringResource(R.string.settings_api_key_move_down),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Box(
+                modifier = Modifier.size(width = 44.dp, height = 32.dp),
+                contentAlignment = Alignment.Center
             ) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.settings_edit_api_key)) },
-                    trailingIcon = {
-                        Icon(
-                            Icons.Outlined.Edit,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    onClick = {
-                        onEdit()
-                        showDropdown = false
-                    }
+                Switch(
+                    checked = config.isEnabled,
+                    onCheckedChange = onToggle,
+                    modifier = Modifier
+                        .scale(0.75f)
+                        .semantics {
+                            contentDescription = toggleContentDescription
+                        }
                 )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
-                    trailingIcon = {
-                        Icon(
-                            Icons.Outlined.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    },
-                    onClick = {
-                        onDelete()
-                        showDropdown = false
-                    }
-                )
+            }
+            Box {
+                var showDropdown by remember { mutableStateOf(false) }
+                IconButton(
+                    onClick = { showDropdown = true },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.settings_cd_api_key_menu, config.name),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                DropdownMenu(
+                    expanded = showDropdown,
+                    onDismissRequest = { showDropdown = false },
+                    shape = MaterialTheme.shapes.large,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.settings_edit_api_key)) },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Outlined.Edit,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        onClick = {
+                            onEdit()
+                            showDropdown = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Outlined.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        },
+                        onClick = {
+                            onDelete()
+                            showDropdown = false
+                        }
+                    )
+                }
             }
         }
     }

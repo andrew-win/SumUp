@@ -34,11 +34,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
+import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.util.normalizeSummaryUrlForWebView
 
 @Composable
@@ -68,57 +71,77 @@ fun SummaryChart(
     currentType: SummaryChartType,
     onTypeChange: (SummaryChartType) -> Unit,
     isModelEnabled: Boolean,
-    onOpenWebView: (String) -> Unit
+    onOpenWebView: (String) -> Unit,
+    isHelpMode: Boolean = false,
+    filtersHelpDescription: String = "",
+    itemsHelpDescription: String = "",
+    onShowHelpDescription: (String) -> Unit = {},
+    filtersModifier: Modifier = Modifier,
+    itemsModifier: Modifier = Modifier
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        AppHelpOverlayTarget(
+            isEnabled = isHelpMode,
+            description = filtersHelpDescription,
+            onShowDescription = onShowHelpDescription,
+            modifier = filtersModifier
         ) {
-            ChartTypeChip(
-                selected = currentType == SummaryChartType.VIEWS,
-                onClick = { onTypeChange(SummaryChartType.VIEWS) },
-                label = stringResource(R.string.chart_views)
-            )
-            ChartTypeChip(
-                selected = currentType == SummaryChartType.MENTIONS,
-                onClick = { onTypeChange(SummaryChartType.MENTIONS) },
-                label = stringResource(R.string.chart_mentions)
-            )
-            ChartTypeChip(
-                selected = currentType == SummaryChartType.FACTUALITY,
-                onClick = { onTypeChange(SummaryChartType.FACTUALITY) },
-                label = stringResource(R.string.chart_factuality)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ChartTypeChip(
+                    selected = currentType == SummaryChartType.VIEWS,
+                    onClick = { onTypeChange(SummaryChartType.VIEWS) },
+                    label = stringResource(R.string.chart_views)
+                )
+                ChartTypeChip(
+                    selected = currentType == SummaryChartType.MENTIONS,
+                    onClick = { onTypeChange(SummaryChartType.MENTIONS) },
+                    label = stringResource(R.string.chart_mentions)
+                )
+                ChartTypeChip(
+                    selected = currentType == SummaryChartType.FACTUALITY,
+                    onClick = { onTypeChange(SummaryChartType.FACTUALITY) },
+                    label = stringResource(R.string.chart_factuality)
+                )
+            }
         }
 
         if (items.isEmpty()) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            AppHelpOverlayTarget(
+                isEnabled = isHelpMode,
+                description = itemsHelpDescription,
+                onShowDescription = onShowHelpDescription,
+                modifier = itemsModifier
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
-                    contentAlignment = Alignment.Center
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
-                    Text(
-                        text = stringResource(R.string.summary_statistics_empty),
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
+                            .height(120.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stringResource(R.string.summary_statistics_empty),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         } else {
@@ -126,14 +149,23 @@ fun SummaryChart(
                 .maxOfOrNull { if (it.isValueUnavailable) 0f else it.value }
                 ?.coerceAtLeast(1f)
                 ?: 1f
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items.forEachIndexed { index, item ->
-                    ChartBar(
-                        item = item,
-                        index = index,
-                        maxValue = chartMaxValue,
-                        onOpenWebView = onOpenWebView
-                    )
+            AppHelpOverlayTarget(
+                isEnabled = isHelpMode,
+                description = itemsHelpDescription,
+                onShowDescription = onShowHelpDescription,
+                modifier = itemsModifier
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items.forEachIndexed { index, item ->
+                        ChartBar(
+                            item = item,
+                            index = index,
+                            maxValue = chartMaxValue,
+                            onOpenWebView = onOpenWebView
+                        )
+                    }
                 }
             }
         }

@@ -26,6 +26,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -125,22 +127,28 @@ internal fun SettingsGeneralGroupContent(
         SettingsSection(
             title = stringResource(R.string.settings_language),
             boxed = true,
-            isHelpMode = isHelpMode,
-            helpDescription = stringResource(R.string.settings_help_section_app_language),
-            onHelpRequest = onHelpRequest
+            isHelpMode = isHelpMode
         ) {
-            val languages = listOf(
-                AppLanguage.UK to R.string.settings_language_uk,
-                AppLanguage.EN to R.string.settings_language_en
-            )
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                languages.forEachIndexed { index, (lang, labelRes) ->
-                    SegmentedButton(
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = languages.size),
-                        onClick = { onAppLanguageChange(lang) },
-                        selected = userPreferences.appLanguage == lang
-                    ) {
-                        Text(text = stringResource(labelRes), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            SettingsHelpTarget(
+                isHelpMode = isHelpMode,
+                helpDescription = stringResource(R.string.settings_help_app_language_group),
+                onHelpRequest = onHelpRequest,
+                contentDescription = stringResource(R.string.settings_language)
+            ) {
+                val languages = listOf(
+                    AppLanguage.UK to R.string.settings_language_uk,
+                    AppLanguage.EN to R.string.settings_language_en
+                )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    languages.forEachIndexed { index, (lang, labelRes) ->
+                        val label = stringResource(labelRes)
+                        SegmentedButton(
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = languages.size),
+                            onClick = { onAppLanguageChange(lang) },
+                            selected = userPreferences.appLanguage == lang
+                        ) {
+                            Text(text = label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
                 }
             }
@@ -149,27 +157,33 @@ internal fun SettingsGeneralGroupContent(
         SettingsSection(
             title = stringResource(R.string.settings_summary_language),
             boxed = true,
-            isHelpMode = isHelpMode,
-            helpDescription = stringResource(R.string.settings_help_section_summary_language),
-            onHelpRequest = onHelpRequest
+            isHelpMode = isHelpMode
         ) {
-            val summaryLanguages = listOf(
-                SummaryLanguage.UK to R.string.settings_summary_language_uk,
-                SummaryLanguage.EN to R.string.settings_summary_language_en
-            )
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                summaryLanguages.forEachIndexed { index, (lang, labelRes) ->
-                    SegmentedButton(
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = summaryLanguages.size),
-                        onClick = { onSummaryLanguageChange(lang) },
-                        selected = userPreferences.summaryLanguage == lang
-                    ) {
-                        Text(
-                            text = stringResource(labelRes),
-                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+            SettingsHelpTarget(
+                isHelpMode = isHelpMode,
+                helpDescription = stringResource(R.string.settings_help_summary_language_group),
+                onHelpRequest = onHelpRequest,
+                contentDescription = stringResource(R.string.settings_summary_language)
+            ) {
+                val summaryLanguages = listOf(
+                    SummaryLanguage.UK to R.string.settings_summary_language_uk,
+                    SummaryLanguage.EN to R.string.settings_summary_language_en
+                )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    summaryLanguages.forEachIndexed { index, (lang, labelRes) ->
+                        val label = stringResource(labelRes)
+                        SegmentedButton(
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = summaryLanguages.size),
+                            onClick = { onSummaryLanguageChange(lang) },
+                            selected = userPreferences.summaryLanguage == lang
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -178,28 +192,34 @@ internal fun SettingsGeneralGroupContent(
         SettingsSection(
             title = stringResource(R.string.settings_theme),
             boxed = true,
-            isHelpMode = isHelpMode,
-            helpDescription = stringResource(R.string.settings_help_section_theme),
-            onHelpRequest = onHelpRequest
+            isHelpMode = isHelpMode
         ) {
-            val themeModes = listOf(
-                AppThemeMode.SYSTEM to R.string.settings_theme_system,
-                AppThemeMode.LIGHT to R.string.settings_theme_light,
-                AppThemeMode.DARK to R.string.settings_theme_dark
-            )
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                themeModes.forEachIndexed { index, (mode, labelRes) ->
-                    SegmentedButton(
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = themeModes.size),
-                        onClick = { onThemeModeChange(mode) },
-                        selected = userPreferences.appThemeMode == mode
-                    ) {
-                        Text(
-                            text = stringResource(labelRes),
-                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+            SettingsHelpTarget(
+                isHelpMode = isHelpMode,
+                helpDescription = stringResource(R.string.settings_help_theme_group),
+                onHelpRequest = onHelpRequest,
+                contentDescription = stringResource(R.string.settings_theme)
+            ) {
+                val themeModes = listOf(
+                    AppThemeMode.SYSTEM to R.string.settings_theme_system,
+                    AppThemeMode.LIGHT to R.string.settings_theme_light,
+                    AppThemeMode.DARK to R.string.settings_theme_dark
+                )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    themeModes.forEachIndexed { index, (mode, labelRes) ->
+                        val label = stringResource(labelRes)
+                        SegmentedButton(
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = themeModes.size),
+                            onClick = { onThemeModeChange(mode) },
+                            selected = userPreferences.appThemeMode == mode
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -229,6 +249,7 @@ internal fun SettingsApiKeysGroupContent(
     onMoveEmbeddingConfigDown: (AiModelConfig) -> Unit
 ) {
     var showApiKeyHelpDialog by rememberSaveable { mutableStateOf(false) }
+    val apiKeysHelpButtonDescription = stringResource(R.string.settings_api_keys_help_button)
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SettingsSection(
@@ -236,9 +257,13 @@ internal fun SettingsApiKeysGroupContent(
             boxed = true,
             isHelpMode = isHelpMode,
             helpDescription = stringResource(R.string.settings_help_section_summary_api_keys),
+            helpOnHeaderOnly = true,
             onHelpRequest = onHelpRequest,
             trailing = {
-                AddSettingsActionButton(onClick = onAddSummaryConfig)
+                AddSettingsActionButton(
+                    onClick = onAddSummaryConfig,
+                    contentDescription = stringResource(R.string.settings_cd_add_summary_api_key)
+                )
             }
         ) {
             AiConfigList(
@@ -247,7 +272,10 @@ internal fun SettingsApiKeysGroupContent(
                 onDelete = onDeleteSummaryConfig,
                 onToggle = onToggleSummaryConfig,
                 onMoveUp = onMoveSummaryConfigUp,
-                onMoveDown = onMoveSummaryConfigDown
+                onMoveDown = onMoveSummaryConfigDown,
+                isHelpMode = isHelpMode,
+                onHelpRequest = onHelpRequest,
+                itemHelpDescription = stringResource(R.string.settings_help_summary_api_key_item)
             )
             currentSummaryConfig?.let { activeConfig ->
                 Text(
@@ -267,9 +295,13 @@ internal fun SettingsApiKeysGroupContent(
             boxed = true,
             isHelpMode = isHelpMode,
             helpDescription = stringResource(R.string.settings_help_section_embedding_api_keys),
+            helpOnHeaderOnly = true,
             onHelpRequest = onHelpRequest,
             trailing = {
-                AddSettingsActionButton(onClick = onAddEmbeddingConfig)
+                AddSettingsActionButton(
+                    onClick = onAddEmbeddingConfig,
+                    contentDescription = stringResource(R.string.settings_cd_add_embedding_api_key)
+                )
             }
         ) {
             AiConfigList(
@@ -278,7 +310,10 @@ internal fun SettingsApiKeysGroupContent(
                 onDelete = onDeleteEmbeddingConfig,
                 onToggle = onToggleEmbeddingConfig,
                 onMoveUp = onMoveEmbeddingConfigUp,
-                onMoveDown = onMoveEmbeddingConfigDown
+                onMoveDown = onMoveEmbeddingConfigDown,
+                isHelpMode = isHelpMode,
+                onHelpRequest = onHelpRequest,
+                itemHelpDescription = stringResource(R.string.settings_help_embedding_api_key_item)
             )
             currentEmbeddingConfig?.let { activeConfig ->
                 Text(
@@ -293,11 +328,23 @@ internal fun SettingsApiKeysGroupContent(
             }
         }
 
-        Button(
-            onClick = { showApiKeyHelpDialog = true },
+        SettingsHelpTarget(
+            isHelpMode = isHelpMode,
+            helpDescription = stringResource(R.string.settings_help_api_keys_how_to_get),
+            onHelpRequest = onHelpRequest,
+            contentDescription = apiKeysHelpButtonDescription,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(stringResource(R.string.settings_api_keys_help_button))
+            Button(
+                onClick = { showApiKeyHelpDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics {
+                        contentDescription = apiKeysHelpButtonDescription
+                    }
+            ) {
+                Text(apiKeysHelpButtonDescription)
+            }
         }
     }
 
@@ -307,7 +354,10 @@ internal fun SettingsApiKeysGroupContent(
 }
 
 @Composable
-private fun AddSettingsActionButton(onClick: () -> Unit) {
+private fun AddSettingsActionButton(
+    onClick: () -> Unit,
+    contentDescription: String
+) {
     IconButton(
         onClick = onClick,
         modifier = Modifier.size(32.dp),
@@ -316,7 +366,7 @@ private fun AddSettingsActionButton(onClick: () -> Unit) {
             contentColor = MaterialTheme.colorScheme.onPrimary
         )
     ) {
-        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+        Icon(Icons.Default.Add, contentDescription = contentDescription, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -327,7 +377,10 @@ private fun AiConfigList(
     onDelete: (AiModelConfig) -> Unit,
     onToggle: (AiModelConfig, Boolean) -> Unit,
     onMoveUp: (AiModelConfig) -> Unit,
-    onMoveDown: (AiModelConfig) -> Unit
+    onMoveDown: (AiModelConfig) -> Unit,
+    isHelpMode: Boolean,
+    onHelpRequest: (String) -> Unit,
+    itemHelpDescription: String
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (configs.isEmpty()) {
@@ -346,7 +399,10 @@ private fun AiConfigList(
                     onMoveUp = { onMoveUp(config) },
                     onMoveDown = { onMoveDown(config) },
                     canMoveUp = index > 0,
-                    canMoveDown = index < configs.lastIndex
+                    canMoveDown = index < configs.lastIndex,
+                    isHelpMode = isHelpMode,
+                    onHelpRequest = onHelpRequest,
+                    helpDescription = itemHelpDescription
                 )
             }
         }
@@ -397,28 +453,34 @@ internal fun SettingsAiProcessingGroupContent(
         SettingsSection(
             title = stringResource(R.string.settings_ai_strategy),
             boxed = true,
-            isHelpMode = isHelpMode,
-            helpDescription = stringResource(R.string.settings_help_section_ai_strategy),
-            onHelpRequest = onHelpRequest
+            isHelpMode = isHelpMode
         ) {
-            val strategies = listOf(
-                AiStrategy.LOCAL to R.string.ai_strategy_local,
-                AiStrategy.CLOUD to R.string.ai_strategy_cloud,
-                AiStrategy.ADAPTIVE to R.string.ai_strategy_adaptive
-            )
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                strategies.forEachIndexed { index, (strategy, labelRes) ->
-                    SegmentedButton(
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = strategies.size),
-                        onClick = { onAiStrategyChange(strategy) },
-                        selected = userPreferences.aiStrategy == strategy
-                    ) {
-                        Text(
-                            text = stringResource(labelRes),
-                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+            SettingsHelpTarget(
+                isHelpMode = isHelpMode,
+                helpDescription = stringResource(R.string.settings_help_ai_strategy_group),
+                onHelpRequest = onHelpRequest,
+                contentDescription = stringResource(R.string.settings_ai_strategy)
+            ) {
+                val strategies = listOf(
+                    AiStrategy.LOCAL to R.string.ai_strategy_local,
+                    AiStrategy.CLOUD to R.string.ai_strategy_cloud,
+                    AiStrategy.ADAPTIVE to R.string.ai_strategy_adaptive
+                )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    strategies.forEachIndexed { index, (strategy, labelRes) ->
+                        val label = stringResource(labelRes)
+                        SegmentedButton(
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = strategies.size),
+                            onClick = { onAiStrategyChange(strategy) },
+                            selected = userPreferences.aiStrategy == strategy
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -427,26 +489,39 @@ internal fun SettingsAiProcessingGroupContent(
         SettingsSection(
             title = stringResource(R.string.settings_custom_summary_prompt),
             boxed = true,
-            isHelpMode = isHelpMode,
-            helpDescription = stringResource(R.string.settings_help_section_custom_prompt),
-            onHelpRequest = onHelpRequest
+            isHelpMode = isHelpMode
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SettingsToggleRow(
                     label = stringResource(R.string.settings_custom_summary_prompt),
                     checked = userPreferences.isCustomSummaryPromptEnabled,
-                    onCheckedChange = onCustomSummaryPromptEnabledChange
+                    onCheckedChange = onCustomSummaryPromptEnabledChange,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_custom_prompt_toggle),
+                    onHelpRequest = onHelpRequest
                 )
 
                 if (userPreferences.isCustomSummaryPromptEnabled) {
-                    OutlinedTextField(
-                        value = summaryPrompt,
-                        onValueChange = onSummaryPromptChange,
-                        label = { Text(stringResource(R.string.settings_summary_prompt)) },
-                        placeholder = { Text(stringResource(R.string.settings_summary_prompt_hint)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large
-                    )
+                    val summaryPromptContentDescription = stringResource(R.string.settings_summary_prompt)
+                    SettingsHelpTarget(
+                        isHelpMode = isHelpMode,
+                        helpDescription = stringResource(R.string.settings_help_custom_prompt_field),
+                        onHelpRequest = onHelpRequest,
+                        contentDescription = summaryPromptContentDescription
+                    ) {
+                        OutlinedTextField(
+                            value = summaryPrompt,
+                            onValueChange = onSummaryPromptChange,
+                            label = { Text(stringResource(R.string.settings_summary_prompt)) },
+                            placeholder = { Text(stringResource(R.string.settings_summary_prompt_hint)) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics {
+                                    contentDescription = summaryPromptContentDescription
+                                },
+                            shape = MaterialTheme.shapes.large
+                        )
+                    }
                 }
             }
         }
@@ -454,9 +529,7 @@ internal fun SettingsAiProcessingGroupContent(
         SettingsSection(
             title = stringResource(R.string.settings_ai_limits),
             boxed = true,
-            isHelpMode = isHelpMode,
-            helpDescription = stringResource(R.string.settings_help_section_ai_limits),
-            onHelpRequest = onHelpRequest
+            isHelpMode = isHelpMode
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SettingsIntSliderItem(
@@ -465,7 +538,10 @@ internal fun SettingsAiProcessingGroupContent(
                     onValueChange = onAiMaxCharsSingleArticleChange,
                     onValueChangeFinished = onAiMaxCharsSingleArticleCommitted,
                     valueRange = 200f..3000f,
-                    steps = 28
+                    steps = 28,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_ai_limit_single_article),
+                    onHelpRequest = onHelpRequest
                 )
                 SettingsIntSliderItem(
                     label = stringResource(R.string.settings_ai_chars_news_cluster, aiMaxCharsNewsCluster.toInt()),
@@ -473,7 +549,10 @@ internal fun SettingsAiProcessingGroupContent(
                     onValueChange = onAiMaxCharsNewsClusterChange,
                     onValueChangeFinished = onAiMaxCharsNewsClusterCommitted,
                     valueRange = 200f..3000f,
-                    steps = 28
+                    steps = 28,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_ai_limit_news_cluster),
+                    onHelpRequest = onHelpRequest
                 )
                 SettingsIntSliderItem(
                     label = stringResource(R.string.settings_ai_chars_single_feed_article, aiMaxCharsSingleFeedArticle.toInt()),
@@ -481,7 +560,10 @@ internal fun SettingsAiProcessingGroupContent(
                     onValueChange = onAiMaxCharsSingleFeedArticleChange,
                     onValueChangeFinished = onAiMaxCharsSingleFeedArticleCommitted,
                     valueRange = 200f..3000f,
-                    steps = 28
+                    steps = 28,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_ai_limit_single_feed_article),
+                    onHelpRequest = onHelpRequest
                 )
                 SettingsIntSliderItem(
                     label = stringResource(R.string.settings_ai_chars_feed_cluster, aiMaxCharsFeedCluster.toInt()),
@@ -489,7 +571,10 @@ internal fun SettingsAiProcessingGroupContent(
                     onValueChange = onAiMaxCharsFeedClusterChange,
                     onValueChangeFinished = onAiMaxCharsFeedClusterCommitted,
                     valueRange = 200f..3000f,
-                    steps = 28
+                    steps = 28,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_ai_limit_feed_cluster),
+                    onHelpRequest = onHelpRequest
                 )
                 SettingsIntSliderItem(
                     label = stringResource(R.string.settings_ai_chars_total, aiMaxCharsTotal.toInt()),
@@ -497,7 +582,10 @@ internal fun SettingsAiProcessingGroupContent(
                     onValueChange = onAiMaxCharsTotalChange,
                     onValueChangeFinished = onAiMaxCharsTotalCommitted,
                     valueRange = 2000f..50000f,
-                    steps = 95
+                    steps = 95,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_ai_limit_total),
+                    onHelpRequest = onHelpRequest
                 )
             }
         }
@@ -505,9 +593,7 @@ internal fun SettingsAiProcessingGroupContent(
         SettingsSection(
             title = stringResource(R.string.settings_adaptive_summary),
             boxed = true,
-            isHelpMode = isHelpMode,
-            helpDescription = stringResource(R.string.settings_help_section_adaptive_summary),
-            onHelpRequest = onHelpRequest
+            isHelpMode = isHelpMode
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SettingsIntSliderItem(
@@ -519,7 +605,10 @@ internal fun SettingsAiProcessingGroupContent(
                     onValueChange = onAdaptiveExtractiveOnlyBelowCharsChange,
                     onValueChangeFinished = onAdaptiveExtractiveOnlyBelowCharsCommitted,
                     valueRange = 300f..3000f,
-                    steps = 53
+                    steps = 53,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_adaptive_first_range),
+                    onHelpRequest = onHelpRequest
                 )
                 SettingsIntSliderItem(
                     label = stringResource(
@@ -531,16 +620,29 @@ internal fun SettingsAiProcessingGroupContent(
                     onValueChange = onAdaptiveExtractiveHighCompressionAboveCharsChange,
                     onValueChangeFinished = onAdaptiveExtractiveHighCompressionAboveCharsCommitted,
                     valueRange = 1000f..6000f,
-                    steps = 99
+                    steps = 99,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_adaptive_second_range),
+                    onHelpRequest = onHelpRequest
                 )
-                Text(
-                    text = stringResource(
+                SettingsHelpTarget(
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_adaptive_third_range),
+                    onHelpRequest = onHelpRequest,
+                    contentDescription = stringResource(
                         R.string.settings_adaptive_extractive_third_range,
                         adaptiveExtractiveHighCompressionAboveChars.toInt()
-                    ),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                    )
+                ) {
+                    Text(
+                        text = stringResource(
+                            R.string.settings_adaptive_extractive_third_range,
+                            adaptiveExtractiveHighCompressionAboveChars.toInt()
+                        ),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
                 SettingsIntSliderItem(
                     label = stringResource(
                         R.string.settings_adaptive_extractive_compression_percent_first,
@@ -550,7 +652,10 @@ internal fun SettingsAiProcessingGroupContent(
                     onValueChange = onAdaptiveExtractiveCompressionPercentFirstChange,
                     onValueChangeFinished = onAdaptiveExtractiveCompressionPercentFirstCommitted,
                     valueRange = 0f..90f,
-                    steps = 89
+                    steps = 89,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_adaptive_first_percent),
+                    onHelpRequest = onHelpRequest
                 )
                 SettingsIntSliderItem(
                     label = stringResource(
@@ -561,7 +666,10 @@ internal fun SettingsAiProcessingGroupContent(
                     onValueChange = onAdaptiveExtractiveCompressionPercentMediumChange,
                     onValueChangeFinished = onAdaptiveExtractiveCompressionPercentMediumCommitted,
                     valueRange = 10f..90f,
-                    steps = 79
+                    steps = 79,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_adaptive_second_percent),
+                    onHelpRequest = onHelpRequest
                 )
                 SettingsIntSliderItem(
                     label = stringResource(
@@ -572,7 +680,10 @@ internal fun SettingsAiProcessingGroupContent(
                     onValueChange = onAdaptiveExtractiveCompressionPercentHighChange,
                     onValueChangeFinished = onAdaptiveExtractiveCompressionPercentHighCommitted,
                     valueRange = 10f..90f,
-                    steps = 79
+                    steps = 79,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_adaptive_third_percent),
+                    onHelpRequest = onHelpRequest
                 )
             }
         }
@@ -605,30 +716,40 @@ internal fun SettingsFeedGroupContent(
         SettingsSection(
             title = stringResource(R.string.settings_feed_display),
             boxed = true,
-            isHelpMode = isHelpMode,
-            helpDescription = stringResource(R.string.settings_help_section_feed),
-            onHelpRequest = onHelpRequest
+            isHelpMode = isHelpMode
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SettingsToggleRow(
                     label = stringResource(R.string.settings_feed_media),
                     checked = userPreferences.isFeedMediaEnabled,
-                    onCheckedChange = onFeedMediaEnabledChange
+                    onCheckedChange = onFeedMediaEnabledChange,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_feed_media),
+                    onHelpRequest = onHelpRequest
                 )
                 SettingsToggleRow(
                     label = stringResource(R.string.settings_feed_description),
                     checked = userPreferences.isFeedDescriptionEnabled,
-                    onCheckedChange = onFeedDescriptionEnabledChange
+                    onCheckedChange = onFeedDescriptionEnabledChange,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_feed_description),
+                    onHelpRequest = onHelpRequest
                 )
                 SettingsToggleRow(
                     label = stringResource(R.string.settings_feed_summary_use_full_text),
                     checked = userPreferences.isFeedSummaryUseFullTextEnabled,
-                    onCheckedChange = onFeedSummaryUseFullTextEnabledChange
+                    onCheckedChange = onFeedSummaryUseFullTextEnabledChange,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_feed_full_text),
+                    onHelpRequest = onHelpRequest
                 )
                 SettingsToggleRow(
                     label = stringResource(R.string.settings_enable_importance_filter),
                     checked = userPreferences.isImportanceFilterEnabled,
-                    onCheckedChange = onImportanceFilterEnabledChange
+                    onCheckedChange = onImportanceFilterEnabledChange,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_feed_importance_filter),
+                    onHelpRequest = onHelpRequest
                 )
             }
         }
@@ -636,53 +757,65 @@ internal fun SettingsFeedGroupContent(
         SettingsSection(
             title = stringResource(R.string.settings_deduplication),
             boxed = true,
-            isHelpMode = isHelpMode,
-            helpDescription = stringResource(R.string.settings_help_section_feed),
-            onHelpRequest = onHelpRequest
+            isHelpMode = isHelpMode
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = stringResource(R.string.settings_deduplication_strategy),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    val strategies = listOf(
-                        DeduplicationStrategy.LOCAL to R.string.ai_strategy_local,
-                        DeduplicationStrategy.CLOUD to R.string.ai_strategy_cloud
-                    )
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        strategies.forEachIndexed { index, (strategy, labelRes) ->
-                            SegmentedButton(
-                                shape = SegmentedButtonDefaults.itemShape(index = index, count = strategies.size),
-                                onClick = { onDeduplicationStrategyChange(strategy) },
-                                selected = userPreferences.deduplicationStrategy == strategy
-                            ) {
-                                Text(
-                                    text = stringResource(labelRes),
-                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                SettingsHelpTarget(
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_dedup_strategy_group),
+                    onHelpRequest = onHelpRequest,
+                    contentDescription = stringResource(R.string.settings_deduplication_strategy)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = stringResource(R.string.settings_deduplication_strategy),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        val strategies = listOf(
+                            DeduplicationStrategy.LOCAL to R.string.ai_strategy_local,
+                            DeduplicationStrategy.CLOUD to R.string.ai_strategy_cloud
+                        )
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            strategies.forEachIndexed { index, (strategy, labelRes) ->
+                                val label = stringResource(labelRes)
+                                SegmentedButton(
+                                    shape = SegmentedButtonDefaults.itemShape(index = index, count = strategies.size),
+                                    onClick = { onDeduplicationStrategyChange(strategy) },
+                                    selected = userPreferences.deduplicationStrategy == strategy
+                                ) {
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
+                        Text(
+                            text = stringResource(R.string.settings_deduplication_strategy_recalculate_note),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    Text(
-                        text = stringResource(R.string.settings_deduplication_strategy_recalculate_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
 
                 SettingsToggleRow(
                     label = stringResource(R.string.settings_enable_deduplication),
                     checked = userPreferences.isDeduplicationEnabled,
-                    onCheckedChange = onDeduplicationEnabledChange
+                    onCheckedChange = onDeduplicationEnabledChange,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_dedup_enabled),
+                    onHelpRequest = onHelpRequest
                 )
                 SettingsToggleRow(
                     label = stringResource(R.string.settings_hide_single_news),
                     checked = userPreferences.isHideSingleNewsEnabled,
-                    onCheckedChange = onHideSingleNewsEnabledChange
+                    onCheckedChange = onHideSingleNewsEnabledChange,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_hide_single_news),
+                    onHelpRequest = onHelpRequest
                 )
 
                 SettingsFloatSliderItem(
@@ -694,7 +827,10 @@ internal fun SettingsFeedGroupContent(
                     onValueChange = { onLocalDeduplicationThresholdChange(it.roundDeduplicationThreshold()) },
                     onValueChangeFinished = onLocalDeduplicationThresholdCommitted,
                     valueRange = DEDUPLICATION_THRESHOLD_MIN..DEDUPLICATION_THRESHOLD_MAX,
-                    steps = DEDUPLICATION_THRESHOLD_SLIDER_STEPS
+                    steps = DEDUPLICATION_THRESHOLD_SLIDER_STEPS,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_local_dedup_threshold),
+                    onHelpRequest = onHelpRequest
                 )
                 SettingsFloatSliderItem(
                     label = stringResource(
@@ -705,7 +841,10 @@ internal fun SettingsFeedGroupContent(
                     onValueChange = { onCloudDeduplicationThresholdChange(it.roundDeduplicationThreshold()) },
                     onValueChangeFinished = onCloudDeduplicationThresholdCommitted,
                     valueRange = DEDUPLICATION_THRESHOLD_MIN..DEDUPLICATION_THRESHOLD_MAX,
-                    steps = DEDUPLICATION_THRESHOLD_SLIDER_STEPS
+                    steps = DEDUPLICATION_THRESHOLD_SLIDER_STEPS,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_cloud_dedup_threshold),
+                    onHelpRequest = onHelpRequest
                 )
                 SettingsIntSliderItem(
                     label = stringResource(R.string.settings_min_mentions, minMentions.toInt()),
@@ -713,7 +852,10 @@ internal fun SettingsFeedGroupContent(
                     onValueChange = onMinMentionsChange,
                     onValueChangeFinished = onMinMentionsCommitted,
                     valueRange = 1f..10f,
-                    steps = 8
+                    steps = 8,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_min_mentions),
+                    onHelpRequest = onHelpRequest
                 )
             }
         }

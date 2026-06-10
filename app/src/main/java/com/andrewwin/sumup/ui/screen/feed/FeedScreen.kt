@@ -61,6 +61,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -103,10 +105,17 @@ fun FeedScreen(
     val focusManager = LocalFocusManager.current
     val imeVisible = WindowInsets.isImeVisible
     val feedAiHelpDescription = stringResource(R.string.feed_help_ai_fab)
+    val feedSearchHelpDescription = stringResource(R.string.feed_help_search)
+    val feedPdfHelpDescription = stringResource(R.string.feed_help_pdf_export)
     val feedFiltersHelpDescription = stringResource(R.string.feed_help_filters)
     val feedProcessingHelpDescription = stringResource(R.string.feed_help_processing)
     val feedEmptyHelpDescription = stringResource(R.string.feed_help_empty)
     val feedCardHelpDescription = stringResource(R.string.feed_help_article_card)
+    val feedSearchContentDescription = stringResource(R.string.feed_cd_search)
+    val feedPdfContentDescription = stringResource(R.string.feed_cd_pdf_export)
+    val feedFiltersContentDescription = stringResource(R.string.feed_cd_filters)
+    val feedFabContentDescription = stringResource(R.string.feed_cd_ai_fab)
+    val feedBackToTopContentDescription = stringResource(R.string.feed_cd_back_to_top)
 
     val sortedArticleClusters = remember(articleClusters) {
         articleClusters.map { cluster ->
@@ -201,7 +210,12 @@ fun FeedScreen(
                     enter = fadeIn() + scaleIn(),
                     exit = fadeOut() + scaleOut()
                 ) {
-                    AppBackToTopFab(onClick = { scope.launch { listState.animateScrollToItem(0) } })
+                    AppBackToTopFab(
+                        onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                        modifier = Modifier.semantics {
+                            contentDescription = feedBackToTopContentDescription
+                        }
+                    )
                 }
                 AppProminentFab(
                     enabled = isFeedAiEnabled,
@@ -211,6 +225,9 @@ fun FeedScreen(
                         } else {
                             onOpenAiFeedSummary(sortedArticleClusters.map { it.representative.article.id })
                         }
+                    },
+                    modifier = Modifier.semantics {
+                        contentDescription = feedFabContentDescription
                     }
                 ) {
                     Icon(
@@ -241,32 +258,34 @@ fun FeedScreen(
                 verticalArrangement = Arrangement.spacedBy(AppDimens.ScreenSectionSpacing)
             ) {
                 item {
-                    AppHelpOverlayTarget(
-                        isEnabled = isHelpMode,
-                        description = feedFiltersHelpDescription,
-                        onShowDescription = { helpDescription = it }
-                    ) {
-                        FeedFilters(
-                            searchQuery = searchQuery,
-                            onSearchQueryChange = viewModel::onSearchQueryChange,
-                            onSearchFocusChanged = { focused ->
-                                if (focused) isSearchFocused = true
-                            },
-                            dateFilter = dateFilter,
-                            onDateFilterChange = viewModel::setDateFilter,
-                            savedFilter = savedFilter,
-                            onSavedFilterChange = viewModel::setSavedFilter,
-                            selectedGroupId = selectedGroupId,
-                            onGroupSelect = viewModel::selectGroup,
-                            groups = groups,
-                            onExportPdf = {
-                                val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                                val name = context.getString(R.string.feed_pdf_file_name, date)
-                                exportLauncher.launch(name)
-                            },
-                            isExportEnabled = sortedArticleClusters.isNotEmpty()
-                        )
-                    }
+                    FeedFilters(
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = viewModel::onSearchQueryChange,
+                        onSearchFocusChanged = { focused ->
+                            if (focused) isSearchFocused = true
+                        },
+                        dateFilter = dateFilter,
+                        onDateFilterChange = viewModel::setDateFilter,
+                        savedFilter = savedFilter,
+                        onSavedFilterChange = viewModel::setSavedFilter,
+                        selectedGroupId = selectedGroupId,
+                        onGroupSelect = viewModel::selectGroup,
+                        groups = groups,
+                        onExportPdf = {
+                            val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                            val name = context.getString(R.string.feed_pdf_file_name, date)
+                            exportLauncher.launch(name)
+                        },
+                        isExportEnabled = sortedArticleClusters.isNotEmpty(),
+                        isHelpMode = isHelpMode,
+                        searchHelpDescription = feedSearchHelpDescription,
+                        pdfHelpDescription = feedPdfHelpDescription,
+                        filtersHelpDescription = feedFiltersHelpDescription,
+                        onShowHelpDescription = { helpDescription = it },
+                        searchContentDescription = feedSearchContentDescription,
+                        pdfContentDescription = feedPdfContentDescription,
+                        filtersContentDescription = feedFiltersContentDescription
+                    )
                 }
 
                 if (sortedArticleClusters.isEmpty() && loadingStage == null && !isBuildingFeed) {

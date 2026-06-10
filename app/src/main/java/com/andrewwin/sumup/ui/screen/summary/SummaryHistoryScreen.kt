@@ -39,6 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
@@ -101,9 +103,16 @@ fun SummaryHistoryScreen(
     }
     var wasImeVisible by remember { mutableStateOf(false) }
 
+    val summaryHistorySearchHelpDescription = stringResource(R.string.summary_help_history_search)
+    val summaryHistoryPdfHelpDescription = stringResource(R.string.summary_help_history_pdf_export)
     val summaryHistoryFiltersHelpDescription = stringResource(R.string.summary_help_history_filters)
     val summaryHistoryCardHelpDescription = stringResource(R.string.summary_help_history_card)
+    val summaryHistoryBackToTopHelpDescription = stringResource(R.string.summary_help_history_fab_top)
     val closeHistoryDescription = stringResource(R.string.summary_history_close)
+    val summaryHistorySearchContentDescription = stringResource(R.string.summary_cd_history_search)
+    val summaryHistoryPdfContentDescription = stringResource(R.string.summary_cd_history_pdf_export)
+    val summaryHistoryFiltersContentDescription = stringResource(R.string.summary_cd_history_filters)
+    val summaryHistoryBackToTopContentDescription = stringResource(R.string.summary_cd_history_back_to_top)
     val selectionClearDescription = stringResource(R.string.summary_selection_clear)
     val selectionDeleteDescription = stringResource(R.string.summary_selection_delete)
     val selectionSelectAllDescription = stringResource(R.string.summary_selection_select_all)
@@ -205,7 +214,15 @@ fun SummaryHistoryScreen(
         },
         floatingActionButton = {
             if (showHistoryBackToTop) {
-                AppBackToTopFab(onClick = { scope.launch { historyListState.animateScrollToItem(0) } })
+                AppBackToTopFab(onClick = {
+                    if (isHelpMode) {
+                        helpDescription = summaryHistoryBackToTopHelpDescription
+                    } else {
+                        scope.launch { historyListState.animateScrollToItem(0) }
+                    }
+                }, modifier = Modifier.semantics {
+                    contentDescription = summaryHistoryBackToTopContentDescription
+                })
             }
         }
     ) { innerPadding ->
@@ -247,9 +264,14 @@ fun SummaryHistoryScreen(
                 else selectedSummaryIds.add(summary.id)
             },
             isHelpMode = isHelpMode,
+            historySearchHelpDescription = summaryHistorySearchHelpDescription,
+            historyPdfHelpDescription = summaryHistoryPdfHelpDescription,
             historyFiltersHelpDescription = summaryHistoryFiltersHelpDescription,
             historyCardHelpDescription = summaryHistoryCardHelpDescription,
-            onShowHelpDescription = { helpDescription = it }
+            onShowHelpDescription = { helpDescription = it },
+            searchContentDescription = summaryHistorySearchContentDescription,
+            pdfContentDescription = summaryHistoryPdfContentDescription,
+            filtersContentDescription = summaryHistoryFiltersContentDescription
         )
 
         if (openedHistorySummary != null) {

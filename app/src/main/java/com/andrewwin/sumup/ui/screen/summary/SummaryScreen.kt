@@ -44,6 +44,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.andrewwin.sumup.R
@@ -83,7 +85,15 @@ fun SummaryScreen(
     val summaryHistoryFabHelpDescription = stringResource(R.string.summary_help_history_fab)
     val summaryStatusHelpDescription = stringResource(R.string.summary_help_status)
     val summaryLatestHelpDescription = stringResource(R.string.summary_help_latest)
+    val summaryTabsHelpDescription = stringResource(R.string.summary_help_tabs)
+    val summaryStatisticsFiltersHelpDescription = stringResource(R.string.summary_help_statistics_filters)
     val summaryChartHelpDescription = stringResource(R.string.summary_help_chart)
+    val summaryTabsContentDescription = stringResource(R.string.summary_cd_tabs)
+    val summaryFabContentDescription = stringResource(R.string.summary_cd_history_fab)
+    val summaryStatusContentDescription = stringResource(R.string.summary_cd_status)
+    val summaryLatestContentDescription = stringResource(R.string.summary_cd_latest)
+    val summaryStatisticsFiltersContentDescription = stringResource(R.string.summary_cd_statistics_filters)
+    val summaryStatisticsArticlesContentDescription = stringResource(R.string.summary_cd_statistics_articles)
     val summaries by viewModel.summaries.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
     val activeSummaryModelName by viewModel.activeSummaryModelName.collectAsState()
@@ -162,7 +172,10 @@ fun SummaryScreen(
                     ) {
                         AppProminentFab(
                             enabled = hasAnySummaries,
-                            onClick = onOpenSummaryHistory
+                            onClick = onOpenSummaryHistory,
+                            modifier = Modifier.semantics {
+                                contentDescription = summaryFabContentDescription
+                            }
                         ) {
                             Icon(
                                 Icons.Default.History,
@@ -185,28 +198,37 @@ fun SummaryScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             item {
-                TabRow(
-                    selectedTabIndex = selectedTabIndex,
-                    containerColor = Color.Transparent
+                AppHelpOverlayTarget(
+                    isEnabled = isHelpMode,
+                    description = summaryTabsHelpDescription,
+                    onShowDescription = { helpDescription = it }
                 ) {
-                    tabIcons.forEachIndexed { index, icon ->
-                        LeadingIconTab(
-                            selected = selectedTabIndex == index,
-                            onClick = { selectedTabIndex = index },
-                            text = {
-                                Text(
-                                    text = tabLabels[index],
-                                    style = MaterialTheme.typography.labelLarge
-                                )
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        )
+                    TabRow(
+                        selectedTabIndex = selectedTabIndex,
+                        containerColor = Color.Transparent,
+                        modifier = Modifier.semantics {
+                            contentDescription = summaryTabsContentDescription
+                        }
+                    ) {
+                        tabIcons.forEachIndexed { index, icon ->
+                            LeadingIconTab(
+                                selected = selectedTabIndex == index,
+                                onClick = { selectedTabIndex = index },
+                                text = {
+                                    Text(
+                                        text = tabLabels[index],
+                                        style = MaterialTheme.typography.labelLarge
+                                    )
+                                },
+                                icon = {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -218,7 +240,13 @@ fun SummaryScreen(
                         description = summaryStatusHelpDescription,
                         onShowDescription = { helpDescription = it }
                     ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics {
+                                    contentDescription = summaryStatusContentDescription
+                                }
+                        ) {
                             PrevNextStatusRow(
                                 previousSummaryAt = lastSummary?.createdAt,
                                 isScheduledEnabled = userPreferences.isScheduledSummaryEnabled,
@@ -239,7 +267,13 @@ fun SummaryScreen(
                             description = summaryLatestHelpDescription,
                             onShowDescription = { helpDescription = it }
                         ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .semantics {
+                                        contentDescription = summaryLatestContentDescription
+                                    }
+                            ) {
                                 LatestScheduledSummaryView(
                                     summary = lastSummary,
                                     activeSummaryModelName = activeSummaryModelName,
@@ -262,20 +296,24 @@ fun SummaryScreen(
 
             if (selectedTabIndex == 1) {
                 item {
-                    AppHelpOverlayTarget(
-                        isEnabled = isHelpMode,
-                        description = summaryChartHelpDescription,
-                        onShowDescription = { helpDescription = it }
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            SummaryChart(
-                                items = chartData,
-                                currentType = chartType,
-                                onTypeChange = viewModel::setChartType,
-                                isModelEnabled = isVectorizationEnabled,
-                                onOpenWebView = onOpenWebView
-                            )
-                        }
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        SummaryChart(
+                            items = chartData,
+                            currentType = chartType,
+                            onTypeChange = viewModel::setChartType,
+                            isModelEnabled = isVectorizationEnabled,
+                            onOpenWebView = onOpenWebView,
+                            isHelpMode = isHelpMode,
+                            filtersHelpDescription = summaryStatisticsFiltersHelpDescription,
+                            itemsHelpDescription = summaryChartHelpDescription,
+                            onShowHelpDescription = { helpDescription = it },
+                            filtersModifier = Modifier.semantics {
+                                contentDescription = summaryStatisticsFiltersContentDescription
+                            },
+                            itemsModifier = Modifier.semantics {
+                                contentDescription = summaryStatisticsArticlesContentDescription
+                            }
+                        )
                     }
                 }
             }

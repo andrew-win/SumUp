@@ -372,7 +372,10 @@ internal fun SettingsScreen(
                     navigationIcon = {
                         if (settingsGroup != null) {
                             androidx.compose.material3.IconButton(onClick = onNavigateBack) {
-                                androidx.compose.material3.Icon(Icons.Default.ArrowBack, contentDescription = null)
+                                androidx.compose.material3.Icon(
+                                    Icons.Default.ArrowBack,
+                                    contentDescription = stringResource(R.string.back)
+                                )
                             }
                         }
                     },
@@ -937,7 +940,7 @@ private fun SettingsGroup.searchableTextResIds(): List<Int> = when (this) {
 private fun settingsGroupHelpDescription(resources: Resources, group: SettingsGroup): String {
     return when (group) {
         SettingsGroup.ACCOUNT -> resources.getString(R.string.settings_help_account)
-        SettingsGroup.TRANSFER -> resources.getString(R.string.settings_help_account)
+        SettingsGroup.TRANSFER -> resources.getString(R.string.settings_help_transfer)
         SettingsGroup.AI_PROCESSING -> resources.getString(R.string.settings_help_ai_processing)
         SettingsGroup.API_KEYS -> resources.getString(R.string.settings_help_api_keys)
         SettingsGroup.RECOMMENDATIONS -> resources.getString(R.string.settings_help_recommendations)

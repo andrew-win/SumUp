@@ -39,6 +39,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -81,9 +83,14 @@ internal fun SummaryHistoryListSection(
     onLongSelect: (Summary) -> Unit,
     onToggleSelect: (Summary) -> Unit,
     isHelpMode: Boolean,
+    historySearchHelpDescription: String,
+    historyPdfHelpDescription: String,
     historyFiltersHelpDescription: String,
     historyCardHelpDescription: String,
-    onShowHelpDescription: (String) -> Unit
+    onShowHelpDescription: (String) -> Unit,
+    searchContentDescription: String,
+    pdfContentDescription: String,
+    filtersContentDescription: String
 ) {
     LazyColumn(
         state = listState,
@@ -92,24 +99,26 @@ internal fun SummaryHistoryListSection(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            AppHelpOverlayTarget(
-                isEnabled = isHelpMode,
-                description = historyFiltersHelpDescription,
-                onShowDescription = onShowHelpDescription
-            ) {
-                SummaryHistoryFiltersRow(
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = onSearchQueryChange,
-                    onSearchFocusChanged = onSearchFocusChanged,
-                    dateFilter = dateFilter,
-                    onDateFilterChange = onDateFilterChange,
-                    savedFilter = savedFilter,
-                    onSavedFilterChange = onSavedFilterChange,
-                    onExportPdf = onExportPdf,
-                    isExportEnabled = isExportEnabled,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-            }
+            SummaryHistoryFiltersRow(
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange,
+                onSearchFocusChanged = onSearchFocusChanged,
+                dateFilter = dateFilter,
+                onDateFilterChange = onDateFilterChange,
+                savedFilter = savedFilter,
+                onSavedFilterChange = onSavedFilterChange,
+                onExportPdf = onExportPdf,
+                isExportEnabled = isExportEnabled,
+                modifier = Modifier.padding(bottom = 8.dp),
+                isHelpMode = isHelpMode,
+                historySearchHelpDescription = historySearchHelpDescription,
+                historyPdfHelpDescription = historyPdfHelpDescription,
+                historyFiltersHelpDescription = historyFiltersHelpDescription,
+                onShowHelpDescription = onShowHelpDescription,
+                searchContentDescription = searchContentDescription,
+                pdfContentDescription = pdfContentDescription,
+                filtersContentDescription = filtersContentDescription
+            )
         }
         if (summaries.isEmpty()) {
             item {
@@ -155,7 +164,15 @@ private fun SummaryHistoryFiltersRow(
     onSavedFilterChange: (HistorySavedFilter) -> Unit,
     onExportPdf: () -> Unit,
     isExportEnabled: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isHelpMode: Boolean = false,
+    historySearchHelpDescription: String = "",
+    historyPdfHelpDescription: String = "",
+    historyFiltersHelpDescription: String = "",
+    onShowHelpDescription: (String) -> Unit = {},
+    searchContentDescription: String = "",
+    pdfContentDescription: String = "",
+    filtersContentDescription: String = ""
 ) {
     var showDateMenu by remember { mutableStateOf(false) }
     var showSavedMenu by remember { mutableStateOf(false) }
@@ -166,62 +183,85 @@ private fun SummaryHistoryFiltersRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            AppSearchField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                placeholder = stringResource(R.string.summary_search_placeholder),
-                leadingIcon = Icons.Default.Search,
-                modifier = Modifier.weight(1f),
-                onFocusChanged = { focused ->
-                    if (focused) onSearchFocusChanged(true)
-                }
-            )
-            AppExportPdfButton(
-                onClick = onExportPdf,
-                enabled = isExportEnabled,
-                contentDescription = stringResource(R.string.export_feed_pdf)
-            )
+            AppHelpOverlayTarget(
+                isEnabled = isHelpMode,
+                description = historySearchHelpDescription,
+                onShowDescription = onShowHelpDescription,
+                modifier = Modifier.weight(1f)
+            ) {
+                AppSearchField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChange,
+                    placeholder = stringResource(R.string.summary_search_placeholder),
+                    leadingIcon = Icons.Default.Search,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { contentDescription = searchContentDescription },
+                    onFocusChanged = { focused ->
+                        if (focused) onSearchFocusChanged(true)
+                    }
+                )
+            }
+            AppHelpOverlayTarget(
+                isEnabled = isHelpMode,
+                description = historyPdfHelpDescription,
+                onShowDescription = onShowHelpDescription
+            ) {
+                AppExportPdfButton(
+                    onClick = onExportPdf,
+                    enabled = isExportEnabled,
+                    contentDescription = pdfContentDescription
+                )
+            }
         }
 
         Spacer(Modifier.height(16.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        AppHelpOverlayTarget(
+            isEnabled = isHelpMode,
+            description = historyFiltersHelpDescription,
+            onShowDescription = onShowHelpDescription
         ) {
-            SummaryHistoryFilterChip(
-                icon = Icons.Default.CalendarToday,
-                label = stringResource(dateFilter.labelRes),
-                onClick = { showDateMenu = true }
-            )
-            SummaryHistoryFilterChip(
-                icon = Icons.Default.Bookmark,
-                label = stringResource(savedFilter.labelRes),
-                onClick = { showSavedMenu = true }
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = filtersContentDescription },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SummaryHistoryFilterChip(
+                    icon = Icons.Default.CalendarToday,
+                    label = stringResource(dateFilter.labelRes),
+                    onClick = { showDateMenu = true }
+                )
+                SummaryHistoryFilterChip(
+                    icon = Icons.Default.Bookmark,
+                    label = stringResource(savedFilter.labelRes),
+                    onClick = { showSavedMenu = true }
+                )
 
-            DropdownMenu(expanded = showDateMenu, onDismissRequest = { showDateMenu = false }) {
-                HistoryDateFilter.entries.forEach { filter ->
-                    DropdownMenuItem(
-                        text = { Text(stringResource(filter.labelRes)) },
-                        onClick = {
-                            onDateFilterChange(filter)
-                            showDateMenu = false
-                        }
-                    )
+                DropdownMenu(expanded = showDateMenu, onDismissRequest = { showDateMenu = false }) {
+                    HistoryDateFilter.entries.forEach { filter ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(filter.labelRes)) },
+                            onClick = {
+                                onDateFilterChange(filter)
+                                showDateMenu = false
+                            }
+                        )
+                    }
                 }
-            }
 
-            DropdownMenu(expanded = showSavedMenu, onDismissRequest = { showSavedMenu = false }) {
-                HistorySavedFilter.entries.forEach { filter ->
-                    DropdownMenuItem(
-                        text = { Text(stringResource(filter.labelRes)) },
-                        onClick = {
-                            onSavedFilterChange(filter)
-                            showSavedMenu = false
-                        }
-                    )
+                DropdownMenu(expanded = showSavedMenu, onDismissRequest = { showSavedMenu = false }) {
+                    HistorySavedFilter.entries.forEach { filter ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(filter.labelRes)) },
+                            onClick = {
+                                onSavedFilterChange(filter)
+                                showSavedMenu = false
+                            }
+                        )
+                    }
                 }
             }
         }

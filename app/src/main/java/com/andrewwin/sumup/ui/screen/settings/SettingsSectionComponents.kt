@@ -25,6 +25,7 @@ fun SettingsSection(
     boxed: Boolean = false,
     isHelpMode: Boolean = false,
     helpDescription: String? = null,
+    helpOnHeaderOnly: Boolean = false,
     onHelpRequest: ((String) -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null,
     headerContent: @Composable (() -> Unit)? = null,
@@ -38,22 +39,35 @@ fun SettingsSection(
                 .padding(vertical = 2.dp)
         ) {
             if (hasHeader) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    if (title.isNotBlank()) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    } else {
-                        Spacer(modifier = Modifier)
+                val headerComposable: @Composable () -> Unit = {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        if (title.isNotBlank()) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        } else {
+                            Spacer(modifier = Modifier)
+                        }
+                        trailing?.invoke()
                     }
-                    trailing?.invoke()
+                }
+                if (helpOnHeaderOnly && !helpDescription.isNullOrBlank() && onHelpRequest != null) {
+                    AppHelpOverlayTarget(
+                        isEnabled = isHelpMode,
+                        description = helpDescription,
+                        onShowDescription = onHelpRequest
+                    ) {
+                        headerComposable()
+                    }
+                } else {
+                    headerComposable()
                 }
                 androidx.compose.material3.HorizontalDivider(
                     thickness = 0.5.dp,
@@ -80,7 +94,7 @@ fun SettingsSection(
                 }
             }
         }
-        if (!helpDescription.isNullOrBlank() && onHelpRequest != null) {
+        if (!helpOnHeaderOnly && !helpDescription.isNullOrBlank() && onHelpRequest != null) {
             AppHelpOverlayTarget(
                 isEnabled = isHelpMode,
                 description = helpDescription,

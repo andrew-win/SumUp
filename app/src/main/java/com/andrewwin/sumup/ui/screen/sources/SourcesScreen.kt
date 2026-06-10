@@ -100,6 +100,8 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
@@ -172,9 +174,19 @@ fun SourcesScreen(
         stringResource(R.string.sources_tab_custom),
         stringResource(R.string.sources_tab_presets)
     )
+    val tabsHelpDescription = stringResource(R.string.sources_help_tabs)
+    val searchHelpDescription = stringResource(R.string.sources_help_search)
+    val sortHelpDescription = stringResource(R.string.sources_help_sort)
     val addGroupHelpDescription = stringResource(R.string.sources_help_add_group)
-    val groupCardHelpDescription = stringResource(R.string.sources_help_group_card)
+    val groupsHelpDescription = stringResource(R.string.sources_help_groups_block)
     val suggestedThemesHelpDescription = stringResource(R.string.sources_help_recommended_themes)
+    val refreshThemesHelpDescription = stringResource(R.string.sources_help_refresh_themes)
+    val tabsContentDescription = stringResource(R.string.sources_cd_tabs)
+    val searchContentDescription = stringResource(R.string.sources_cd_search)
+    val sortContentDescription = stringResource(R.string.sources_cd_sort)
+    val groupsContentDescription = stringResource(R.string.sources_cd_groups)
+    val presetsContentDescription = stringResource(R.string.sources_cd_presets)
+    val refreshThemesContentDescription = stringResource(R.string.sources_cd_refresh_themes)
     val currentGroups = (uiState as? SourcesUiState.Content)?.groups.orEmpty()
     val selectAllDescription = stringResource(R.string.sources_selection_select_all)
 
@@ -293,44 +305,63 @@ fun SourcesScreen(
             verticalArrangement = Arrangement.spacedBy(AppDimens.ScreenItemSpacing)
         ) {
             item {
-                TabRow(
-                    selectedTabIndex = selectedTabIndex,
-                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                AppHelpOverlayTarget(
+                    isEnabled = isHelpMode,
+                    description = tabsHelpDescription,
+                    onShowDescription = { helpDescription = it }
                 ) {
-                    tabIcons.forEachIndexed { index, icon ->
-                        LeadingIconTab(
-                            selected = selectedTabIndex == index,
-                            onClick = { selectedTabIndex = index },
-                            text = {
-                                Text(
-                                    text = tabLabels[index],
-                                    style = MaterialTheme.typography.labelLarge
-                                )
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
+                    TabRow(
+                        selectedTabIndex = selectedTabIndex,
+                        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                        modifier = Modifier
+                            .padding(bottom = 8.dp)
+                            .semantics {
+                                contentDescription = tabsContentDescription
                             }
-                        )
+                    ) {
+                        tabIcons.forEachIndexed { index, icon ->
+                            LeadingIconTab(
+                                selected = selectedTabIndex == index,
+                                onClick = { selectedTabIndex = index },
+                                text = {
+                                    Text(
+                                        text = tabLabels[index],
+                                        style = MaterialTheme.typography.labelLarge
+                                    )
+                                },
+                                icon = {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            )
+                        }
                     }
                 }
             }
 
             if (selectedTabIndex == 0) {
                 item {
-                    AppSearchField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.onSearchQueryChange(it) },
-                        placeholder = stringResource(R.string.sources_search_placeholder),
-                        leadingIcon = Icons.Default.Search,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp)
-                    )
+                    AppHelpOverlayTarget(
+                        isEnabled = isHelpMode,
+                        description = searchHelpDescription,
+                        onShowDescription = { helpDescription = it }
+                    ) {
+                        AppSearchField(
+                            value = searchQuery,
+                            onValueChange = { viewModel.onSearchQueryChange(it) },
+                            placeholder = stringResource(R.string.sources_search_placeholder),
+                            leadingIcon = Icons.Default.Search,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                                .semantics {
+                                    contentDescription = searchContentDescription
+                                }
+                        )
+                    }
                 }
 
                 item {
@@ -350,53 +381,62 @@ fun SourcesScreen(
                         val sortOrder by viewModel.sortOrder.collectAsState()
                         var showSortDropdown by remember { mutableStateOf(false) }
 
-                        Box {
-                            Row(
-                                modifier = Modifier
-                                    .heightIn(min = 44.dp)
-                                    .clickable { showSortDropdown = true }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = stringResource(
-                                        if (sortOrder == SourceSortOrder.BY_NAME) R.string.sources_sort_name
-                                        else R.string.sources_sort_date
-                                    ),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = Icons.Default.FilterList,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                )
-                            }
+                        AppHelpOverlayTarget(
+                            isEnabled = isHelpMode,
+                            description = sortHelpDescription,
+                            onShowDescription = { helpDescription = it }
+                        ) {
+                            Box {
+                                Row(
+                                    modifier = Modifier
+                                        .heightIn(min = 44.dp)
+                                        .clickable { showSortDropdown = true }
+                                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                                        .semantics {
+                                            contentDescription = sortContentDescription
+                                        },
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(
+                                            if (sortOrder == SourceSortOrder.BY_NAME) R.string.sources_sort_name
+                                            else R.string.sources_sort_date
+                                        ),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.FilterList,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
 
-                            DropdownMenu(
-                                expanded = showSortDropdown,
-                                onDismissRequest = { showSortDropdown = false },
-                                shape = MaterialTheme.shapes.large,
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.sources_sort_name)) },
-                                    onClick = {
-                                        viewModel.setSortOrder(SourceSortOrder.BY_NAME)
-                                        showSortDropdown = false
-                                    },
-                                    leadingIcon = { Icon(Icons.Default.SortByAlpha, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.sources_sort_date)) },
-                                    onClick = {
-                                        viewModel.setSortOrder(SourceSortOrder.BY_DATE)
-                                        showSortDropdown = false
-                                    },
-                                    leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                                )
+                                DropdownMenu(
+                                    expanded = showSortDropdown,
+                                    onDismissRequest = { showSortDropdown = false },
+                                    shape = MaterialTheme.shapes.large,
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.sources_sort_name)) },
+                                        onClick = {
+                                            viewModel.setSortOrder(SourceSortOrder.BY_NAME)
+                                            showSortDropdown = false
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.SortByAlpha, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.sources_sort_date)) },
+                                        onClick = {
+                                            viewModel.setSortOrder(SourceSortOrder.BY_DATE)
+                                            showSortDropdown = false
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -416,53 +456,60 @@ fun SourcesScreen(
                         }
                     }
                     is SourcesUiState.Content -> {
-                        if (sourcesState.groups.isEmpty()) {
-                            item {
-                                Text(
-                                    text = stringResource(R.string.sources_groups_empty),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp)
-                                )
-                            }
-                        } else {
-                            items(sourcesState.groups, key = { it.group.id }) { groupWithSources ->
-                                AppHelpOverlayTarget(
-                                    isEnabled = isHelpMode,
-                                    description = groupCardHelpDescription,
-                                    onShowDescription = { helpDescription = it }
+                        item {
+                            AppHelpOverlayTarget(
+                                isEnabled = isHelpMode,
+                                description = groupsHelpDescription,
+                                onShowDescription = { helpDescription = it }
+                            ) {
+                                Column(
+                                    modifier = Modifier.semantics {
+                                        contentDescription = groupsContentDescription
+                                    },
+                                    verticalArrangement = Arrangement.spacedBy(AppDimens.ScreenItemSpacing)
                                 ) {
-                                    GroupCard(
-                                        groupWithSources = groupWithSources,
-                                        isSelected = selectedGroupIds.contains(groupWithSources.group.id),
-                                        isSelectionMode = isGroupSelectionMode,
-                                        onLongSelectGroup = {
-                                            if (isSourceSelectionMode) return@GroupCard
-                                            val id = groupWithSources.group.id
-                                            if (!selectedGroupIds.contains(id)) selectedGroupIds.add(id)
-                                        },
-                                        onToggleSelectGroup = {
-                                            if (isSourceSelectionMode) return@GroupCard
-                                            val id = groupWithSources.group.id
-                                            if (selectedGroupIds.contains(id)) selectedGroupIds.remove(id) else selectedGroupIds.add(id)
-                                        },
-                                        selectedSourceIds = selectedSourceIds.toSet(),
-                                        isSourceSelectionMode = isSourceSelectionMode,
-                                        onLongSelectSource = { source ->
-                                            if (!selectedSourceIds.contains(source.id)) selectedSourceIds.add(source.id)
-                                        },
-                                        onToggleSelectSource = { source ->
-                                            val id = source.id
-                                            if (selectedSourceIds.contains(id)) selectedSourceIds.remove(id) else selectedSourceIds.add(id)
-                                        },
-                                        onAddSource = { selectedGroupIdForSource = groupWithSources.group.id },
-                                        onToggleGroup = { viewModel.toggleGroup(groupWithSources.group, it) },
-                                        onEditGroup = { editGroup = it },
-                                        onDeleteGroup = { deleteGroupConfirm = it },
-                                        onToggleSource = { viewModel.updateSource(it) },
-                                        onEditSource = { editSource = it },
-                                        onDeleteSource = { deleteSourceConfirm = it }
-                                    )
+                                    if (sourcesState.groups.isEmpty()) {
+                                        Text(
+                                            text = stringResource(R.string.sources_groups_empty),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp)
+                                        )
+                                    } else {
+                                        sourcesState.groups.forEach { groupWithSources ->
+                                            GroupCard(
+                                                groupWithSources = groupWithSources,
+                                                isSelected = selectedGroupIds.contains(groupWithSources.group.id),
+                                                isSelectionMode = isGroupSelectionMode,
+                                                onLongSelectGroup = {
+                                                    if (isSourceSelectionMode) return@GroupCard
+                                                    val id = groupWithSources.group.id
+                                                    if (!selectedGroupIds.contains(id)) selectedGroupIds.add(id)
+                                                },
+                                                onToggleSelectGroup = {
+                                                    if (isSourceSelectionMode) return@GroupCard
+                                                    val id = groupWithSources.group.id
+                                                    if (selectedGroupIds.contains(id)) selectedGroupIds.remove(id) else selectedGroupIds.add(id)
+                                                },
+                                                selectedSourceIds = selectedSourceIds.toSet(),
+                                                isSourceSelectionMode = isSourceSelectionMode,
+                                                onLongSelectSource = { source ->
+                                                    if (!selectedSourceIds.contains(source.id)) selectedSourceIds.add(source.id)
+                                                },
+                                                onToggleSelectSource = { source ->
+                                                    val id = source.id
+                                                    if (selectedSourceIds.contains(id)) selectedSourceIds.remove(id) else selectedSourceIds.add(id)
+                                                },
+                                                onAddSource = { selectedGroupIdForSource = groupWithSources.group.id },
+                                                onToggleGroup = { viewModel.toggleGroup(groupWithSources.group, it) },
+                                                onEditGroup = { editGroup = it },
+                                                onDeleteGroup = { deleteGroupConfirm = it },
+                                                onToggleSource = { viewModel.updateSource(it) },
+                                                onEditSource = { editSource = it },
+                                                onDeleteSource = { deleteSourceConfirm = it }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -477,68 +524,87 @@ fun SourcesScreen(
                     val subscriptionsSyncFailed by viewModel.subscriptionsSyncFailed.collectAsState()
                     val isRefreshingThemeRecommendations by viewModel.isRefreshingThemeRecommendations.collectAsState()
 
-                    AppHelpOverlayTarget(
-                        isEnabled = isHelpMode,
-                        description = suggestedThemesHelpDescription,
-                        onShowDescription = { helpDescription = it }
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            if (subscriptionsSyncFailed) {
-                                Text(
-                                    text = stringResource(R.string.sources_sync_failed),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
-                                )
-                            }
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        AppHelpOverlayTarget(
+                            isEnabled = isHelpMode,
+                            description = suggestedThemesHelpDescription,
+                            onShowDescription = { helpDescription = it }
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .semantics {
+                                        contentDescription = presetsContentDescription
+                                    }
+                            ) {
+                                if (subscriptionsSyncFailed) {
+                                    Text(
+                                        text = stringResource(R.string.sources_sync_failed),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
+                                    )
+                                }
 
-                            suggestedThemes.chunked(2).forEach { rowItems ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    rowItems.forEach { suggestion ->
-                                        SuggestedThemeItem(
-                                            suggestion = suggestion,
-                                            appLanguage = appLanguage,
-                                            showRecommendedBadge = isRecommendationsEnabled,
-                                            modifier = Modifier.weight(1f),
-                                            onToggle = { isSubscribed ->
-                                                viewModel.toggleThemeSubscription(suggestion, isSubscribed)
-                                            }
+                                suggestedThemes.chunked(2).forEach { rowItems ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        rowItems.forEach { suggestion ->
+                                            SuggestedThemeItem(
+                                                suggestion = suggestion,
+                                                appLanguage = appLanguage,
+                                                showRecommendedBadge = isRecommendationsEnabled,
+                                                modifier = Modifier.weight(1f),
+                                                onToggle = { isSubscribed ->
+                                                    viewModel.toggleThemeSubscription(suggestion, isSubscribed)
+                                                }
+                                            )
+                                        }
+                                        if (rowItems.size == 1) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+
+                                if (isRefreshingThemeRecommendations) {
+                                    Row(
+                                        modifier = Modifier
+                                            .padding(start = 4.dp, top = 4.dp, bottom = 8.dp)
+                                            .animateContentSize(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(14.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = stringResource(R.string.sources_refreshing_recommendations),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    if (rowItems.size == 1) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
                                 }
                             }
+                        }
 
-                            if (isRefreshingThemeRecommendations) {
-                                Row(
-                                    modifier = Modifier
-                                        .padding(start = 4.dp, top = 4.dp, bottom = 8.dp)
-                                        .animateContentSize(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(14.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = stringResource(R.string.sources_refreshing_recommendations),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
+                        AppHelpOverlayTarget(
+                            isEnabled = isHelpMode,
+                            description = refreshThemesHelpDescription,
+                            onShowDescription = { helpDescription = it }
+                        ) {
                             FilledTonalButton(
                                 onClick = { viewModel.refreshSuggestedThemes(forceRefresh = true) },
                                 modifier = Modifier
                                     .align(Alignment.Start)
-                                    .padding(top = 8.dp),
+                                    .padding(top = 8.dp)
+                                    .semantics {
+                                        contentDescription = refreshThemesContentDescription
+                                    },
                                 shape = MaterialTheme.shapes.medium,
                                 colors = ButtonDefaults.filledTonalButtonColors(
                                     containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),

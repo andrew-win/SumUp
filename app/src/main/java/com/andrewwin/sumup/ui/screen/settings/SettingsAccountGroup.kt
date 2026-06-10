@@ -44,6 +44,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
@@ -85,87 +87,107 @@ fun SettingsAccountGroup(
         containerColor = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
     )
+    val logoutContentDescription = stringResource(R.string.settings_logout)
+    val signInContentDescription = stringResource(R.string.settings_account_login_btn)
+    val syncIntervalContentDescription = stringResource(R.string.settings_sync_interval_label)
+    val syncNowContentDescription = stringResource(R.string.settings_sync_now)
+    val syncPassphraseContentDescription = stringResource(R.string.settings_sync_passphrase_title)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SettingsSection(
             title = "",
             boxed = true,
-            isHelpMode = isHelpMode,
-            helpDescription = stringResource(R.string.settings_help_section_account_profile),
-            onHelpRequest = onHelpRequest
+            isHelpMode = isHelpMode
         ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp)
+            SettingsHelpTarget(
+                isHelpMode = isHelpMode,
+                helpDescription = stringResource(R.string.settings_help_section_account_profile),
+                onHelpRequest = onHelpRequest,
+                contentDescription = if (authUiState.isSignedIn) logoutContentDescription else signInContentDescription
             ) {
-                if (authUiState.isSignedIn) {
-                    Icon(
-                        imageVector = Icons.Default.AccountCircle,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = authUiState.displayName.ifBlank { stringResource(R.string.settings_user_name) },
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                    Text(
-                        text = authUiState.email.ifBlank { stringResource(R.string.settings_not_signed_in) },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Button(
-                        onClick = onSignInOutClick,
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = MaterialTheme.shapes.large,
-                        colors = unifiedButtonColors
-                    ) {
-                        Text(stringResource(R.string.settings_logout))
-                    }
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .border(
-                                border = appCardBorder(),
-                                shape = CircleShape
-                            )
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                shape = CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp)
+                ) {
+                    if (authUiState.isSignedIn) {
                         Icon(
-                            imageVector = Icons.Outlined.Person,
+                            imageVector = Icons.Default.AccountCircle,
                             contentDescription = null,
-                            modifier = Modifier.size(36.dp),
+                            modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.primary
                         )
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            text = stringResource(R.string.settings_account_login_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            textAlign = TextAlign.Center
+                            text = authUiState.displayName.ifBlank { stringResource(R.string.settings_user_name) },
+                            style = MaterialTheme.typography.titleLarge
                         )
                         Text(
-                            text = stringResource(R.string.settings_account_login_subtitle),
+                            text = authUiState.email.ifBlank { stringResource(R.string.settings_not_signed_in) },
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-                    Button(
-                        onClick = onSignInOutClick,
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = MaterialTheme.shapes.medium,
-                        colors = unifiedButtonColors
-                    ) {
-                        Text(
-                            text = stringResource(R.string.settings_account_login_btn),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                        Button(
+                            onClick = onSignInOutClick,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .semantics {
+                                    contentDescription = logoutContentDescription
+                                },
+                            shape = MaterialTheme.shapes.large,
+                            colors = unifiedButtonColors
+                        ) {
+                            Text(stringResource(R.string.settings_logout))
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .border(
+                                    border = appCardBorder(),
+                                    shape = CircleShape
+                                )
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Person,
+                                contentDescription = null,
+                                modifier = Modifier.size(36.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = stringResource(R.string.settings_account_login_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = stringResource(R.string.settings_account_login_subtitle),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                        Button(
+                            onClick = onSignInOutClick,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .semantics {
+                                    contentDescription = signInContentDescription
+                                },
+                            shape = MaterialTheme.shapes.medium,
+                            colors = unifiedButtonColors
+                        ) {
+                            Text(
+                                text = stringResource(R.string.settings_account_login_btn),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                     }
                 }
             }
@@ -173,55 +195,69 @@ fun SettingsAccountGroup(
         SettingsSection(
             title = stringResource(R.string.settings_sync),
             boxed = true,
-            isHelpMode = isHelpMode,
-            helpDescription = stringResource(R.string.settings_help_section_sync),
-            onHelpRequest = onHelpRequest
+            isHelpMode = isHelpMode
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = stringResource(R.string.settings_sync_strategy_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    val options = listOf(
-                        SyncConflictStrategy.OVERWRITE to R.string.settings_sync_strategy_overwrite,
-                        SyncConflictStrategy.MERGE to R.string.settings_sync_strategy_merge
-                    )
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        options.forEachIndexed { index, (value, labelRes) ->
-                            SegmentedButton(
-                                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-                                onClick = { onSyncStrategySelect(value) },
-                                selected = syncStrategy == value
-                            ) {
-                                Text(text = stringResource(labelRes))
+                SettingsHelpTarget(
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_sync_strategy_group),
+                    onHelpRequest = onHelpRequest,
+                    contentDescription = stringResource(R.string.settings_sync_strategy_title)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = stringResource(R.string.settings_sync_strategy_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        val options = listOf(
+                            SyncConflictStrategy.OVERWRITE to R.string.settings_sync_strategy_overwrite,
+                            SyncConflictStrategy.MERGE to R.string.settings_sync_strategy_merge
+                        )
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            options.forEachIndexed { index, (value, labelRes) ->
+                                val label = stringResource(labelRes)
+                                SegmentedButton(
+                                    shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                                    onClick = { onSyncStrategySelect(value) },
+                                    selected = syncStrategy == value
+                                ) {
+                                    Text(text = label)
+                                }
                             }
                         }
                     }
                 }
                 if (syncStrategy == SyncConflictStrategy.OVERWRITE) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = stringResource(R.string.settings_sync_overwrite_priority_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        val overwritePriorityOptions = listOf(
-                            SyncOverwritePriority.LOCAL to R.string.settings_sync_overwrite_priority_local,
-                            SyncOverwritePriority.CLOUD to R.string.settings_sync_overwrite_priority_cloud
-                        )
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                            overwritePriorityOptions.forEachIndexed { index, (value, labelRes) ->
-                                SegmentedButton(
-                                    shape = SegmentedButtonDefaults.itemShape(
-                                        index = index,
-                                        count = overwritePriorityOptions.size
-                                    ),
-                                    onClick = { onSyncOverwritePrioritySelect(value) },
-                                    selected = syncOverwritePriority == value
-                                ) {
-                                    Text(text = stringResource(labelRes))
+                    SettingsHelpTarget(
+                        isHelpMode = isHelpMode,
+                        helpDescription = stringResource(R.string.settings_help_sync_overwrite_priority_group),
+                        onHelpRequest = onHelpRequest,
+                        contentDescription = stringResource(R.string.settings_sync_overwrite_priority_title)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = stringResource(R.string.settings_sync_overwrite_priority_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            val overwritePriorityOptions = listOf(
+                                SyncOverwritePriority.LOCAL to R.string.settings_sync_overwrite_priority_local,
+                                SyncOverwritePriority.CLOUD to R.string.settings_sync_overwrite_priority_cloud
+                            )
+                            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                overwritePriorityOptions.forEachIndexed { index, (value, labelRes) ->
+                                    val label = stringResource(labelRes)
+                                    SegmentedButton(
+                                        shape = SegmentedButtonDefaults.itemShape(
+                                            index = index,
+                                            count = overwritePriorityOptions.size
+                                        ),
+                                        onClick = { onSyncOverwritePrioritySelect(value) },
+                                        selected = syncOverwritePriority == value
+                                    ) {
+                                        Text(text = label)
+                                    }
                                 }
                             }
                         }
@@ -230,58 +266,82 @@ fun SettingsAccountGroup(
                 SettingsBackupOptionRow(
                     title = stringResource(R.string.settings_sync_enabled),
                     checked = isCloudSyncEnabled,
-                    onCheckedChange = onSyncEnabledChange
+                    onCheckedChange = onSyncEnabledChange,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_sync_enabled),
+                    onHelpRequest = onHelpRequest
                 )
-                ExposedDropdownMenuBox(
-                    expanded = syncIntervalExpanded,
-                    onExpandedChange = { syncIntervalExpanded = !syncIntervalExpanded }
+                SettingsHelpTarget(
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_sync_interval),
+                    onHelpRequest = onHelpRequest,
+                    contentDescription = syncIntervalContentDescription
                 ) {
-                    OutlinedTextField(
-                        value = stringResource(R.string.settings_sync_interval_hours, syncIntervalHours),
-                        onValueChange = {},
-                        readOnly = true,
-                        modifier = Modifier.menuAnchor().fillMaxWidth(),
-                        label = { Text(stringResource(R.string.settings_sync_interval_label)) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = syncIntervalExpanded) },
-                        shape = MaterialTheme.shapes.large
-                    )
-                    DropdownMenu(
+                    ExposedDropdownMenuBox(
                         expanded = syncIntervalExpanded,
-                        onDismissRequest = { syncIntervalExpanded = false }
+                        onExpandedChange = { syncIntervalExpanded = !syncIntervalExpanded }
                     ) {
-                        listOf(1, 3, 6, 12, 24).forEach { h ->
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.settings_sync_interval_hours, h)) },
-                                onClick = { syncIntervalExpanded = false; onSyncIntervalSelect(h) }
-                            )
+                        OutlinedTextField(
+                            value = stringResource(R.string.settings_sync_interval_hours, syncIntervalHours),
+                            onValueChange = {},
+                            readOnly = true,
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth()
+                                .semantics {
+                                    contentDescription = syncIntervalContentDescription
+                                },
+                            label = { Text(stringResource(R.string.settings_sync_interval_label)) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = syncIntervalExpanded) },
+                            shape = MaterialTheme.shapes.large
+                        )
+                        DropdownMenu(
+                            expanded = syncIntervalExpanded,
+                            onDismissRequest = { syncIntervalExpanded = false }
+                        ) {
+                            listOf(1, 3, 6, 12, 24).forEach { h ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.settings_sync_interval_hours, h)) },
+                                    onClick = { syncIntervalExpanded = false; onSyncIntervalSelect(h) }
+                                )
+                            }
                         }
                     }
                 }
-                SettingsBackupCheckboxRow(
-                    title = stringResource(R.string.settings_backup_sources),
-                    checked = syncSelection.includeSources,
-                    onCheckedChange = { onSyncSelectionChange(syncSelection.copy(includeSources = it)) }
-                )
-                SettingsBackupCheckboxRow(
-                    title = stringResource(R.string.settings_backup_subscriptions),
-                    checked = syncSelection.includeSubscriptions,
-                    onCheckedChange = { onSyncSelectionChange(syncSelection.copy(includeSubscriptions = it)) }
-                )
-                SettingsBackupCheckboxRow(
-                    title = stringResource(R.string.settings_backup_saved_articles),
-                    checked = syncSelection.includeSavedArticles,
-                    onCheckedChange = { onSyncSelectionChange(syncSelection.copy(includeSavedArticles = it)) }
-                )
-                SettingsBackupCheckboxRow(
-                    title = stringResource(R.string.settings_backup_settings_no_api),
-                    checked = syncSelection.includeSettingsNoApi,
-                    onCheckedChange = { onSyncSelectionChange(syncSelection.copy(includeSettingsNoApi = it)) }
-                )
-                SettingsBackupCheckboxRow(
-                    title = stringResource(R.string.settings_backup_api_keys),
-                    checked = syncSelection.includeApiKeys,
-                    onCheckedChange = { onSyncSelectionChange(syncSelection.copy(includeApiKeys = it)) }
-                )
+                SettingsHelpTarget(
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_sync_selection_group),
+                    onHelpRequest = onHelpRequest,
+                    contentDescription = stringResource(R.string.settings_backup_sources)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        SettingsBackupCheckboxRow(
+                            title = stringResource(R.string.settings_backup_sources),
+                            checked = syncSelection.includeSources,
+                            onCheckedChange = { onSyncSelectionChange(syncSelection.copy(includeSources = it)) }
+                        )
+                        SettingsBackupCheckboxRow(
+                            title = stringResource(R.string.settings_backup_subscriptions),
+                            checked = syncSelection.includeSubscriptions,
+                            onCheckedChange = { onSyncSelectionChange(syncSelection.copy(includeSubscriptions = it)) }
+                        )
+                        SettingsBackupCheckboxRow(
+                            title = stringResource(R.string.settings_backup_saved_articles),
+                            checked = syncSelection.includeSavedArticles,
+                            onCheckedChange = { onSyncSelectionChange(syncSelection.copy(includeSavedArticles = it)) }
+                        )
+                        SettingsBackupCheckboxRow(
+                            title = stringResource(R.string.settings_backup_settings_no_api),
+                            checked = syncSelection.includeSettingsNoApi,
+                            onCheckedChange = { onSyncSelectionChange(syncSelection.copy(includeSettingsNoApi = it)) }
+                        )
+                        SettingsBackupCheckboxRow(
+                            title = stringResource(R.string.settings_backup_api_keys),
+                            checked = syncSelection.includeApiKeys,
+                            onCheckedChange = { onSyncSelectionChange(syncSelection.copy(includeApiKeys = it)) }
+                        )
+                    }
+                }
                 SyncPassphraseField(
                     isHelpMode = isHelpMode,
                     hasSyncPassphrase = hasSyncPassphrase,
@@ -292,7 +352,12 @@ fun SettingsAccountGroup(
                     Button(
                         onClick = onSyncNowClick,
                         enabled = isCloudSyncEnabled && transferState !is TransferState.Working,
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .semantics {
+                                contentDescription = syncNowContentDescription
+                            },
                         shape = MaterialTheme.shapes.extraLarge,
                         colors = unifiedButtonColors
                     ) {
@@ -300,20 +365,27 @@ fun SettingsAccountGroup(
                         Spacer(Modifier.size(8.dp))
                         Text(stringResource(R.string.settings_sync_now))
                     }
-                    Text(
-                        text = if (lastSyncAt > 0L) {
-                            stringResource(
-                                R.string.settings_sync_last_time,
-                                formatLastSyncDateTime(lastSyncAt)
-                            )
-                        } else {
-                            stringResource(R.string.settings_sync_last_time_never)
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    SettingsHelpTarget(
+                        isHelpMode = isHelpMode,
+                        helpDescription = stringResource(R.string.settings_help_sync_last_sync),
+                        onHelpRequest = onHelpRequest,
+                        contentDescription = stringResource(R.string.settings_sync_last_time_never)
+                    ) {
+                        Text(
+                            text = if (lastSyncAt > 0L) {
+                                stringResource(
+                                    R.string.settings_sync_last_time,
+                                    formatLastSyncDateTime(lastSyncAt)
+                                )
+                            } else {
+                                stringResource(R.string.settings_sync_last_time_never)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
         }
@@ -406,63 +478,81 @@ private fun SettingsTransferSection(
     SettingsSection(
         title = title,
         boxed = true,
-        isHelpMode = isHelpMode,
-        helpDescription = helpDescription,
-        onHelpRequest = onHelpRequest
+        isHelpMode = isHelpMode
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (importStrategy != null && onImportStrategyChange != null) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = stringResource(R.string.settings_import_strategy_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    val importStrategyOptions = listOf(
-                        SyncConflictStrategy.OVERWRITE to R.string.settings_sync_strategy_overwrite,
-                        SyncConflictStrategy.MERGE to R.string.settings_sync_strategy_merge
-                    )
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        importStrategyOptions.forEachIndexed { index, (value, labelRes) ->
-                            SegmentedButton(
-                                shape = SegmentedButtonDefaults.itemShape(
-                                    index = index,
-                                    count = importStrategyOptions.size
-                                ),
-                                onClick = { onImportStrategyChange(value) },
-                                selected = importStrategy == value
-                            ) {
-                                Text(text = stringResource(labelRes))
+                SettingsHelpTarget(
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_import_strategy_group),
+                    onHelpRequest = onHelpRequest,
+                    contentDescription = stringResource(R.string.settings_import_strategy_title)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = stringResource(R.string.settings_import_strategy_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        val importStrategyOptions = listOf(
+                            SyncConflictStrategy.OVERWRITE to R.string.settings_sync_strategy_overwrite,
+                            SyncConflictStrategy.MERGE to R.string.settings_sync_strategy_merge
+                        )
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            importStrategyOptions.forEachIndexed { index, (value, labelRes) ->
+                                val label = stringResource(labelRes)
+                                SegmentedButton(
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = importStrategyOptions.size
+                                    ),
+                                    onClick = { onImportStrategyChange(value) },
+                                    selected = importStrategy == value
+                                ) {
+                                    Text(text = label)
+                                }
                             }
                         }
                     }
                 }
             }
-            SettingsBackupCheckboxRow(
-                title = stringResource(R.string.settings_backup_sources),
-                checked = selection.includeSources,
-                onCheckedChange = { onSelectionChange(selection.copy(includeSources = it)) }
-            )
-            SettingsBackupCheckboxRow(
-                title = stringResource(R.string.settings_backup_subscriptions),
-                checked = selection.includeSubscriptions,
-                onCheckedChange = { onSelectionChange(selection.copy(includeSubscriptions = it)) }
-            )
-            SettingsBackupCheckboxRow(
-                title = stringResource(R.string.settings_backup_saved_articles),
-                checked = selection.includeSavedArticles,
-                onCheckedChange = { onSelectionChange(selection.copy(includeSavedArticles = it)) }
-            )
-            SettingsBackupCheckboxRow(
-                title = stringResource(R.string.settings_backup_settings_no_api),
-                checked = selection.includeSettingsNoApi,
-                onCheckedChange = { onSelectionChange(selection.copy(includeSettingsNoApi = it)) }
-            )
-            SettingsBackupCheckboxRow(
-                title = stringResource(R.string.settings_backup_api_keys),
-                checked = selection.includeApiKeys,
-                onCheckedChange = { onSelectionChange(selection.copy(includeApiKeys = it)) }
-            )
+            SettingsHelpTarget(
+                isHelpMode = isHelpMode,
+                helpDescription = stringResource(
+                    if (importStrategy != null) R.string.settings_help_import_selection_group
+                    else R.string.settings_help_export_selection_group
+                ),
+                onHelpRequest = onHelpRequest,
+                contentDescription = title
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SettingsBackupCheckboxRow(
+                        title = stringResource(R.string.settings_backup_sources),
+                        checked = selection.includeSources,
+                        onCheckedChange = { onSelectionChange(selection.copy(includeSources = it)) }
+                    )
+                    SettingsBackupCheckboxRow(
+                        title = stringResource(R.string.settings_backup_subscriptions),
+                        checked = selection.includeSubscriptions,
+                        onCheckedChange = { onSelectionChange(selection.copy(includeSubscriptions = it)) }
+                    )
+                    SettingsBackupCheckboxRow(
+                        title = stringResource(R.string.settings_backup_saved_articles),
+                        checked = selection.includeSavedArticles,
+                        onCheckedChange = { onSelectionChange(selection.copy(includeSavedArticles = it)) }
+                    )
+                    SettingsBackupCheckboxRow(
+                        title = stringResource(R.string.settings_backup_settings_no_api),
+                        checked = selection.includeSettingsNoApi,
+                        onCheckedChange = { onSelectionChange(selection.copy(includeSettingsNoApi = it)) }
+                    )
+                    SettingsBackupCheckboxRow(
+                        title = stringResource(R.string.settings_backup_api_keys),
+                        checked = selection.includeApiKeys,
+                        onCheckedChange = { onSelectionChange(selection.copy(includeApiKeys = it)) }
+                    )
+                }
+            }
             if (hasSyncPassphrase != null && onManageSyncPassphrase != null) {
                 SyncPassphraseField(
                     isHelpMode = isHelpMode,
@@ -474,7 +564,12 @@ private fun SettingsTransferSection(
             Button(
                 onClick = onActionClick,
                 enabled = transferState !is TransferState.Working,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .semantics {
+                        contentDescription = buttonLabel
+                    },
                 shape = MaterialTheme.shapes.extraLarge,
                 colors = buttonColors
             ) {
@@ -493,6 +588,7 @@ private fun SyncPassphraseField(
     onHelpRequest: (String) -> Unit,
     onManageSyncPassphrase: () -> Unit
 ) {
+    val syncPassphraseContentDescription = stringResource(R.string.settings_sync_passphrase_title)
     AppHelpOverlayTarget(
         isEnabled = isHelpMode,
         description = stringResource(R.string.settings_help_sync_passphrase),
@@ -505,7 +601,11 @@ private fun SyncPassphraseField(
             ),
             onValueChange = {},
             readOnly = true,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics {
+                    contentDescription = syncPassphraseContentDescription
+                },
             label = { Text(stringResource(R.string.settings_sync_passphrase_title)) },
             supportingText = {
                 Text(stringResource(R.string.settings_sync_passphrase_support))
