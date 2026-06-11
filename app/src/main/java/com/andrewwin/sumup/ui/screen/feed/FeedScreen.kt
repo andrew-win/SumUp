@@ -101,6 +101,7 @@ fun FeedScreen(
     val isBuildingFeed by viewModel.isBuildingFeed.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
     val groups by viewModel.groups.collectAsState()
+    val toastMessageResId by viewModel.toastMessageResId.collectAsState()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val imeVisible = WindowInsets.isImeVisible
@@ -116,6 +117,12 @@ fun FeedScreen(
     val feedFiltersContentDescription = stringResource(R.string.feed_cd_filters)
     val feedFabContentDescription = stringResource(R.string.feed_cd_ai_fab)
     val feedBackToTopContentDescription = stringResource(R.string.feed_cd_back_to_top)
+
+    LaunchedEffect(toastMessageResId) {
+        val messageResId = toastMessageResId ?: return@LaunchedEffect
+        Toast.makeText(context, context.getString(messageResId), Toast.LENGTH_SHORT).show()
+        viewModel.clearToastMessage()
+    }
 
     val sortedArticleClusters = remember(articleClusters) {
         articleClusters.map { cluster ->

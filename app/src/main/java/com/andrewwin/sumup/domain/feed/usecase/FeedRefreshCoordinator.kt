@@ -46,7 +46,7 @@ class FeedRefreshCoordinator @Inject constructor(
         refresh()
     }
 
-    suspend fun refreshManually(): Result<Unit> = refresh()
+    suspend fun refreshManually(): Result<FeedRefreshResult> = refresh()
 
     fun markFeedBuildFinished(signal: Long) {
         _state.update { state ->
@@ -58,11 +58,11 @@ class FeedRefreshCoordinator @Inject constructor(
         }
     }
 
-    private suspend fun refresh(): Result<Unit> {
-        if (_state.value.isRefreshing) return Result.success(Unit)
+    private suspend fun refresh(): Result<FeedRefreshResult> {
+        if (_state.value.isRefreshing) return Result.success(FeedRefreshResult())
 
         return mutex.withLock {
-            if (_state.value.isRefreshing) return@withLock Result.success(Unit)
+            if (_state.value.isRefreshing) return@withLock Result.success(FeedRefreshResult())
 
             val result = runCatching {
                 refreshFeedUseCase { progress ->
@@ -71,14 +71,14 @@ class FeedRefreshCoordinator @Inject constructor(
             }
 
             result.fold(
-                onSuccess = {
+                onSuccess = { refreshResult ->
                     val signal = System.currentTimeMillis()
                     articleRepository.requestFeedRefresh(signal)
                     _state.value = FeedRefreshCoordinatorState(
                         status = FeedRefreshStatus.BUILDING_FEED,
                         buildSignal = signal
                     )
-                    Result.success(Unit)
+                    Result.success(refreshResult)
                 },
                 onFailure = { error ->
                     Log.w(LOG_TAG, "Feed refresh failed", error)

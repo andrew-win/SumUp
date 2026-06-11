@@ -640,7 +640,12 @@ class SettingsViewModel @Inject constructor(
 
         if (articleRepository.getEnabledArticlesOnce().isEmpty()) return
 
-        feedDeduplicationProcessor.rebuildSimilarities(updated).getOrThrow()
+        val result = feedDeduplicationProcessor.rebuildSimilarities(updated).getOrThrow()
+        if (result.cloudEmbeddingsIncomplete) {
+            _transferState.value = TransferState.Error(
+                getApplication<Application>().getString(R.string.cloud_embeddings_incomplete_toast)
+            )
+        }
     }
 
     private fun updateFeedPreferences(transform: (UserSettings) -> UserSettings) {

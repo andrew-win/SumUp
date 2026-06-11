@@ -98,6 +98,7 @@
     <string name="settings_api_key_security_notice_accept">Зрозуміло</string>
     <string name="settings_api_key_security_notice_do_not_show">Не показувати більше</string>
     <string name="settings_api_keys_help_button">Як отримати API-ключі?</string>
+    <string name="cloud_embeddings_incomplete_toast">429: Згенеровано не всі ембединги</string>
     <string name="api_key_help_title">Як отримати API-ключі?</string>
     <string name="api_key_help_intro">У додатку є провайдери, з якими можна почати безкоштовно. Це залежить від конкретних моделей і лімітів, але безкоштовні варіанти є.</string>
     <string name="api_key_help_instruction">Щоб отримати ключ, відкрийте потрібне посилання нижче, увійдіть у кабінет провайдера й створіть API-ключ.</string>
@@ -582,6 +583,7 @@
     <string name="settings_help_memory_reset_settings">— Повертає параметри застосунку до початкових значень.\n— Після цього заново застосовуються мова інтерфейсу і налаштування розкладу автозведень.\n— Джерела, підписки і AI-конфіги ця дія не видаляє.</string>
     <string name="settings_cd_add_summary_api_key">Додати API-ключ для сумаризації</string>
     <string name="settings_cd_add_embedding_api_key">Додати API-ключ для векторизації</string>
+    <string name="dialog_embedding_model_limit_warning">Зверніть увагу: часто провайдери у безкоштовних версіях мають занизькі ліміти (особливо Gemini), тому можливо вийде створити ембединги лише частково</string>
     <string name="settings_cd_api_key_item">Налаштування API-ключа: %1$s</string>
     <string name="settings_cd_toggle_api_key">Увімкнути або вимкнути API-ключ: %1$s</string>
     <string name="settings_cd_api_key_menu">Дії для API-ключа: %1$s</string>

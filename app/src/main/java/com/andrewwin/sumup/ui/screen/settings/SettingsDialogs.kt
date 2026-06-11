@@ -1057,6 +1057,13 @@ fun SettingsAiConfigDialog(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 4.dp)
                         )
+                    } else if (type == AiModelType.EMBEDDING) {
+                        Text(
+                            text = stringResource(R.string.dialog_embedding_model_limit_warning),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
                     }
 
                     Row(

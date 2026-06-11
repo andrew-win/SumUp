@@ -115,6 +115,9 @@ class SimilarityScorer(
                                 ?.takeIf(::isUsableEmbedding)
                                 ?.let { result[generated.article.id] = it }
                         }
+                        if (dedupRuntimeCoordinator.currentEmbeddingsGeneration() == runGeneration) {
+                            saveGeneratedEmbeddings(batchResult.generatedEmbeddings, embeddingType)
+                        }
                         val batchFailed = batchResult.shouldStop &&
                             batchResult.generatedEmbeddings.none { isUsableEmbedding(it.embedding) }
                         if (batchResult.shouldStop) {
@@ -138,7 +141,9 @@ class SimilarityScorer(
                 }
             }
 
-            if (dedupRuntimeCoordinator.currentEmbeddingsGeneration() == runGeneration) {
+            if (strategy == DeduplicationStrategy.LOCAL &&
+                dedupRuntimeCoordinator.currentEmbeddingsGeneration() == runGeneration
+            ) {
                 saveGeneratedEmbeddings(generatedEmbeddings, embeddingType)
             }
             emit(

@@ -78,6 +78,9 @@ class FeedViewModel @Inject constructor(
     private val _savedFilter = MutableStateFlow(SavedFilter.ALL)
     val savedFilter: StateFlow<SavedFilter> = _savedFilter.asStateFlow()
 
+    private val _toastMessageResId = MutableStateFlow<Int?>(null)
+    val toastMessageResId: StateFlow<Int?> = _toastMessageResId.asStateFlow()
+
     val isRefreshing: StateFlow<Boolean> = feedRefreshCoordinator.state
         .map { it.isRefreshing }
         .distinctUntilChanged()
@@ -319,6 +322,9 @@ class FeedViewModel @Inject constructor(
             frozenClustersWhileProcessing.value = frozenClusters
         }
         val result = feedRefreshCoordinator.refreshManually()
+        if (result.getOrNull()?.cloudEmbeddingsIncomplete == true) {
+            _toastMessageResId.value = R.string.cloud_embeddings_incomplete_toast
+        }
         if (result.isFailure && activeFeedBuildSignal.value == null) {
             _isBuildingFeed.value = false
             setFeedLoadingStage(null, "refresh_failed")
@@ -340,6 +346,7 @@ class FeedViewModel @Inject constructor(
     }
 
     fun onSearchQueryChange(query: String) { _searchQuery.value = query }
+    fun clearToastMessage() { _toastMessageResId.value = null }
     fun selectGroup(groupId: Long?) { _selectedGroupId.value = groupId }
     fun setDateFilter(filter: DateFilter) { _dateFilter.value = filter }
     fun setSavedFilter(filter: SavedFilter) { _savedFilter.value = filter }

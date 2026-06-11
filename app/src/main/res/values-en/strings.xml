@@ -97,6 +97,7 @@ scheduled</string>
     <string name="settings_api_key_security_notice_accept">Got it</string>
     <string name="settings_api_key_security_notice_do_not_show">Do not show again</string>
     <string name="settings_api_keys_help_button">How to get API keys?</string>
+    <string name="cloud_embeddings_incomplete_toast">429: Not all embeddings were generated</string>
     <string name="api_key_help_title">How to get API keys?</string>
     <string name="api_key_help_intro">The app has providers you can start with for free. Availability depends on specific models and limits, but free options exist.</string>
     <string name="api_key_help_instruction">To get a key, open the provider link below, sign in to its dashboard, and create an API key.</string>
@@ -553,6 +554,7 @@ scheduled</string>
     <string name="settings_help_memory_reset_settings">— Restores `UserSettings()` default values.\n— It also reapplies the default app language and refreshes scheduled summary configuration.\n— This does not delete sources or API configs, but it resets app behavior back to default.</string>
     <string name="settings_cd_add_summary_api_key">Add summary API key</string>
     <string name="settings_cd_add_embedding_api_key">Add embedding API key</string>
+    <string name="dialog_embedding_model_limit_warning">Please note: providers often have very low limits on free plans (especially Gemini), so embeddings may only be created partially</string>
     <string name="settings_cd_api_key_item">API key settings: %1$s</string>
     <string name="settings_cd_toggle_api_key">Enable or disable API key: %1$s</string>
     <string name="settings_cd_api_key_menu">Actions for API key: %1$s</string>

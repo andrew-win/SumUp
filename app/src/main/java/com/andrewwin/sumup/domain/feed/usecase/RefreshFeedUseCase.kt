@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 interface RefreshFeedUseCase {
-    suspend operator fun invoke(onStageChange: suspend (FeedRefreshProgress) -> Unit = {}): Result<Unit>
+    suspend operator fun invoke(onStageChange: suspend (FeedRefreshProgress) -> Unit = {}): Result<FeedRefreshResult>
 }
 
 enum class FeedRefreshStage {
@@ -31,6 +31,10 @@ enum class FeedRefreshStage {
 data class FeedRefreshProgress(
     val stage: FeedRefreshStage,
     val runId: Long
+)
+
+data class FeedRefreshResult(
+    val cloudEmbeddingsIncomplete: Boolean = false
 )
 
 class RefreshFeedUseCaseImpl @Inject constructor(
@@ -46,7 +50,7 @@ class RefreshFeedUseCaseImpl @Inject constructor(
     private var nextRunId: Long = 1
     private val backgroundScope = CoroutineScope(SupervisorJob() + dispatcherProvider.io)
 
-    override suspend fun invoke(onStageChange: suspend (FeedRefreshProgress) -> Unit): Result<Unit> = withContext(dispatcherProvider.io) {
+    override suspend fun invoke(onStageChange: suspend (FeedRefreshProgress) -> Unit): Result<FeedRefreshResult> = withContext(dispatcherProvider.io) {
         var shouldRefreshSuggestedThemes = false
         val requestAt = System.currentTimeMillis()
         logRefreshDebug(
@@ -58,7 +62,7 @@ class RefreshFeedUseCaseImpl @Inject constructor(
             val ageMs = refreshAgeMs(now)
             if (ageMs in 0 until MIN_REFRESH_INTERVAL_MS) {
                 logRefreshDebug("refresh_use_case_skipped_min_interval ageMs=$ageMs")
-                return@withLock Result.success(Unit)
+                return@withLock Result.success(FeedRefreshResult())
             }
             val runId = nextRunId++
             val runStartedAt = System.currentTimeMillis()
@@ -67,16 +71,19 @@ class RefreshFeedUseCaseImpl @Inject constructor(
                 emitStage(runId, FeedRefreshStage.PARSING_NEWS, onStageChange)
                 val articleRefreshResult = updateArticlesFromSources()
                 val prefs = userPreferencesRepository.preferences.first()
+                var cloudEmbeddingsIncomplete = false
                 if (prefs.isDeduplicationEnabled) {
                     emitStage(runId, FeedRefreshStage.DEDUPLICATING_NEWS, onStageChange)
                     delay(DEDUPE_STAGE_UI_BOUNDARY_MS)
                     if (articleRefreshResult.changedArticleIds.isNotEmpty()) {
-                        feedDeduplicationProcessor.rebuildSimilaritiesForArticles(
+                        val deduplicationResult = feedDeduplicationProcessor.rebuildSimilaritiesForArticles(
                             prefs = prefs,
                             articleIds = articleRefreshResult.changedArticleIds
                         ).getOrThrow()
+                        cloudEmbeddingsIncomplete = deduplicationResult.cloudEmbeddingsIncomplete
                     }
                 }
+                FeedRefreshResult(cloudEmbeddingsIncomplete = cloudEmbeddingsIncomplete)
             }
             
             if (refreshResult.isSuccess) {
