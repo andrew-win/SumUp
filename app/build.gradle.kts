@@ -52,8 +52,9 @@ android {
 
     buildTypes {
         release {
-             isMinifyEnabled = true
-             isShrinkResources = true
+            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
 
             signingConfig = signingConfigs.getByName("release")
 
@@ -85,7 +86,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.material3.adaptive.navigation.suite)
-    
+
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
@@ -128,4 +129,5 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    testImplementation("net.sf.kxml:kxml2:2.3.0")
 }

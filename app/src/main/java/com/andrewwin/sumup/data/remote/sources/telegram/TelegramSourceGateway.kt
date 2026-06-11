@@ -1,9 +1,11 @@
 package com.andrewwin.sumup.data.remote.sources.telegram
 
+import android.util.Log
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.remote.sources.RemoteFullContent
 import com.andrewwin.sumup.data.remote.sources.RemoteSourceGateway
+import com.andrewwin.sumup.data.remote.sources.SourceRefreshBoundary
 import com.andrewwin.sumup.domain.ai.model.RemoteContentFetchStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.Default
@@ -17,8 +19,10 @@ class TelegramSourceGateway(
 
     override suspend fun fetchArticles(
         source: Source,
-        oldestAllowedPublishedAt: Long?
+        oldestAllowedPublishedAt: Long?,
+        refreshBoundary: SourceRefreshBoundary
     ): List<Article> = withContext(Dispatchers.IO) {
+        val startedAt = System.currentTimeMillis()
         try {
             val telegramUrl = buildTelegramChannelPreviewUrl(source.url)
             val articlesByKey = linkedMapOf<String, Article>()
@@ -30,10 +34,12 @@ class TelegramSourceGateway(
             )
             var pageArticles = pageResult.articles
             addTelegramArticles(articlesByKey, pageArticles)
+            var shouldFetchNextPage = pageHasNewArticles(pageArticles, refreshBoundary)
             var pageCount = 1
 
             while (
                 oldestAllowedPublishedAt != null &&
+                shouldFetchNextPage &&
                 shouldFetchOlderTelegramPage(pageResult.pageMetadata, oldestAllowedPublishedAt) &&
                 pageResult.nextPageCursor != null &&
                 pageCount - 1 < TELEGRAM_MAX_EXTRA_PAGES
@@ -48,13 +54,25 @@ class TelegramSourceGateway(
                 pageArticles = pageResult.articles
                 val previousSize = articlesByKey.size
                 addTelegramArticles(articlesByKey, pageArticles)
+                shouldFetchNextPage = pageHasNewArticles(pageArticles, refreshBoundary)
                 pageCount++
                 if (articlesByKey.size == previousSize) {
                     break
                 }
             }
-            articlesByKey.values.sortedByDescending { it.publishedAt }
+            articlesByKey.values.sortedByDescending { it.publishedAt }.also { articles ->
+                Log.d(
+                    ARTICLE_REFRESH_TIMING_LOG_TAG,
+                    "telegram_fetch sourceId=${source.id} durationMs=${System.currentTimeMillis() - startedAt} " +
+                        "pages=$pageCount articles=${articles.size}"
+                )
+            }
         } catch (e: Exception) {
+            Log.d(
+                ARTICLE_REFRESH_TIMING_LOG_TAG,
+                "telegram_fetch_failed sourceId=${source.id} durationMs=${System.currentTimeMillis() - startedAt}",
+                e
+            )
             emptyList()
         }
     }
@@ -134,6 +152,14 @@ class TelegramSourceGateway(
         return oldestPublishedAt > oldestAllowedPublishedAt
     }
 
+    private fun pageHasNewArticles(
+        articles: List<Article>,
+        refreshBoundary: SourceRefreshBoundary
+    ): Boolean {
+        if (articles.isEmpty()) return false
+        return articles.any { article -> !refreshBoundary.isKnown(article) }
+    }
+
     private fun buildTelegramBeforeUrl(baseUrl: String, beforeCursor: String): String {
         val cleanBaseUrl = baseUrl.substringBefore("?").trimEnd('/')
         return "$cleanBaseUrl?before=$beforeCursor"
@@ -168,6 +194,7 @@ class TelegramSourceGateway(
     private companion object {
         private const val TELEGRAM_MAX_EXTRA_PAGES = 5
         private const val TELEGRAM_DEFAULT_TITLE = "Telegram Messenger"
+        private const val ARTICLE_REFRESH_TIMING_LOG_TAG = "ArticleRefreshTiming"
         private val TELEGRAM_TITLE_SUFFIX_REGEX = Regex("\\s+[–-]\\s*Telegram\\s*$", RegexOption.IGNORE_CASE)
     }
 }

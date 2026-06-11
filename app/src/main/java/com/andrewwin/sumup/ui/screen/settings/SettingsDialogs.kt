@@ -135,6 +135,47 @@ fun SettingsCloudSyncApiKeysWarningDialog(
 }
 
 @Composable
+fun ApiKeySecurityNoticeDialog(
+    onConfirm: (doNotShowAgain: Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var doNotShowAgain by rememberSaveable { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_api_key_security_notice_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.settings_api_key_security_notice_body))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { doNotShowAgain = !doNotShowAgain },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = doNotShowAgain,
+                        onCheckedChange = { doNotShowAgain = it }
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_api_key_security_notice_do_not_show),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(doNotShowAgain) }) {
+                Text(stringResource(R.string.settings_api_key_security_notice_accept))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
+}
+
+@Composable
 fun ApiKeyHelpDialog(onDismiss: () -> Unit) {
     val uriHandler = LocalUriHandler.current
 
@@ -508,11 +549,30 @@ fun SettingsSyncPassphraseDialog(
     val tooShortMessage = stringResource(R.string.settings_sync_passphrase_too_short)
     val mismatchMessage = stringResource(R.string.settings_sync_passphrase_mismatch)
     val replaceWarningMessage = stringResource(R.string.settings_sync_passphrase_replace_warning)
+    val passphraseMatchMessage = stringResource(R.string.settings_sync_passphrase_matches_existing)
+    val passphraseMismatchMessage = stringResource(R.string.settings_sync_passphrase_differs_existing)
+    val passphraseUnknownMessage = stringResource(R.string.settings_sync_passphrase_match_unknown_signed_out)
+    val passphraseNoLocalMessage = stringResource(R.string.settings_sync_passphrase_no_local_existing)
     var passphrase by rememberSaveable { mutableStateOf("") }
     var confirmPassphrase by rememberSaveable { mutableStateOf("") }
     var isPassphraseVisible by rememberSaveable { mutableStateOf(false) }
     var validationError by rememberSaveable { mutableStateOf<String?>(null) }
     val normalizedPassphrase = passphrase.trim()
+    val passphraseMatchStatus = remember(
+        hasExistingPassphrase,
+        isSignedIn,
+        normalizedPassphrase
+    ) {
+        when {
+            normalizedPassphrase.isBlank() -> null
+            !isSignedIn -> passphraseUnknownMessage
+            !hasExistingPassphrase -> passphraseNoLocalMessage
+            isMatchingExistingPassphrase(normalizedPassphrase) -> passphraseMatchMessage
+            else -> passphraseMismatchMessage
+        }
+    }
+    val isPassphraseMatchWarning = passphraseMatchStatus == passphraseMismatchMessage ||
+        passphraseMatchStatus == passphraseUnknownMessage
     val shouldShowReplaceWarning = remember(
         hasExistingPassphrase,
         isSignedIn,
@@ -580,6 +640,18 @@ fun SettingsSyncPassphraseDialog(
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                passphraseMatchStatus?.let { message ->
+                    Text(
+                        text = message,
+                        color = when {
+                            isPassphraseMatchWarning -> MaterialTheme.colorScheme.error
+                            message == passphraseMatchMessage -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
 
                 OutlinedTextField(
                     value = confirmPassphrase,

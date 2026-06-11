@@ -33,6 +33,6 @@ class LocalEmbeddingWarmupCoordinator @Inject constructor(
     }
 
     private companion object {
-        private const val WARMUP_DELAY_MS = 300L
+        private const val WARMUP_DELAY_MS = 2_000L
     }
 }

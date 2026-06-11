@@ -16,9 +16,7 @@ fun RoomArticle.toDomainModel(): Article = Article(
     viewCount = viewCount,
     isRead = isRead,
     isFavorite = isFavorite,
-    importanceScore = importanceScore,
-    embedding = embedding,
-    embeddingType = embeddingType
+    importanceScore = importanceScore
 )
 
 fun Article.toRoomEntity(): RoomArticle = RoomArticle(
@@ -34,7 +32,5 @@ fun Article.toRoomEntity(): RoomArticle = RoomArticle(
     viewCount = viewCount,
     isRead = isRead,
     isFavorite = isFavorite,
-    importanceScore = importanceScore,
-    embedding = embedding,
-    embeddingType = embeddingType
+    importanceScore = importanceScore
 )

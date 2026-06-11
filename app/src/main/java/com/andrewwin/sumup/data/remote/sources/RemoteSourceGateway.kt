@@ -6,7 +6,8 @@ import com.andrewwin.sumup.data.local.entities.Source
 interface RemoteSourceGateway {
     suspend fun fetchArticles(
         source: Source,
-        oldestAllowedPublishedAt: Long?
+        oldestAllowedPublishedAt: Long?,
+        refreshBoundary: SourceRefreshBoundary
     ): List<Article>
 
     suspend fun fetchDisplayName(url: String): String?

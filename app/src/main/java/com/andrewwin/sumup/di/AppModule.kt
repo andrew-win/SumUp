@@ -10,6 +10,7 @@ import com.andrewwin.sumup.data.export.PdfExportServiceImpl
 import com.andrewwin.sumup.data.local.AppDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.dao.ArticleDao
+import com.andrewwin.sumup.data.local.dao.ArticleEmbeddingDao
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
 import com.andrewwin.sumup.data.local.dao.PreparedScheduledSummaryDao
 import com.andrewwin.sumup.data.local.dao.SavedArticleDao
@@ -107,6 +108,9 @@ object AppModule {
     fun provideArticleDao(db: AppDatabase): ArticleDao = db.articleDao()
 
     @Provides
+    fun provideArticleEmbeddingDao(db: AppDatabase): ArticleEmbeddingDao = db.articleEmbeddingDao()
+
+    @Provides
     fun provideArticleSimilarityDao(db: AppDatabase): ArticleSimilarityDao = db.articleSimilarityDao()
 
     @Provides
@@ -148,6 +152,14 @@ object AppModule {
     fun provideNewsOkHttpClient(
         @Named(AI_OK_HTTP_CLIENT) okHttpClient: OkHttpClient
     ): OkHttpClient = okHttpClient.newBuilder()
+        .addInterceptor { chain ->
+            val request = chain.request().newBuilder()
+                .header("User-Agent", NEWS_USER_AGENT)
+                .header("Accept", NEWS_ACCEPT_HEADER)
+                .header("Accept-Language", NEWS_ACCEPT_LANGUAGE_HEADER)
+                .build()
+            chain.proceed(request)
+        }
         .connectTimeout(NEWS_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(NEWS_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .writeTimeout(NEWS_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -160,6 +172,14 @@ object AppModule {
     fun provideDisplayNameOkHttpClient(
         @Named(AI_OK_HTTP_CLIENT) okHttpClient: OkHttpClient
     ): OkHttpClient = okHttpClient.newBuilder()
+        .addInterceptor { chain ->
+            val request = chain.request().newBuilder()
+                .header("User-Agent", NEWS_USER_AGENT)
+                .header("Accept", NEWS_ACCEPT_HEADER)
+                .header("Accept-Language", NEWS_ACCEPT_LANGUAGE_HEADER)
+                .build()
+            chain.proceed(request)
+        }
         .connectTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .writeTimeout(DISPLAY_NAME_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -222,6 +242,7 @@ object AppModule {
     @Singleton
     fun provideArticleRepository(
         articleDao: ArticleDao,
+        articleEmbeddingDao: ArticleEmbeddingDao,
         articleSimilarityDao: ArticleSimilarityDao,
         savedArticleDao: SavedArticleDao,
         sourceDao: SourceDao,
@@ -232,6 +253,7 @@ object AppModule {
         articleImportanceScorer: ArticleImportanceScorer
     ): ArticleRepository = ArticleRepositoryImpl(
         articleDao,
+        articleEmbeddingDao,
         articleSimilarityDao,
         savedArticleDao,
         sourceDao,
@@ -443,4 +465,10 @@ object AppModule {
     private const val NEWS_WRITE_TIMEOUT_SECONDS = 5L
     private const val NEWS_CALL_TIMEOUT_SECONDS = 12L
     private const val DISPLAY_NAME_TIMEOUT_SECONDS = 7L
+    private const val NEWS_USER_AGENT =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    private const val NEWS_ACCEPT_HEADER =
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    private const val NEWS_ACCEPT_LANGUAGE_HEADER = "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7"
 }

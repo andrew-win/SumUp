@@ -4,6 +4,7 @@ import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.remote.sources.RemoteFullContent
 import com.andrewwin.sumup.data.remote.sources.RemoteSourceGateway
+import com.andrewwin.sumup.data.remote.sources.SourceRefreshBoundary
 import com.andrewwin.sumup.domain.ai.model.RemoteContentFetchStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,15 +17,16 @@ class RssSourceGateway(
 
     override suspend fun fetchArticles(
         source: Source,
-        oldestAllowedPublishedAt: Long?
+        oldestAllowedPublishedAt: Long?,
+        refreshBoundary: SourceRefreshBoundary
     ): List<Article> = withContext(Dispatchers.IO) {
         val url = source.url
         val httpsUrl = if (url.startsWith("http://")) "https://${url.removePrefix("http://")}" else url
-        val primary = fetchArticlesXml(httpsUrl, source.id)
+        val primary = fetchArticlesXml(httpsUrl, source.id, refreshBoundary)
         if (primary.isSuccess || httpsUrl == url) {
             primary.getOrDefault(emptyList())
         } else {
-            fetchArticlesXml(url, source.id).getOrDefault(emptyList())
+            fetchArticlesXml(url, source.id, refreshBoundary).getOrDefault(emptyList())
         }
     }
 
@@ -47,9 +49,13 @@ class RssSourceGateway(
             )
     }
 
-    private suspend fun fetchArticlesXml(url: String, sourceId: Long): Result<List<Article>> {
+    private suspend fun fetchArticlesXml(
+        url: String,
+        sourceId: Long,
+        refreshBoundary: SourceRefreshBoundary
+    ): Result<List<Article>> {
         val xml = rssFetcher.fetchBody(url).getOrElse { return Result.failure(it) }
-        return rssParser.parseArticlesXml(xml, sourceId)
+        return rssParser.parseArticlesXml(xml, sourceId, refreshBoundary)
     }
 
     private suspend fun fetchChannelTitle(url: String): String? {

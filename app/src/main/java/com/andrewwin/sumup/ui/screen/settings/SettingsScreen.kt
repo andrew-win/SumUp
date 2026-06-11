@@ -115,10 +115,12 @@ internal fun SettingsScreen(
     val exportSelectionState by viewModel.exportSelection.collectAsState()
     val importSelectionState by viewModel.importSelection.collectAsState()
     val hasSyncPassphrase by viewModel.hasSyncPassphrase.collectAsState()
+    val isApiKeySecurityNoticeDismissed by viewModel.isApiKeySecurityNoticeDismissed.collectAsState()
     val currentSummaryConfig = remember(summaryConfigs) { summaryConfigs.firstOrNull { it.isEnabled } }
     val currentEmbeddingConfig = remember(embeddingConfigs) { embeddingConfigs.firstOrNull { it.isEnabled } }
 
     var showConfigDialog by remember { mutableStateOf<Pair<AiModelConfig?, AiModelType>?>(null) }
+    var pendingApiKeySecurityNoticeType by remember { mutableStateOf<AiModelType?>(null) }
     var scheduledTimePickerIndex by remember { mutableStateOf<Int?>(null) }
     var summaryPrompt by remember(userPreferences.summaryPrompt) { mutableStateOf(userPreferences.summaryPrompt) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -135,6 +137,13 @@ internal fun SettingsScreen(
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
     var wasImeVisible by remember { mutableStateOf(false) }
+    val requestAddAiConfig = { type: AiModelType ->
+        if (isApiKeySecurityNoticeDismissed) {
+            showConfigDialog = null to type
+        } else {
+            pendingApiKeySecurityNoticeType = type
+        }
+    }
 
     BackHandler(enabled = isSearchFocused && settingsGroup == null) {
         focusManager.clearFocus(force = true)
@@ -580,13 +589,13 @@ internal fun SettingsScreen(
                             currentSummaryConfig = currentSummaryConfig,
                             currentEmbeddingConfig = currentEmbeddingConfig,
                             onHelpRequest = { helpDescription = it },
-                            onAddSummaryConfig = { showConfigDialog = null to AiModelType.SUMMARY },
+                            onAddSummaryConfig = { requestAddAiConfig(AiModelType.SUMMARY) },
                             onEditSummaryConfig = { showConfigDialog = it to AiModelType.SUMMARY },
                             onDeleteSummaryConfig = { deleteAiConfigConfirm = it },
                             onToggleSummaryConfig = viewModel::toggleAiConfig,
                             onMoveSummaryConfigUp = viewModel::moveAiConfigUp,
                             onMoveSummaryConfigDown = viewModel::moveAiConfigDown,
-                            onAddEmbeddingConfig = { showConfigDialog = null to AiModelType.EMBEDDING },
+                            onAddEmbeddingConfig = { requestAddAiConfig(AiModelType.EMBEDDING) },
                             onEditEmbeddingConfig = { showConfigDialog = it to AiModelType.EMBEDDING },
                             onDeleteEmbeddingConfig = { deleteAiConfigConfirm = it },
                             onToggleEmbeddingConfig = viewModel::toggleAiConfig,
@@ -695,6 +704,19 @@ internal fun SettingsScreen(
             onDismiss = { helpDescription = null },
             title = stringResource(R.string.settings_help_group_dialog_title)
         )
+
+        pendingApiKeySecurityNoticeType?.let { type ->
+            ApiKeySecurityNoticeDialog(
+                onConfirm = { doNotShowAgain ->
+                    if (doNotShowAgain) {
+                        viewModel.dismissApiKeySecurityNoticePermanently()
+                    }
+                    pendingApiKeySecurityNoticeType = null
+                    showConfigDialog = null to type
+                },
+                onDismiss = { pendingApiKeySecurityNoticeType = null }
+            )
+        }
 
         showConfigDialog?.let { (config, type) ->
             SettingsAiConfigDialog(

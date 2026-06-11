@@ -48,6 +48,22 @@ interface ArticleSimilarityDao {
         threshold: Float
     ): List<ArticleSimilarity>
 
+    @Query(
+        """
+        SELECT leftArticleId, rightArticleId, score FROM article_similarities
+        WHERE strategyKey = :strategyKey
+            AND score >= :threshold
+            AND leftArticleId IN (:articleIds)
+            AND rightArticleId IN (:articleIds)
+        ORDER BY score DESC
+        """
+    )
+    suspend fun getSimilarityScoresInsideArticleSetAboveThreshold(
+        articleIds: List<Long>,
+        strategyKey: String,
+        threshold: Float
+    ): List<ArticleSimilarityScoreRow>
+
     @Query("DELETE FROM article_similarities WHERE strategyKey = :strategyKey")
     suspend fun deleteSimilaritiesByStrategyKey(strategyKey: String)
 
@@ -69,9 +85,5 @@ interface ArticleSimilarityDao {
     @Query("DELETE FROM article_similarities")
     suspend fun deleteAll()
 }
-
-
-
-
 
 

@@ -12,6 +12,7 @@ import com.andrewwin.sumup.domain.source.repository.SourceRepository
 import com.andrewwin.sumup.domain.settings.model.DeduplicationStrategy
 import com.andrewwin.sumup.domain.settings.model.UserSettings
 import com.andrewwin.sumup.domain.source.model.SourceGroupWithSources
+import com.andrewwin.sumup.domain.feed.model.toPairScoreMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -42,20 +43,17 @@ class FeedArticlesBuilder @Inject constructor(
     ): Flow<FeedResult> {
         val collectorId = feedCollectorId++
 
-        val feedDataFlow = combine(
+        val baseFeedDataFlow = combine(
             articleRepository.enabledArticles,
-            articleRepository.favoriteArticles,
             sourceRepository.groupsWithSources,
             searchQueryFlow
-        ) { enabledArticles, favoriteArticles, groups, query ->
-            FeedData(
+        ) { enabledArticles, groups, query ->
+            BaseFeedData(
                 enabledArticles = enabledArticles,
-                favoriteArticles = favoriteArticles,
                 groupsWithSources = groups,
                 query = query,
-                fingerprint = buildFeedDataFingerprint(
+                fingerprint = buildBaseFeedDataFingerprint(
                     enabledArticles = enabledArticles,
-                    favoriteArticles = favoriteArticles,
                     groupsWithSources = groups,
                     query = query
                 )
@@ -74,15 +72,23 @@ class FeedArticlesBuilder @Inject constructor(
             FeedFilterParams(groupId, dateFilterHours, savedOnly, prefs, signal)
         }
 
-        return combine(feedDataFlow, filterParamsFlow) { data, params ->
+        return combine(baseFeedDataFlow, articleRepository.favoriteArticles, filterParamsFlow) { data, favoriteArticles, params ->
             val startedAt = System.currentTimeMillis()
-            buildPipelineState(data, params).also { state ->
+            val feedData = FeedData(
+                enabledArticles = data.enabledArticles,
+                favoriteArticles = favoriteArticles,
+                groupsWithSources = data.groupsWithSources,
+                query = data.query
+            )
+            buildPipelineState(feedData, params).also { state ->
                 Log.d(
                     FEED_BUILD_PROFILE_LOG_TAG,
                     "pipeline_state collectorId=$collectorId durationMs=${System.currentTimeMillis() - startedAt} " +
                         "articles=${state.articles.size} savedOnly=${state.savedOnly} signal=${state.invalidationSignal}"
                 )
             }
+        }.distinctUntilChanged { old, new ->
+            old.fingerprint == new.fingerprint
         }
             .flowOn(Dispatchers.Default)
             .debounce(FEED_BUILD_DEBOUNCE_MS)
@@ -147,7 +153,13 @@ class FeedArticlesBuilder @Inject constructor(
             articles = processedArticles,
             prefs = params.prefs,
             savedOnly = params.savedOnly,
-            invalidationSignal = params.invalidationSignal
+            invalidationSignal = params.invalidationSignal,
+            fingerprint = buildPipelineStateFingerprint(
+                articles = processedArticles,
+                groupsWithSources = data.groupsWithSources,
+                query = data.query,
+                params = params
+            )
         )
     }
 
@@ -203,26 +215,28 @@ class FeedArticlesBuilder @Inject constructor(
             threshold
         )
         val similaritiesStartedAt = System.currentTimeMillis()
-        val pairScores = thresholdSimilarityResolver.resolvePairScores(
+        val orderedPairScores = thresholdSimilarityResolver.resolveOrderedPairScores(
             articles = currentArticles,
             prefs = prefs,
             persistComputed = false,
             allowOnDemandComputation = false
         )
         val similaritiesDurationMs = System.currentTimeMillis() - similaritiesStartedAt
-        if (pairScores.isEmpty()) return emptyList()
+        if (orderedPairScores.isEmpty()) return emptyList()
+        val pairScoreByKey = orderedPairScores.toPairScoreMap()
 
         val clusterCalculationStartedAt = System.currentTimeMillis()
         val clusters = FeedClusterCalculator.buildFinalClusters(
             articles = currentArticles,
-            pairScores = pairScores,
+            orderedPairScores = orderedPairScores,
+            pairScoreByKey = pairScoreByKey,
             threshold = threshold
         )
         val clusterCalculationDurationMs = System.currentTimeMillis() - clusterCalculationStartedAt
         Log.d(
             FEED_BUILD_PROFILE_LOG_TAG,
             "clusters_from_db threshold_similarity_resolve_ms=$similaritiesDurationMs " +
-                "clusterCalculationMs=$clusterCalculationDurationMs pairScores=${pairScores.size} strategyKey=$strategyKey"
+                "clusterCalculationMs=$clusterCalculationDurationMs pairScores=${orderedPairScores.size} strategyKey=$strategyKey"
         )
         return clusters
     }
@@ -306,7 +320,8 @@ class FeedArticlesBuilder @Inject constructor(
         val articles: List<Article>,
         val prefs: UserSettings,
         val savedOnly: Boolean,
-        val invalidationSignal: Long
+        val invalidationSignal: Long,
+        val fingerprint: Long
     )
 
     private data class FeedFilterParams(
@@ -317,12 +332,18 @@ class FeedArticlesBuilder @Inject constructor(
         val invalidationSignal: Long
     )
 
+    private data class BaseFeedData(
+        val enabledArticles: List<Article>,
+        val groupsWithSources: List<SourceGroupWithSources>,
+        val query: String,
+        val fingerprint: Long
+    )
+
     private data class FeedData(
         val enabledArticles: List<Article>,
         val favoriteArticles: List<Article>,
         val groupsWithSources: List<SourceGroupWithSources>,
-        val query: String,
-        val fingerprint: Long
+        val query: String
     )
 
     companion object {
@@ -331,16 +352,30 @@ class FeedArticlesBuilder @Inject constructor(
         private var feedCollectorId = 0L
     }
 
-    private fun buildFeedDataFingerprint(
+    private fun buildBaseFeedDataFingerprint(
         enabledArticles: List<Article>,
-        favoriteArticles: List<Article>,
         groupsWithSources: List<SourceGroupWithSources>,
         query: String
     ): Long {
         var fingerprint = query.hashCode().toLong()
         fingerprint = fingerprint * 31 + buildArticleListFingerprint(enabledArticles)
-        fingerprint = fingerprint * 31 + buildArticleListFingerprint(favoriteArticles)
         fingerprint = fingerprint * 31 + buildGroupsFingerprint(groupsWithSources)
+        return fingerprint
+    }
+
+    private fun buildPipelineStateFingerprint(
+        articles: List<Article>,
+        groupsWithSources: List<SourceGroupWithSources>,
+        query: String,
+        params: FeedFilterParams
+    ): Long {
+        var fingerprint = query.hashCode().toLong()
+        fingerprint = fingerprint * 31 + buildArticleListFingerprint(articles)
+        fingerprint = fingerprint * 31 + buildGroupsFingerprint(groupsWithSources)
+        fingerprint = fingerprint * 31 + (params.groupId ?: 0L)
+        fingerprint = fingerprint * 31 + (params.dateFilterHours ?: 0)
+        fingerprint = fingerprint * 31 + params.savedOnly.hashCode().toLong()
+        fingerprint = fingerprint * 31 + params.invalidationSignal
         return fingerprint
     }
 
@@ -353,7 +388,6 @@ class FeedArticlesBuilder @Inject constructor(
             fingerprint = fingerprint * 31 + article.title.hashCode().toLong()
             fingerprint = fingerprint * 31 + article.content.hashCode().toLong()
             fingerprint = fingerprint * 31 + article.url.hashCode().toLong()
-            fingerprint = fingerprint * 31 + article.isFavorite.hashCode().toLong()
             fingerprint = fingerprint * 31 + article.isRead.hashCode().toLong()
         }
         return fingerprint
@@ -379,11 +413,9 @@ class FeedArticlesBuilder @Inject constructor(
         var fingerprint = clusters.size.toLong()
         clusters.forEach { cluster ->
             fingerprint = fingerprint * 31 + cluster.representative.id
-            fingerprint = fingerprint * 31 + cluster.representative.isFavorite.hashCode().toLong()
             fingerprint = fingerprint * 31 + cluster.duplicates.size
             cluster.duplicates.forEach { (article, score) ->
                 fingerprint = fingerprint * 31 + article.id
-                fingerprint = fingerprint * 31 + article.isFavorite.hashCode().toLong()
                 fingerprint = fingerprint * 31 + score.toRawBits()
             }
         }

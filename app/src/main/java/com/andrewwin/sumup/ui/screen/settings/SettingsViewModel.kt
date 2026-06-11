@@ -1,6 +1,7 @@
 package com.andrewwin.sumup.ui.screen.settings
 
 import android.app.Application
+import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
@@ -105,6 +106,11 @@ class SettingsViewModel @Inject constructor(
     val importSelection: StateFlow<BackupSelection> = _importSelection.asStateFlow()
     private val _hasSyncPassphrase = MutableStateFlow(false)
     val hasSyncPassphrase: StateFlow<Boolean> = _hasSyncPassphrase.asStateFlow()
+    private val settingsPrefs = application.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
+    private val _isApiKeySecurityNoticeDismissed = MutableStateFlow(
+        settingsPrefs.getBoolean(KEY_API_KEY_SECURITY_NOTICE_DISMISSED, false)
+    )
+    val isApiKeySecurityNoticeDismissed: StateFlow<Boolean> = _isApiKeySecurityNoticeDismissed.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -143,6 +149,13 @@ class SettingsViewModel @Inject constructor(
 
     fun updateAiStrategy(strategy: AiStrategy) {
         viewModelScope.launch { updatePreferences { it.copy(aiStrategy = strategy) } }
+    }
+
+    fun dismissApiKeySecurityNoticePermanently() {
+        settingsPrefs.edit()
+            .putBoolean(KEY_API_KEY_SECURITY_NOTICE_DISMISSED, true)
+            .apply()
+        _isApiKeySecurityNoticeDismissed.value = true
     }
 
     fun updateDeduplicationEnabled(enabled: Boolean) {
@@ -667,5 +680,10 @@ class SettingsViewModel @Inject constructor(
 
     private fun normalizeApiKey(apiKey: String): String {
         return apiKey.trim()
+    }
+
+    private companion object {
+        private const val SETTINGS_PREFS_NAME = "settings_ui_preferences"
+        private const val KEY_API_KEY_SECURITY_NOTICE_DISMISSED = "api_key_security_notice_dismissed"
     }
 }

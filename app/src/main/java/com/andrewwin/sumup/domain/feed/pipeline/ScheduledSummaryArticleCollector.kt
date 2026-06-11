@@ -9,6 +9,7 @@ import com.andrewwin.sumup.domain.feed.model.ArticleCluster
 import com.andrewwin.sumup.domain.settings.repository.UserPreferencesRepository
 import com.andrewwin.sumup.domain.source.model.SourceType
 import com.andrewwin.sumup.domain.feed.model.FeedSummaryArticle
+import com.andrewwin.sumup.domain.feed.model.toPairScoreMap
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
@@ -53,7 +54,7 @@ class ScheduledSummaryArticleCollector @Inject constructor(
         }
         if (filteredArticles.isEmpty()) return emptyList()
 
-        val pairScores = thresholdSimilarityResolver.resolvePairScores(
+        val orderedPairScores = thresholdSimilarityResolver.resolveOrderedPairScores(
             articles = filteredArticles,
             prefs = prefs,
             persistComputed = false,
@@ -65,7 +66,8 @@ class ScheduledSummaryArticleCollector @Inject constructor(
         }
         val clusters = FeedClusterCalculator.buildFinalClusters(
             articles = filteredArticles,
-            pairScores = pairScores,
+            orderedPairScores = orderedPairScores,
+            pairScoreByKey = orderedPairScores.toPairScoreMap(),
             threshold = threshold
         )
 

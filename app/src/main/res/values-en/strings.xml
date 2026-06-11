@@ -92,6 +92,10 @@ scheduled</string>
     <string name="settings_api_key_mask_short">....</string>
     <string name="settings_add_api_key">Add API key</string>
     <string name="settings_edit_api_key">Edit API key</string>
+    <string name="settings_api_key_security_notice_title">Important</string>
+    <string name="settings_api_key_security_notice_body">API keys are stored encrypted using Android Keystore secure storage and the AES-256 algorithm. This protects them while stored on the device and prevents extracting keys from persistent storage dumps, such as database files. However, rooted or compromised devices still carry a risk of data compromise, including while data is processed in RAM.</string>
+    <string name="settings_api_key_security_notice_accept">Got it</string>
+    <string name="settings_api_key_security_notice_do_not_show">Do not show again</string>
     <string name="settings_api_keys_help_button">How to get API keys?</string>
     <string name="api_key_help_title">How to get API keys?</string>
     <string name="api_key_help_intro">The app has providers you can start with for free. Availability depends on specific models and limits, but free options exist.</string>
@@ -248,6 +252,10 @@ scheduled</string>
     <string name="settings_sync_passphrase_clear">Clear passphrase</string>
     <string name="settings_sync_passphrase_too_short">Passphrase must be at least 8 characters long</string>
     <string name="settings_sync_passphrase_mismatch">Passphrases do not match</string>
+    <string name="settings_sync_passphrase_matches_existing">Current passphrase matches the one entered earlier</string>
+    <string name="settings_sync_passphrase_differs_existing">Warning: current passphrase does not match the one entered earlier</string>
+    <string name="settings_sync_passphrase_match_unknown_signed_out">You are not signed in, so the app cannot tell whether this passphrase matches the one entered earlier</string>
+    <string name="settings_sync_passphrase_no_local_existing">This device does not have an earlier passphrase to compare against yet</string>
     <string name="settings_sync_passphrase_replace_warning">This passphrase does not match the one saved earlier. If you save it, it will replace the old passphrase, and API keys already synced or exported with the old one will no longer be unlockable with the new passphrase.</string>
     <string name="settings_sync_passphrase_saved">API key sync passphrase saved</string>
     <string name="settings_sync_passphrase_cleared">API key sync disabled, passphrase cleared</string>

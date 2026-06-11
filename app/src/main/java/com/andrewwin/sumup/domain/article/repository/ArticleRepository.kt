@@ -5,6 +5,7 @@ import com.andrewwin.sumup.domain.article.model.Article
 import com.andrewwin.sumup.domain.article.model.ArticleEmbeddingRecord
 import com.andrewwin.sumup.domain.article.model.ArticleSimilarityRecord
 import com.andrewwin.sumup.domain.article.model.SavedArticleSnapshot
+import com.andrewwin.sumup.domain.feed.model.ArticlePairScore
 import com.andrewwin.sumup.domain.source.model.Source
 import kotlinx.coroutines.flow.Flow
 
@@ -33,6 +34,7 @@ interface ArticleRepository {
     suspend fun setFavoriteByIds(ids: List<Long>, isFavorite: Boolean): Int
     suspend fun getEmbeddingsByIds(ids: List<Long>): Map<Long, ByteArray?>
     suspend fun getArticleEmbeddingsByIds(ids: List<Long>): List<ArticleEmbeddingRecord>
+    suspend fun upsertArticleEmbeddings(items: List<ArticleEmbeddingRecord>)
     suspend fun getEnabledArticlesOnce(): List<Article>
     suspend fun getEnabledArticlesSince(timestamp: Long): List<Article>
     suspend fun getSourceById(id: Long): Source?
@@ -44,6 +46,11 @@ interface ArticleRepository {
         strategyKey: String,
         threshold: Float
     ): List<ArticleSimilarityRecord>
+    suspend fun getSimilarityScoresInsideArticleSetAboveThreshold(
+        articleIds: List<Long>,
+        strategyKey: String,
+        threshold: Float
+    ): List<ArticlePairScore>
     suspend fun deleteSimilaritiesByStrategyKey(strategyKey: String)
     suspend fun deleteSimilaritiesForArticles(articleIds: List<Long>, strategyKey: String)
     suspend fun upsertSimilarities(items: List<ArticleSimilarityRecord>)

@@ -379,7 +379,7 @@ class SourceRepositoryImpl @Inject constructor(
         val normalizedDescriptionSelector = normalizeSelector(imported.descriptionSelector)
         val normalizedDateSelector = normalizeSelector(imported.dateSelector)
 
-        val existing = sourceDao.findSourceByTypeAndUrl(imported.type.toRoomEntity(), normalizedUrl)
+        val existing = findExistingImportedSource(imported.type, normalizedUrl)
         val updated = Source(
             id = existing?.id ?: 0L,
             groupId = groupId,
@@ -403,6 +403,17 @@ class SourceRepositoryImpl @Inject constructor(
             sourceDao.insertSource(updated.toRoomEntity())
         } else {
             sourceDao.updateSource(updated.toRoomEntity())
+        }
+    }
+
+    private suspend fun findExistingImportedSource(
+        type: SourceType,
+        normalizedUrl: String
+    ): com.andrewwin.sumup.data.local.entities.Source? {
+        val roomType = type.toRoomEntity()
+        sourceDao.findSourceByTypeAndUrl(roomType, normalizedUrl)?.let { return it }
+        return sourceDao.getSourcesByType(roomType).firstOrNull { existing ->
+            normalizeUrl(existing.url, type).equals(normalizedUrl, ignoreCase = true)
         }
     }
 

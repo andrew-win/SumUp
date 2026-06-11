@@ -265,9 +265,9 @@ class LocalEmbeddingService(
         private const val ATTENTION_MASK_NAME = "attention_mask"
         private const val TOKEN_TYPE_IDS_NAME = "token_type_ids"
         private const val TOKENIZER_INTRA_OP_THREADS = 2
-        private const val TOKENIZER_INTER_OP_THREADS = 1
+        private const val TOKENIZER_INTER_OP_THREADS = 2
         private const val MODEL_INTRA_OP_THREADS = 2
-        private const val MODEL_INTER_OP_THREADS = 1
+        private const val MODEL_INTER_OP_THREADS = 2
         private const val LOCAL_EMBEDDING_INIT_LOG_TAG = "LocalEmbeddingInit"
         private const val TEMP_FILE_SUFFIX = ".tmp"
     }

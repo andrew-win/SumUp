@@ -13,12 +13,14 @@ class RemoteArticleDataSource @Inject constructor(
 
     suspend fun fetchArticles(
         source: Source,
-        oldestAllowedPublishedAt: Long? = null
+        oldestAllowedPublishedAt: Long? = null,
+        refreshBoundary: SourceRefreshBoundary = SourceRefreshBoundary.Empty
     ): List<Article> = withContext(Dispatchers.IO) {
         runCatching {
             getGateway(source.type).fetchArticles(
                 source = source,
-                oldestAllowedPublishedAt = oldestAllowedPublishedAt
+                oldestAllowedPublishedAt = oldestAllowedPublishedAt,
+                refreshBoundary = refreshBoundary
             )
         }.getOrElse { error ->
             emptyList()

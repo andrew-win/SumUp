@@ -26,9 +26,7 @@ interface ArticleDao {
             articles.viewCount,
             articles.isRead,
             articles.isFavorite,
-            articles.importanceScore,
-            NULL AS embedding,
-            NULL AS embeddingType
+            articles.importanceScore
         FROM articles
         INNER JOIN sources ON articles.sourceId = sources.id 
         INNER JOIN source_groups ON sources.groupId = source_groups.id
@@ -67,9 +65,7 @@ interface ArticleDao {
             articles.viewCount,
             articles.isRead,
             articles.isFavorite,
-            articles.importanceScore,
-            NULL AS embedding,
-            NULL AS embeddingType
+            articles.importanceScore
         FROM articles
         INNER JOIN sources ON articles.sourceId = sources.id 
         INNER JOIN source_groups ON sources.groupId = source_groups.id
@@ -92,9 +88,7 @@ interface ArticleDao {
             articles.viewCount,
             articles.isRead,
             articles.isFavorite,
-            articles.importanceScore,
-            NULL AS embedding,
-            NULL AS embeddingType
+            articles.importanceScore
         FROM articles
         INNER JOIN sources ON articles.sourceId = sources.id 
         INNER JOIN source_groups ON sources.groupId = source_groups.id
@@ -190,6 +184,9 @@ interface ArticleDao {
     @Query("UPDATE articles SET isFavorite = :isFavorite WHERE id IN (:ids)")
     suspend fun setFavoriteByIds(ids: List<Long>, isFavorite: Boolean): Int
 
+    @Query("UPDATE articles SET isFavorite = :isFavorite WHERE url IN (:urls)")
+    suspend fun setFavoriteByUrls(urls: List<String>, isFavorite: Boolean): Int
+
     @Query(
         """
         SELECT
@@ -206,7 +203,6 @@ interface ArticleDao {
             articles.isRead AS isRead,
             articles.isFavorite AS isFavorite,
             articles.importanceScore AS importanceScore,
-            NULL AS embedding,
             sources.name AS sourceName,
             source_groups.name AS groupName
         FROM articles
@@ -228,9 +224,6 @@ interface ArticleDao {
         """
     )
     suspend fun getFavoriteSavedAtByArticleIds(articleIds: List<Long>): List<ArticleSavedAtRow>
-
-    @Query("SELECT id, embedding, embeddingType FROM articles WHERE id IN (:ids)")
-    suspend fun getEmbeddingsByIds(ids: List<Long>): List<ArticleEmbedding>
 
     @Query("SELECT id FROM articles WHERE id IN (:ids)")
     suspend fun getExistingArticleIds(ids: List<Long>): List<Long>
@@ -257,9 +250,6 @@ interface ArticleDao {
     @Delete
     suspend fun deleteArticle(article: Article)
 
-    @Query("UPDATE articles SET embedding = NULL, embeddingType = NULL")
-    suspend fun clearEmbeddings()
-
     @Query("DELETE FROM articles")
     suspend fun deleteAllArticles()
 
@@ -282,12 +272,6 @@ interface ArticleDao {
     suspend fun markFavoritesByUrls(urls: List<String>): Int
 }
 
-data class ArticleEmbedding(
-    val id: Long,
-    val embedding: ByteArray?,
-    val embeddingType: String?
-)
-
 data class ArticleWithMeta(
     val id: Long,
     val stableArticleKey: String,
@@ -302,7 +286,6 @@ data class ArticleWithMeta(
     val isRead: Boolean,
     val isFavorite: Boolean,
     val importanceScore: Float,
-    val embedding: ByteArray?,
     val sourceName: String?,
     val groupName: String?
 )

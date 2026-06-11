@@ -2,6 +2,7 @@ package com.andrewwin.sumup.data.remote.sources.youtube
 
 import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.remote.sources.ArticleStableKeyFactory
+import com.andrewwin.sumup.data.remote.sources.SourceRefreshBoundary
 import io.github.thoroldvix.api.TranscriptContent
 import org.jsoup.Jsoup
 import org.jsoup.parser.Parser
@@ -16,26 +17,28 @@ class YouTubeParser {
     fun parseFeed(
         inputStream: InputStream,
         sourceId: Long,
-        oldestAllowedPublishedAt: Long? = null
+        oldestAllowedPublishedAt: Long? = null,
+        refreshBoundary: SourceRefreshBoundary = SourceRefreshBoundary.Empty
     ): YouTubeFeedParseResult {
         inputStream.use {
             val parser = newXmlPullParser()
             parser.setInput(it, null)
             parser.nextTag()
-            return readFeedParseResult(parser, sourceId, oldestAllowedPublishedAt)
+            return readFeedParseResult(parser, sourceId, oldestAllowedPublishedAt, refreshBoundary)
         }
     }
 
     fun parse(
         inputStream: InputStream,
         sourceId: Long,
-        oldestAllowedPublishedAt: Long? = null
+        oldestAllowedPublishedAt: Long? = null,
+        refreshBoundary: SourceRefreshBoundary = SourceRefreshBoundary.Empty
     ): List<Article> {
         inputStream.use {
             val parser = newXmlPullParser()
             parser.setInput(it, null)
             parser.nextTag()
-            return readFeed(parser, sourceId, oldestAllowedPublishedAt)
+            return readFeed(parser, sourceId, oldestAllowedPublishedAt, refreshBoundary)
         }
     }
 
@@ -70,14 +73,17 @@ class YouTubeParser {
     private fun readFeed(
         parser: XmlPullParser,
         sourceId: Long,
-        oldestAllowedPublishedAt: Long?
+        oldestAllowedPublishedAt: Long?,
+        refreshBoundary: SourceRefreshBoundary
     ): List<Article> {
         val articles = mutableListOf<Article>()
         parser.require(XmlPullParser.START_TAG, null, "feed")
         while (parser.next() != XmlPullParser.END_TAG) {
             if (parser.eventType != XmlPullParser.START_TAG) continue
             if (parser.name == "entry") {
-                readEntry(parser, sourceId, oldestAllowedPublishedAt)?.let(articles::add)
+                val article = readEntry(parser, sourceId, oldestAllowedPublishedAt) ?: continue
+                if (refreshBoundary.isKnown(article)) break
+                articles.add(article)
             } else {
                 skip(parser)
             }
@@ -88,7 +94,8 @@ class YouTubeParser {
     private fun readFeedParseResult(
         parser: XmlPullParser,
         sourceId: Long,
-        oldestAllowedPublishedAt: Long?
+        oldestAllowedPublishedAt: Long?,
+        refreshBoundary: SourceRefreshBoundary
     ): YouTubeFeedParseResult {
         val articles = mutableListOf<Article>()
         var entryCount = 0
@@ -114,7 +121,13 @@ class YouTubeParser {
                 if (newestVideoId.isNullOrBlank() && !entryData.videoId.isNullOrBlank()) {
                     newestVideoId = entryData.videoId
                 }
-                entryData.article?.let(articles::add)
+                val article = entryData.article
+                if (article != null) {
+                    if (refreshBoundary.isKnown(article)) {
+                        break
+                    }
+                    articles.add(article)
+                }
             } else {
                 skip(parser)
             }

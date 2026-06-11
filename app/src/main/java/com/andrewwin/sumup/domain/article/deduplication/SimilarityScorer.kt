@@ -3,6 +3,7 @@ package com.andrewwin.sumup.domain.article.deduplication
 import android.os.SystemClock
 import android.util.Log
 import com.andrewwin.sumup.domain.article.model.Article
+import com.andrewwin.sumup.domain.article.model.ArticleEmbeddingRecord
 import com.andrewwin.sumup.domain.settings.model.DeduplicationStrategy
 import com.andrewwin.sumup.domain.ai.embedding.CloudEmbeddingProvider
 import com.andrewwin.sumup.domain.ai.embedding.LocalEmbeddingProvider
@@ -30,50 +31,6 @@ class SimilarityScorer(
 
     fun close() {
         localEmbeddingProvider.close()
-    }
-
-    suspend fun getEmbedding(article: Article, strategy: DeduplicationStrategy): FloatArray {
-        val embeddingType = embeddingTypeForStrategy(strategy)
-        // 1. Check if the provided article object already has the correct embedding
-        if (article.embeddingType == embeddingType && article.embedding != null) {
-            return EmbeddingUtils.toFloatArray(article.embedding)
-        }
-
-        // 2. Check Database Cache if the article object didn't have it (might be stale)
-        val stored = articleRepository.getArticleEmbeddingsByIds(listOf(article.id)).firstOrNull()
-        if (stored?.embedding != null && stored.embeddingType == embeddingType) {
-            return EmbeddingUtils.toFloatArray(stored.embedding)
-        }
-
-        // 3. Generate based on strategy
-        val deduplicationEmbeddingTitle = article.title
-        val embedding = when (strategy) {
-            DeduplicationStrategy.CLOUD -> {
-                val cloud = cloudEmbeddingProvider.generateEmbedding(deduplicationEmbeddingTitle)
-                if (cloud != null) {
-                    EmbeddingUtils.normalize(EmbeddingUtils.resizeEmbedding(cloud))
-                } else null
-            }
-            DeduplicationStrategy.LOCAL -> {
-                val raw = localEmbeddingProvider.computeLocalEmbedding(deduplicationEmbeddingTitle)
-                EmbeddingUtils.normalize(raw)
-            }
-        }
-
-        return if (embedding != null) {
-            saveEmbedding(article, embedding, embeddingType)
-            embedding
-        } else {
-            emptyEmbeddingForStrategy(strategy)
-        }
-    }
-
-    private suspend fun saveEmbedding(article: Article, embedding: FloatArray, embeddingType: String) {
-        val updated = article.copy(
-            embedding = EmbeddingUtils.toByteArray(embedding),
-            embeddingType = embeddingType
-        )
-        articleRepository.updateArticles(listOf(updated))
     }
 
     fun calculateSimilarity(
@@ -254,15 +211,16 @@ class SimilarityScorer(
     }
 
     private suspend fun saveGeneratedEmbeddings(generatedEmbeddings: List<GeneratedEmbedding>, embeddingType: String) {
-        val updatedArticles = generatedEmbeddings.mapNotNull { generated ->
+        val updatedEmbeddings = generatedEmbeddings.mapNotNull { generated ->
             val embedding = generated.embedding ?: return@mapNotNull null
             if (!isUsableEmbedding(embedding)) return@mapNotNull null
-            generated.article.copy(
+            ArticleEmbeddingRecord(
+                id = generated.article.id,
                 embedding = EmbeddingUtils.toByteArray(embedding),
                 embeddingType = embeddingType
             )
         }
-        articleRepository.updateArticles(updatedArticles)
+        articleRepository.upsertArticleEmbeddings(updatedEmbeddings)
     }
 
     private fun isUsableEmbedding(embedding: FloatArray?): Boolean =

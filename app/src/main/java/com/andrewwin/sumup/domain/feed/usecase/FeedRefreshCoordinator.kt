@@ -97,7 +97,7 @@ class FeedRefreshCoordinator @Inject constructor(
     }
 
     private companion object {
-        private const val STARTUP_REFRESH_DELAY_MS = 300L
+        private const val STARTUP_REFRESH_DELAY_MS = 1_000L
         private const val LOG_TAG = "FeedRefreshCoordinator"
     }
 }

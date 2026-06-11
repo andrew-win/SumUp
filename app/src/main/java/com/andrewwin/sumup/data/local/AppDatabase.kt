@@ -8,6 +8,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.andrewwin.sumup.data.local.dao.AiModelDao
 import com.andrewwin.sumup.data.local.dao.ArticleDao
+import com.andrewwin.sumup.data.local.dao.ArticleEmbeddingDao
 import com.andrewwin.sumup.data.local.dao.ArticleSimilarityDao
 import com.andrewwin.sumup.data.local.dao.PreparedScheduledSummaryDao
 import com.andrewwin.sumup.data.local.dao.SavedArticleDao
@@ -16,6 +17,7 @@ import com.andrewwin.sumup.data.local.dao.SummaryDao
 import com.andrewwin.sumup.data.local.dao.UserPreferencesDao
 import com.andrewwin.sumup.data.local.entities.AiModelConfig
 import com.andrewwin.sumup.data.local.entities.Article
+import com.andrewwin.sumup.data.local.entities.ArticleEmbedding
 import com.andrewwin.sumup.data.local.entities.ArticleSimilarity
 import com.andrewwin.sumup.data.local.entities.PreparedScheduledSummary
 import com.andrewwin.sumup.data.local.entities.SavedArticle
@@ -31,6 +33,7 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
         SourceGroup::class, 
         Source::class, 
         Article::class, 
+        ArticleEmbedding::class,
         ArticleSimilarity::class,
         PreparedScheduledSummary::class,
         SavedArticle::class,
@@ -38,12 +41,13 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
         Summary::class,
         UserPreferences::class
     ],
-    version = 73,
+    version = 75,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sourceDao(): SourceDao
     abstract fun articleDao(): ArticleDao
+    abstract fun articleEmbeddingDao(): ArticleEmbeddingDao
     abstract fun articleSimilarityDao(): ArticleSimilarityDao
     abstract fun preparedScheduledSummaryDao(): PreparedScheduledSummaryDao
     abstract fun savedArticleDao(): SavedArticleDao
@@ -105,7 +109,9 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_69_70,
                         MIGRATION_70_71,
                         MIGRATION_71_72,
-                        MIGRATION_72_73
+                        MIGRATION_72_73,
+                        MIGRATION_73_74,
+                        MIGRATION_74_75
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -1040,16 +1046,156 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_73_74 = object : Migration(73, 74) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS article_embeddings_pending (
+                        articleId INTEGER NOT NULL PRIMARY KEY,
+                        embedding BLOB NOT NULL,
+                        embeddingType TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT OR REPLACE INTO article_embeddings_pending (articleId, embedding, embeddingType)
+                    SELECT id, embedding, embeddingType
+                    FROM articles
+                    WHERE embedding IS NOT NULL
+                        AND embeddingType IS NOT NULL
+                        AND TRIM(embeddingType) != ''
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS articles_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        stableArticleKey TEXT NOT NULL,
+                        sourceId INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        mediaUrl TEXT,
+                        videoId TEXT,
+                        url TEXT NOT NULL,
+                        publishedAt INTEGER NOT NULL,
+                        viewCount INTEGER NOT NULL,
+                        isRead INTEGER NOT NULL,
+                        isFavorite INTEGER NOT NULL,
+                        importanceScore REAL NOT NULL,
+                        FOREIGN KEY(sourceId) REFERENCES sources(id) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO articles_new (
+                        id, stableArticleKey, sourceId, title, content, mediaUrl, videoId, url,
+                        publishedAt, viewCount, isRead, isFavorite, importanceScore
+                    )
+                    SELECT
+                        id, stableArticleKey, sourceId, title, content, mediaUrl, videoId, url,
+                        publishedAt, viewCount, isRead, isFavorite, importanceScore
+                    FROM articles
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE articles")
+                db.execSQL("ALTER TABLE articles_new RENAME TO articles")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_articles_sourceId ON articles(sourceId)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_articles_stableArticleKey ON articles(stableArticleKey)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_articles_url ON articles(url)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_articles_publishedAt ON articles(publishedAt)")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS article_embeddings (
+                        articleId INTEGER NOT NULL PRIMARY KEY,
+                        embedding BLOB NOT NULL,
+                        embeddingType TEXT NOT NULL,
+                        FOREIGN KEY(articleId) REFERENCES articles(id) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT OR REPLACE INTO article_embeddings (articleId, embedding, embeddingType)
+                    SELECT articleId, embedding, embeddingType
+                    FROM article_embeddings_pending
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE article_embeddings_pending")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_article_embeddings_embeddingType ON article_embeddings(embeddingType)")
+            }
+        }
+
+        private val MIGRATION_74_75 = object : Migration(74, 75) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                normalizeDefaultTelegramSource(db, "@truexanewsua", "https://t.me/s/truexanewsua")
+                normalizeDefaultTelegramSource(db, "@times_ukraina", "https://t.me/s/times_ukraina")
+                normalizeDefaultTelegramSource(db, "@voynareal", "https://t.me/s/voynareal")
+                normalizeDefaultTelegramSource(db, "@uaonlii", "https://t.me/s/uaonlii")
+                normalizeDefaultTelegramSource(db, "@u_now", "https://t.me/s/u_now")
+            }
+        }
+
         private fun insertDefaultSources(db: SupportSQLiteDatabase) {
-            insertDefaultSource(db, "Труха", "@truexanewsua", SourceType.TELEGRAM)
-            insertDefaultSource(db, "Times Ukraine", "@times_ukraina", SourceType.TELEGRAM)
-            insertDefaultSource(db, "Реальна війна", "@voynareal", SourceType.TELEGRAM)
-            insertDefaultSource(db, "Україна онлайн", "@uaonlii", SourceType.TELEGRAM)
-            insertDefaultSource(db, "Україна зараз", "@u_now", SourceType.TELEGRAM)
+            insertDefaultSource(db, "Труха", "https://t.me/s/truexanewsua", SourceType.TELEGRAM)
+            insertDefaultSource(db, "Times Ukraine", "https://t.me/s/times_ukraina", SourceType.TELEGRAM)
+            insertDefaultSource(db, "Реальна війна", "https://t.me/s/voynareal", SourceType.TELEGRAM)
+            insertDefaultSource(db, "Україна онлайн", "https://t.me/s/uaonlii", SourceType.TELEGRAM)
+            insertDefaultSource(db, "Україна зараз", "https://t.me/s/u_now", SourceType.TELEGRAM)
             insertDefaultSource(db, "Суспільне новини", "https://suspilne.media/rss/all.rss", SourceType.RSS)
             insertDefaultSource(db, "NV", "https://nv.ua/ukr/rss/2283.xml", SourceType.RSS)
             insertDefaultSource(db, "5 канал", "UCkyrSWEcjZKpIwMxiPfOcgg", SourceType.YOUTUBE)
             insertDefaultSource(db, "Вікна-новини", "UCurJsOc2S-CyK4T7jKIolIg", SourceType.YOUTUBE)
+        }
+
+        private fun normalizeDefaultTelegramSource(
+            db: SupportSQLiteDatabase,
+            oldUrl: String,
+            newUrl: String
+        ) {
+            val oldEscaped = oldUrl.sqlEscaped()
+            val newEscaped = newUrl.sqlEscaped()
+            db.execSQL(
+                """
+                UPDATE articles
+                SET sourceId = (
+                    SELECT id FROM sources
+                    WHERE type = '${SourceType.TELEGRAM.name}' AND url = '$oldEscaped'
+                    LIMIT 1
+                )
+                WHERE sourceId = (
+                    SELECT id FROM sources
+                    WHERE type = '${SourceType.TELEGRAM.name}' AND url = '$newEscaped'
+                    LIMIT 1
+                )
+                AND EXISTS (
+                    SELECT 1 FROM sources
+                    WHERE type = '${SourceType.TELEGRAM.name}' AND url = '$oldEscaped'
+                )
+                AND EXISTS (
+                    SELECT 1 FROM sources
+                    WHERE type = '${SourceType.TELEGRAM.name}' AND url = '$newEscaped'
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                DELETE FROM sources
+                WHERE type = '${SourceType.TELEGRAM.name}' AND url = '$newEscaped'
+                AND EXISTS (
+                    SELECT 1 FROM sources
+                    WHERE type = '${SourceType.TELEGRAM.name}' AND url = '$oldEscaped'
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                UPDATE sources
+                SET url = '$newEscaped'
+                WHERE type = '${SourceType.TELEGRAM.name}' AND url = '$oldEscaped'
+                """.trimIndent()
+            )
         }
 
         private fun insertDefaultSource(

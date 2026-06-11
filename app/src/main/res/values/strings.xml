@@ -93,6 +93,10 @@
     <string name="settings_api_key_mask_short">....</string>
     <string name="settings_add_api_key">Додати API Ключ</string>
     <string name="settings_edit_api_key">Редагувати API Ключ</string>
+    <string name="settings_api_key_security_notice_title">Важливо</string>
+    <string name="settings_api_key_security_notice_body">API-ключі зберігаються у зашифрованому вигляді з використанням захищеного сховища Android Keystore та алгоритму AES-256. Це забезпечує їх захист при зберіганні на пристрої та унеможливлює отримання ключів із дампів постійної пам’яті (наприклад, файлів бази даних). Однак на рутованих або скомпрометованих пристроях існує ризик компрометації даних, зокрема під час їх обробки в оперативній пам’яті.</string>
+    <string name="settings_api_key_security_notice_accept">Зрозуміло</string>
+    <string name="settings_api_key_security_notice_do_not_show">Не показувати більше</string>
     <string name="settings_api_keys_help_button">Як отримати API-ключі?</string>
     <string name="api_key_help_title">Як отримати API-ключі?</string>
     <string name="api_key_help_intro">У додатку є провайдери, з якими можна почати безкоштовно. Це залежить від конкретних моделей і лімітів, але безкоштовні варіанти є.</string>
@@ -258,6 +262,10 @@
     <string name="settings_sync_passphrase_clear">Очистити пароль</string>
     <string name="settings_sync_passphrase_too_short">Пароль має містити щонайменше 8 символів</string>
     <string name="settings_sync_passphrase_mismatch">Паролі не збігаються</string>
+    <string name="settings_sync_passphrase_matches_existing">Поточний пароль співпадає з раніше введеним</string>
+    <string name="settings_sync_passphrase_differs_existing">Увага: поточний пароль не співпадає з раніше введеним</string>
+    <string name="settings_sync_passphrase_match_unknown_signed_out">Ви не увійшли в акаунт, тому не можна зрозуміти чи співпадає пароль із раніше введеним</string>
+    <string name="settings_sync_passphrase_no_local_existing">На цьому пристрої ще немає раніше введеного пароля для порівняння</string>
     <string name="settings_sync_passphrase_replace_warning">Пароль не співпадає з раніше збереженим. Якщо зберегти новий пароль, він перезапише старий, а вже синхронізовані чи експортовані API-ключі цим новим паролем розблокувати не вийде.</string>
     <string name="settings_sync_passphrase_saved">Пароль синхронізації API-ключів збережено</string>
     <string name="settings_sync_passphrase_cleared">Синхронізацію API-ключів вимкнено, пароль очищено</string>

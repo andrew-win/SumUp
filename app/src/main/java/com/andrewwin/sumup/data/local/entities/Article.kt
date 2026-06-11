@@ -1,6 +1,5 @@
 package com.andrewwin.sumup.data.local.entities
 
-import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -36,11 +35,7 @@ data class Article(
     val viewCount: Long = 0,
     val isRead: Boolean = false,
     val isFavorite: Boolean = false,
-    val importanceScore: Float = 0f,
-    @ColumnInfo(name = "embedding", typeAffinity = ColumnInfo.BLOB)
-    val embedding: ByteArray? = null,
-    @ColumnInfo(name = "embeddingType", defaultValue = "NULL")
-    val embeddingType: String? = null
+    val importanceScore: Float = 0f
 )
 
 

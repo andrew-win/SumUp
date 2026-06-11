@@ -42,6 +42,9 @@ interface SourceDao {
     @Query("SELECT * FROM sources WHERE id IN (:sourceIds)")
     suspend fun getSourcesByIds(sourceIds: List<Long>): List<Source>
 
+    @Query("SELECT * FROM sources WHERE type = :type")
+    suspend fun getSourcesByType(type: com.andrewwin.sumup.data.local.entities.SourceType): List<Source>
+
     @Query("SELECT EXISTS(SELECT 1 FROM sources WHERE type = :type AND LOWER(TRIM(url)) = LOWER(TRIM(:url)))")
     suspend fun sourceExistsByTypeAndUrl(type: com.andrewwin.sumup.data.local.entities.SourceType, url: String): Boolean
 

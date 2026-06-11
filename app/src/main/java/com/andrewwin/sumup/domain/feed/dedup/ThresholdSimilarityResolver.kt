@@ -7,6 +7,8 @@ import com.andrewwin.sumup.domain.article.model.Article
 import com.andrewwin.sumup.domain.article.model.ArticleSimilarityRecord
 import com.andrewwin.sumup.domain.article.repository.ArticleRepository
 import com.andrewwin.sumup.domain.feed.model.ArticlePairKey
+import com.andrewwin.sumup.domain.feed.model.ArticlePairScore
+import com.andrewwin.sumup.domain.feed.model.toPairScoreMap
 import com.andrewwin.sumup.domain.settings.model.DeduplicationStrategy
 import com.andrewwin.sumup.domain.settings.model.UserSettings
 import kotlinx.coroutines.flow.first
@@ -22,25 +24,41 @@ class ThresholdSimilarityResolver @Inject constructor(
         persistComputed: Boolean,
         allowOnDemandComputation: Boolean
     ): Map<ArticlePairKey, Float> {
+        return resolveOrderedPairScores(
+            articles = articles,
+            prefs = prefs,
+            persistComputed = persistComputed,
+            allowOnDemandComputation = allowOnDemandComputation
+        ).toPairScoreMap()
+    }
+
+    suspend fun resolveOrderedPairScores(
+        articles: List<Article>,
+        prefs: UserSettings,
+        persistComputed: Boolean,
+        allowOnDemandComputation: Boolean
+    ): List<ArticlePairScore> {
         if (!prefs.isDeduplicationEnabled || articles.size < MIN_ARTICLES_FOR_SIMILARITY) {
-            return emptyMap()
+            return emptyList()
         }
         val threshold = prefs.deduplicationThreshold()
         val strategy = prefs.deduplicationStrategy
         val strategyKey = similarityScorer.thresholdSimilarityCacheKey(strategy, threshold)
         val articleIds = articles.map { it.id }.distinct()
-        val cached = articleRepository.getSimilaritiesInsideArticleSet(articleIds, strategyKey)
+        val cached = articleRepository.getSimilarityScoresInsideArticleSetAboveThreshold(
+            articleIds = articleIds,
+            strategyKey = strategyKey,
+            threshold = threshold
+        )
         if (cached.isNotEmpty()) {
-            return cached.associate { similarity ->
-                ArticlePairKey.of(similarity.leftArticleId, similarity.rightArticleId) to similarity.score
-            }
+            return cached
         }
         if (!allowOnDemandComputation) {
             Log.d(
                 THRESHOLD_SIMILARITY_LOG_TAG,
                 "cache_miss_skip_compute strategyKey=$strategyKey articles=${articleIds.size}"
             )
-            return emptyMap()
+            return emptyList()
         }
 
         val computed = computeSimilaritiesAboveThreshold(
@@ -52,9 +70,17 @@ class ThresholdSimilarityResolver @Inject constructor(
         if (persistComputed && computed.isNotEmpty()) {
             articleRepository.upsertSimilarities(computed)
         }
-        return computed.associate { similarity ->
-            ArticlePairKey.of(similarity.leftArticleId, similarity.rightArticleId) to similarity.score
-        }
+        return computed
+            .asSequence()
+            .sortedByDescending { it.score }
+            .map { similarity ->
+                ArticlePairScore(
+                    leftArticleId = similarity.leftArticleId,
+                    rightArticleId = similarity.rightArticleId,
+                    score = similarity.score
+                )
+            }
+            .toList()
     }
 
     suspend fun resolveSimilarityCounts(

@@ -64,7 +64,7 @@ class FeedViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val feedUiModelMapper: FeedUiModelMapper
 ) : AndroidViewModel(application) {
-    private val favoriteOverrides = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
+    private val favoriteOverrides = MutableStateFlow<Map<String, Boolean>>(emptyMap())
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -356,7 +356,7 @@ class FeedViewModel @Inject constructor(
         favoriteOverrides.update { current ->
             val updated = current.toMutableMap()
             clusterArticles.forEach { article ->
-                updated[article.id] = newFavorite
+                updated[article.url] = newFavorite
             }
             updated
         }
@@ -382,7 +382,7 @@ class FeedViewModel @Inject constructor(
 
     private fun applyFavoriteOverrides(
         clusters: List<ArticleClusterUiModel>,
-        overrides: Map<Long, Boolean>
+        overrides: Map<String, Boolean>
     ): List<ArticleClusterUiModel> {
         if (overrides.isEmpty()) return clusters
         return clusters.map { cluster ->
@@ -396,9 +396,9 @@ class FeedViewModel @Inject constructor(
 
     private fun applyFavoriteOverride(
         uiModel: ArticleUiModel,
-        overrides: Map<Long, Boolean>
+        overrides: Map<String, Boolean>
     ): ArticleUiModel {
-        val override = overrides[uiModel.article.id] ?: return uiModel
+        val override = overrides[uiModel.article.url] ?: return uiModel
         if (uiModel.article.isFavorite == override) return uiModel
         return uiModel.copy(article = uiModel.article.copy(isFavorite = override))
     }
@@ -530,10 +530,12 @@ class FeedViewModel @Inject constructor(
         var fingerprint = feedFingerprint
         clusters.forEach { cluster ->
             fingerprint = fingerprint * 31 + cluster.representative.article.id
+            fingerprint = fingerprint * 31 + cluster.representative.article.isFavorite.hashCode().toLong()
             fingerprint = fingerprint * 31 + (cluster.representative.savedAt ?: 0L)
             fingerprint = fingerprint * 31 + cluster.duplicates.size
             cluster.duplicates.forEach { (articleUi, score) ->
                 fingerprint = fingerprint * 31 + articleUi.article.id
+                fingerprint = fingerprint * 31 + articleUi.article.isFavorite.hashCode().toLong()
                 fingerprint = fingerprint * 31 + (articleUi.savedAt ?: 0L)
                 fingerprint = fingerprint * 31 + score.toRawBits()
             }

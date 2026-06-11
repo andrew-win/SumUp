@@ -4,6 +4,7 @@ import com.andrewwin.sumup.data.local.entities.Article
 import com.andrewwin.sumup.data.local.entities.Source
 import com.andrewwin.sumup.data.remote.sources.RemoteFullContent
 import com.andrewwin.sumup.data.remote.sources.RemoteSourceGateway
+import com.andrewwin.sumup.data.remote.sources.SourceRefreshBoundary
 import com.andrewwin.sumup.domain.ai.model.RemoteContentFetchStatus
 import java.io.ByteArrayInputStream
 import kotlinx.coroutines.Dispatchers
@@ -17,7 +18,8 @@ class YouTubeSourceGateway(
 
     override suspend fun fetchArticles(
         source: Source,
-        oldestAllowedPublishedAt: Long?
+        oldestAllowedPublishedAt: Long?,
+        refreshBoundary: SourceRefreshBoundary
     ): List<Article> = withContext(Dispatchers.IO) {
         try {
             val youtubeUrl = buildYouTubeFeedUrl(source.url)
@@ -26,7 +28,8 @@ class YouTubeSourceGateway(
             val parseResult = youtubeParser.parseFeed(
                 inputStream = ByteArrayInputStream(feedBytes),
                 sourceId = source.id,
-                oldestAllowedPublishedAt = oldestAllowedPublishedAt
+                oldestAllowedPublishedAt = oldestAllowedPublishedAt,
+                refreshBoundary = refreshBoundary
             )
             val metadata = parseResult.metadata
             if (!metadata.hasRelevantEntry) {
