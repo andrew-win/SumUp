@@ -22,7 +22,7 @@ class ArticleImportanceScorer {
         sourceType: SourceType
     ): Float {
         val fullText = "${article.title} ${article.content}"
-        if (fullText.length < MIN_TITLE_AND_CONTENT_LENGTH) {
+        if (article.title.trim().length < MIN_TITLE_LENGTH) {
             return 0f
         }
 
@@ -75,7 +75,7 @@ class ArticleImportanceScorer {
 
     companion object {
         private const val CONTENT_SYMBOLS_FOR_FACTS = 250
-        private const val MIN_TITLE_AND_CONTENT_LENGTH = 30
+        private const val MIN_TITLE_LENGTH = 30
         private const val VIEWS_FACTOR = 0.45f
         private const val RSS_FIXED_VIEWS_SCORE = 0.4f
         private const val FACT_BONUS_STEP = 0.2f

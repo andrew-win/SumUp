@@ -115,6 +115,8 @@ fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
     put("isFeedMediaEnabled", isFeedMediaEnabled)
     put("isFeedDescriptionEnabled", isFeedDescriptionEnabled)
     put("isFeedSummaryUseFullTextEnabled", isFeedSummaryUseFullTextEnabled)
+    put("isFeedTitleExcludeRegexEnabled", isFeedTitleExcludeRegexEnabled)
+    put("feedTitleExcludeRegex", feedTitleExcludeRegex)
     put("isRecommendationsEnabled", isRecommendationsEnabled)
     put("articleAutoCleanupHours", articleAutoCleanupHours)
     put("appThemeMode", appThemeMode.name)
@@ -191,6 +193,11 @@ fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
             "isFeedSummaryUseFullTextEnabled",
             defaults.isFeedSummaryUseFullTextEnabled
         ),
+        isFeedTitleExcludeRegexEnabled = optBoolean(
+            "isFeedTitleExcludeRegexEnabled",
+            defaults.isFeedTitleExcludeRegexEnabled
+        ),
+        feedTitleExcludeRegex = optString("feedTitleExcludeRegex", defaults.feedTitleExcludeRegex),
         isRecommendationsEnabled = optBoolean("isRecommendationsEnabled", defaults.isRecommendationsEnabled),
         articleAutoCleanupHours = optArticleAutoCleanupHours(defaults.articleAutoCleanupHours),
         appThemeMode = runCatching { AppThemeMode.valueOf(optString("appThemeMode", defaults.appThemeMode.name)) }

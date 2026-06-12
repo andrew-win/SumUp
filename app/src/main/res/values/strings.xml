@@ -359,6 +359,9 @@
     <string name="settings_feed_media">Показувати медіа у стрічці</string>
     <string name="settings_feed_description">Показувати опис</string>
     <string name="settings_feed_summary_use_full_text">Повні тексти замість анотацій для підсумку стрічки</string>
+    <string name="settings_feed_title_exclude_regex_enabled">Виключати новини за regex у заголовку</string>
+    <string name="settings_feed_title_exclude_regex">Regex для виключення заголовків</string>
+    <string name="settings_feed_title_exclude_regex_hint">Оперативні заголовки: курсом, відбій, повітряна тривога…</string>
     <string name="settings_sources">Джерела</string>
     <string name="settings_show_recommendations">Отримувати рекомендації тем на основі доданих джерел</string>
     <string name="export_feed_pdf">Експорт стрічки у PDF</string>
@@ -561,6 +564,7 @@
     <string name="settings_help_feed_media">— Вмикає зображення і медіа-прев’ю в картках стрічки, якщо джерело їх дало.\n— Це змінює лише вигляд карток.\n— На склад новин у стрічці цей пункт не впливає.</string>
     <string name="settings_help_feed_description">— Показує короткий текст під заголовком новини.\n— Це змінює лише спосіб відображення картки.\n— На формування summary і dedup цей пункт не впливає.</string>
     <string name="settings_help_feed_full_text">— Цей пункт впливає саме на сумаризацію всієї стрічки і запланованих зведень, а не на вигляд карток у самій стрічці.\n— Якщо його увімкнено, застосунок намагається передавати в AI повний текст статті замість короткої анотації.\n— Якщо його вимкнено, за замовчуванням використовується заголовок і короткий опис зі стрічки, а для Telegram-постів — лише невелика початкова частина тексту.</string>
+    <string name="settings_help_feed_title_exclude_regex">— Фільтр перевіряє тільки заголовок новини перед importance і дедублікацією.\n— За замовчуванням виключає оперативні заголовки про рух цілей, відбої, дорозвідку, пуски та повітряну тривогу.\n— Якщо regex некоректний або порожній, фільтр не застосовується.</string>
     <string name="settings_help_feed_importance_filter">— Перед побудовою стрічки застосунок відкидає новини з низьким балом інформативності.\n— Бал рахується за кількістю фактів і чисел, довжиною тексту, переглядами та штрафами за рекламні або клікбейтні слова.\n— Той самий поріг використовується і перед формуванням запланованих зведень.</string>
     <string name="settings_help_dedup_strategy_local">— Локальна дедублікація рахує embeddings на пристрої моделлю `e5-small-multilang`.\n— Після перемикання застосунок очищає старий кеш схожостей, перебудовує його і заново збирає стрічку.</string>
     <string name="settings_help_dedup_strategy_cloud">— Хмарна дедублікація використовує додані embedding-конфіги і рахує embeddings через зовнішніх провайдерів.\n— Після перемикання застосунок також очищає старий кеш схожостей і перебудовує стрічку.</string>

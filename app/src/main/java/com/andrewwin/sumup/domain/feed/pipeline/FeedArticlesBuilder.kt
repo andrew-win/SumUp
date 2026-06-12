@@ -143,6 +143,14 @@ class FeedArticlesBuilder @Inject constructor(
             }
         }
 
+        if (!params.savedOnly) {
+            params.prefs.feedTitleExcludeRegexOrNull()?.let { excludeRegex ->
+                processedArticles = processedArticles.filterNot { article ->
+                    excludeRegex.containsMatchIn(article.title)
+                }
+            }
+        }
+
         if (!params.savedOnly && params.prefs.isImportanceFilterEnabled) {
             processedArticles = processedArticles.filter { article ->
                 article.importanceScore >= ArticleImportanceScorer.IMPORTANCE_THRESHOLD
@@ -428,3 +436,10 @@ private fun UserSettings.deduplicationThreshold(): Float =
         DeduplicationStrategy.LOCAL -> localDeduplicationThreshold
         DeduplicationStrategy.CLOUD -> cloudDeduplicationThreshold
     }
+
+private fun UserSettings.feedTitleExcludeRegexOrNull(): Regex? {
+    if (!isFeedTitleExcludeRegexEnabled) return null
+    val pattern = feedTitleExcludeRegex.trim()
+    if (pattern.isBlank()) return null
+    return runCatching { Regex(pattern, RegexOption.IGNORE_CASE) }.getOrNull()
+}

@@ -2,8 +2,11 @@ package com.andrewwin.sumup.data.remote.sources.youtube
 
 import com.andrewwin.sumup.domain.ai.model.RemoteContentFetchStatus
 import io.github.thoroldvix.api.TranscriptApiFactory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.InputStream
 
 class YouTubeFetcher(
     private val okHttpClient: OkHttpClient
@@ -17,6 +20,22 @@ class YouTubeFetcher(
                 error("YouTube feed request failed with code ${response.code}")
             }
             response.body.bytes()
+        }
+    }
+
+    suspend fun <T> fetchFeedStream(
+        url: String,
+        block: suspend (InputStream) -> T
+    ): Result<T> = runCatching {
+        val request = Request.Builder().url(url).build()
+        okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                error("YouTube feed request failed with code ${response.code}")
+            }
+            val stream = response.body.byteStream()
+            withContext(Dispatchers.Default) {
+                block(stream)
+            }
         }
     }
 

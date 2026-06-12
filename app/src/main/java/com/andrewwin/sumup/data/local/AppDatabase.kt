@@ -41,7 +41,7 @@ import com.andrewwin.sumup.data.local.entities.UserPreferences
         Summary::class,
         UserPreferences::class
     ],
-    version = 75,
+    version = 78,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -111,7 +111,10 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_71_72,
                         MIGRATION_72_73,
                         MIGRATION_73_74,
-                        MIGRATION_74_75
+                        MIGRATION_74_75,
+                        MIGRATION_75_76,
+                        MIGRATION_76_77,
+                        MIGRATION_77_78
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(object : Callback() {
@@ -124,8 +127,8 @@ abstract class AppDatabase : RoomDatabase() {
                             )
                             insertDefaultSources(db)
                             db.execSQL(
-                                "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, scheduledSummaryTimes, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsSingleArticle, aiMaxCharsNewsCluster, aiMaxCharsSingleFeedArticle, aiMaxCharsFeedCluster, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
-                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, '08:00', 0, 1, 'LOCAL', 0.87, 0.87, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 10, 1, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 0, ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}, 'SYSTEM', 'UK', 'UK')"
+                                "INSERT OR IGNORE INTO user_preferences (id, aiStrategy, isScheduledSummaryEnabled, isScheduledSummaryPushEnabled, scheduledHour, scheduledMinute, scheduledSummaryTimes, lastWorkRunTimestamp, isDeduplicationEnabled, deduplicationStrategy, localDeduplicationThreshold, cloudDeduplicationThreshold, minMentions, isImportanceFilterEnabled, isAdaptiveExtractivePreprocessingEnabled, adaptiveExtractiveOnlyBelowChars, adaptiveExtractiveHighCompressionAboveChars, adaptiveExtractiveCompressionPercentFirst, adaptiveExtractiveCompressionPercentMedium, adaptiveExtractiveCompressionPercentHigh, summaryItemsPerNewsInFeed, summaryItemsPerNewsInScheduled, summaryNewsInFeedCloud, summaryNewsInScheduledCloud, extractiveNewsInFeed, extractiveSentencesInScheduled, extractiveNewsInScheduled, showLastSummariesCount, showInfographicNewsCount, isHideSingleNewsEnabled, aiMaxCharsSingleArticle, aiMaxCharsNewsCluster, aiMaxCharsSingleFeedArticle, aiMaxCharsFeedCluster, aiMaxCharsTotal, summaryPrompt, isCustomSummaryPromptEnabled, isFeedMediaEnabled, isFeedDescriptionEnabled, isFeedSummaryUseFullTextEnabled, isFeedTitleExcludeRegexEnabled, feedTitleExcludeRegex, isRecommendationsEnabled, articleAutoCleanupDays, appThemeMode, appLanguage, summaryLanguage) " +
+                                "VALUES (0, 'ADAPTIVE', 0, 0, 8, 0, '08:00', 0, 1, 'LOCAL', 0.87, 0.87, 2, 1, 1, 1000, 3000, 0, 30, 15, 3, 3, 4, 4, 4, 3, 4, 5, 10, 1, 1000, 1000, 1000, 1000, 30000, '$defaultPrompt', 0, 1, 0, 0, 1, '${UserPreferences.DEFAULT_FEED_TITLE_EXCLUDE_REGEX}', 0, ${UserPreferences.DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS}, 'SYSTEM', 'UK', 'UK')"
                             )
                         }
                     })
@@ -1137,6 +1140,41 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_75_76 = object : Migration(75, 76) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE user_preferences ADD COLUMN isFeedTitleExcludeRegexEnabled INTEGER NOT NULL DEFAULT 1"
+                )
+                db.execSQL(
+                    "ALTER TABLE user_preferences ADD COLUMN feedTitleExcludeRegex TEXT NOT NULL DEFAULT '${UserPreferences.DEFAULT_FEED_TITLE_EXCLUDE_REGEX}'"
+                )
+            }
+        }
+
+        private val MIGRATION_76_77 = object : Migration(76, 77) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    UPDATE user_preferences
+                    SET feedTitleExcludeRegex = '${UserPreferences.DEFAULT_FEED_TITLE_EXCLUDE_REGEX.sqlEscaped()}'
+                    WHERE feedTitleExcludeRegex = '$LEGACY_FEED_TITLE_EXCLUDE_REGEX'
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_77_78 = object : Migration(77, 78) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    UPDATE user_preferences
+                    SET feedTitleExcludeRegex = '${UserPreferences.DEFAULT_FEED_TITLE_EXCLUDE_REGEX.sqlEscaped()}'
+                    WHERE feedTitleExcludeRegex = '${PREVIOUS_FEED_TITLE_EXCLUDE_REGEX.sqlEscaped()}'
+                    """.trimIndent()
+                )
+            }
+        }
+
         private fun insertDefaultSources(db: SupportSQLiteDatabase) {
             insertDefaultSource(db, "Труха", "https://t.me/s/truexanewsua", SourceType.TELEGRAM)
             insertDefaultSource(db, "Times Ukraine", "https://t.me/s/times_ukraina", SourceType.TELEGRAM)
@@ -1218,5 +1256,9 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         private fun String.sqlEscaped(): String = replace("'", "''")
+
+        private const val LEGACY_FEED_TITLE_EXCLUDE_REGEX = "тривога|відбій|курсом"
+        private const val PREVIOUS_FEED_TITLE_EXCLUDE_REGEX =
+            """(?:^|[^\p{L}\p{N}_])(?:(?:\d+\s*(?:х|x)?\s*)?(?:бпла|шахед[и]?|ціл[ья]|балістик[аи]?|каб|кр|кар|fpv|молні[яї])\s+(?:на|курсом|у\s+бік|в\s+бік|повз|над|в\s+районі|біля|південніше|північніше|східніше|західніше|з\s+моря|з)|(?:відбій|дорозвідка|локаційно\s+чисто|без\s+подальшої\s+фіксації|сигнал\s+втрачено|не\s+(?:спостерігається|фіксується))|(?:загроза|пуски?|вихід)\s+(?:балістик[и]?|каб|шахед(?:ів)?|бпла|ракет|швидкісн(?:ої|а)|орєшнік|кедр)|повітряна\s+тривога)(?=$|[^\p{L}\p{N}_])"""
     }
 }

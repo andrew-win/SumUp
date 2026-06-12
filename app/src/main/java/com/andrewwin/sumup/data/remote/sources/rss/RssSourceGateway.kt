@@ -54,12 +54,14 @@ class RssSourceGateway(
         sourceId: Long,
         refreshBoundary: SourceRefreshBoundary
     ): Result<List<Article>> {
-        val xml = rssFetcher.fetchBody(url).getOrElse { return Result.failure(it) }
-        return rssParser.parseArticlesXml(xml, sourceId, refreshBoundary)
+        return rssFetcher.fetchBodyReader(url) { reader ->
+            rssParser.parseArticlesReader(reader, sourceId, refreshBoundary)
+        }
     }
 
     private suspend fun fetchChannelTitle(url: String): String? {
-        val xml = displayNameRssFetcher.fetchBody(url).getOrNull() ?: return null
-        return rssParser.parseChannelTitleXml(xml)
+        return displayNameRssFetcher.fetchBodyReader(url) { reader ->
+            rssParser.parseChannelTitleReader(reader)
+        }.getOrNull()
     }
 }

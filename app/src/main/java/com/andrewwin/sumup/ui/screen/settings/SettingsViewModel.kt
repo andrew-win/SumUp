@@ -355,6 +355,14 @@ class SettingsViewModel @Inject constructor(
         updateFeedPreferences { it.copy(isFeedSummaryUseFullTextEnabled = enabled) }
     }
 
+    fun updateFeedTitleExcludeRegexEnabled(enabled: Boolean) {
+        updateFeedPreferences { it.copy(isFeedTitleExcludeRegexEnabled = enabled) }
+    }
+
+    fun updateFeedTitleExcludeRegex(regex: String) {
+        updateFeedPreferences { it.copy(feedTitleExcludeRegex = regex) }
+    }
+
     fun updateRecommendationsEnabled(enabled: Boolean) {
         viewModelScope.launch { updatePreferences { it.copy(isRecommendationsEnabled = enabled) } }
     }

@@ -6,7 +6,6 @@ import com.andrewwin.sumup.data.remote.sources.RemoteFullContent
 import com.andrewwin.sumup.data.remote.sources.RemoteSourceGateway
 import com.andrewwin.sumup.data.remote.sources.SourceRefreshBoundary
 import com.andrewwin.sumup.domain.ai.model.RemoteContentFetchStatus
-import java.io.ByteArrayInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -23,14 +22,15 @@ class YouTubeSourceGateway(
     ): List<Article> = withContext(Dispatchers.IO) {
         try {
             val youtubeUrl = buildYouTubeFeedUrl(source.url)
-            val feedBytes = youtubeFetcher.fetchFeedBytes(youtubeUrl).getOrNull()
+            val parseResult = youtubeFetcher.fetchFeedStream(youtubeUrl) { stream ->
+                youtubeParser.parseFeed(
+                    inputStream = stream,
+                    sourceId = source.id,
+                    oldestAllowedPublishedAt = oldestAllowedPublishedAt,
+                    refreshBoundary = refreshBoundary
+                )
+            }.getOrNull()
                 ?: return@withContext emptyList()
-            val parseResult = youtubeParser.parseFeed(
-                inputStream = ByteArrayInputStream(feedBytes),
-                sourceId = source.id,
-                oldestAllowedPublishedAt = oldestAllowedPublishedAt,
-                refreshBoundary = refreshBoundary
-            )
             val metadata = parseResult.metadata
             if (!metadata.hasRelevantEntry) {
                 return@withContext emptyList()
@@ -44,9 +44,9 @@ class YouTubeSourceGateway(
     override suspend fun fetchDisplayName(url: String): String? = withContext(Dispatchers.IO) {
         try {
             val youtubeUrl = buildYouTubeFeedUrl(url)
-            val feedBytes = displayNameYouTubeFetcher.fetchFeedBytes(youtubeUrl).getOrNull()
-                ?: return@withContext null
-            youtubeParser.parseChannelDisplayName(ByteArrayInputStream(feedBytes))
+            displayNameYouTubeFetcher.fetchFeedStream(youtubeUrl) { stream ->
+                youtubeParser.parseChannelDisplayName(stream)
+            }.getOrNull()
         } catch (e: Exception) {
             null
         }

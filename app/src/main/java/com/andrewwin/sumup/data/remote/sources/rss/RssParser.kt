@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
+import java.io.Reader
 import java.io.StringReader
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -29,84 +30,96 @@ class RssParser {
         return runCatching {
             if (xml.isBlank()) return@runCatching emptyList()
             withContext(Dispatchers.Default) {
-                val parser = newXmlPullParser(xml)
-                val articles = mutableListOf<Article>()
-                var currentItem: RssItemBuilder? = null
-                var shouldStop = false
-
-                while (!shouldStop && parser.next() != XmlPullParser.END_DOCUMENT) {
-                    when (parser.eventType) {
-                        XmlPullParser.START_TAG -> {
-                            val tagName = parser.name.orEmpty()
-                            if (tagName.isRssItemTag()) {
-                                currentItem = RssItemBuilder()
-                            } else {
-                                currentItem?.readTag(parser, tagName)
-                            }
-                        }
-                        XmlPullParser.END_TAG -> {
-                            if (parser.name.orEmpty().isRssItemTag()) {
-                                currentItem?.toArticle(sourceId)?.let { article ->
-                                    if (refreshBoundary.isKnown(article)) {
-                                        shouldStop = true
-                                    } else {
-                                        articles.add(article)
-                                    }
-                                }
-                                currentItem = null
-                            }
-                        }
-                    }
-                }
-
-                articles
+                parseArticlesReader(StringReader(xml), sourceId, refreshBoundary)
             }
         }
+    }
+
+    fun parseArticlesReader(
+        reader: Reader,
+        sourceId: Long,
+        refreshBoundary: SourceRefreshBoundary = SourceRefreshBoundary.Empty
+    ): List<Article> {
+        val parser = newXmlPullParser(reader)
+        val articles = mutableListOf<Article>()
+        var currentItem: RssItemBuilder? = null
+        var shouldStop = false
+
+        while (!shouldStop && parser.next() != XmlPullParser.END_DOCUMENT) {
+            when (parser.eventType) {
+                XmlPullParser.START_TAG -> {
+                    val tagName = parser.name.orEmpty()
+                    if (tagName.isRssItemTag()) {
+                        currentItem = RssItemBuilder()
+                    } else {
+                        currentItem?.readTag(parser, tagName)
+                    }
+                }
+                XmlPullParser.END_TAG -> {
+                    if (parser.name.orEmpty().isRssItemTag()) {
+                        currentItem?.toArticle(sourceId)?.let { article ->
+                            if (refreshBoundary.isKnown(article)) {
+                                shouldStop = true
+                            } else {
+                                articles.add(article)
+                            }
+                        }
+                        currentItem = null
+                    }
+                }
+            }
+        }
+
+        return articles
     }
 
     suspend fun parseChannelTitleXml(xml: String): String? {
         return runCatching {
             if (xml.isBlank()) return@runCatching null
             withContext(Dispatchers.Default) {
-                val parser = newXmlPullParser(xml)
-                var insideChannel = false
-                var insideFeed = false
-                var channelDepth = -1
-                var feedDepth = -1
+                parseChannelTitleReader(StringReader(xml))
+            }
+        }.getOrNull()
+    }
 
-                while (parser.next() != XmlPullParser.END_DOCUMENT) {
-                    when (parser.eventType) {
-                        XmlPullParser.START_TAG -> {
-                            when (parser.name.orEmpty().localTagName()) {
-                                "channel" -> {
-                                    insideChannel = true
-                                    channelDepth = parser.depth
-                                }
-                                "feed" -> {
-                                    insideFeed = true
-                                    feedDepth = parser.depth
-                                }
-                                "title" -> {
-                                    if (insideChannel || insideFeed) {
-                                        return@withContext readText(parser).cleanChannelTitle()
-                                    }
-                                }
-                            }
+    fun parseChannelTitleReader(reader: Reader): String? {
+        val parser = newXmlPullParser(reader)
+        var insideChannel = false
+        var insideFeed = false
+        var channelDepth = -1
+        var feedDepth = -1
+
+        while (parser.next() != XmlPullParser.END_DOCUMENT) {
+            when (parser.eventType) {
+                XmlPullParser.START_TAG -> {
+                    when (parser.name.orEmpty().localTagName()) {
+                        "channel" -> {
+                            insideChannel = true
+                            channelDepth = parser.depth
                         }
-                        XmlPullParser.END_TAG -> {
-                            if (insideChannel && parser.depth == channelDepth) {
-                                insideChannel = false
-                            }
-                            if (insideFeed && parser.depth == feedDepth) {
-                                insideFeed = false
+                        "feed" -> {
+                            insideFeed = true
+                            feedDepth = parser.depth
+                        }
+                        "title" -> {
+                            if (insideChannel || insideFeed) {
+                                return readText(parser).cleanChannelTitle()
                             }
                         }
                     }
                 }
-
-                null
+                XmlPullParser.END_TAG -> {
+                    if (insideChannel && parser.depth == channelDepth) {
+                        insideChannel = false
+                    }
+                    if (insideFeed && parser.depth == feedDepth) {
+                        insideFeed = false
+                    }
+                }
             }
-        }.getOrNull()
+        }
+
+        return null
     }
 
     private fun RssItemBuilder.readTag(parser: XmlPullParser, rawTagName: String) {
@@ -149,10 +162,10 @@ class RssParser {
         )
     }
 
-    private fun newXmlPullParser(xml: String): XmlPullParser {
+    private fun newXmlPullParser(reader: Reader): XmlPullParser {
         return XmlPullParserFactory.newInstance().newPullParser().apply {
             setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
-            setInput(StringReader(xml))
+            setInput(reader)
         }
     }
 

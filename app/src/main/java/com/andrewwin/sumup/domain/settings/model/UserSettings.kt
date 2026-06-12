@@ -41,6 +41,8 @@ data class UserSettings(
     val isFeedMediaEnabled: Boolean = true,
     val isFeedDescriptionEnabled: Boolean = false,
     val isFeedSummaryUseFullTextEnabled: Boolean = false,
+    val isFeedTitleExcludeRegexEnabled: Boolean = true,
+    val feedTitleExcludeRegex: String = DEFAULT_FEED_TITLE_EXCLUDE_REGEX,
     val isRecommendationsEnabled: Boolean = false,
     val articleAutoCleanupHours: Int = DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS,
     val appThemeMode: AppThemeMode = AppThemeMode.SYSTEM,
@@ -107,7 +109,9 @@ data class UserSettings(
         get() = FeedDisplaySettings(
             isMediaEnabled = isFeedMediaEnabled,
             isDescriptionEnabled = isFeedDescriptionEnabled,
-            isImportanceFilterEnabled = isImportanceFilterEnabled
+            isImportanceFilterEnabled = isImportanceFilterEnabled,
+            isTitleExcludeRegexEnabled = isFeedTitleExcludeRegexEnabled,
+            titleExcludeRegex = feedTitleExcludeRegex
         )
 
     val promptSettings: SummaryPromptSettings
@@ -133,5 +137,7 @@ data class UserSettings(
         const val MIN_ARTICLE_AUTO_CLEANUP_HOURS = 6
         const val MAX_ARTICLE_AUTO_CLEANUP_HOURS = 24
         const val DEFAULT_ARTICLE_AUTO_CLEANUP_HOURS = 16
+        const val DEFAULT_FEED_TITLE_EXCLUDE_REGEX =
+            """(?:^|[^\p{L}\p{N}_])(?:(?:\d+\s*(?:х|x)?\s*)?(?:бпла(?:ми|х)?|шахед[и]?|ціл(?:ь|і)|балістик[аи]?|каби?|кабів|кр|кар|fpv|ракет(?:а|и|у)?|молні(?:я|ї|ю|єю))\s+(?:на|курсом|у\s+бік|в\s+бік|повз|над|в\s+районі|біля|південніше|північніше|східніше|західніше|з\s+моря|з)|(?:відбій(?:\s+(?:тривог\p{L}*|загроз\p{L}*))?|дорозвідк\p{L}*|локаційн\p{L}*\s+чисто|без\s+подальш\p{L}*\s+фіксаці\p{L}*|сигнал\s+втрачено|не\s+(?:спостеріга(?:ється|ють)|фіксу(?:ється|ють)))|(?:загроз\p{L}*|пуск(?:и|ів|ами)?|вихід)\s+(?:балістик\p{L}*|каб\p{L}*|шахед\p{L}*|бпла\p{L}*|ракет\p{L}*|швидкісн\p{L}*|орєшнік\p{L}*|кедр\p{L}*)|(?:повітрян\p{L}*\s+тривог\p{L}*|(?:оголошено|оголосили|скасовано|скасували|триває)\s+(?:повітрян\p{L}*\s+)?тривог\p{L}*|тривог\p{L}*\s+(?:оголошено|скасовано|триває)))(?=$|[^\p{L}\p{N}_])"""
     }
 }

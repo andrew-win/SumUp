@@ -329,6 +329,9 @@ sources</string>
     <string name="settings_feed_media">Show media in feed</string>
     <string name="settings_feed_description">Show description</string>
     <string name="settings_feed_summary_use_full_text">Use full texts instead of excerpts for feed summaries</string>
+    <string name="settings_feed_title_exclude_regex_enabled">Exclude news by headline regex</string>
+    <string name="settings_feed_title_exclude_regex">Headline exclude regex</string>
+    <string name="settings_feed_title_exclude_regex_hint">Operational headlines: course, all clear, air alert…</string>
     <string name="settings_sources">Sources</string>
     <string name="settings_show_recommendations">Receive topic recommendations based on added sources</string>
     <string name="settings_scheduled_push_notifications">Push notifications for summaries</string>
@@ -532,6 +535,7 @@ scheduled</string>
     <string name="settings_help_feed_media">— Adds images and previews to feed cards when a source provides them.\n— This makes the feed richer visually, but can increase clutter and loading.\n— It does not directly change AI behavior.</string>
     <string name="settings_help_feed_description">— Shows a short text preview below the headline.\n— Helpful for quick scanning, but the feed becomes less compact.\n— It does not directly affect sources or summaries.</string>
     <string name="settings_help_feed_full_text">— This setting affects full-feed summarization and scheduled digests specifically, not the visual appearance of feed cards.\n— When it is enabled, the app tries to send the full article text to AI instead of a short annotation.\n— When it is disabled, the default input is the headline plus the short feed description, or only a small leading part of Telegram posts.</string>
+    <string name="settings_help_feed_title_exclude_regex">— The filter checks only the news headline before importance filtering and deduplication.\n— By default it excludes operational headlines about target movement, all-clear updates, follow-up reconnaissance, launches, and air alerts.\n— If the regex is invalid or empty, the filter is skipped.</string>
     <string name="settings_help_feed_importance_filter">— Before building the feed, the app drops news with a low informativeness score.\n— That score is based on facts and numbers in the text, text length, view counts, and penalties for ad-like or clickbait wording.\n— The same threshold is also used before scheduled summaries are built.</string>
     <string name="settings_help_dedup_strategy_local">— Local deduplication computes embeddings on device with `e5-small-multilang`.\n— After switching, the app clears the old similarity cache, rebuilds it, and rebuilds the feed.</string>
     <string name="settings_help_dedup_strategy_cloud">— Cloud deduplication uses added embedding configs and external providers to compute embeddings.\n— After switching, the app also clears the old similarity cache and rebuilds the feed.</string>

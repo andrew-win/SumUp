@@ -292,13 +292,10 @@ class TelegramParser {
 
     private fun extractMessageText(element: Element): String {
         val blocks = linkedSetOf<String>()
-        telegramPrimaryContentSelectors.forEach { selector ->
-            element.select(selector)
-                .filter(::isNonReplyDescendant)
-                .map(::extractTextFromContentNode)
-                .filter { it.isNotBlank() }
-                .forEach(blocks::add)
-        }
+        collectPrimaryContentElements(element)
+            .map(::extractTextFromContentNode)
+            .filter { it.isNotBlank() }
+            .forEach(blocks::add)
         if (blocks.isNotEmpty()) {
             return blocks.joinToString("\n\n").trim()
         }
@@ -310,6 +307,38 @@ class TelegramParser {
             .orEmpty()
             .trim()
     }
+
+    private fun collectPrimaryContentElements(root: Element): List<Element> {
+        val result = mutableListOf<Element>()
+
+        fun visit(element: Element, isRoot: Boolean) {
+            if (!isRoot && element.isReplyContainer()) return
+
+            when {
+                element.hasClass(TELEGRAM_POLL_CLASS) -> {
+                    result.add(element)
+                    return
+                }
+                element.isPrimaryTextContainer() -> {
+                    result.add(element)
+                    return
+                }
+            }
+
+            element.children().forEach { child -> visit(child, isRoot = false) }
+        }
+
+        visit(root, isRoot = true)
+        return result
+    }
+
+    private fun Element.isPrimaryTextContainer(): Boolean {
+        if (hasClass("js-message_reply_text")) return false
+        return hasClass("js-message_text") || hasClass("tgme_widget_message_text")
+    }
+
+    private fun Element.isReplyContainer(): Boolean =
+        hasClass("tgme_widget_message_reply") || hasClass("js-message_reply")
 
     private fun extractTextFromContentNode(node: Element): String {
         if (node.hasClass(TELEGRAM_POLL_CLASS)) {
@@ -455,9 +484,14 @@ class TelegramParser {
     }
 
     private fun isNonReplyDescendant(candidate: Element): Boolean {
-        return candidate.parents().none { parent ->
-            parent.hasClass("tgme_widget_message_reply") || parent.hasClass("js-message_reply")
+        var parent = candidate.parent()
+        while (parent != null) {
+            if (parent.isReplyContainer()) {
+                return false
+            }
+            parent = parent.parent()
         }
+        return true
     }
 
     data class TelegramPageMetadata(
@@ -499,13 +533,6 @@ class TelegramParser {
                 SimpleDateFormat("yyyy-MM-dd", Locale.US)
             )
         }
-        private val telegramPrimaryContentSelectors = listOf(
-            ".media_supported_cont .js-message_text:not(.js-message_reply_text)",
-            ".media_supported_cont .tgme_widget_message_text:not(.js-message_reply_text)",
-            ".tgme_widget_message_poll",
-            ".js-message_text:not(.js-message_reply_text)",
-            ".tgme_widget_message_text:not(.js-message_reply_text)"
-        )
         private val telegramIgnoredClasses = setOf(
             "tgme_widget_message_reply",
             "tgme_widget_message_forwarded_from",
@@ -527,29 +554,37 @@ class TelegramParser {
 }
 
 private fun extractMediaUrl(element: Element): String? {
-    val mediaElement = findFirstNonReplyDescendant(
-        element,
-        ".tgme_widget_message_photo_wrap, .tgme_widget_message_video_thumb, .tgme_widget_message_media"
-    )
+    val mediaElement = findFirstNonReplyDescendant(element) { candidate ->
+        candidate.hasClass("tgme_widget_message_photo_wrap") ||
+            candidate.hasClass("tgme_widget_message_video_thumb") ||
+            candidate.hasClass("tgme_widget_message_media")
+    }
     val style = mediaElement?.attr("style").orEmpty()
     val styleUrl = STYLE_URL_REGEX.find(style)?.groups?.get(1)?.value
     if (!styleUrl.isNullOrBlank()) return styleUrl
 
-    val img = findFirstNonReplyDescendant(
-        element,
-        ".tgme_widget_message_photo_wrap img, .tgme_widget_message_video_thumb img, .tgme_widget_message_media img"
-    )
+    val img = mediaElement?.let { media ->
+        findFirstNonReplyDescendant(media) { candidate -> candidate.normalName() == "img" }
+    }
     val src = img?.attr("src").orEmpty()
     return src.ifBlank { null }
 }
 
 private fun findFirstNonReplyDescendant(
     element: Element,
-    cssQuery: String
+    predicate: (Element) -> Boolean
 ): Element? {
-    return element.select(cssQuery).firstOrNull { candidate ->
-        candidate.parents().none { it.hasClass("tgme_widget_message_reply") }
+    fun visit(current: Element, isRoot: Boolean): Element? {
+        if (!isRoot && current.hasClass("tgme_widget_message_reply")) return null
+        if (!isRoot && current.hasClass("js-message_reply")) return null
+        if (!isRoot && predicate(current)) return current
+        current.children().forEach { child ->
+            visit(child, isRoot = false)?.let { return it }
+        }
+        return null
     }
+
+    return visit(element, isRoot = true)
 }
 
 private fun String.removeTelegramTitleSuffix(): String =

@@ -20,6 +20,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,6 +41,7 @@ import com.andrewwin.sumup.domain.settings.model.AppThemeMode
 import com.andrewwin.sumup.domain.settings.model.DeduplicationStrategy
 import com.andrewwin.sumup.domain.settings.model.SummaryLanguage
 import com.andrewwin.sumup.domain.settings.model.UserSettings
+import kotlinx.coroutines.delay
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -47,6 +49,7 @@ private const val DEDUPLICATION_THRESHOLD_MIN = 0.7f
 private const val DEDUPLICATION_THRESHOLD_MAX = 1.0f
 private const val DEDUPLICATION_THRESHOLD_STEP = 0.005f
 private const val DEDUPLICATION_THRESHOLD_SLIDER_STEPS = 59
+private const val FEED_TITLE_EXCLUDE_REGEX_SAVE_DEBOUNCE_MS = 400L
 
 @Composable
 internal fun SettingsHomeGroupsContent(
@@ -700,6 +703,8 @@ internal fun SettingsFeedGroupContent(
     onFeedMediaEnabledChange: (Boolean) -> Unit,
     onFeedDescriptionEnabledChange: (Boolean) -> Unit,
     onFeedSummaryUseFullTextEnabledChange: (Boolean) -> Unit,
+    onFeedTitleExcludeRegexEnabledChange: (Boolean) -> Unit,
+    onFeedTitleExcludeRegexChange: (String) -> Unit,
     onImportanceFilterEnabledChange: (Boolean) -> Unit,
     onDeduplicationEnabledChange: (Boolean) -> Unit,
     onHideSingleNewsEnabledChange: (Boolean) -> Unit,
@@ -712,6 +717,22 @@ internal fun SettingsFeedGroupContent(
     onMinMentionsCommitted: () -> Unit,
     onHelpRequest: (String) -> Unit
 ) {
+    var titleExcludeRegexDraft by rememberSaveable { mutableStateOf(userPreferences.feedTitleExcludeRegex) }
+
+    LaunchedEffect(userPreferences.feedTitleExcludeRegex) {
+        if (userPreferences.feedTitleExcludeRegex != titleExcludeRegexDraft) {
+            titleExcludeRegexDraft = userPreferences.feedTitleExcludeRegex
+        }
+    }
+
+    LaunchedEffect(titleExcludeRegexDraft, userPreferences.feedTitleExcludeRegex) {
+        if (titleExcludeRegexDraft == userPreferences.feedTitleExcludeRegex) return@LaunchedEffect
+        delay(FEED_TITLE_EXCLUDE_REGEX_SAVE_DEBOUNCE_MS)
+        if (titleExcludeRegexDraft != userPreferences.feedTitleExcludeRegex) {
+            onFeedTitleExcludeRegexChange(titleExcludeRegexDraft)
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SettingsSection(
             title = stringResource(R.string.settings_feed_display),
@@ -743,6 +764,37 @@ internal fun SettingsFeedGroupContent(
                     helpDescription = stringResource(R.string.settings_help_feed_full_text),
                     onHelpRequest = onHelpRequest
                 )
+                SettingsToggleRow(
+                    label = stringResource(R.string.settings_feed_title_exclude_regex_enabled),
+                    checked = userPreferences.isFeedTitleExcludeRegexEnabled,
+                    onCheckedChange = onFeedTitleExcludeRegexEnabledChange,
+                    isHelpMode = isHelpMode,
+                    helpDescription = stringResource(R.string.settings_help_feed_title_exclude_regex),
+                    onHelpRequest = onHelpRequest
+                )
+                if (userPreferences.isFeedTitleExcludeRegexEnabled) {
+                    val titleExcludeRegexContentDescription = stringResource(R.string.settings_feed_title_exclude_regex)
+                    SettingsHelpTarget(
+                        isHelpMode = isHelpMode,
+                        helpDescription = stringResource(R.string.settings_help_feed_title_exclude_regex),
+                        onHelpRequest = onHelpRequest,
+                        contentDescription = titleExcludeRegexContentDescription
+                    ) {
+                        OutlinedTextField(
+                            value = titleExcludeRegexDraft,
+                            onValueChange = { titleExcludeRegexDraft = it },
+                            label = { Text(stringResource(R.string.settings_feed_title_exclude_regex)) },
+                            placeholder = { Text(stringResource(R.string.settings_feed_title_exclude_regex_hint)) },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics {
+                                    contentDescription = titleExcludeRegexContentDescription
+                                },
+                            shape = MaterialTheme.shapes.large
+                        )
+                    }
+                }
                 SettingsToggleRow(
                     label = stringResource(R.string.settings_enable_importance_filter),
                     checked = userPreferences.isImportanceFilterEnabled,
