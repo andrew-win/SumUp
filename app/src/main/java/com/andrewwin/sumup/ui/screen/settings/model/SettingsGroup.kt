@@ -2,6 +2,7 @@ package com.andrewwin.sumup.ui.screen.settings.model
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Storage
@@ -28,6 +29,11 @@ enum class SettingsGroup(
         R.string.settings_group_general,
         R.string.settings_group_general_desc,
         SettingsGroupIcon.Vector(Icons.Default.Language)
+    ),
+    INSTRUCTION(
+        R.string.settings_group_instruction,
+        R.string.settings_group_instruction_desc,
+        SettingsGroupIcon.Vector(Icons.Default.Info)
     ),
     API_KEYS(
         R.string.settings_group_api_keys,

@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -69,7 +70,13 @@ internal fun SettingsGroupsPanel(
 
 @Composable
 private fun getIconColors(): Pair<Color, Color> {
-    return MaterialTheme.colorScheme.onPrimaryContainer to MaterialTheme.colorScheme.primaryContainer
+    val colorScheme = MaterialTheme.colorScheme
+    val isDarkTheme = colorScheme.background.luminance() < 0.5f
+    return if (isDarkTheme) {
+        colorScheme.primary.copy(alpha = 0.82f) to colorScheme.primary.copy(alpha = 0.12f)
+    } else {
+        colorScheme.onPrimaryContainer to colorScheme.primaryContainer
+    }
 }
 
 @Composable

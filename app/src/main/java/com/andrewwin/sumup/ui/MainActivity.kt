@@ -22,6 +22,7 @@ class MainActivity : AppCompatActivity() {
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()
             val prefs by mainViewModel.userPreferences.collectAsState()
+            val shouldShowOnboarding by mainViewModel.shouldShowOnboarding.collectAsState()
 
             LaunchedEffect(prefs.appLanguage) {
                 val langTag = when (prefs.appLanguage) {
@@ -32,7 +33,10 @@ class MainActivity : AppCompatActivity() {
             }
 
             SumUpTheme(themeMode = prefs.appThemeMode) {
-                MainScreen()
+                MainScreen(
+                    shouldShowInstructionOnStart = shouldShowOnboarding,
+                    onInstructionSeen = mainViewModel::markOnboardingSeen
+                )
             }
         }
     }

@@ -359,6 +359,7 @@ internal fun SettingsScreen(
             SettingsGroup.FEED,
             SettingsGroup.SCHEDULED_SUMMARY,
             SettingsGroup.GENERAL,
+            SettingsGroup.INSTRUCTION,
             SettingsGroup.MEMORY
         )
     }
@@ -509,6 +510,8 @@ internal fun SettingsScreen(
                             onThemeModeChange = viewModel::updateAppThemeMode
                         )
                     }
+
+                    SettingsGroup.INSTRUCTION -> item {}
 
                     SettingsGroup.AI_PROCESSING -> item {
                         SettingsAiProcessingGroupContent(
@@ -902,6 +905,15 @@ private fun SettingsGroup.searchableTextResIds(): List<Int> = when (this) {
         R.string.settings_theme_dark
     )
 
+    SettingsGroup.INSTRUCTION -> listOf(
+        R.string.instruction_title,
+        R.string.instruction_welcome_title,
+        R.string.instruction_summary_title,
+        R.string.instruction_feed_title,
+        R.string.instruction_sources_title,
+        R.string.instruction_settings_title
+    )
+
     SettingsGroup.API_KEYS -> listOf(
         R.string.settings_cloud_summary_api_keys,
         R.string.settings_cloud_vectorization_api_keys,
@@ -973,6 +985,7 @@ private fun settingsGroupHelpDescription(resources: Resources, group: SettingsGr
         SettingsGroup.FEED -> resources.getString(R.string.settings_help_feed)
         SettingsGroup.SCHEDULED_SUMMARY -> resources.getString(R.string.settings_help_scheduled)
         SettingsGroup.GENERAL -> resources.getString(R.string.settings_help_general)
+        SettingsGroup.INSTRUCTION -> resources.getString(R.string.settings_help_instruction)
         SettingsGroup.MEMORY -> resources.getString(R.string.settings_help_memory)
     }
 }

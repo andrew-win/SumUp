@@ -81,6 +81,7 @@ internal fun SettingsHomeGroupsContent(
                 SettingsGroup.FEED,
                 SettingsGroup.SCHEDULED_SUMMARY,
                 SettingsGroup.GENERAL,
+                SettingsGroup.INSTRUCTION,
                 SettingsGroup.MEMORY
             ),
             isHelpMode = isHelpMode,

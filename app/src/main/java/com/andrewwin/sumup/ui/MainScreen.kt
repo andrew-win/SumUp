@@ -11,6 +11,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -32,6 +33,7 @@ import com.andrewwin.sumup.ui.screen.feed.model.FeedAiSummaryMode
 import com.andrewwin.sumup.ui.screen.feed.model.FeedAiSummaryMode as FeedAiSummaryModeModel
 import com.andrewwin.sumup.ui.screen.feed.FeedAiSummaryScreen
 import com.andrewwin.sumup.ui.screen.feed.FeedScreen
+import com.andrewwin.sumup.ui.screen.instruction.InstructionScreen
 import com.andrewwin.sumup.ui.screen.settings.SettingsScreen
 import com.andrewwin.sumup.ui.screen.settings.model.SettingsGroup
 import com.andrewwin.sumup.ui.screen.sources.SourcesScreen
@@ -42,13 +44,24 @@ import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
 @Composable
-fun MainScreen() {
+fun MainScreen(
+    shouldShowInstructionOnStart: Boolean = false,
+    onInstructionSeen: () -> Unit = {}
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val mainRoutes = remember(navItems) { navItems.map { it.route }.toSet() }
     val currentRoute = currentDestination?.route
     val shouldShowNavigationSuite = currentRoute in mainRoutes || currentRoute == Screen.SettingsDetail.route
+    LaunchedEffect(shouldShowInstructionOnStart, currentRoute) {
+        if (shouldShowInstructionOnStart && currentRoute != Screen.Instruction.route) {
+            navController.navigate(Screen.Instruction.route) {
+                launchSingleTop = true
+            }
+        }
+    }
+
     val navigationActions = remember(navController) {
         FeedNavigationActions(
             onOpenWebView = { url ->
@@ -82,7 +95,13 @@ fun MainScreen() {
                 navController.navigate(Screen.SummaryHistory.route)
             },
             onOpenSettingsGroup = { group ->
-                navController.navigate(Screen.SettingsDetail.createRoute(group.name))
+                if (group == SettingsGroup.INSTRUCTION) {
+                    navController.navigate(Screen.Instruction.route) {
+                        launchSingleTop = true
+                    }
+                } else {
+                    navController.navigate(Screen.SettingsDetail.createRoute(group.name))
+                }
             },
             onNavigateBack = { navController.popBackStack() }
         )
@@ -141,6 +160,7 @@ fun MainScreen() {
             navController = navController,
             mainRoutes = mainRoutes,
             navigationActions = navigationActions,
+            onInstructionSeen = onInstructionSeen,
             modifier = Modifier.padding(innerPadding)
         )
     }
@@ -162,6 +182,7 @@ private fun MainNavHost(
     navController: androidx.navigation.NavHostController,
     mainRoutes: Set<String>,
     navigationActions: FeedNavigationActions,
+    onInstructionSeen: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -225,6 +246,18 @@ private fun MainNavHost(
         composable(Screen.Settings.route) {
             SettingsScreen(
                 onOpenSettingsGroup = navigationActions.onOpenSettingsGroup
+            )
+        }
+        composable(Screen.Instruction.route) {
+            InstructionScreen(
+                onFinish = {
+                    onInstructionSeen()
+                    if (!navController.popBackStack()) {
+                        navController.navigate(Screen.Summary.route) {
+                            launchSingleTop = true
+                        }
+                    }
+                }
             )
         }
         composable(
