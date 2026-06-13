@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.domain.ai.model.AiModelConfig
+import com.andrewwin.sumup.ui.theme.appBorderColor
 import com.andrewwin.sumup.domain.ai.model.AiModelType
 import com.andrewwin.sumup.domain.ai.model.AiProvider
 import com.andrewwin.sumup.ui.components.AppAnimatedDialog
@@ -287,7 +288,7 @@ private fun ApiKeyProviderLink(
             .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+        border = BorderStroke(1.dp, appBorderColor())
     ) {
         Row(
             modifier = Modifier

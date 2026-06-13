@@ -27,7 +27,9 @@ interface ArticleRepository {
     val allArticles: Flow<List<Article>>
     val favoriteArticles: Flow<List<Article>>
     val feedRefreshRequests: Flow<Long>
+    val feedRebuildRequests: Flow<Long>
     fun requestFeedRefresh(timestamp: Long = System.currentTimeMillis())
+    fun requestFeedRebuild(timestamp: Long = System.currentTimeMillis())
     suspend fun refreshArticles(): ArticleRefreshResult
     suspend fun updateArticle(article: Article)
     suspend fun updateArticles(articles: List<Article>)

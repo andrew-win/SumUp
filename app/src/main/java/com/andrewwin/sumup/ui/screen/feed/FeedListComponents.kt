@@ -71,6 +71,7 @@ import com.andrewwin.sumup.ui.screen.feed.model.SavedFilter
 import com.andrewwin.sumup.ui.screen.feed.model.SourceGroupUiModel
 import com.andrewwin.sumup.ui.theme.AppCardShape
 import com.andrewwin.sumup.ui.theme.AppDimens
+import com.andrewwin.sumup.ui.theme.appBorderColor
 import com.andrewwin.sumup.ui.theme.appCardBorder
 import com.andrewwin.sumup.ui.theme.appCardColors
 import java.text.SimpleDateFormat
@@ -619,7 +620,7 @@ fun DuplicateItemCard(
             .clickable { onOpenSource() },
         shape = AppCardShape,
         colors = appCardColors(),
-        border = appCardBorder(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f)),
+        border = appCardBorder(appBorderColor()),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(

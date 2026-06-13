@@ -54,6 +54,7 @@ import com.andrewwin.sumup.R
 import com.andrewwin.sumup.domain.settings.model.AiStrategy
 import com.andrewwin.sumup.domain.summary.model.SummaryRecord as Summary
 import com.andrewwin.sumup.ui.components.SummaryExecutionMetaBlock
+import com.andrewwin.sumup.ui.theme.appBorderColor
 import com.andrewwin.sumup.ui.util.StandardSummaryView
 import com.andrewwin.sumup.ui.util.model.SummaryBlockUi
 import com.andrewwin.sumup.ui.util.cleanSummaryTextForSharing
@@ -164,7 +165,7 @@ fun SummaryCard(
             border = BorderStroke(
                 1.dp,
                 if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f)
+                else appBorderColor()
             ),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
@@ -192,7 +193,7 @@ fun SummaryCard(
                         modifier = Modifier.align(Alignment.TopEnd),
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
+                        border = BorderStroke(1.dp, appBorderColor())
                     ) {
                         Icon(
                             Icons.Default.KeyboardArrowDown,

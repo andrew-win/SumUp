@@ -69,9 +69,15 @@ class ArticleRepositoryImpl @Inject constructor(
 
     private val _feedRefreshRequests = MutableStateFlow(0L)
     override val feedRefreshRequests: Flow<Long> = _feedRefreshRequests.asStateFlow()
+    private val _feedRebuildRequests = MutableStateFlow(0L)
+    override val feedRebuildRequests: Flow<Long> = _feedRebuildRequests.asStateFlow()
 
     override fun requestFeedRefresh(timestamp: Long) {
         _feedRefreshRequests.value = timestamp
+    }
+
+    override fun requestFeedRebuild(timestamp: Long) {
+        _feedRebuildRequests.value = timestamp
     }
 
     override suspend fun refreshArticles(): ArticleRefreshResult = withContext(Dispatchers.IO) {

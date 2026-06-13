@@ -1,10 +1,5 @@
 package com.andrewwin.sumup.ui.screen.settings
 
-import com.andrewwin.sumup.ui.screen.settings.model.SettingsGroupIcon
-
-import com.andrewwin.sumup.ui.screen.settings.model.SettingsGroup
-
-import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,13 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,17 +17,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.andrewwin.sumup.R
 import com.andrewwin.sumup.ui.components.AppCardSurface
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
-import com.andrewwin.sumup.ui.theme.IconBgBlueDark
-import com.andrewwin.sumup.ui.theme.IconBgBlueLight
-import com.andrewwin.sumup.ui.theme.IconBlueDark
-import com.andrewwin.sumup.ui.theme.IconBlueLight
+import com.andrewwin.sumup.ui.screen.settings.model.SettingsGroup
+import com.andrewwin.sumup.ui.screen.settings.model.SettingsGroupIcon
+import com.andrewwin.sumup.ui.theme.appBorderColor
 
 @Composable
 internal fun SettingsGroupsPanel(
@@ -73,7 +59,7 @@ internal fun SettingsGroupsPanel(
                     androidx.compose.material3.HorizontalDivider(
                         modifier = Modifier.padding(start = 70.dp),
                         thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                        color = appBorderColor()
                     )
                 }
             }
@@ -82,9 +68,8 @@ internal fun SettingsGroupsPanel(
 }
 
 @Composable
-private fun getIconColors(group: SettingsGroup): Pair<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color> {
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    return if (isDark) IconBlueDark to IconBgBlueDark else IconBlueLight to IconBgBlueLight
+private fun getIconColors(): Pair<Color, Color> {
+    return MaterialTheme.colorScheme.onPrimaryContainer to MaterialTheme.colorScheme.primaryContainer
 }
 
 @Composable
@@ -92,15 +77,15 @@ private fun SettingsGroupRow(
     group: SettingsGroup,
     onClick: () -> Unit
 ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(horizontal = 16.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-        val (iconTint, iconBg) = getIconColors(group)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        val (iconTint, iconBg) = getIconColors()
         Box(
             modifier = Modifier
                 .size(40.dp)

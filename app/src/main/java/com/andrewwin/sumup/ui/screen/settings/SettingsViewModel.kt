@@ -174,7 +174,7 @@ class SettingsViewModel @Inject constructor(
             Log.d("FeedDedupDebug", "embedding_runs_invalidated reason=strategy_changed")
             userPreferencesRepository.updatePreferences(updated)
             rebuildFeedSimilaritiesForThresholdChange(updated)
-            articleRepository.requestFeedRefresh()
+            articleRepository.requestFeedRebuild()
         }
     }
 
@@ -186,7 +186,7 @@ class SettingsViewModel @Inject constructor(
 
             rebuildFeedSimilaritiesForThresholdChange(updated)
             userPreferencesRepository.updatePreferences(updated)
-            articleRepository.requestFeedRefresh()
+            articleRepository.requestFeedRebuild()
         }
     }
 
@@ -659,7 +659,11 @@ class SettingsViewModel @Inject constructor(
     private fun updateFeedPreferences(transform: (UserSettings) -> UserSettings) {
         viewModelScope.launch {
             val current = userPreferencesRepository.preferences.first()
-            userPreferencesRepository.updatePreferences(transform(current))
+            val updated = transform(current)
+            if (updated == current) return@launch
+
+            userPreferencesRepository.updatePreferences(updated)
+            articleRepository.requestFeedRebuild()
         }
     }
 

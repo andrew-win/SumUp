@@ -75,6 +75,7 @@ import com.andrewwin.sumup.ui.components.AppMotion
 import com.andrewwin.sumup.ui.components.SummaryExecutionMetaBlock
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleClusterUiModel
 import com.andrewwin.sumup.ui.screen.feed.model.ArticleUiModel
+import com.andrewwin.sumup.ui.theme.appBorderColor
 import com.andrewwin.sumup.ui.util.*
 import com.andrewwin.sumup.ui.util.model.SummaryBlockUi
 import com.andrewwin.sumup.ui.util.model.SummarySourceLinkUi
@@ -406,7 +407,7 @@ private fun SingleSummaryCard(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                        HorizontalDivider(color = appBorderColor())
                         section.items.forEach { item ->
                             InlineSummaryRow(
                                 text = "— ${item.text}",
@@ -779,7 +780,7 @@ private fun SummarySectionCard(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            HorizontalDivider(color = appBorderColor())
             content()
         }
     }
@@ -859,7 +860,7 @@ private fun ThemeSummarySectionView(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            HorizontalDivider(color = appBorderColor())
             summary?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     text = it,
@@ -929,7 +930,7 @@ private fun InlineSummaryRow(
                         color = MaterialTheme.colorScheme.surfaceContainerHighest,
                         border = BorderStroke(
                             1.dp,
-                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f)
+                            appBorderColor()
                         )
                     ) {
                         Row(

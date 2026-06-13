@@ -1,7 +1,9 @@
 package com.andrewwin.sumup.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -19,6 +21,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -37,30 +40,39 @@ fun AppSearchField(
     placeholderStyle: TextStyle = MaterialTheme.typography.bodyLarge,
     onFocusChanged: ((Boolean) -> Unit)? = null
 ) {
-    TextField(
-        value = value,
-        onValueChange = onValueChange,
+    val shape = MaterialTheme.shapes.extraLarge
+
+    Box(
         modifier = modifier
             .height(56.dp)
-            .onFocusChanged { state -> onFocusChanged?.invoke(state.hasFocus) },
-        shape = MaterialTheme.shapes.extraLarge,
-        placeholder = {
-            Text(
-                text = placeholder,
-                style = placeholderStyle
+            .clip(shape)
+            .border(appCardBorder(), shape)
+    ) {
+        TextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier
+                .matchParentSize()
+                .onFocusChanged { state -> onFocusChanged?.invoke(state.hasFocus) },
+            shape = shape,
+            placeholder = {
+                Text(
+                    text = placeholder,
+                    style = placeholderStyle
+                )
+            },
+            leadingIcon = { Icon(leadingIcon, contentDescription = null) },
+            singleLine = true,
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                disabledIndicatorColor = Color.Transparent
             )
-        },
-        leadingIcon = { Icon(leadingIcon, contentDescription = null) },
-        singleLine = true,
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent
         )
-    )
+    }
 }
 
 @Composable

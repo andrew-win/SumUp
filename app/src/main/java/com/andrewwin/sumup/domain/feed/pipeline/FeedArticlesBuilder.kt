@@ -67,7 +67,7 @@ class FeedArticlesBuilder @Inject constructor(
             dateFilterHoursFlow,
             savedOnlyFlow,
             userPreferencesFlow,
-            articleRepository.feedRefreshRequests
+            articleRepository.feedRebuildRequests
         ) { groupId, dateFilterHours, savedOnly, prefs, signal ->
             FeedFilterParams(groupId, dateFilterHours, savedOnly, prefs, signal)
         }
@@ -383,7 +383,21 @@ class FeedArticlesBuilder @Inject constructor(
         fingerprint = fingerprint * 31 + (params.groupId ?: 0L)
         fingerprint = fingerprint * 31 + (params.dateFilterHours ?: 0)
         fingerprint = fingerprint * 31 + params.savedOnly.hashCode().toLong()
+        fingerprint = fingerprint * 31 + buildFeedSettingsFingerprint(params.prefs)
         fingerprint = fingerprint * 31 + params.invalidationSignal
+        return fingerprint
+    }
+
+    private fun buildFeedSettingsFingerprint(prefs: UserSettings): Long {
+        var fingerprint = prefs.isDeduplicationEnabled.hashCode().toLong()
+        fingerprint = fingerprint * 31 + prefs.deduplicationStrategy.hashCode().toLong()
+        fingerprint = fingerprint * 31 + prefs.localDeduplicationThreshold.toRawBits()
+        fingerprint = fingerprint * 31 + prefs.cloudDeduplicationThreshold.toRawBits()
+        fingerprint = fingerprint * 31 + prefs.minMentions
+        fingerprint = fingerprint * 31 + prefs.isHideSingleNewsEnabled.hashCode().toLong()
+        fingerprint = fingerprint * 31 + prefs.isImportanceFilterEnabled.hashCode().toLong()
+        fingerprint = fingerprint * 31 + prefs.isFeedTitleExcludeRegexEnabled.hashCode().toLong()
+        fingerprint = fingerprint * 31 + prefs.feedTitleExcludeRegex.hashCode().toLong()
         return fingerprint
     }
 

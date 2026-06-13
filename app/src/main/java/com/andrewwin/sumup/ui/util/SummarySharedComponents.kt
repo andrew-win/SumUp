@@ -40,6 +40,7 @@ import com.andrewwin.sumup.domain.summary.model.SummaryItem
 import com.andrewwin.sumup.domain.summary.model.SummaryResult
 import com.andrewwin.sumup.domain.summary.model.SummarySourceRef
 import com.andrewwin.sumup.ui.components.AppCardSurface
+import com.andrewwin.sumup.ui.theme.appBorderColor
 import com.andrewwin.sumup.ui.theme.appCardBorder
 import com.andrewwin.sumup.ui.util.model.SummarySourceStyle
 import com.andrewwin.sumup.ui.util.model.SummaryBlockUi
@@ -131,7 +132,7 @@ fun ThemeSummarySectionView(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            HorizontalDivider(color = appBorderColor())
             summary?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     text = it,
@@ -252,7 +253,7 @@ fun InlineSummaryRow(
                         onClick = { onOpenWebView(normalizeSummaryUrlForWebView(source.url)) },
                         shape = RoundedCornerShape(11.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        border = appCardBorder(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f))
+                        border = appCardBorder(appBorderColor())
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),

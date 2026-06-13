@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.andrewwin.sumup.R
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
+import com.andrewwin.sumup.ui.theme.appBorderColor
 import com.andrewwin.sumup.ui.util.normalizeSummaryUrlForWebView
 
 @Composable
@@ -121,9 +122,9 @@ fun SummaryChart(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.large,
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                     ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)),
+                    border = BorderStroke(1.dp, appBorderColor()),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Box(
@@ -189,7 +190,7 @@ fun ChartTypeChip(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
             labelColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
+        border = BorderStroke(1.dp, appBorderColor())
     )
 }
 
@@ -211,8 +212,8 @@ fun ChartBar(
                 item.sourceUrl?.let { onOpenWebView(normalizeSummaryUrlForWebView(it)) }
             },
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f))
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, appBorderColor())
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -339,9 +340,9 @@ private fun StatusMiniCard(
         modifier = modifier,
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)),
+        border = BorderStroke(1.dp, appBorderColor()),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(

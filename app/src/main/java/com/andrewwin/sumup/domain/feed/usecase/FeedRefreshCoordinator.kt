@@ -73,7 +73,7 @@ class FeedRefreshCoordinator @Inject constructor(
             result.fold(
                 onSuccess = { refreshResult ->
                     val signal = System.currentTimeMillis()
-                    articleRepository.requestFeedRefresh(signal)
+                    articleRepository.requestFeedRebuild(signal)
                     _state.value = FeedRefreshCoordinatorState(
                         status = FeedRefreshStatus.BUILDING_FEED,
                         buildSignal = signal

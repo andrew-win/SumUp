@@ -11,10 +11,16 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 
 val AppCardShape: Shape = RoundedCornerShape(18.dp)
+const val APP_BORDER_ALPHA = 0.5f
+
+@Composable
+fun appBorderColor(
+    alpha: Float = APP_BORDER_ALPHA
+): Color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = alpha)
 
 @Composable
 fun appCardBorder(
-    color: Color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
+    color: Color = appBorderColor()
 ): BorderStroke = BorderStroke(1.dp, color)
 
 @Composable

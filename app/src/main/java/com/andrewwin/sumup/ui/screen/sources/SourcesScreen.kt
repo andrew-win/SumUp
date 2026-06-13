@@ -125,6 +125,7 @@ import com.andrewwin.sumup.ui.components.AppTopBar
 import com.andrewwin.sumup.ui.screen.settings.SettingsConfirmDeleteDialog
 import com.andrewwin.sumup.ui.theme.AppCardShape
 import com.andrewwin.sumup.ui.theme.AppDimens
+import com.andrewwin.sumup.ui.theme.appBorderColor
 import com.andrewwin.sumup.ui.theme.appCardBorder
 import com.andrewwin.sumup.ui.theme.appCardColors
 
@@ -797,7 +798,7 @@ fun GroupCard(
         ),
         border = appCardBorder(
             if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
+            else appBorderColor()
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -939,7 +940,7 @@ fun GroupCard(
                     HorizontalDivider(
                         modifier = Modifier.padding(horizontal = 16.dp),
                         thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                        color = appBorderColor()
                     )
 
                     if (groupWithSources.sources.isEmpty()) {

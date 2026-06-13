@@ -53,6 +53,7 @@ import com.andrewwin.sumup.ui.components.AppExportPdfButton
 import com.andrewwin.sumup.ui.components.AppFilterMenuChip
 import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.components.AppSearchField
+import com.andrewwin.sumup.ui.theme.appBorderColor
 import com.andrewwin.sumup.ui.util.StandardSummaryView
 import com.andrewwin.sumup.ui.util.model.SummaryBlockUi
 import com.andrewwin.sumup.ui.util.parseSummaryBlocks
@@ -278,7 +279,7 @@ private fun SummaryHistoryFilterChip(
         icon = icon,
         label = label,
         onClick = onClick,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.05f))
+        border = BorderStroke(1.dp, appBorderColor())
     )
 }
 
@@ -313,7 +314,7 @@ private fun SummaryHistoryCard(
         border = BorderStroke(
             1.dp,
             if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
+            else appBorderColor()
         )
     ) {
         Column(
