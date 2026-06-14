@@ -64,21 +64,6 @@ interface ArticleSimilarityDao {
         threshold: Float
     ): List<ArticleSimilarityScoreRow>
 
-    @Query("DELETE FROM article_similarities WHERE strategyKey = :strategyKey")
-    suspend fun deleteSimilaritiesByStrategyKey(strategyKey: String)
-
-    @Query(
-        """
-        DELETE FROM article_similarities
-        WHERE strategyKey = :strategyKey
-            AND (leftArticleId IN (:articleIds) OR rightArticleId IN (:articleIds))
-        """
-    )
-    suspend fun deleteSimilaritiesForArticles(
-        articleIds: List<Long>,
-        strategyKey: String
-    )
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSimilarities(items: List<ArticleSimilarity>)
 

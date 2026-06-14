@@ -223,12 +223,12 @@ class FeedArticlesBuilder @Inject constructor(
             threshold
         )
         val similaritiesStartedAt = System.currentTimeMillis()
-        val orderedPairScores = thresholdSimilarityResolver.resolveOrderedPairScores(
-            articles = currentArticles,
-            prefs = prefs,
-            persistComputed = false,
-            allowOnDemandComputation = false
-        )
+            val orderedPairScores = thresholdSimilarityResolver.resolveOrderedPairScores(
+                articles = currentArticles,
+                prefs = prefs,
+                persistComputed = true,
+                allowOnDemandComputation = true
+            )
         val similaritiesDurationMs = System.currentTimeMillis() - similaritiesStartedAt
         if (orderedPairScores.isEmpty()) return emptyList()
         val pairScoreByKey = orderedPairScores.toPairScoreMap()

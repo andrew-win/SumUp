@@ -385,6 +385,8 @@ object AppModule {
     fun provideRefreshFeedUseCase(
         updateArticlesFromSources: UpdateArticlesFromSources,
         feedDeduplicationProcessor: FeedDeduplicationProcessor,
+        articleRepository: ArticleRepository,
+        similarityScorer: SimilarityScorer,
         getRecommendationsUseCase: GetRecommendationsUseCase,
         suggestedThemesStateRepository: SuggestedThemesStateRepository,
         userPreferencesRepository: UserPreferencesRepository,
@@ -392,6 +394,8 @@ object AppModule {
     ): RefreshFeedUseCase = RefreshFeedUseCaseImpl(
         updateArticlesFromSources = updateArticlesFromSources,
         feedDeduplicationProcessor = feedDeduplicationProcessor,
+        articleRepository = articleRepository,
+        similarityScorer = similarityScorer,
         getRecommendationsUseCase = getRecommendationsUseCase,
         suggestedThemesStateRepository = suggestedThemesStateRepository,
         userPreferencesRepository = userPreferencesRepository,

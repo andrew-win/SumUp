@@ -231,7 +231,7 @@ class SimilarityScorer(
     private fun isUsableEmbedding(embedding: FloatArray?): Boolean =
         embedding != null && !EmbeddingUtils.isZeroVector(embedding)
 
-    private fun embeddingTypeForStrategy(strategy: DeduplicationStrategy): String =
+    fun embeddingTypeForStrategy(strategy: DeduplicationStrategy): String =
         when (strategy) {
             DeduplicationStrategy.CLOUD -> "${strategy.name}-$DEDUP_EMBEDDING_CACHE_VERSION"
             DeduplicationStrategy.LOCAL -> "${localEmbeddingProvider.embeddingCacheType}-$DEDUP_EMBEDDING_CACHE_VERSION"

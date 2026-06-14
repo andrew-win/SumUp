@@ -524,6 +524,16 @@ class ArticleRepositoryImpl @Inject constructor(
         return articleEmbeddingDao.getEmbeddingsByIds(ids).map { it.toDomainRecord() }
     }
 
+    override suspend fun getMissingEmbeddingArticleIds(articleIds: List<Long>, embeddingType: String): List<Long> {
+        if (articleIds.isEmpty()) return emptyList()
+        val distinctIds = articleIds.distinct()
+        if (embeddingType.isBlank()) return distinctIds
+        val existingIds = articleEmbeddingDao
+            .getArticleIdsWithEmbeddingsByIdsAndType(distinctIds, embeddingType)
+            .toHashSet()
+        return distinctIds.filterNot { it in existingIds }
+    }
+
     override suspend fun upsertArticleEmbeddings(items: List<ArticleEmbeddingRecord>) {
         if (items.isEmpty()) return
         articleEmbeddingDao.upsertEmbeddings(items.mapNotNull(ArticleEmbeddingRecord::toRoomEntity))
@@ -621,16 +631,6 @@ class ArticleRepositoryImpl @Inject constructor(
                         "strategyKey=$strategyKey threshold=$threshold"
                 )
             }
-    }
-
-    override suspend fun deleteSimilaritiesByStrategyKey(strategyKey: String) {
-        if (strategyKey.isBlank()) return
-        articleSimilarityDao.deleteSimilaritiesByStrategyKey(strategyKey)
-    }
-
-    override suspend fun deleteSimilaritiesForArticles(articleIds: List<Long>, strategyKey: String) {
-        if (articleIds.isEmpty() || strategyKey.isBlank()) return
-        articleSimilarityDao.deleteSimilaritiesForArticles(articleIds.distinct(), strategyKey)
     }
 
     override suspend fun upsertSimilarities(items: List<ArticleSimilarityRecord>) {

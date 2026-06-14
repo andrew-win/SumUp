@@ -20,6 +20,15 @@ interface ArticleEmbeddingDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertEmbeddings(items: List<ArticleEmbedding>)
 
+    @Query(
+        """
+        SELECT articleId FROM article_embeddings
+        WHERE articleId IN (:ids)
+            AND embeddingType = :embeddingType
+        """
+    )
+    suspend fun getArticleIdsWithEmbeddingsByIdsAndType(ids: List<Long>, embeddingType: String): List<Long>
+
     @Query("DELETE FROM article_embeddings")
     suspend fun clearEmbeddings()
 }

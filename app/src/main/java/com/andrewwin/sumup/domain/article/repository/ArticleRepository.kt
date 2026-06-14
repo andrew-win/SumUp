@@ -36,6 +36,7 @@ interface ArticleRepository {
     suspend fun setFavoriteByIds(ids: List<Long>, isFavorite: Boolean): Int
     suspend fun getEmbeddingsByIds(ids: List<Long>): Map<Long, ByteArray?>
     suspend fun getArticleEmbeddingsByIds(ids: List<Long>): List<ArticleEmbeddingRecord>
+    suspend fun getMissingEmbeddingArticleIds(articleIds: List<Long>, embeddingType: String): List<Long>
     suspend fun upsertArticleEmbeddings(items: List<ArticleEmbeddingRecord>)
     suspend fun getEnabledArticlesOnce(): List<Article>
     suspend fun getEnabledArticlesSince(timestamp: Long): List<Article>
@@ -53,8 +54,6 @@ interface ArticleRepository {
         strategyKey: String,
         threshold: Float
     ): List<ArticlePairScore>
-    suspend fun deleteSimilaritiesByStrategyKey(strategyKey: String)
-    suspend fun deleteSimilaritiesForArticles(articleIds: List<Long>, strategyKey: String)
     suspend fun upsertSimilarities(items: List<ArticleSimilarityRecord>)
     suspend fun clearAllArticles()
     suspend fun clearEmbeddings()

@@ -17,7 +17,7 @@ class FeedDeduplicationProcessor @Inject constructor(
     private val articleRepository: ArticleRepository,
     private val similarityScorer: SimilarityScorer
 ) {
-    suspend fun rebuildSimilaritiesForArticles(
+    suspend fun ensureSimilaritiesForArticles(
         prefs: UserSettings,
         articleIds: List<Long>
     ): Result<DeduplicationRebuildResult> = withContext(Dispatchers.Default) {
@@ -30,7 +30,7 @@ class FeedDeduplicationProcessor @Inject constructor(
             val allArticles = articleRepository.getEnabledArticlesOnce().distinctBy { it.id }
             if (allArticles.size < MIN_DEDUP_ARTICLES) {
                 logDedupProfile(
-                    "incremental_rebuild_skipped reason=not_enough_articles " +
+                    "ensure_similarities_skipped reason=not_enough_articles " +
                         "durationMs=${System.currentTimeMillis() - totalStartedAt} articles=${allArticles.size}"
                 )
                 return@runCatching DeduplicationRebuildResult()
@@ -42,7 +42,7 @@ class FeedDeduplicationProcessor @Inject constructor(
                 .toSet()
             if (targetArticleIds.isEmpty()) {
                 logDedupProfile(
-                    "incremental_rebuild_skipped reason=no_enabled_changed_articles " +
+                    "ensure_similarities_skipped reason=no_enabled_target_articles " +
                         "durationMs=${System.currentTimeMillis() - totalStartedAt} requested=${articleIds.size}"
                 )
                 return@runCatching DeduplicationRebuildResult()
@@ -58,7 +58,7 @@ class FeedDeduplicationProcessor @Inject constructor(
             }
             if (!isModelInitialized) {
                 logDedupProfile(
-                    "incremental_rebuild_skipped reason=model_not_initialized " +
+                    "ensure_similarities_skipped reason=model_not_initialized " +
                         "durationMs=${System.currentTimeMillis() - totalStartedAt}"
                 )
                 return@runCatching DeduplicationRebuildResult()
@@ -71,7 +71,7 @@ class FeedDeduplicationProcessor @Inject constructor(
                 threshold = threshold
             )
             logDedupProfile(
-                "incremental_rebuild_complete durationMs=${System.currentTimeMillis() - totalStartedAt} " +
+                "ensure_similarities_complete durationMs=${System.currentTimeMillis() - totalStartedAt} " +
                     "allArticles=${allArticles.size} targetArticles=${targetArticleIds.size} " +
                     "strategy=${prefs.deduplicationStrategy} threshold=$threshold " +
                     "newSimilarities=${result.newSimilaritiesTotal} aboveThreshold=${result.newSimilaritiesAboveThreshold}"
@@ -130,11 +130,6 @@ class FeedDeduplicationProcessor @Inject constructor(
                     "strategy=${prefs.deduplicationStrategy} threshold=$threshold " +
                     "newSimilarities=${result.newSimilaritiesTotal} aboveThreshold=${result.newSimilaritiesAboveThreshold}"
             )
-            if (!result.shouldSaveSimilarities) {
-                return@runCatching DeduplicationRebuildResult(
-                    cloudEmbeddingsIncomplete = result.cloudEmbeddingsIncomplete
-                )
-            }
             DeduplicationRebuildResult(
                 cloudEmbeddingsIncomplete = result.cloudEmbeddingsIncomplete
             )
@@ -153,7 +148,7 @@ class FeedDeduplicationProcessor @Inject constructor(
         val embeddingsDurationMs = System.currentTimeMillis() - embeddingsStartedAt
         if (embeddingProgress.cloudMissingGenerationFailed) {
             logDedupProfile(
-                "incremental_rebuild_partial stage=embeddings durationMs=$embeddingsDurationMs " +
+                "ensure_similarities_partial stage=embeddings durationMs=$embeddingsDurationMs " +
                     "allArticles=${allArticles.size} targetArticles=${targetArticleIds.size}"
             )
         }
@@ -195,21 +190,19 @@ class FeedDeduplicationProcessor @Inject constructor(
         }
         val pairLoopDurationMs = System.currentTimeMillis() - pairLoopStartedAt
 
-        val replaceStartedAt = System.currentTimeMillis()
-        articleRepository.deleteSimilaritiesForArticles(targetArticleIds.toList(), strategyKey)
+        val upsertStartedAt = System.currentTimeMillis()
         articleRepository.upsertSimilarities(newSimilarities)
-        val replaceDurationMs = System.currentTimeMillis() - replaceStartedAt
+        val upsertDurationMs = System.currentTimeMillis() - upsertStartedAt
         logDedupProfile(
-            "incremental_rebuild_steps embeddingsMs=$embeddingsDurationMs " +
+            "ensure_similarities_steps embeddingsMs=$embeddingsDurationMs " +
                 "contentSignaturesMs=$contentSignaturesDurationMs pairLoopMs=$pairLoopDurationMs " +
-                "replaceMs=$replaceDurationMs activeArticles=${allArticles.size} " +
+                "upsertMs=$upsertDurationMs activeArticles=${allArticles.size} " +
                 "targetArticles=${targetArticleIds.size} generatedPairs=${newSimilarities.size} " +
                 "threshold=$threshold strategyKey=$strategyKey"
         )
         return DedupResult(
             newSimilaritiesAboveThreshold = newSimilarities.count { it.score >= threshold },
             newSimilaritiesTotal = newSimilarities.size,
-            shouldSaveSimilarities = true,
             cloudEmbeddingsIncomplete = embeddingProgress.cloudMissingGenerationFailed
         )
     }
@@ -229,9 +222,6 @@ class FeedDeduplicationProcessor @Inject constructor(
             )
         }
 
-        val deleteStartedAt = System.currentTimeMillis()
-        articleRepository.deleteSimilaritiesByStrategyKey(strategyKey)
-        val deleteDurationMs = System.currentTimeMillis() - deleteStartedAt
         val contentSignaturesStartedAt = System.currentTimeMillis()
         val contentSignaturesByArticleId = allArticles.associate { article ->
             article.id to ArticleDedupContentSignatureFactory.build(article)
@@ -272,7 +262,7 @@ class FeedDeduplicationProcessor @Inject constructor(
         articleRepository.upsertSimilarities(newSimilarities)
         val upsertDurationMs = System.currentTimeMillis() - upsertStartedAt
         logDedupProfile(
-            "rebuild_steps embeddingsMs=$embeddingsDurationMs deleteOldMs=$deleteDurationMs " +
+            "rebuild_steps embeddingsMs=$embeddingsDurationMs " +
                 "contentSignaturesMs=$contentSignaturesDurationMs pairLoopMs=$pairLoopDurationMs " +
                 "upsertMs=$upsertDurationMs activeArticles=${allArticles.size} " +
                 "generatedPairs=${newSimilarities.size} threshold=$threshold strategyKey=$strategyKey"
@@ -280,7 +270,6 @@ class FeedDeduplicationProcessor @Inject constructor(
         return DedupResult(
             newSimilaritiesAboveThreshold = newSimilarities.count { it.score >= threshold },
             newSimilaritiesTotal = newSimilarities.size,
-            shouldSaveSimilarities = true,
             cloudEmbeddingsIncomplete = embeddingProgress.cloudMissingGenerationFailed
         )
     }
@@ -288,7 +277,6 @@ class FeedDeduplicationProcessor @Inject constructor(
     private data class DedupResult(
         val newSimilaritiesAboveThreshold: Int,
         val newSimilaritiesTotal: Int,
-        val shouldSaveSimilarities: Boolean,
         val cloudEmbeddingsIncomplete: Boolean = false
     )
 

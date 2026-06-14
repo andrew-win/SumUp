@@ -1,6 +1,8 @@
 package com.andrewwin.sumup.domain.feed.usecase
 
 import android.util.Log
+import com.andrewwin.sumup.domain.article.deduplication.SimilarityScorer
+import com.andrewwin.sumup.domain.article.repository.ArticleRepository
 import com.andrewwin.sumup.domain.feed.pipeline.UpdateArticlesFromSources
 import com.andrewwin.sumup.domain.feed.dedup.FeedDeduplicationProcessor
 import com.andrewwin.sumup.domain.settings.repository.SuggestedThemesStateRepository
@@ -40,6 +42,8 @@ data class FeedRefreshResult(
 class RefreshFeedUseCaseImpl @Inject constructor(
     private val updateArticlesFromSources: UpdateArticlesFromSources,
     private val feedDeduplicationProcessor: FeedDeduplicationProcessor,
+    private val articleRepository: ArticleRepository,
+    private val similarityScorer: SimilarityScorer,
     private val getRecommendationsUseCase: GetRecommendationsUseCase,
     private val suggestedThemesStateRepository: SuggestedThemesStateRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
@@ -75,13 +79,27 @@ class RefreshFeedUseCaseImpl @Inject constructor(
                 if (prefs.isDeduplicationEnabled) {
                     emitStage(runId, FeedRefreshStage.DEDUPLICATING_NEWS, onStageChange)
                     delay(DEDUPE_STAGE_UI_BOUNDARY_MS)
-                    if (articleRefreshResult.changedArticleIds.isNotEmpty()) {
-                        val deduplicationResult = feedDeduplicationProcessor.rebuildSimilaritiesForArticles(
-                            prefs = prefs,
-                            articleIds = articleRefreshResult.changedArticleIds
-                        ).getOrThrow()
-                        cloudEmbeddingsIncomplete = deduplicationResult.cloudEmbeddingsIncomplete
+                    val enabledArticles = articleRepository.getEnabledArticlesOnce().distinctBy { it.id }
+                    val embeddingType = similarityScorer.embeddingTypeForStrategy(prefs.deduplicationStrategy)
+                    val missingEmbeddingArticleIds = if (enabledArticles.size >= MIN_DEDUP_ARTICLES) {
+                        articleRepository.getMissingEmbeddingArticleIds(
+                            articleIds = enabledArticles.map { it.id },
+                            embeddingType = embeddingType
+                        )
+                    } else {
+                        emptyList()
                     }
+                    val affectedArticleIds = (articleRefreshResult.changedArticleIds + missingEmbeddingArticleIds)
+                        .distinct()
+                    val deduplicationResult = affectedArticleIds
+                        .takeIf { it.isNotEmpty() }
+                        ?.let { ids ->
+                            feedDeduplicationProcessor.ensureSimilaritiesForArticles(
+                                prefs = prefs,
+                                articleIds = ids
+                            ).getOrThrow()
+                        }
+                    cloudEmbeddingsIncomplete = deduplicationResult?.cloudEmbeddingsIncomplete == true
                 }
                 FeedRefreshResult(cloudEmbeddingsIncomplete = cloudEmbeddingsIncomplete)
             }
@@ -144,6 +162,7 @@ class RefreshFeedUseCaseImpl @Inject constructor(
     companion object {
         private const val MIN_REFRESH_INTERVAL_MS = 5_000L
         private const val DEDUPE_STAGE_UI_BOUNDARY_MS = 250L
+        private const val MIN_DEDUP_ARTICLES = 2
         private const val REFRESH_TRIGGER_LOGS_ENABLED = false
         private const val REFRESH_TRIGGER_LOG_TAG = "RefreshTriggerDebug"
         private const val APP_PACKAGE_PREFIX = "com.andrewwin.sumup"
