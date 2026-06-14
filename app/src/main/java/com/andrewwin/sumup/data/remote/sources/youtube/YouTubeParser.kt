@@ -156,9 +156,9 @@ class YouTubeParser {
         var blockStart = fragments.first().start
         var blockEnd = blockStart
 
-        fragments.forEach { fragment ->
+        for (fragment in fragments) {
             val normalized = normalizeTranscriptFragment(fragment.text)
-            if (normalized.isBlank()) return@forEach
+            if (normalized.isBlank()) continue
 
             val fragmentEnd = fragment.start + fragment.dur
             val shouldFlush =
@@ -168,21 +168,49 @@ class YouTubeParser {
                         current.length >= YT_BLOCK_MAX_CHARS)
 
             if (shouldFlush) {
-                blocks += finalizeTranscriptBlock(current.toString())
+                if (!appendTranscriptBlock(blocks, current.toString())) {
+                    return blocks.joinToString(separator = "\n\n")
+                }
                 current.clear()
                 blockStart = fragment.start
             }
 
             if (current.isNotEmpty()) current.append(' ')
-            current.append(normalized)
+            val remainingChars = YT_TRANSCRIPT_MAX_CHARS - transcriptBlocksLength(blocks) - current.length
+            if (remainingChars <= 0) {
+                return blocks.joinToString(separator = "\n\n")
+            }
+            current.append(normalized.take(remainingChars))
             blockEnd = fragmentEnd
+
+            if (transcriptBlocksLength(blocks) + current.length >= YT_TRANSCRIPT_MAX_CHARS) {
+                break
+            }
         }
 
         if (current.isNotEmpty()) {
-            blocks += finalizeTranscriptBlock(current.toString())
+            appendTranscriptBlock(blocks, current.toString())
         }
 
         return blocks.joinToString(separator = "\n\n")
+    }
+
+    private fun appendTranscriptBlock(blocks: MutableList<String>, rawBlock: String): Boolean {
+        val block = finalizeTranscriptBlock(rawBlock)
+        if (block.isBlank()) return true
+
+        val currentLength = transcriptBlocksLength(blocks)
+        val separatorLength = if (blocks.isEmpty()) 0 else TRANSCRIPT_BLOCK_SEPARATOR_LENGTH
+        val remainingChars = YT_TRANSCRIPT_MAX_CHARS - currentLength - separatorLength
+        if (remainingChars <= 0) return false
+
+        blocks += block.take(remainingChars)
+        return remainingChars >= block.length
+    }
+
+    private fun transcriptBlocksLength(blocks: List<String>): Int {
+        if (blocks.isEmpty()) return 0
+        return blocks.sumOf { it.length } + TRANSCRIPT_BLOCK_SEPARATOR_LENGTH * (blocks.size - 1)
     }
 
     private fun readFeedMetadata(
@@ -673,6 +701,8 @@ class YouTubeParser {
         private const val YT_BLOCK_WINDOW_SECONDS = 22.0
         private const val YT_BLOCK_GAP_SECONDS = 2.2
         private const val YT_BLOCK_MAX_CHARS = 260
+        private const val YT_TRANSCRIPT_MAX_CHARS = 20_000
+        private const val TRANSCRIPT_BLOCK_SEPARATOR_LENGTH = 2
         private val VIDEO_QUERY_REGEX = Regex("[?&]v=([^?&#]+)")
         private val SHORTS_URL_REGEX = Regex("youtube\\.com/shorts/([^?&#]+)")
         private val EMBED_URL_REGEX = Regex("youtube\\.com/embed/([^?&#]+)")
