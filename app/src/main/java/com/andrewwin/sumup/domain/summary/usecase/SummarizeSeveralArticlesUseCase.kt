@@ -46,6 +46,7 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val articleRepository: ArticleRepository,
     private val shrinkTextForAdaptiveStrategyUseCase: AdaptiveTextShrinker,
+    private val aiPromptBuilder: AiPromptBuilder,
     private val aiRequestSender: AiRequestSender,
     private val summaryResponseMapper: SummaryResponseMapper,
     private val limitTextsProportionallyUseCase: ProportionalTextLimiter,
@@ -122,7 +123,7 @@ class SummarizeSeveralArticlesUseCase @Inject constructor(
         }
 
         val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
-        val prompt = AiPromptBuilder.buildComparePrompt(prefs.summaryLanguage, customPrompt)
+        val prompt = aiPromptBuilder.buildComparePrompt(prefs.summaryLanguage, customPrompt)
 
         val cloudResult = runCatching {
             val response = aiRequestSender.sendSummaryRequest(prompt, cloudInput)

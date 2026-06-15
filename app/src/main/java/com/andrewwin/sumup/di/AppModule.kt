@@ -2,6 +2,7 @@ package com.andrewwin.sumup.di
 
 import android.content.Context
 import androidx.work.WorkManager
+import com.andrewwin.sumup.data.ai.prompt.AssetsPromptTemplateRepository
 import com.andrewwin.sumup.data.mappers.AiSummaryResponseMapper
 import com.andrewwin.sumup.data.remote.ai.CloudAiRequestSender
 import com.andrewwin.sumup.data.remote.ai.CloudEmbeddingGenerator
@@ -68,6 +69,7 @@ import com.andrewwin.sumup.domain.article.deduplication.SimilarityScorer
 import com.andrewwin.sumup.domain.ai.repository.AiModelConfigRepository
 import com.andrewwin.sumup.domain.article.repository.ArticleRepository
 import com.andrewwin.sumup.domain.ai.repository.ModelRepository
+import com.andrewwin.sumup.domain.ai.prompt.PromptTemplateRepository
 import com.andrewwin.sumup.domain.source.repository.PublicSubscriptionsCatalog
 import com.andrewwin.sumup.domain.source.repository.SourceRepository
 import com.andrewwin.sumup.domain.settings.repository.SuggestedThemesStateRepository
@@ -356,6 +358,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideSummaryResponseMapper(impl: AiSummaryResponseMapper): SummaryResponseMapper = impl
+
+    @Provides
+    @Singleton
+    fun providePromptTemplateRepository(impl: AssetsPromptTemplateRepository): PromptTemplateRepository = impl
 
     @Provides
     @Singleton

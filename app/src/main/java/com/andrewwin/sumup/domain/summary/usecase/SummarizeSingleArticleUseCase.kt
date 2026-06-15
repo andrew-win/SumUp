@@ -34,6 +34,7 @@ class SummarizeSingleArticleUseCase @Inject constructor(
     private val getExtractiveSummaryUseCase: ExtractiveSummaryService,
     private val localSummarySentenceSelector: LocalSummarySentenceSelector,
     private val shrinkTextForAdaptiveStrategyUseCase: AdaptiveTextShrinker,
+    private val aiPromptBuilder: AiPromptBuilder,
     private val aiRequestSender: AiRequestSender,
     private val summaryResponseMapper: SummaryResponseMapper,
     private val summaryExecutionInfoFormatter: SummaryExecutionInfoFormatter,
@@ -106,7 +107,7 @@ class SummarizeSingleArticleUseCase @Inject constructor(
 
         // 3. Build Prompt & Cloud Input
         val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
-        val prompt = AiPromptBuilder.buildSingleArticlePrompt(prefs.summaryLanguage, customPrompt)
+        val prompt = aiPromptBuilder.buildSingleArticlePrompt(prefs.summaryLanguage, customPrompt)
         val cloudInput = buildString {
             append("source_id: $articleId\n")
             append("source_name: $sourceName\n")

@@ -1,0 +1,27 @@
+package com.andrewwin.sumup.domain.ai.prompt
+
+object PromptAssetPath {
+    const val PROMPT_LAYOUT = "prompts/templates/prompt_layout.md"
+    const val JSON_ONLY_RULE = "prompts/rules/json_only.md"
+    const val COMMON_ROLE = "prompts/rules/common_role.md"
+    const val COMMON_RULES = "prompts/rules/common_rules.md"
+    const val ANALYTIC_CHAIN_RULE = "prompts/rules/analytic_chain.md"
+    const val LANGUAGE_UK_RULE = "prompts/rules/language_uk.md"
+    const val LANGUAGE_EN_RULE = "prompts/rules/language_en.md"
+    const val SINGLE_ARTICLE_GOAL = "prompts/templates/single_article_goal.md"
+    const val SINGLE_ARTICLE_RULES = "prompts/templates/single_article_rules.md"
+    const val SINGLE_ARTICLE_SCHEMA = "prompts/schemas/single_article.json"
+    const val COMPARE_GOAL = "prompts/templates/compare_goal.md"
+    const val COMPARE_RULES = "prompts/templates/compare_rules.md"
+    const val COMPARE_SCHEMA = "prompts/schemas/compare.json"
+    const val FEED_DIGEST_GOAL = "prompts/templates/feed_digest_goal.md"
+    const val FEED_DIGEST_RULES = "prompts/templates/feed_digest_rules.md"
+    const val FEED_DIGEST_SCHEMA = "prompts/schemas/feed_digest.json"
+    const val QUESTION_GOAL = "prompts/templates/question_goal.md"
+    const val QUESTION_RULES = "prompts/templates/question_rules.md"
+    const val QUESTION_SCHEMA = "prompts/schemas/question.json"
+    const val SINGLE_ARTICLE_EXAMPLE = "prompts/examples/single_article.md"
+    const val COMPARE_EXAMPLE = "prompts/examples/compare.md"
+    const val FEED_DIGEST_EXAMPLE = "prompts/examples/feed_digest.md"
+    const val QUESTION_EXAMPLE = "prompts/examples/question.md"
+}

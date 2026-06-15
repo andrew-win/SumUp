@@ -23,6 +23,7 @@ class AskQuestionUseCase @Inject constructor(
     private val articleRepo: ArticleRepository,
     private val shrinkTextUseCase: AdaptiveTextShrinker,
     private val limitTextsProportionallyUseCase: ProportionalTextLimiter,
+    private val aiPromptBuilder: AiPromptBuilder,
     private val aiRequestSender: AiRequestSender,
     private val summaryResponseMapper: SummaryResponseMapper,
     private val summaryExecutionInfoFormatter: SummaryExecutionInfoFormatter,
@@ -76,7 +77,7 @@ class AskQuestionUseCase @Inject constructor(
         val cloudInput = processedArticles.joinToString(separator = "\n\n")
 
         val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
-        val prompt = AiPromptBuilder.buildQuestionPrompt(prefs.summaryLanguage, question, customPrompt)
+        val prompt = aiPromptBuilder.buildQuestionPrompt(prefs.summaryLanguage, question, customPrompt)
         val response = aiRequestSender.sendSummaryRequest(prompt, cloudInput)
         val parsed = summaryResponseMapper.parseQuestion(response.content, cloudInput, question)
         summaryExecutionInfoStore.update(

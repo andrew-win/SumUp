@@ -280,6 +280,7 @@ internal fun FeedAiSummaryContent(
                         } else {
                             SingleSummaryCard(
                                 result = summaryResult,
+                                summaryTitle = summaryTitle,
                                 onOpenWebView = onOpenWebView,
                                 executionLabel = aiResult.executionLabel,
                                 executionNote = aiResult.executionNote,
@@ -366,6 +367,7 @@ internal fun FeedAiSummaryContent(
 @Composable
 private fun SingleSummaryCard(
     result: SummaryResult,
+    summaryTitle: String?,
     onOpenWebView: (String) -> Unit,
     executionLabel: String?,
     executionNote: String?,
@@ -435,7 +437,9 @@ private fun SingleSummaryCard(
     } else {
         val content = when (result) {
             is SummaryResult.Single -> SingleSummaryContentUi(
-                title = result.title?.takeIf { it.isNotBlank() } ?: context.getString(R.string.summary_default_title),
+                title = result.title?.takeIf { it.isNotBlank() }
+                    ?: summaryTitle?.takeIf { it.isNotBlank() }
+                    ?: context.getString(R.string.summary_default_title),
                 main = result.main,
                 details = result.points.map { it.toThemeItem() }.take(SummaryLimits.Single.uiMaxDetails),
                 sources = result.sources.map { it.toLinkUi() }

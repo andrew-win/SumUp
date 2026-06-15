@@ -69,24 +69,11 @@ object EmbeddingUtils {
         return true
     }
 
-    fun normalizeTitle(title: String): String {
-        return title.lowercase().replace(WHITESPACE_REGEX, " ").trim()
-    }
-
     fun extractTextFeatures(title: String): TextOptimizationFeatures {
         return TextOptimizationFeatures(
             jaccardTokens = importantTitleTokens(title),
             entities = titleEntityPrefixes(title)
         )
-    }
-
-    fun titleJaccard(leftTitle: String, rightTitle: String): Float {
-        val leftTokens = importantTitleTokens(leftTitle)
-        val rightTokens = importantTitleTokens(rightTitle)
-        if (leftTokens.isEmpty() || rightTokens.isEmpty()) return 0f
-        val intersectionSize = leftTokens.intersect(rightTokens).size
-        val unionSize = leftTokens.union(rightTokens).size
-        return if (unionSize == 0) 0f else intersectionSize.toFloat() / unionSize.toFloat()
     }
 
     fun titleEntityPrefixes(title: String): Set<String> {

@@ -35,10 +35,11 @@ import kotlinx.coroutines.sync.withPermit
 import javax.inject.Inject
 
 class SummarizeFeedUseCase @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val articleRepository: ArticleRepository,
     private val shrinkTextForAdaptiveStrategyUseCase: AdaptiveTextShrinker,
+    private val aiPromptBuilder: AiPromptBuilder,
     private val aiRequestSender: AiRequestSender,
     private val summaryResponseMapper: SummaryResponseMapper,
     private val thresholdSimilarityResolver: ThresholdSimilarityResolver,
@@ -183,7 +184,7 @@ class SummarizeFeedUseCase @Inject constructor(
         )
 
         val customPrompt = prefs.summaryPrompt.takeIf { prefs.isCustomSummaryPromptEnabled }
-        val prompt = AiPromptBuilder.buildFeedDigestPrompt(prefs.summaryLanguage, customPrompt)
+        val prompt = aiPromptBuilder.buildFeedDigestPrompt(prefs.summaryLanguage, customPrompt)
         val cloudResult = runCatching {
             val response = aiRequestSender.sendSummaryRequest(prompt, cloudInput)
             val parsed = summaryResponseMapper.parseFeed(response.content, cloudInput)
