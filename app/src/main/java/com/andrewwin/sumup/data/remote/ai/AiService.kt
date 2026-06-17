@@ -27,7 +27,7 @@ class AiService(private val handlers: Map<AiProvider, AiProviderHandler>) {
     suspend fun generateEmbedding(config: AiModelConfig, text: String, debugRunId: Long? = null): FloatArray =
         withContext(Dispatchers.IO) {
             generateEmbeddings(config, listOf(text), debugRunId).firstOrNull()
-                ?: throw Exception("Порожня відповідь від сервера")
+                ?: throw Exception(EMPTY_SERVER_RESPONSE_MESSAGE)
         }
 
     suspend fun generateEmbeddings(config: AiModelConfig, texts: List<String>, debugRunId: Long? = null): List<FloatArray?> =
@@ -37,6 +37,11 @@ class AiService(private val handlers: Map<AiProvider, AiProviderHandler>) {
         }
 
     private fun getHandler(provider: AiProvider): AiProviderHandler {
-        return handlers[provider] ?: throw Exception("Provider $provider is not supported")
+        return handlers[provider] ?: throw Exception(UNSUPPORTED_PROVIDER_MESSAGE.format(provider))
+    }
+
+    private companion object {
+        private const val EMPTY_SERVER_RESPONSE_MESSAGE = "Empty server response"
+        private const val UNSUPPORTED_PROVIDER_MESSAGE = "Provider %s is not supported"
     }
 }

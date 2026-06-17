@@ -54,11 +54,11 @@ class YouTubeSourceGateway(
 
     override suspend fun fetchFullContent(url: String): RemoteFullContent? = withContext(Dispatchers.IO) {
         try {
-            val videoId = when {
-                url.contains("v=") -> url.substringAfter("v=").substringBefore("&")
-                url.contains("youtu.be/") -> url.substringAfter("youtu.be/").substringBefore("?")
-                else -> url.substringAfterLast("/")
-            }
+            val videoId = youtubeParser.extractVideoId(url)
+                ?: return@withContext RemoteFullContent(
+                    text = null,
+                    status = RemoteContentFetchStatus.YT_FAILED
+                )
             youtubeFetcher.fetchTranscript(videoId)
                 .fold(
                     onSuccess = { result ->

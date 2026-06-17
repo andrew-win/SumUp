@@ -48,35 +48,35 @@ class SettingsBackupPayloadService @Inject constructor(
         val subscriptions = if (selection.includeSubscriptions) subscriptionsPrefs.readSuggestedThemesBackupState() else null
         val savedArticles = if (selection.includeSavedArticles) articleRepository.getSavedArticlesSnapshot() else emptyList()
         return JSONObject().apply {
-            put("schemaVersion", 1)
-            put("exportedAt", System.currentTimeMillis())
-            put("syncStrategy", syncStrategy.name)
-            put("syncOverwritePriority", syncOverwritePriority.name)
-            put("importStrategy", importStrategy.name)
-            put("selection", JSONObject().apply {
-                put("sources", selection.includeSources)
-                put("subscriptions", selection.includeSubscriptions)
-                put("savedArticles", selection.includeSavedArticles)
-                put("settingsNoApi", selection.includeSettingsNoApi)
-                put("apiKeys", selection.includeApiKeys)
+            put(KEY_SCHEMA_VERSION, BACKUP_SCHEMA_VERSION)
+            put(KEY_EXPORTED_AT, System.currentTimeMillis())
+            put(KEY_SYNC_STRATEGY, syncStrategy.name)
+            put(KEY_SYNC_OVERWRITE_PRIORITY, syncOverwritePriority.name)
+            put(KEY_IMPORT_STRATEGY, importStrategy.name)
+            put(KEY_SELECTION, JSONObject().apply {
+                put(KEY_SOURCES, selection.includeSources)
+                put(KEY_SUBSCRIPTIONS, selection.includeSubscriptions)
+                put(KEY_SAVED_ARTICLES, selection.includeSavedArticles)
+                put(KEY_SETTINGS_NO_API, selection.includeSettingsNoApi)
+                put(KEY_API_KEYS, selection.includeApiKeys)
             })
-            if (prefs != null) put("userPreferences", prefs.toRoomEntity().toBackupJson())
+            if (prefs != null) put(KEY_USER_PREFERENCES, prefs.toRoomEntity().toBackupJson())
             if (selection.includeApiKeys) {
-                put("apiKeysSalt", encryptionSession?.saltBase64)
-                put("aiConfigs", JSONArray().apply {
+                put(KEY_API_KEYS_SALT, encryptionSession?.saltBase64)
+                put(KEY_AI_CONFIGS, JSONArray().apply {
                     aiConfigs.forEach { put(it.toBackupJson(encryptionSession!!)) }
                 })
             }
             if (selection.includeSources) {
-                put("groups", JSONArray().apply {
+                put(KEY_GROUPS, JSONArray().apply {
                     groups.forEach { groupWithSources ->
                         put(JSONObject().apply {
-                            put("name", groupWithSources.group.name)
-                            put("isEnabled", groupWithSources.group.isEnabled)
-                            put("isDeletable", groupWithSources.group.isDeletable)
-                            put("origin", groupWithSources.group.origin)
-                            put("subscriptionId", groupWithSources.group.subscriptionId)
-                            put("sources", JSONArray().apply {
+                            put(KEY_NAME, groupWithSources.group.name)
+                            put(KEY_IS_ENABLED, groupWithSources.group.isEnabled)
+                            put(KEY_IS_DELETABLE, groupWithSources.group.isDeletable)
+                            put(KEY_ORIGIN, groupWithSources.group.origin)
+                            put(KEY_SUBSCRIPTION_ID, groupWithSources.group.subscriptionId)
+                            put(KEY_SOURCES, JSONArray().apply {
                                 groupWithSources.sources.forEach { source -> put(source.toBackupJson()) }
                             })
                         })
@@ -84,7 +84,7 @@ class SettingsBackupPayloadService @Inject constructor(
                 })
             }
             if (selection.includeSubscriptions) {
-                put("subscriptions", JSONObject().apply {
+                put(KEY_SUBSCRIPTIONS, JSONObject().apply {
                     putSuggestedThemesBackupState(
                         subscriptions ?: SuggestedThemesBackupState(
                             savedThemeIds = emptySet(),
@@ -97,7 +97,7 @@ class SettingsBackupPayloadService @Inject constructor(
                 })
             }
             if (selection.includeSavedArticles) {
-                put("savedArticles", JSONArray().apply {
+                put(KEY_SAVED_ARTICLES, JSONArray().apply {
                     savedArticles.forEach { put(it.toBackupJson()) }
                 })
             }
@@ -105,27 +105,27 @@ class SettingsBackupPayloadService @Inject constructor(
     }
 
     suspend fun applyBackupJson(root: JSONObject, merge: Boolean, selection: BackupSelection) {
-        val importedSyncStrategy = parseSyncConflictStrategy(root.optString("syncStrategy", SyncConflictStrategy.MERGE.name))
+        val importedSyncStrategy = parseSyncConflictStrategy(root.optString(KEY_SYNC_STRATEGY, SyncConflictStrategy.MERGE.name))
         val importedOverwritePriority = parseSyncOverwritePriority(
-            root.optString("syncOverwritePriority", SyncOverwritePriority.LOCAL.name)
+            root.optString(KEY_SYNC_OVERWRITE_PRIORITY, SyncOverwritePriority.LOCAL.name)
         )
         val importedImportStrategy = parseSyncConflictStrategy(
-            root.optString("importStrategy", SyncConflictStrategy.MERGE.name)
+            root.optString(KEY_IMPORT_STRATEGY, SyncConflictStrategy.MERGE.name)
         )
-        val importedPrefs = root.optJSONObject("userPreferences")?.toUserPreferencesFromBackup()
+        val importedPrefs = root.optJSONObject(KEY_USER_PREFERENCES)?.toUserPreferencesFromBackup()
         val importedConfigs = if (selection.includeApiKeys) {
-            root.optJSONArray("aiConfigs").toAiConfigsFromBackup(
+            root.optJSONArray(KEY_AI_CONFIGS).toAiConfigsFromBackup(
                 secretEncryptionManager = secretEncryptionManager,
                 syncPassphrase = requireSyncPassphrase(),
-                syncSaltBase64 = root.optString("apiKeysSalt").takeIf { it.isNotBlank() }
+                syncSaltBase64 = root.optString(KEY_API_KEYS_SALT).takeIf { it.isNotBlank() }
             )
         } else {
             emptyList()
         }
-        val importedGroups = root.optJSONArray("groups").toImportedGroupsFromBackup()
-        val importedSubscriptions = root.optJSONObject("subscriptions")
-        val hasSavedArticlesField = root.has("savedArticles")
-        val rawSavedArticles = root.optJSONArray("savedArticles")
+        val importedGroups = root.optJSONArray(KEY_GROUPS).toImportedGroupsFromBackup()
+        val importedSubscriptions = root.optJSONObject(KEY_SUBSCRIPTIONS)
+        val hasSavedArticlesField = root.has(KEY_SAVED_ARTICLES)
+        val rawSavedArticles = root.optJSONArray(KEY_SAVED_ARTICLES)
         val importedSavedArticles = rawSavedArticles.toSavedArticlesFromBackup()
         val importedSavedArticleUrls = rawSavedArticles?.let { array ->
             buildList {
@@ -210,15 +210,15 @@ class SettingsBackupPayloadService @Inject constructor(
 
     private fun applyAppLanguage(language: AppLanguage) {
         val languageTag = when (language) {
-            AppLanguage.UK -> "uk"
-            AppLanguage.EN -> "en"
+            AppLanguage.UK -> LANGUAGE_TAG_UK
+            AppLanguage.EN -> LANGUAGE_TAG_EN
         }
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
     }
 
     private fun requireSyncPassphrase(): String {
         return secretEncryptionManager.getSyncPassphraseOrNull()
-            ?: error("Sync passphrase is missing.")
+            ?: error(SYNC_PASSPHRASE_MISSING_MESSAGE)
     }
 
     private fun stableAiConfigKey(config: AiModelConfig): String {
@@ -227,6 +227,33 @@ class SettingsBackupPayloadService @Inject constructor(
 
     private object SyncMetadataHolder {
         var lastImportedSyncMetadata: ImportedSyncMetadata? = null
+    }
+
+    private companion object {
+        private const val BACKUP_SCHEMA_VERSION = 1
+        private const val KEY_SCHEMA_VERSION = "schemaVersion"
+        private const val KEY_EXPORTED_AT = "exportedAt"
+        private const val KEY_SYNC_STRATEGY = "syncStrategy"
+        private const val KEY_SYNC_OVERWRITE_PRIORITY = "syncOverwritePriority"
+        private const val KEY_IMPORT_STRATEGY = "importStrategy"
+        private const val KEY_SELECTION = "selection"
+        private const val KEY_SOURCES = "sources"
+        private const val KEY_SUBSCRIPTIONS = "subscriptions"
+        private const val KEY_SAVED_ARTICLES = "savedArticles"
+        private const val KEY_SETTINGS_NO_API = "settingsNoApi"
+        private const val KEY_API_KEYS = "apiKeys"
+        private const val KEY_USER_PREFERENCES = "userPreferences"
+        private const val KEY_API_KEYS_SALT = "apiKeysSalt"
+        private const val KEY_AI_CONFIGS = "aiConfigs"
+        private const val KEY_GROUPS = "groups"
+        private const val KEY_NAME = "name"
+        private const val KEY_IS_ENABLED = "isEnabled"
+        private const val KEY_IS_DELETABLE = "isDeletable"
+        private const val KEY_ORIGIN = "origin"
+        private const val KEY_SUBSCRIPTION_ID = "subscriptionId"
+        private const val LANGUAGE_TAG_UK = "uk"
+        private const val LANGUAGE_TAG_EN = "en"
+        private const val SYNC_PASSPHRASE_MISSING_MESSAGE = "Sync passphrase is missing."
     }
 }
 

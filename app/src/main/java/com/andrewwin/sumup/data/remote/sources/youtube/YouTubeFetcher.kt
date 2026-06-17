@@ -8,6 +8,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.InputStream
 
+private const val YOUTUBE_FEED_REQUEST_FAILED_MESSAGE = "YouTube feed request failed with code %s"
+
 class YouTubeFetcher(
     private val okHttpClient: OkHttpClient
 ) {
@@ -17,7 +19,7 @@ class YouTubeFetcher(
         val request = Request.Builder().url(url).build()
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                error("YouTube feed request failed with code ${response.code}")
+                error(YOUTUBE_FEED_REQUEST_FAILED_MESSAGE.format(response.code))
             }
             response.body.bytes()
         }
@@ -30,7 +32,7 @@ class YouTubeFetcher(
         val request = Request.Builder().url(url).build()
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                error("YouTube feed request failed with code ${response.code}")
+                error(YOUTUBE_FEED_REQUEST_FAILED_MESSAGE.format(response.code))
             }
             val stream = response.body.byteStream()
             withContext(Dispatchers.Default) {

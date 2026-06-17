@@ -6,6 +6,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.Reader
 
+private const val RSS_REQUEST_FAILED_MESSAGE = "RSS request failed with code %s"
+
 class RssFetcher(
     private val okHttpClient: OkHttpClient
 ) {
@@ -13,7 +15,7 @@ class RssFetcher(
         val request = Request.Builder().url(url).build()
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                error("RSS request failed with code ${response.code}")
+                error(RSS_REQUEST_FAILED_MESSAGE.format(response.code))
             }
             response.body.string()
         }
@@ -28,7 +30,7 @@ class RssFetcher(
         val request = Request.Builder().url(url).build()
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                error("RSS request failed with code ${response.code}")
+                error(RSS_REQUEST_FAILED_MESSAGE.format(response.code))
             }
             val reader = response.body.charStream()
             withContext(Dispatchers.Default) {

@@ -316,7 +316,7 @@ class SourceRepositoryImpl @Inject constructor(
             val targetGroupId = if (existingGroup != null) {
                 sourceDao.updateGroup(
                     existingGroup.copy(
-                        isEnabled = group.isEnabled,
+                        isEnabled = if (merge) existingGroup.isEnabled else group.isEnabled,
                         isDeletable = existingGroup.isDeletable,
                         origin = group.origin ?: existingGroup.origin,
                         subscriptionId = group.subscriptionId ?: existingGroup.subscriptionId

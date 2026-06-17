@@ -29,14 +29,14 @@ class SettingsSyncService @Inject constructor(
     override suspend fun syncNow(selection: BackupSelection, state: SettingsSyncState): String = withContext(dispatcherProvider.io) {
         val uid = authService.currentUserId()
             ?: error(context.getString(R.string.settings_sync_sign_in_required))
-        if (!state.isCloudSyncEnabled) return@withContext ""
+        if (!state.isCloudSyncEnabled) return@withContext EMPTY_SYNC_RESULT
 
         val docRef = firestore.collection(CLOUD_COLLECTION).document(uid)
         val remote = docRef.get().await()
-        val remoteBackupJson = remote.getString("backup")
+        val remoteBackupJson = remote.getString(KEY_BACKUP)
             ?.takeIf { it.isNotBlank() }
             ?.let(::JSONObject)
-        val remoteUpdatedAt = remote.getLong("updatedAt") ?: 0L
+        val remoteUpdatedAt = remote.getLong(KEY_UPDATED_AT) ?: 0L
         val mergeMode = state.syncStrategy == SyncConflictStrategy.MERGE
         val shouldApplyRemote = shouldApplyRemoteBeforePush(
             remoteExists = remote.exists(),
@@ -62,7 +62,7 @@ class SettingsSyncService @Inject constructor(
         val localBackupJson = localBackup.toString()
         require(localBackupJson.isNotBlank()) { context.getString(R.string.settings_sync_json_build_failed) }
         val now = System.currentTimeMillis()
-        docRef.set(mapOf("backup" to localBackupJson, "updatedAt" to now)).await()
+        docRef.set(mapOf(KEY_BACKUP to localBackupJson, KEY_UPDATED_AT to now)).await()
         preferencesStore.updateLastSyncAt(now)
         context.getString(R.string.settings_sync_completed)
     }
@@ -146,6 +146,9 @@ class SettingsSyncService @Inject constructor(
     companion object {
         private const val CLOUD_COLLECTION = "user_sync_backups"
         private const val MIN_SYNC_PASSPHRASE_LENGTH = 8
+        private const val KEY_BACKUP = "backup"
+        private const val KEY_UPDATED_AT = "updatedAt"
+        private const val EMPTY_SYNC_RESULT = ""
     }
 }
 

@@ -83,14 +83,8 @@ class TelegramSourceGateway(
             val document = displayNameTelegramFetcher.fetchDocument(telegramUrl).getOrNull()
                 ?: return@withContext null
             withContext(Default) {
-                document.selectFirst("title")
-                    ?.text()
-                    ?.replace(TELEGRAM_TITLE_SUFFIX_REGEX, "")
-                    ?.trim()
-                    ?.takeIf { it.isNotBlank() }
-                    ?.takeUnless { it.equals(TELEGRAM_DEFAULT_TITLE, ignoreCase = true) }
-                }
-                ?.takeIf { it.isNotBlank() }
+                telegramParser.parseChannelDisplayName(document)
+            }
         } catch (e: Exception) {
             null
         }
@@ -193,8 +187,6 @@ class TelegramSourceGateway(
 
     private companion object {
         private const val TELEGRAM_MAX_EXTRA_PAGES = 5
-        private const val TELEGRAM_DEFAULT_TITLE = "Telegram Messenger"
         private const val ARTICLE_REFRESH_TIMING_LOG_TAG = "ArticleRefreshTiming"
-        private val TELEGRAM_TITLE_SUFFIX_REGEX = Regex("\\s+[–-]\\s*Telegram\\s*$", RegexOption.IGNORE_CASE)
     }
 }

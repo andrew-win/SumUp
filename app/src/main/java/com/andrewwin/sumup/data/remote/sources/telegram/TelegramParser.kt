@@ -13,7 +13,11 @@ import java.util.Locale
 class TelegramParser {
 
     fun parseChannelDisplayName(html: String): String? {
-        return Jsoup.parse(html)
+        return parseChannelDisplayName(Jsoup.parse(html))
+    }
+
+    fun parseChannelDisplayName(document: Document): String? {
+        return document
             .selectFirst("title")
             ?.text()
             ?.removeTelegramTitleSuffix()
@@ -415,13 +419,6 @@ class TelegramParser {
             break
         }
         return lines.drop(index)
-    }
-
-    private fun extractMessageId(element: Element): Long? {
-        return buildKey(element)
-            .substringAfterLast("/")
-            .toLongOrNull()
-            ?.takeIf { it > 0L }
     }
 
     private fun extractMessageIdFast(key: String): Long? {

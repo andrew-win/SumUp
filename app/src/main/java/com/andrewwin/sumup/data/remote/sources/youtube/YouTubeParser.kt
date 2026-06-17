@@ -42,18 +42,6 @@ class YouTubeParser {
         }
     }
 
-    fun parseFeedMetadata(
-        inputStream: InputStream,
-        oldestAllowedPublishedAt: Long?
-    ): YouTubeFeedMetadata {
-        inputStream.use {
-            val parser = newXmlPullParser()
-            parser.setInput(it, null)
-            parser.nextTag()
-            return readFeedMetadata(parser, oldestAllowedPublishedAt)
-        }
-    }
-
     fun parseChannelDisplayName(inputStream: InputStream): String? {
         val xml = inputStream.use { stream ->
             stream.bufferedReader().use { reader -> reader.readText() }
@@ -62,6 +50,15 @@ class YouTubeParser {
         val title = document.selectFirst("feed > title")?.text()?.trim().orEmpty()
         val authorName = document.selectFirst("feed > author > name")?.text()?.trim().orEmpty()
         return title.ifBlank { authorName }.ifBlank { null }
+    }
+
+    fun extractVideoId(url: String): String? {
+        return extractVideoIdFromUrl(url)
+            ?: when {
+                url.contains("v=") -> extractVideoIdFromText(url.substringAfter("v=").substringBefore("&"))
+                url.contains("youtu.be/") -> extractVideoIdFromText(url.substringAfter("youtu.be/").substringBefore("?"))
+                else -> extractVideoIdFromText(url.substringAfterLast("/"))
+            }
     }
 
     private fun newXmlPullParser(): XmlPullParser {
@@ -213,47 +210,6 @@ class YouTubeParser {
         return blocks.sumOf { it.length } + TRANSCRIPT_BLOCK_SEPARATOR_LENGTH * (blocks.size - 1)
     }
 
-    private fun readFeedMetadata(
-        parser: XmlPullParser,
-        oldestAllowedPublishedAt: Long?
-    ): YouTubeFeedMetadata {
-        var entryCount = 0
-        var oldestPublishedAt: Long? = null
-        var newestPublishedAt: Long? = null
-        var newestVideoId: String? = null
-        var hasRelevantEntry = oldestAllowedPublishedAt == null
-
-        parser.require(XmlPullParser.START_TAG, null, "feed")
-        while (parser.next() != XmlPullParser.END_TAG) {
-            if (parser.eventType != XmlPullParser.START_TAG) continue
-            if (parser.name == "entry") {
-                entryCount++
-                val metadata = readEntryMetadata(parser)
-                val publishedAt = metadata.publishedAt
-                if (publishedAt != null) {
-                    oldestPublishedAt = minOf(oldestPublishedAt ?: publishedAt, publishedAt)
-                    newestPublishedAt = maxOf(newestPublishedAt ?: publishedAt, publishedAt)
-                    if (oldestAllowedPublishedAt != null && publishedAt >= oldestAllowedPublishedAt) {
-                        hasRelevantEntry = true
-                    }
-                }
-                if (newestVideoId.isNullOrBlank() && !metadata.videoId.isNullOrBlank()) {
-                    newestVideoId = metadata.videoId
-                }
-            } else {
-                skip(parser)
-            }
-        }
-
-        return YouTubeFeedMetadata(
-            entryCount = entryCount,
-            oldestPublishedAt = oldestPublishedAt,
-            newestPublishedAt = newestPublishedAt,
-            newestVideoId = newestVideoId,
-            hasRelevantEntry = hasRelevantEntry
-        )
-    }
-
     private fun readEntry(
         parser: XmlPullParser,
         sourceId: Long,
@@ -331,49 +287,6 @@ class YouTubeParser {
             viewCount = viewCount
         )
         return article.takeUnless(::isShortsArticle)
-    }
-
-    private fun readEntryMetadata(parser: XmlPullParser): EntryMetadata {
-        var videoId: String? = null
-        var publishedAt: Long? = null
-        var link: String? = null
-
-        while (parser.next() != XmlPullParser.END_TAG) {
-            if (parser.eventType != XmlPullParser.START_TAG) continue
-            when (parser.name) {
-                "yt:videoId", "videoId" -> videoId = extractVideoIdFromText(readText(parser))
-                "id" -> {
-                    val value = readText(parser).trim()
-                    if (videoId.isNullOrBlank() && value.startsWith("yt:video:")) {
-                        videoId = extractVideoIdFromText(value.removePrefix("yt:video:"))
-                    }
-                }
-                "published" -> {
-                    val parsed = parseDate(readText(parser))
-                    publishedAt = parsed.takeIf { it > 0L }
-                }
-                "link" -> {
-                    link = parser.getAttributeValue(null, "href")
-                    skip(parser)
-                }
-                "media:group" -> {
-                    val mediaGroupData = readMediaGroupMetadata(parser)
-                    if (videoId.isNullOrBlank()) {
-                        videoId = mediaGroupData.videoId
-                    }
-                }
-                else -> skip(parser)
-            }
-        }
-
-        if (videoId.isNullOrBlank()) {
-            videoId = extractVideoIdFromUrl(link)
-        }
-
-        return EntryMetadata(
-            videoId = videoId,
-            publishedAt = publishedAt
-        )
     }
 
     private fun readEntryData(
@@ -460,10 +373,6 @@ class YouTubeParser {
         )
     }
 
-    private fun readMediaGroup(skipHeavyContent: Boolean): MediaGroupData {
-        error("Unused overload")
-    }
-
     private fun readMediaGroup(parser: XmlPullParser, skipHeavyContent: Boolean): MediaGroupData {
         var description = ""
         var viewCount = 0L
@@ -523,24 +432,6 @@ class YouTubeParser {
         )
     }
 
-    private fun readMediaGroupMetadata(parser: XmlPullParser): MediaGroupMetadata {
-        var videoId: String? = null
-        while (parser.next() != XmlPullParser.END_TAG) {
-            if (parser.eventType != XmlPullParser.START_TAG) continue
-            when (parser.name.localTagName()) {
-                "content", "thumbnail" -> {
-                    val url = parser.getAttributeValue(null, "url")
-                    if (!url.isNullOrBlank() && videoId.isNullOrBlank()) {
-                        videoId = extractVideoIdFromUrl(url)
-                    }
-                    skip(parser)
-                }
-                else -> skip(parser)
-            }
-        }
-        return MediaGroupMetadata(videoId = videoId)
-    }
-
     private fun readText(parser: XmlPullParser): String {
         var result = ""
         if (parser.next() == XmlPullParser.TEXT) {
@@ -548,18 +439,6 @@ class YouTubeParser {
             parser.nextTag()
         }
         return result
-    }
-
-    private fun readAuthorName(parser: XmlPullParser): String? {
-        var name: String? = null
-        while (parser.next() != XmlPullParser.END_TAG) {
-            if (parser.eventType != XmlPullParser.START_TAG) continue
-            when (parser.name.localTagName()) {
-                "name" -> name = readText(parser).trim().ifBlank { null }
-                else -> skip(parser)
-            }
-        }
-        return name
     }
 
     private fun normalizeTranscriptFragment(raw: String?): String {
@@ -668,20 +547,12 @@ class YouTubeParser {
         val metadata: YouTubeFeedMetadata
     )
 
-    private data class EntryMetadata(
-        val videoId: String?,
-        val publishedAt: Long?
-    )
-
     private data class EntryData(
         val article: Article? = null,
         val videoId: String?,
         val publishedAt: Long?
     )
 
-    private data class MediaGroupMetadata(
-        val videoId: String?
-    )
 
     private data class MediaGroupData(
         val description: String,

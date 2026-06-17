@@ -6,6 +6,8 @@ import okhttp3.ResponseBody
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 
+private const val TELEGRAM_REQUEST_FAILED_MESSAGE = "Telegram request failed with code %s"
+
 class TelegramFetcher(
     private val okHttpClient: OkHttpClient
 ) {
@@ -13,7 +15,7 @@ class TelegramFetcher(
         val request = Request.Builder().url(url).build()
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                error("Telegram request failed with code ${response.code}")
+                error(TELEGRAM_REQUEST_FAILED_MESSAGE.format(response.code))
             }
             parseTelegramDocument(
                 body = response.body,

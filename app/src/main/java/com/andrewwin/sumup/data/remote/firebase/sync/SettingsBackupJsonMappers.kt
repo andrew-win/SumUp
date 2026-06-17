@@ -25,8 +25,8 @@ import org.json.JSONObject
 
 private fun JSONObject.optNullableString(name: String): String? {
     if (isNull(name)) return null
-    val value = optString(name, "").trim()
-    if (value.isBlank() || value.equals("null", ignoreCase = true)) return null
+    val value = optString(name, EMPTY_STRING).trim()
+    if (value.isBlank() || value.equals(NULL_STRING, ignoreCase = true)) return null
     return value
 }
 
@@ -37,20 +37,20 @@ private fun parseDeduplicationStrategyOrDefault(
     return when (rawValue?.uppercase()) {
         DeduplicationStrategy.LOCAL.name -> DeduplicationStrategy.LOCAL
         DeduplicationStrategy.CLOUD.name -> DeduplicationStrategy.CLOUD
-        "ADAPTIVE" -> DeduplicationStrategy.CLOUD
+        LEGACY_DEDUPLICATION_STRATEGY_ADAPTIVE -> DeduplicationStrategy.CLOUD
         else -> defaultValue
     }
 }
 
 private fun JSONObject.optArticleAutoCleanupHours(defaultValue: Int): Int {
-    if (has("articleAutoCleanupHours")) {
-        return optInt("articleAutoCleanupHours", defaultValue).coerceIn(
+    if (has(KEY_ARTICLE_AUTO_CLEANUP_HOURS)) {
+        return optInt(KEY_ARTICLE_AUTO_CLEANUP_HOURS, defaultValue).coerceIn(
             UserPreferences.MIN_ARTICLE_AUTO_CLEANUP_HOURS,
             UserPreferences.MAX_ARTICLE_AUTO_CLEANUP_HOURS
         )
     }
-    if (has("articleAutoCleanupDays")) {
-        return (optInt("articleAutoCleanupDays", 1) * 24).coerceIn(
+    if (has(KEY_ARTICLE_AUTO_CLEANUP_DAYS)) {
+        return (optInt(KEY_ARTICLE_AUTO_CLEANUP_DAYS, LEGACY_AUTO_CLEANUP_DAYS_DEFAULT) * HOURS_PER_DAY).coerceIn(
             UserPreferences.MIN_ARTICLE_AUTO_CLEANUP_HOURS,
             UserPreferences.MAX_ARTICLE_AUTO_CLEANUP_HOURS
         )
@@ -59,14 +59,14 @@ private fun JSONObject.optArticleAutoCleanupHours(defaultValue: Int): Int {
 }
 
 private fun JSONObject.optScheduledSummaryTimes(defaults: UserPreferences): String {
-    if (has("scheduledSummaryTimes")) {
-        return optString("scheduledSummaryTimes", defaults.scheduledSummaryTimes)
+    if (has(KEY_SCHEDULED_SUMMARY_TIMES)) {
+        return optString(KEY_SCHEDULED_SUMMARY_TIMES, defaults.scheduledSummaryTimes)
             .toScheduledSummaryTimes()
             .toScheduledSummaryTimesStorageValue()
     }
     val legacyTime = ScheduledSummaryTime(
-        hour = optInt("scheduledHour", defaults.scheduledHour),
-        minute = optInt("scheduledMinute", defaults.scheduledMinute)
+        hour = optInt(KEY_SCHEDULED_HOUR, defaults.scheduledHour),
+        minute = optInt(KEY_SCHEDULED_MINUTE, defaults.scheduledMinute)
     )
     return listOf(legacyTime).toScheduledSummaryTimesStorageValue().ifBlank {
         defaults.scheduledSummaryTimes
@@ -74,54 +74,54 @@ private fun JSONObject.optScheduledSummaryTimes(defaults: UserPreferences): Stri
 }
 
 fun UserPreferences.toBackupJson(): JSONObject = JSONObject().apply {
-    put("id", id)
-    put("aiStrategy", aiStrategy.name)
-    put("isScheduledSummaryEnabled", isScheduledSummaryEnabled)
-    put("isScheduledSummaryPushEnabled", isScheduledSummaryPushEnabled)
-    put("scheduledHour", scheduledHour)
-    put("scheduledMinute", scheduledMinute)
-    put("scheduledSummaryTimes", scheduledSummaryTimeList.toScheduledSummaryTimesStorageValue())
-    put("lastWorkRunTimestamp", lastWorkRunTimestamp)
-    put("isDeduplicationEnabled", isDeduplicationEnabled)
-    put("deduplicationStrategy", deduplicationStrategy.name)
-    put("localDeduplicationThreshold", localDeduplicationThreshold.toDouble())
-    put("cloudDeduplicationThreshold", cloudDeduplicationThreshold.toDouble())
-    put("minMentions", minMentions)
-    put("isHideSingleNewsEnabled", isHideSingleNewsEnabled)
-    put("modelPath", JSONObject.NULL)
-    put("isImportanceFilterEnabled", isImportanceFilterEnabled)
-    put("isAdaptiveExtractivePreprocessingEnabled", isAdaptiveExtractivePreprocessingEnabled)
-    put("adaptiveExtractiveOnlyBelowChars", adaptiveExtractiveOnlyBelowChars)
-    put("adaptiveExtractiveHighCompressionAboveChars", adaptiveExtractiveHighCompressionAboveChars)
-    put("adaptiveExtractiveCompressionPercentFirst", adaptiveExtractiveCompressionPercentFirst)
-    put("adaptiveExtractiveCompressionPercentMedium", adaptiveExtractiveCompressionPercentMedium)
-    put("adaptiveExtractiveCompressionPercentHigh", adaptiveExtractiveCompressionPercentHigh)
-    put("summaryItemsPerNewsInFeed", summaryItemsPerNewsInFeed)
-    put("summaryItemsPerNewsInScheduled", summaryItemsPerNewsInScheduled)
-    put("summaryNewsInFeedCloud", summaryNewsInFeedCloud)
-    put("summaryNewsInScheduledCloud", summaryNewsInScheduledCloud)
-    put("extractiveNewsInFeed", extractiveNewsInFeed)
-    put("extractiveSentencesInScheduled", extractiveSentencesInScheduled)
-    put("extractiveNewsInScheduled", extractiveNewsInScheduled)
-    put("showLastSummariesCount", showLastSummariesCount)
-    put("showInfographicNewsCount", showInfographicNewsCount)
-    put("aiMaxCharsSingleArticle", aiMaxCharsSingleArticle)
-    put("aiMaxCharsNewsCluster", aiMaxCharsNewsCluster)
-    put("aiMaxCharsSingleFeedArticle", aiMaxCharsSingleFeedArticle)
-    put("aiMaxCharsFeedCluster", aiMaxCharsFeedCluster)
-    put("aiMaxCharsTotal", aiMaxCharsTotal)
-    put("summaryPrompt", summaryPrompt)
-    put("isCustomSummaryPromptEnabled", isCustomSummaryPromptEnabled)
-    put("isFeedMediaEnabled", isFeedMediaEnabled)
-    put("isFeedDescriptionEnabled", isFeedDescriptionEnabled)
-    put("isFeedSummaryUseFullTextEnabled", isFeedSummaryUseFullTextEnabled)
-    put("isFeedTitleExcludeRegexEnabled", isFeedTitleExcludeRegexEnabled)
-    put("feedTitleExcludeRegex", feedTitleExcludeRegex)
-    put("isRecommendationsEnabled", isRecommendationsEnabled)
-    put("articleAutoCleanupHours", articleAutoCleanupHours)
-    put("appThemeMode", appThemeMode.name)
-    put("appLanguage", appLanguage.name)
-    put("summaryLanguage", summaryLanguage.name)
+    put(KEY_ID, id)
+    put(KEY_AI_STRATEGY, aiStrategy.name)
+    put(KEY_IS_SCHEDULED_SUMMARY_ENABLED, isScheduledSummaryEnabled)
+    put(KEY_IS_SCHEDULED_SUMMARY_PUSH_ENABLED, isScheduledSummaryPushEnabled)
+    put(KEY_SCHEDULED_HOUR, scheduledHour)
+    put(KEY_SCHEDULED_MINUTE, scheduledMinute)
+    put(KEY_SCHEDULED_SUMMARY_TIMES, scheduledSummaryTimeList.toScheduledSummaryTimesStorageValue())
+    put(KEY_LAST_WORK_RUN_TIMESTAMP, lastWorkRunTimestamp)
+    put(KEY_IS_DEDUPLICATION_ENABLED, isDeduplicationEnabled)
+    put(KEY_DEDUPLICATION_STRATEGY, deduplicationStrategy.name)
+    put(KEY_LOCAL_DEDUPLICATION_THRESHOLD, localDeduplicationThreshold.toDouble())
+    put(KEY_CLOUD_DEDUPLICATION_THRESHOLD, cloudDeduplicationThreshold.toDouble())
+    put(KEY_MIN_MENTIONS, minMentions)
+    put(KEY_IS_HIDE_SINGLE_NEWS_ENABLED, isHideSingleNewsEnabled)
+    put(KEY_MODEL_PATH, JSONObject.NULL)
+    put(KEY_IS_IMPORTANCE_FILTER_ENABLED, isImportanceFilterEnabled)
+    put(KEY_IS_ADAPTIVE_EXTRACTIVE_PREPROCESSING_ENABLED, isAdaptiveExtractivePreprocessingEnabled)
+    put(KEY_ADAPTIVE_EXTRACTIVE_ONLY_BELOW_CHARS, adaptiveExtractiveOnlyBelowChars)
+    put(KEY_ADAPTIVE_EXTRACTIVE_HIGH_COMPRESSION_ABOVE_CHARS, adaptiveExtractiveHighCompressionAboveChars)
+    put(KEY_ADAPTIVE_EXTRACTIVE_COMPRESSION_PERCENT_FIRST, adaptiveExtractiveCompressionPercentFirst)
+    put(KEY_ADAPTIVE_EXTRACTIVE_COMPRESSION_PERCENT_MEDIUM, adaptiveExtractiveCompressionPercentMedium)
+    put(KEY_ADAPTIVE_EXTRACTIVE_COMPRESSION_PERCENT_HIGH, adaptiveExtractiveCompressionPercentHigh)
+    put(KEY_SUMMARY_ITEMS_PER_NEWS_IN_FEED, summaryItemsPerNewsInFeed)
+    put(KEY_SUMMARY_ITEMS_PER_NEWS_IN_SCHEDULED, summaryItemsPerNewsInScheduled)
+    put(KEY_SUMMARY_NEWS_IN_FEED_CLOUD, summaryNewsInFeedCloud)
+    put(KEY_SUMMARY_NEWS_IN_SCHEDULED_CLOUD, summaryNewsInScheduledCloud)
+    put(KEY_EXTRACTIVE_NEWS_IN_FEED, extractiveNewsInFeed)
+    put(KEY_EXTRACTIVE_SENTENCES_IN_SCHEDULED, extractiveSentencesInScheduled)
+    put(KEY_EXTRACTIVE_NEWS_IN_SCHEDULED, extractiveNewsInScheduled)
+    put(KEY_SHOW_LAST_SUMMARIES_COUNT, showLastSummariesCount)
+    put(KEY_SHOW_INFOGRAPHIC_NEWS_COUNT, showInfographicNewsCount)
+    put(KEY_AI_MAX_CHARS_SINGLE_ARTICLE, aiMaxCharsSingleArticle)
+    put(KEY_AI_MAX_CHARS_NEWS_CLUSTER, aiMaxCharsNewsCluster)
+    put(KEY_AI_MAX_CHARS_SINGLE_FEED_ARTICLE, aiMaxCharsSingleFeedArticle)
+    put(KEY_AI_MAX_CHARS_FEED_CLUSTER, aiMaxCharsFeedCluster)
+    put(KEY_AI_MAX_CHARS_TOTAL, aiMaxCharsTotal)
+    put(KEY_SUMMARY_PROMPT, summaryPrompt)
+    put(KEY_IS_CUSTOM_SUMMARY_PROMPT_ENABLED, isCustomSummaryPromptEnabled)
+    put(KEY_IS_FEED_MEDIA_ENABLED, isFeedMediaEnabled)
+    put(KEY_IS_FEED_DESCRIPTION_ENABLED, isFeedDescriptionEnabled)
+    put(KEY_IS_FEED_SUMMARY_USE_FULL_TEXT_ENABLED, isFeedSummaryUseFullTextEnabled)
+    put(KEY_IS_FEED_TITLE_EXCLUDE_REGEX_ENABLED, isFeedTitleExcludeRegexEnabled)
+    put(KEY_FEED_TITLE_EXCLUDE_REGEX, feedTitleExcludeRegex)
+    put(KEY_IS_RECOMMENDATIONS_ENABLED, isRecommendationsEnabled)
+    put(KEY_ARTICLE_AUTO_CLEANUP_HOURS, articleAutoCleanupHours)
+    put(KEY_APP_THEME_MODE, appThemeMode.name)
+    put(KEY_APP_LANGUAGE, appLanguage.name)
+    put(KEY_SUMMARY_LANGUAGE, summaryLanguage.name)
 }
 
 fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
@@ -205,14 +205,14 @@ fun JSONObject.toUserPreferencesFromBackup(): UserPreferences {
         appLanguage = runCatching { AppLanguage.valueOf(optString("appLanguage", defaults.appLanguage.name)) }
             .getOrDefault(defaults.appLanguage),
         summaryLanguage = runCatching {
-            when (optString("summaryLanguage", defaults.summaryLanguage.name)) {
-                "ORIGINAL" -> when (runCatching {
-                    AppLanguage.valueOf(optString("appLanguage", defaults.appLanguage.name))
+            when (optString(KEY_SUMMARY_LANGUAGE, defaults.summaryLanguage.name)) {
+                LEGACY_SUMMARY_LANGUAGE_ORIGINAL -> when (runCatching {
+                    AppLanguage.valueOf(optString(KEY_APP_LANGUAGE, defaults.appLanguage.name))
                 }.getOrDefault(defaults.appLanguage)) {
                     AppLanguage.EN -> SummaryLanguage.EN
                     AppLanguage.UK -> SummaryLanguage.UK
                 }
-                else -> SummaryLanguage.valueOf(optString("summaryLanguage", defaults.summaryLanguage.name))
+                else -> SummaryLanguage.valueOf(optString(KEY_SUMMARY_LANGUAGE, defaults.summaryLanguage.name))
             }
         }.getOrDefault(defaults.summaryLanguage)
     )
@@ -234,26 +234,26 @@ fun AiModelConfig.Companion.fromBackupJson(
     syncPassphrase: String?,
     syncSaltBase64: String? = null
 ): AiModelConfig {
-    val name = item.optString("name", "").trim()
-    val modelName = item.optString("modelName", "").trim()
-    val encryptedApiKey = item.optString("apiKeyCiphertext", "").trim()
+    val name = item.optString(KEY_NAME, EMPTY_STRING).trim()
+    val modelName = item.optString(KEY_MODEL_NAME, EMPTY_STRING).trim()
+    val encryptedApiKey = item.optString(KEY_API_KEY_CIPHERTEXT, EMPTY_STRING).trim()
     val apiKey = when {
         encryptedApiKey.isNotBlank() -> {
             val passphrase = syncPassphrase?.trim().orEmpty()
-            require(passphrase.isNotBlank()) { "Sync passphrase is required to import API keys." }
+            require(passphrase.isNotBlank()) { SYNC_PASSPHRASE_REQUIRED_MESSAGE }
             when {
                 syncSaltBase64.isNullOrBlank() -> secretEncryptionManager.decryptFromSync(encryptedApiKey, passphrase).trim()
                 else -> secretEncryptionManager.decryptFromSyncSession(encryptedApiKey, passphrase, syncSaltBase64).trim()
             }
         }
-        else -> item.optString("apiKey", "").trim()
+        else -> item.optString(KEY_API_KEY, EMPTY_STRING).trim()
     }
-    require(name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()) { "Invalid AI config in backup." }
-    val provider = runCatching { AiProvider.valueOf(item.optString("provider")) }.getOrThrow()
-    val type = runCatching { AiModelType.valueOf(item.optString("type")) }.getOrThrow()
-    val sortOrder = if (item.has("sortOrder")) item.optInt("sortOrder", Int.MAX_VALUE) else legacyApiConfigSortOrder(
-        priority = item.optString("priority", "MEDIUM"),
-        isUseNow = item.optBoolean("isUseNow", false)
+    require(name.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()) { INVALID_AI_CONFIG_MESSAGE }
+    val provider = runCatching { AiProvider.valueOf(item.optString(KEY_PROVIDER)) }.getOrThrow()
+    val type = runCatching { AiModelType.valueOf(item.optString(KEY_TYPE)) }.getOrThrow()
+    val sortOrder = if (item.has(KEY_SORT_ORDER)) item.optInt(KEY_SORT_ORDER, Int.MAX_VALUE) else legacyApiConfigSortOrder(
+        priority = item.optString(KEY_PRIORITY, LEGACY_PRIORITY_MEDIUM),
+        isUseNow = item.optBoolean(KEY_IS_USE_NOW, false)
     )
     return AiModelConfig(
         name = name,
@@ -268,12 +268,81 @@ fun AiModelConfig.Companion.fromBackupJson(
 
 private fun legacyApiConfigSortOrder(priority: String, isUseNow: Boolean): Int {
     val priorityOffset = when (priority) {
-        "HIGH" -> 0
-        "MEDIUM" -> 1000
+        LEGACY_PRIORITY_HIGH -> 0
+        LEGACY_PRIORITY_MEDIUM -> 1000
         else -> 2000
     }
     return priorityOffset - if (isUseNow) 10000 else 0
 }
+
+private const val EMPTY_STRING = ""
+private const val NULL_STRING = "null"
+private const val LEGACY_DEDUPLICATION_STRATEGY_ADAPTIVE = "ADAPTIVE"
+private const val LEGACY_SUMMARY_LANGUAGE_ORIGINAL = "ORIGINAL"
+private const val LEGACY_PRIORITY_HIGH = "HIGH"
+private const val LEGACY_PRIORITY_MEDIUM = "MEDIUM"
+private const val LEGACY_AUTO_CLEANUP_DAYS_DEFAULT = 1
+private const val HOURS_PER_DAY = 24
+private const val KEY_ID = "id"
+private const val KEY_AI_STRATEGY = "aiStrategy"
+private const val KEY_IS_SCHEDULED_SUMMARY_ENABLED = "isScheduledSummaryEnabled"
+private const val KEY_IS_SCHEDULED_SUMMARY_PUSH_ENABLED = "isScheduledSummaryPushEnabled"
+private const val KEY_SCHEDULED_HOUR = "scheduledHour"
+private const val KEY_SCHEDULED_MINUTE = "scheduledMinute"
+private const val KEY_SCHEDULED_SUMMARY_TIMES = "scheduledSummaryTimes"
+private const val KEY_LAST_WORK_RUN_TIMESTAMP = "lastWorkRunTimestamp"
+private const val KEY_IS_DEDUPLICATION_ENABLED = "isDeduplicationEnabled"
+private const val KEY_DEDUPLICATION_STRATEGY = "deduplicationStrategy"
+private const val KEY_LOCAL_DEDUPLICATION_THRESHOLD = "localDeduplicationThreshold"
+private const val KEY_CLOUD_DEDUPLICATION_THRESHOLD = "cloudDeduplicationThreshold"
+private const val KEY_MIN_MENTIONS = "minMentions"
+private const val KEY_IS_HIDE_SINGLE_NEWS_ENABLED = "isHideSingleNewsEnabled"
+private const val KEY_MODEL_PATH = "modelPath"
+private const val KEY_IS_IMPORTANCE_FILTER_ENABLED = "isImportanceFilterEnabled"
+private const val KEY_IS_ADAPTIVE_EXTRACTIVE_PREPROCESSING_ENABLED = "isAdaptiveExtractivePreprocessingEnabled"
+private const val KEY_ADAPTIVE_EXTRACTIVE_ONLY_BELOW_CHARS = "adaptiveExtractiveOnlyBelowChars"
+private const val KEY_ADAPTIVE_EXTRACTIVE_HIGH_COMPRESSION_ABOVE_CHARS = "adaptiveExtractiveHighCompressionAboveChars"
+private const val KEY_ADAPTIVE_EXTRACTIVE_COMPRESSION_PERCENT_FIRST = "adaptiveExtractiveCompressionPercentFirst"
+private const val KEY_ADAPTIVE_EXTRACTIVE_COMPRESSION_PERCENT_MEDIUM = "adaptiveExtractiveCompressionPercentMedium"
+private const val KEY_ADAPTIVE_EXTRACTIVE_COMPRESSION_PERCENT_HIGH = "adaptiveExtractiveCompressionPercentHigh"
+private const val KEY_SUMMARY_ITEMS_PER_NEWS_IN_FEED = "summaryItemsPerNewsInFeed"
+private const val KEY_SUMMARY_ITEMS_PER_NEWS_IN_SCHEDULED = "summaryItemsPerNewsInScheduled"
+private const val KEY_SUMMARY_NEWS_IN_FEED_CLOUD = "summaryNewsInFeedCloud"
+private const val KEY_SUMMARY_NEWS_IN_SCHEDULED_CLOUD = "summaryNewsInScheduledCloud"
+private const val KEY_EXTRACTIVE_NEWS_IN_FEED = "extractiveNewsInFeed"
+private const val KEY_EXTRACTIVE_SENTENCES_IN_SCHEDULED = "extractiveSentencesInScheduled"
+private const val KEY_EXTRACTIVE_NEWS_IN_SCHEDULED = "extractiveNewsInScheduled"
+private const val KEY_SHOW_LAST_SUMMARIES_COUNT = "showLastSummariesCount"
+private const val KEY_SHOW_INFOGRAPHIC_NEWS_COUNT = "showInfographicNewsCount"
+private const val KEY_AI_MAX_CHARS_SINGLE_ARTICLE = "aiMaxCharsSingleArticle"
+private const val KEY_AI_MAX_CHARS_NEWS_CLUSTER = "aiMaxCharsNewsCluster"
+private const val KEY_AI_MAX_CHARS_SINGLE_FEED_ARTICLE = "aiMaxCharsSingleFeedArticle"
+private const val KEY_AI_MAX_CHARS_FEED_CLUSTER = "aiMaxCharsFeedCluster"
+private const val KEY_AI_MAX_CHARS_TOTAL = "aiMaxCharsTotal"
+private const val KEY_SUMMARY_PROMPT = "summaryPrompt"
+private const val KEY_IS_CUSTOM_SUMMARY_PROMPT_ENABLED = "isCustomSummaryPromptEnabled"
+private const val KEY_IS_FEED_MEDIA_ENABLED = "isFeedMediaEnabled"
+private const val KEY_IS_FEED_DESCRIPTION_ENABLED = "isFeedDescriptionEnabled"
+private const val KEY_IS_FEED_SUMMARY_USE_FULL_TEXT_ENABLED = "isFeedSummaryUseFullTextEnabled"
+private const val KEY_IS_FEED_TITLE_EXCLUDE_REGEX_ENABLED = "isFeedTitleExcludeRegexEnabled"
+private const val KEY_FEED_TITLE_EXCLUDE_REGEX = "feedTitleExcludeRegex"
+private const val KEY_IS_RECOMMENDATIONS_ENABLED = "isRecommendationsEnabled"
+private const val KEY_ARTICLE_AUTO_CLEANUP_HOURS = "articleAutoCleanupHours"
+private const val KEY_ARTICLE_AUTO_CLEANUP_DAYS = "articleAutoCleanupDays"
+private const val KEY_APP_THEME_MODE = "appThemeMode"
+private const val KEY_APP_LANGUAGE = "appLanguage"
+private const val KEY_SUMMARY_LANGUAGE = "summaryLanguage"
+private const val KEY_NAME = "name"
+private const val KEY_PROVIDER = "provider"
+private const val KEY_API_KEY_CIPHERTEXT = "apiKeyCiphertext"
+private const val KEY_API_KEY = "apiKey"
+private const val KEY_MODEL_NAME = "modelName"
+private const val KEY_TYPE = "type"
+private const val KEY_SORT_ORDER = "sortOrder"
+private const val KEY_PRIORITY = "priority"
+private const val KEY_IS_USE_NOW = "isUseNow"
+private const val SYNC_PASSPHRASE_REQUIRED_MESSAGE = "Sync passphrase is required to import API keys."
+private const val INVALID_AI_CONFIG_MESSAGE = "Invalid AI config in backup."
 
 fun JSONArray?.toAiConfigsFromBackup(
     secretEncryptionManager: SecretEncryptionManager,

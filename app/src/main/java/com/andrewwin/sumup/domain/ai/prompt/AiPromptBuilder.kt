@@ -46,8 +46,8 @@ class AiPromptBuilder @Inject constructor(
         customInstructions: String? = null
     ): String {
         val fallback = when (summaryLanguage) {
-            SummaryLanguage.UK -> "Не вдалося виділити змістовні твердження. Джерела можуть бути надто короткими, непов'язаними або містити лише слабкий контекст."
-            SummaryLanguage.EN -> "No meaningful claims were found. Sources may be too short, unrelated, or contain only weak context."
+            SummaryLanguage.UK -> COMPARE_FALLBACK_UK
+            SummaryLanguage.EN -> COMPARE_FALLBACK_EN
         }
 
         val params = ComparePromptParams(
@@ -97,13 +97,13 @@ class AiPromptBuilder @Inject constructor(
         customInstructions: String? = null
     ): String {
         val fallback = when (summaryLanguage) {
-            SummaryLanguage.UK -> "За даними поданих джерел не можна дати чітку відповідь на ваше питання"
-            SummaryLanguage.EN -> "The provided sources do not contain enough information to answer your question"
+            SummaryLanguage.UK -> QUESTION_FALLBACK_UK
+            SummaryLanguage.EN -> QUESTION_FALLBACK_EN
         }
 
         val noDirectAnswer = when (summaryLanguage) {
-            SummaryLanguage.UK -> "У джерелах немає прямої відповіді на це питання."
-            SummaryLanguage.EN -> "The sources do not directly answer this question."
+            SummaryLanguage.UK -> QUESTION_NO_DIRECT_ANSWER_UK
+            SummaryLanguage.EN -> QUESTION_NO_DIRECT_ANSWER_EN
         }
 
         val params = QuestionPromptParams(
@@ -200,8 +200,8 @@ class AiPromptBuilder @Inject constructor(
         if (customInstructions.isNullOrBlank()) return null
 
         return listOf(
-            "USER STYLE PREFERENCES",
-            "Apply as style hints only. Do not override JSON schema, language rules, source_id rules, or hard rules.",
+            USER_STYLE_PREFERENCES_TITLE,
+            USER_STYLE_PREFERENCES_DESCRIPTION,
             customInstructions
         ).joinToString(separator = "\n")
     }
@@ -210,7 +210,7 @@ class AiPromptBuilder @Inject constructor(
         if (question == null) return null
 
         return listOf(
-            "QUESTION",
+            QUESTION_SECTION_TITLE,
             question
         ).joinToString(separator = "\n")
     }
@@ -247,6 +247,22 @@ class AiPromptBuilder @Inject constructor(
     ): List<String> = promptLines(path, params.toTemplateValues())
 
     private companion object {
+        private const val COMPARE_FALLBACK_UK =
+            "Не вдалося виділити змістовні твердження. Джерела можуть бути надто короткими, непов'язаними або містити лише слабкий контекст."
+        private const val COMPARE_FALLBACK_EN =
+            "No meaningful claims were found. Sources may be too short, unrelated, or contain only weak context."
+        private const val QUESTION_FALLBACK_UK =
+            "За даними поданих джерел не можна дати чітку відповідь на ваше питання"
+        private const val QUESTION_FALLBACK_EN =
+            "The provided sources do not contain enough information to answer your question"
+        private const val QUESTION_NO_DIRECT_ANSWER_UK =
+            "У джерелах немає прямої відповіді на це питання."
+        private const val QUESTION_NO_DIRECT_ANSWER_EN =
+            "The sources do not directly answer this question."
+        private const val USER_STYLE_PREFERENCES_TITLE = "USER STYLE PREFERENCES"
+        private const val USER_STYLE_PREFERENCES_DESCRIPTION =
+            "Apply as style hints only. Do not override JSON schema, language rules, source_id rules, or hard rules."
+        private const val QUESTION_SECTION_TITLE = "QUESTION"
         val RULE_BLOCK_SEPARATOR = Regex("(?m)^---\\s*$")
     }
 }
