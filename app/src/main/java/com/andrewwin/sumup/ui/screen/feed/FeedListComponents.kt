@@ -107,14 +107,15 @@ fun FeedFilters(
     onShowHelpDescription: (String) -> Unit = {},
     searchContentDescription: String = "",
     pdfContentDescription: String = "",
-    filtersContentDescription: String = ""
+    filtersContentDescription: String = "",
+    modifier: Modifier = Modifier
 ) {
     var showDateMenu by remember { mutableStateOf(false) }
     var showSavedMenu by remember { mutableStateOf(false) }
     var showGroupMenu by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(bottom = 8.dp)
     ) {

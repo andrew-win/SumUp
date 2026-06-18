@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -15,9 +16,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -74,6 +77,12 @@ fun SummaryHistoryScreen(
     var openedHistorySummaryId by rememberSaveable { mutableStateOf<Long?>(null) }
     var historySearchQuery by rememberSaveable { mutableStateOf("") }
     var isHistorySearchFocused by remember { mutableStateOf(false) }
+    val focusedHistorySearchTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val historySearchTopPadding by animateDpAsState(
+        targetValue = if (isHistorySearchFocused) focusedHistorySearchTopPadding else 0.dp,
+        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+        label = "SummaryHistorySearchTopPadding"
+    )
     var historyDateFilter by rememberSaveable { mutableStateOf(HistoryDateFilter.HOUR_24) }
     var historySavedFilter by rememberSaveable { mutableStateOf(HistorySavedFilter.ALL) }
     val historyListState = rememberSaveable(saver = LazyListState.Saver) {
@@ -153,6 +162,7 @@ fun SummaryHistoryScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             AnimatedVisibility(
                 visible = !isHistorySearchFocused,
@@ -247,6 +257,7 @@ fun SummaryHistoryScreen(
                 exportLauncher.launch(name)
             },
             isExportEnabled = historySummaries.isNotEmpty(),
+            searchTopPadding = historySearchTopPadding,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),

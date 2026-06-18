@@ -14,6 +14,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -23,10 +24,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -58,6 +61,7 @@ import com.andrewwin.sumup.domain.ai.model.AiProvider
 import com.andrewwin.sumup.domain.sync.model.BackupSelection
 import com.andrewwin.sumup.domain.sync.model.SyncConflictStrategy
 import com.andrewwin.sumup.ui.components.AppExplanationDialog
+import com.andrewwin.sumup.ui.components.AppHelpOverlayTarget
 import com.andrewwin.sumup.ui.components.AppHelpToggleAction
 import com.andrewwin.sumup.ui.components.AppSearchField
 import com.andrewwin.sumup.ui.components.AppTopBar
@@ -125,6 +129,12 @@ internal fun SettingsScreen(
     var summaryPrompt by remember(userPreferences.summaryPrompt) { mutableStateOf(userPreferences.summaryPrompt) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var isSearchFocused by remember { mutableStateOf(false) }
+    val focusedSearchTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val searchTopPadding by animateDpAsState(
+        targetValue = if (isSearchFocused) focusedSearchTopPadding else 0.dp,
+        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+        label = "SettingsSearchTopPadding"
+    )
 
     var showClearArticlesDialog by remember { mutableStateOf(false) }
     var showClearEmbeddingsDialog by remember { mutableStateOf(false) }
@@ -409,16 +419,25 @@ internal fun SettingsScreen(
         ) {
             if (activeGroup == null) {
                 item {
-                    AppSearchField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = stringResource(R.string.settings_search_placeholder),
-                        leadingIcon = Icons.Default.Search,
-                        modifier = Modifier.fillMaxWidth(),
-                        onFocusChanged = { focused ->
-                            if (focused) isSearchFocused = true
-                        }
-                    )
+                    AppHelpOverlayTarget(
+                        isEnabled = isHelpMode,
+                        description = stringResource(R.string.settings_help_search),
+                        onShowDescription = { helpDescription = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = searchTopPadding)
+                    ) {
+                        AppSearchField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = stringResource(R.string.settings_search_placeholder),
+                            leadingIcon = Icons.Default.Search,
+                            modifier = Modifier.fillMaxWidth(),
+                            onFocusChanged = { focused ->
+                                if (focused) isSearchFocused = true
+                            }
+                        )
+                    }
                 }
                 if (filteredGroups.isEmpty()) {
                     item {

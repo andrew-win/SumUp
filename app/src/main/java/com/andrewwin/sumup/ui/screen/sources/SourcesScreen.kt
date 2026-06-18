@@ -6,9 +6,13 @@ import com.andrewwin.sumup.ui.screen.sources.model.SourceSortOrder
 
 import com.andrewwin.sumup.ui.screen.sources.model.SourcesUiState
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -16,6 +20,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -98,6 +104,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -143,12 +150,14 @@ private val SourceType.labelRes: Int
         SourceType.YOUTUBE -> R.string.source_type_youtube
     }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun SourcesScreen(
     viewModel: SourcesViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val imeVisible = WindowInsets.isImeVisible
     val snackbarHostState = remember { SnackbarHostState() }
     val uiState by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -170,6 +179,13 @@ fun SourcesScreen(
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
     var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
+    var isSearchFocused by remember { mutableStateOf(false) }
+    val searchTopPadding by animateDpAsState(
+        targetValue = if (isSearchFocused) 16.dp else 0.dp,
+        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+        label = "SourcesSearchTopPadding"
+    )
+    var wasImeVisible by remember { mutableStateOf(false) }
     val tabIcons = listOf(Icons.Default.Person, Icons.Default.Subscriptions)
     val tabLabels = listOf(
         stringResource(R.string.sources_tab_custom),
@@ -194,6 +210,27 @@ fun SourcesScreen(
     LaunchedEffect(isSelectionMode) {
         if (isSelectionMode && isHelpMode) {
             isHelpMode = false
+        }
+        if (isSelectionMode && isSearchFocused) {
+            focusManager.clearFocus(force = true)
+            isSearchFocused = false
+        }
+    }
+
+    BackHandler(enabled = isSearchFocused) {
+        focusManager.clearFocus(force = true)
+        isSearchFocused = false
+    }
+
+    LaunchedEffect(imeVisible, isSearchFocused) {
+        if (imeVisible) {
+            wasImeVisible = true
+        } else if (wasImeVisible && isSearchFocused) {
+            focusManager.clearFocus(force = true)
+            isSearchFocused = false
+            wasImeVisible = false
+        } else if (!isSearchFocused) {
+            wasImeVisible = false
         }
     }
 
@@ -357,10 +394,11 @@ fun SourcesScreen(
                             leadingIcon = Icons.Default.Search,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(bottom = 8.dp)
+                                .padding(top = searchTopPadding, bottom = 8.dp)
                                 .semantics {
                                     contentDescription = searchContentDescription
-                                }
+                                },
+                            onFocusChanged = { focused -> isSearchFocused = focused }
                         )
                     }
                 }

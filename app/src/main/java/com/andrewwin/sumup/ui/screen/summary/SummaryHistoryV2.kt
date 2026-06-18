@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.andrewwin.sumup.R
@@ -77,6 +78,7 @@ internal fun SummaryHistoryListSection(
     onSavedFilterChange: (HistorySavedFilter) -> Unit,
     onExportPdf: () -> Unit,
     isExportEnabled: Boolean,
+    searchTopPadding: Dp = 0.dp,
     modifier: Modifier = Modifier,
     onOpenSummary: (Summary) -> Unit,
     onToggleFavorite: (Summary) -> Unit,
@@ -110,7 +112,7 @@ internal fun SummaryHistoryListSection(
                 onSavedFilterChange = onSavedFilterChange,
                 onExportPdf = onExportPdf,
                 isExportEnabled = isExportEnabled,
-                modifier = Modifier.padding(bottom = 8.dp),
+                modifier = Modifier.padding(top = searchTopPadding, bottom = 8.dp),
                 isHelpMode = isHelpMode,
                 historySearchHelpDescription = historySearchHelpDescription,
                 historyPdfHelpDescription = historyPdfHelpDescription,

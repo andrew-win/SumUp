@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -22,10 +23,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -117,6 +120,7 @@ fun FeedScreen(
     val feedFiltersContentDescription = stringResource(R.string.feed_cd_filters)
     val feedFabContentDescription = stringResource(R.string.feed_cd_ai_fab)
     val feedBackToTopContentDescription = stringResource(R.string.feed_cd_back_to_top)
+    val focusedSearchTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     LaunchedEffect(toastMessageResId) {
         val messageResId = toastMessageResId ?: return@LaunchedEffect
@@ -138,6 +142,11 @@ fun FeedScreen(
     var isHelpMode by rememberSaveable { mutableStateOf(false) }
     var helpDescription by remember { mutableStateOf<String?>(null) }
     var isSearchFocused by remember { mutableStateOf(false) }
+    val searchTopPadding by animateDpAsState(
+        targetValue = if (isSearchFocused) focusedSearchTopPadding else 0.dp,
+        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+        label = "FeedSearchTopPadding"
+    )
 
     val listState = rememberSaveable(saver = LazyListState.Saver) {
         LazyListState()
@@ -291,7 +300,8 @@ fun FeedScreen(
                         onShowHelpDescription = { helpDescription = it },
                         searchContentDescription = feedSearchContentDescription,
                         pdfContentDescription = feedPdfContentDescription,
-                        filtersContentDescription = feedFiltersContentDescription
+                        filtersContentDescription = feedFiltersContentDescription,
+                        modifier = Modifier.padding(top = searchTopPadding)
                     )
                 }
 

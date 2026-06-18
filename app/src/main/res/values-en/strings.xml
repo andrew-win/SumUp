@@ -408,7 +408,7 @@ scheduled</string>
     <string name="help_dialog_confirm">Got it</string>
     <string name="settings_help_group_dialog_title">Settings group explanation</string>
     <string name="feed_help_ai_fab">— This button opens the AI dialog for the current filtered feed.\n— The selection includes only representative news items that remain after your filters and deduplication.\n— Inside it, you can ask questions about the feed or regenerate the response without going to settings.</string>
-    <string name="feed_help_search">— Feed search works across the news title and content.\n— The query is tokenized with debounce, and matching is checked before clusters are built.\n— In “Saved” mode this search is not applied; that mode shows all favorited news that already passed the other filters.</string>
+    <string name="feed_help_search">— Feed search works across the news title and content.\n— The query is tokenized with debounce, and matching is checked against ready cards and clusters.\n— In “Saved” mode search is applied to saved news after their groups are built.</string>
     <string name="feed_help_pdf_export">— PDF export saves exactly the current filtered feed.\n— The file includes representative articles from visible clusters, not the full list of duplicates inside them.\n— Media is included or not depending on the “Show media in feed” setting.</string>
     <string name="feed_help_filters">— The date filter removes news by `publishedAt` before the final feed is built.\n— “Saved” switches the feed to bookmarked news.\n— Group selection keeps only sources from that group.\n— All of these conditions are applied to the current feed build together with deduplication and the informativeness filter.</string>
     <string name="feed_help_processing">— This area shows the feed processing state.\n— The app is grouping similar news and removing duplicates.\n— When processing finishes, the final card list appears here.</string>
@@ -661,6 +661,7 @@ scheduled</string>
     <string name="instruction_settings_intro_body">Settings contain tools for flexible app control. The “?” icon in the top right enables Help Mode: in this mode, important blocks can be tapped to show explanations.</string>
     <string name="instruction_settings_help_mode_body">Help Mode helps you quickly understand what each setting does. Enable it with the “?” button and tap individual blocks to see short explanations.</string>
     <string name="instruction_settings_sections_body">Main sections include sign-in and sync, export/import, API keys, summarization, feed, scheduled summaries, recommendations, general settings, and memory.\n\nAPI keys are encrypted on the device. To sync or export them, you need to set a separate strong passphrase.</string>
+    <string name="settings_help_search">— Search checks section names, descriptions, and key settings inside them.\n— It keeps only the groups where a match was found.\n— Opening a matched group does not change any setting by itself.</string>
     <string name="settings_search_placeholder">Search settings here…</string>
     <string name="settings_search_empty">No settings matched your search</string>
     <string name="validation_name_required">Name is required</string>

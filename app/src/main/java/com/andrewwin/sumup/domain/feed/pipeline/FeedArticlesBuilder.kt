@@ -45,17 +45,14 @@ class FeedArticlesBuilder @Inject constructor(
 
         val baseFeedDataFlow = combine(
             articleRepository.enabledArticles,
-            sourceRepository.groupsWithSources,
-            searchQueryFlow
-        ) { enabledArticles, groups, query ->
+            sourceRepository.groupsWithSources
+        ) { enabledArticles, groups ->
             BaseFeedData(
                 enabledArticles = enabledArticles,
                 groupsWithSources = groups,
-                query = query,
                 fingerprint = buildBaseFeedDataFingerprint(
                     enabledArticles = enabledArticles,
-                    groupsWithSources = groups,
-                    query = query
+                    groupsWithSources = groups
                 )
             )
         }.distinctUntilChanged { old, new ->
@@ -72,13 +69,12 @@ class FeedArticlesBuilder @Inject constructor(
             FeedFilterParams(groupId, dateFilterHours, savedOnly, prefs, signal)
         }
 
-        return combine(baseFeedDataFlow, articleRepository.favoriteArticles, filterParamsFlow) { data, favoriteArticles, params ->
+        val builtFeedFlow = combine(baseFeedDataFlow, articleRepository.favoriteArticles, filterParamsFlow) { data, favoriteArticles, params ->
             val startedAt = System.currentTimeMillis()
             val feedData = FeedData(
                 enabledArticles = data.enabledArticles,
                 favoriteArticles = favoriteArticles,
-                groupsWithSources = data.groupsWithSources,
-                query = data.query
+                groupsWithSources = data.groupsWithSources
             )
             buildPipelineState(feedData, params).also { state ->
                 Log.d(
@@ -94,19 +90,28 @@ class FeedArticlesBuilder @Inject constructor(
             .debounce(FEED_BUILD_DEBOUNCE_MS)
             .flatMapLatest { state ->
                 flow {
-                    val emitStartedAt = System.currentTimeMillis()
-                    val buildClustersStartedAt = System.currentTimeMillis()
                     val clusters = buildClusters(state)
                     val filteredClusters = applyMinMentionsFilter(clusters, state.prefs, state.savedOnly)
                     emit(
-                        FeedResult(
+                        BuiltFeedResult(
                             clusters = filteredClusters,
-                            invalidationSignal = state.invalidationSignal,
-                            fingerprint = buildClusterFingerprint(filteredClusters)
+                            invalidationSignal = state.invalidationSignal
                         )
                     )
                 }
             }
+
+        return combine(builtFeedFlow, searchQueryFlow.distinctUntilChanged()) { feed, query ->
+            val searchFilteredClusters = applySearchFilter(
+                clusters = feed.clusters,
+                query = query
+            )
+            FeedResult(
+                clusters = searchFilteredClusters,
+                invalidationSignal = feed.invalidationSignal,
+                fingerprint = buildClusterFingerprint(searchFilteredClusters)
+            )
+        }
     }
 
     private fun buildPipelineState(data: FeedData, params: FeedFilterParams): FeedPipelineState {
@@ -132,17 +137,6 @@ class FeedArticlesBuilder @Inject constructor(
             processedArticles = processedArticles.filter { it.isFavorite }
         }
 
-        if (!params.savedOnly && data.query.isNotBlank()) {
-            val tokens = feedSearchMatcher.tokenizeQuery(data.query)
-            processedArticles = processedArticles.filter { article ->
-                feedSearchMatcher.matchesQueryWithTokenThreshold(
-                    title = article.title,
-                    content = article.content,
-                    queryTokens = tokens
-                )
-            }
-        }
-
         if (!params.savedOnly) {
             params.prefs.feedTitleExcludeRegexOrNull()?.let { excludeRegex ->
                 processedArticles = processedArticles.filterNot { article ->
@@ -165,7 +159,6 @@ class FeedArticlesBuilder @Inject constructor(
             fingerprint = buildPipelineStateFingerprint(
                 articles = processedArticles,
                 groupsWithSources = data.groupsWithSources,
-                query = data.query,
                 params = params
             )
         )
@@ -211,6 +204,32 @@ class FeedArticlesBuilder @Inject constructor(
             }
         }
     }
+
+    private fun applySearchFilter(
+        clusters: List<ArticleCluster>,
+        query: String
+    ): List<ArticleCluster> {
+        if (query.isBlank()) return clusters
+
+        val tokens = feedSearchMatcher.tokenizeQuery(query)
+        if (tokens.isEmpty()) return clusters
+
+        return clusters.filter { cluster ->
+            cluster.matchesSearchTokens(tokens)
+        }
+    }
+
+    private fun ArticleCluster.matchesSearchTokens(tokens: List<String>): Boolean {
+        if (representative.matchesSearchTokens(tokens)) return true
+        return duplicates.any { (article, _) -> article.matchesSearchTokens(tokens) }
+    }
+
+    private fun Article.matchesSearchTokens(tokens: List<String>): Boolean =
+        feedSearchMatcher.matchesQueryWithTokenThreshold(
+            title = title,
+            content = content,
+            queryTokens = tokens
+        )
 
     private suspend fun buildClustersFromDb(
         currentArticles: List<Article>,
@@ -324,6 +343,11 @@ class FeedArticlesBuilder @Inject constructor(
         val fingerprint: Long
     )
 
+    private data class BuiltFeedResult(
+        val clusters: List<ArticleCluster>,
+        val invalidationSignal: Long
+    )
+
     private data class FeedPipelineState(
         val articles: List<Article>,
         val prefs: UserSettings,
@@ -343,15 +367,13 @@ class FeedArticlesBuilder @Inject constructor(
     private data class BaseFeedData(
         val enabledArticles: List<Article>,
         val groupsWithSources: List<SourceGroupWithSources>,
-        val query: String,
         val fingerprint: Long
     )
 
     private data class FeedData(
         val enabledArticles: List<Article>,
         val favoriteArticles: List<Article>,
-        val groupsWithSources: List<SourceGroupWithSources>,
-        val query: String
+        val groupsWithSources: List<SourceGroupWithSources>
     )
 
     companion object {
@@ -362,10 +384,9 @@ class FeedArticlesBuilder @Inject constructor(
 
     private fun buildBaseFeedDataFingerprint(
         enabledArticles: List<Article>,
-        groupsWithSources: List<SourceGroupWithSources>,
-        query: String
+        groupsWithSources: List<SourceGroupWithSources>
     ): Long {
-        var fingerprint = query.hashCode().toLong()
+        var fingerprint = enabledArticles.size.toLong()
         fingerprint = fingerprint * 31 + buildArticleListFingerprint(enabledArticles)
         fingerprint = fingerprint * 31 + buildGroupsFingerprint(groupsWithSources)
         return fingerprint
@@ -374,10 +395,9 @@ class FeedArticlesBuilder @Inject constructor(
     private fun buildPipelineStateFingerprint(
         articles: List<Article>,
         groupsWithSources: List<SourceGroupWithSources>,
-        query: String,
         params: FeedFilterParams
     ): Long {
-        var fingerprint = query.hashCode().toLong()
+        var fingerprint = articles.size.toLong()
         fingerprint = fingerprint * 31 + buildArticleListFingerprint(articles)
         fingerprint = fingerprint * 31 + buildGroupsFingerprint(groupsWithSources)
         fingerprint = fingerprint * 31 + (params.groupId ?: 0L)
