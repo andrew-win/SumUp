@@ -873,6 +873,7 @@ fun SettingsAiConfigDialog(
     var provider by remember(config?.id) { mutableStateOf(config?.provider ?: AiProvider.GEMINI) }
     var modelName by remember(config?.id) { mutableStateOf(config?.modelName ?: "") }
     var isApiKeyVisible by remember { mutableStateOf(false) }
+    val isEditingConfig = config != null
     val providerLabel = stringResource(provider.labelRes)
 
     val availableModels by viewModel.availableModels.collectAsState()
@@ -986,11 +987,19 @@ fun SettingsAiConfigDialog(
                         label = { Text(stringResource(R.string.dialog_api_key)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        visualTransformation = if (isApiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            val icon = if (isApiKeyVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility
-                            IconButton(onClick = { isApiKeyVisible = !isApiKeyVisible }) {
-                                Icon(imageVector = icon, contentDescription = null)
+                        visualTransformation = if (!isEditingConfig && isApiKeyVisible) {
+                            VisualTransformation.None
+                        } else {
+                            PasswordVisualTransformation()
+                        },
+                        trailingIcon = if (isEditingConfig) {
+                            null
+                        } else {
+                            {
+                                val icon = if (isApiKeyVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility
+                                IconButton(onClick = { isApiKeyVisible = !isApiKeyVisible }) {
+                                    Icon(imageVector = icon, contentDescription = null)
+                                }
                             }
                         },
                         shape = MaterialTheme.shapes.large,

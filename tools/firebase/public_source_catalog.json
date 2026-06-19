@@ -47,6 +47,24 @@
           "url": "https://t.me/sportvukr",
           "type": "TELEGRAM",
           "isEnabled": true
+        },
+        {
+          "name": "Xsport",
+          "url": "https://t.me/s/xsport_ua",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "Sportarena",
+          "url": "https://sportarena.com/uk/feed/",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "UA-Football",
+          "url": "https://www.ua-football.com/rss/all.xml",
+          "type": "RSS",
+          "isEnabled": true
         }
       ]
     },
@@ -96,6 +114,24 @@
           "name": "Highload",
           "url": "https://highload.tech/uk/feed/",
           "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "AIN",
+          "url": "https://ain.ua/feed/",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "DOU Tech",
+          "url": "https://t.me/s/dou_tech",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "SPEKA",
+          "url": "https://t.me/s/spekamedia",
+          "type": "TELEGRAM",
           "isEnabled": true
         }
       ]
@@ -147,6 +183,24 @@
           "url": "https://fakty.com.ua/ua/feed/",
           "type": "RSS",
           "isEnabled": true
+        },
+        {
+          "name": "Ukrainska Pravda News",
+          "url": "https://t.me/s/ukrpravda_news",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "Hromadske",
+          "url": "https://t.me/s/hromadske_ua",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "LB.ua",
+          "url": "https://t.me/s/lbua_official",
+          "type": "TELEGRAM",
+          "isEnabled": true
         }
       ]
     },
@@ -196,6 +250,24 @@
           "name": "PSM7",
           "url": "https://psm7.com/uk/feed",
           "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "Forbes Ukraine",
+          "url": "https://t.me/s/Forbes_Ukraine_official",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "Finance.ua",
+          "url": "https://t.me/s/Finance_ukr",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "Mind.ua",
+          "url": "https://t.me/s/mindua",
+          "type": "TELEGRAM",
           "isEnabled": true
         }
       ]
@@ -247,6 +319,24 @@
           "url": "https://www.avtomir.ua/feed/",
           "type": "RSS",
           "isEnabled": true
+        },
+        {
+          "name": "AUTO.RIA News",
+          "url": "https://t.me/s/auto_ria_news",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "InfoCar",
+          "url": "https://t.me/s/infocarua",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "MotoCar",
+          "url": "https://t.me/s/motocarua",
+          "type": "TELEGRAM",
+          "isEnabled": true
         }
       ]
     },
@@ -297,6 +387,24 @@
           "url": "https://expert.com.ua/feed",
           "type": "RSS",
           "isEnabled": true
+        },
+        {
+          "name": "UA Monogram",
+          "url": "https://t.me/s/UAmonogram",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "JAS Ukraine",
+          "url": "https://t.me/s/jas_ukraine",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "Universe in the Pocket",
+          "url": "https://t.me/s/universeinthepocket",
+          "type": "TELEGRAM",
+          "isEnabled": true
         }
       ]
     },
@@ -345,6 +453,24 @@
         {
           "name": "LiRoom",
           "url": "https://t.me/liroom",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "The Village Ukraine",
+          "url": "https://t.me/s/villageua",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "UP Culture",
+          "url": "https://t.me/s/up_cultura",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "MCSC Ukraine",
+          "url": "https://t.me/s/mcscukraine",
           "type": "TELEGRAM",
           "isEnabled": true
         }
@@ -397,6 +523,18 @@
           "url": "https://t.me/uniangames",
           "type": "TELEGRAM",
           "isEnabled": true
+        },
+        {
+          "name": "Gagadget",
+          "url": "https://gagadget.com/uk/rss/",
+          "type": "RSS",
+          "isEnabled": true
+        },
+        {
+          "name": "XGTV",
+          "url": "https://t.me/s/XGTV1",
+          "type": "TELEGRAM",
+          "isEnabled": true
         }
       ]
     },
@@ -439,6 +577,12 @@
         {
           "name": "UHMC",
           "url": "https://t.me/uhmc2022",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "HRCGM",
+          "url": "https://t.me/HRCGM",
           "type": "TELEGRAM",
           "isEnabled": true
         }
@@ -489,6 +633,24 @@
         {
           "name": "eHealth Ukraine",
           "url": "https://t.me/ehealthukraine",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "MOZ Ukraine",
+          "url": "https://t.me/mozofficial",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "NSZU",
+          "url": "https://t.me/NSZU_gov",
+          "type": "TELEGRAM",
+          "isEnabled": true
+        },
+        {
+          "name": "PHC Ukraine",
+          "url": "https://t.me/PHC_Ukraine",
           "type": "TELEGRAM",
           "isEnabled": true
         }
