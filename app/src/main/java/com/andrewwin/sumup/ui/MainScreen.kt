@@ -192,7 +192,7 @@ private fun MainNavHost(
         enterTransition = {
             val fromRoute = initialState.destination.route
             val toRoute = targetState.destination.route
-            if (fromRoute in mainRoutes && toRoute in mainRoutes) {
+            if (shouldSkipScreenTransition(fromRoute, toRoute, mainRoutes)) {
                 EnterTransition.None
             } else {
                 AppMotion.screenEnter()
@@ -201,7 +201,7 @@ private fun MainNavHost(
         exitTransition = {
             val fromRoute = initialState.destination.route
             val toRoute = targetState.destination.route
-            if (fromRoute in mainRoutes && toRoute in mainRoutes) {
+            if (shouldSkipScreenTransition(fromRoute, toRoute, mainRoutes)) {
                 ExitTransition.None
             } else {
                 AppMotion.screenExit()
@@ -210,7 +210,7 @@ private fun MainNavHost(
         popEnterTransition = {
             val fromRoute = initialState.destination.route
             val toRoute = targetState.destination.route
-            if (fromRoute in mainRoutes && toRoute in mainRoutes) {
+            if (shouldSkipScreenTransition(fromRoute, toRoute, mainRoutes)) {
                 EnterTransition.None
             } else {
                 AppMotion.screenPopEnter()
@@ -219,7 +219,7 @@ private fun MainNavHost(
         popExitTransition = {
             val fromRoute = initialState.destination.route
             val toRoute = targetState.destination.route
-            if (fromRoute in mainRoutes && toRoute in mainRoutes) {
+            if (shouldSkipScreenTransition(fromRoute, toRoute, mainRoutes)) {
                 ExitTransition.None
             } else {
                 AppMotion.screenPopExit()
@@ -303,3 +303,16 @@ private fun MainNavHost(
         }
     }
 }
+
+private fun shouldSkipScreenTransition(
+    fromRoute: String?,
+    toRoute: String?,
+    mainRoutes: Set<String>
+): Boolean {
+    val isMainScreenTransition = fromRoute in mainRoutes && toRoute in mainRoutes
+    val isSettingsSectionTransition = isSettingsRoute(fromRoute) && isSettingsRoute(toRoute)
+    return isMainScreenTransition || isSettingsSectionTransition
+}
+
+private fun isSettingsRoute(route: String?): Boolean =
+    route == Screen.Settings.route || route == Screen.SettingsDetail.route

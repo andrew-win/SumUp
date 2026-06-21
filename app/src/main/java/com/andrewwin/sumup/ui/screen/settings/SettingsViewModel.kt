@@ -48,6 +48,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 @HiltViewModel
@@ -113,11 +114,13 @@ class SettingsViewModel @Inject constructor(
     val isApiKeySecurityNoticeDismissed: StateFlow<Boolean> = _isApiKeySecurityNoticeDismissed.asStateFlow()
 
     init {
-        viewModelScope.launch {
-            runCatching {
-                aiModelConfigRepository.migrateLegacyApiKeys()
-            }.onFailure { error ->
-                Log.e("SettingsViewModel", "Failed to migrate legacy AI configs", error)
+        if (isLegacyApiKeyMigrationStarted.compareAndSet(false, true)) {
+            viewModelScope.launch {
+                runCatching {
+                    aiModelConfigRepository.migrateLegacyApiKeys()
+                }.onFailure { error ->
+                    Log.e("SettingsViewModel", "Failed to migrate legacy AI configs", error)
+                }
             }
         }
         reloadSyncState()
@@ -700,6 +703,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     private companion object {
+        private val isLegacyApiKeyMigrationStarted = AtomicBoolean(false)
+
         private const val SETTINGS_PREFS_NAME = "settings_ui_preferences"
         private const val KEY_API_KEY_SECURITY_NOTICE_DISMISSED = "api_key_security_notice_dismissed"
     }

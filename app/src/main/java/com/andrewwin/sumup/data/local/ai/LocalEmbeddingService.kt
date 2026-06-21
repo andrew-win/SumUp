@@ -107,6 +107,7 @@ class LocalEmbeddingService(
             }.getOrDefault(FloatArray(EmbeddingUtils.LOCAL_EMBEDDING_DIM))
         }
 
+
     override fun close() {
         synchronized(sessionLock) {
             closeSessions()
